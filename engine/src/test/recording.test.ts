@@ -57,10 +57,6 @@ describe("recording: replay", () => {
     }
   });
 
-  it("replayRecording reaches the final state", () => {
-    expect(canonicalJson(replayRecording(recording))).toBe(canonicalJson(recording.finalState));
-  });
-
   it("reconstructStateAtTurn returns clones of the right snapshots", () => {
     const initial = reconstructStateAtTurn(recording, -1);
     expect(canonicalJson(initial)).toBe(canonicalJson(recording.initialState));
@@ -116,7 +112,7 @@ describe("recording: replay", () => {
 describe("recording: serialisation", () => {
   const recording = record(42, 12);
 
-  it("a state read back from JSON replays exactly like the original", () => {
+  it("a recording read back from JSON replays to its final state", () => {
     const parsed = JSON.parse(JSON.stringify(recording)) as GameRecording;
     expect(canonicalJson(replayRecording(parsed))).toBe(canonicalJson(recording.finalState));
   });

@@ -40,7 +40,7 @@ export interface TurnExecutedPayload extends ViewPayload {
   actions?: PlayerAction[];
 }
 
-export interface TurnErrorPayload {
+interface TurnErrorPayload {
   error?: string;
   errors?: string[];
 }

@@ -149,7 +149,7 @@ export const CARD_LABEL: Record<MissionType, string> = {
 export const LEAD_CHECK_ROUND = 10;
 
 /** "Destroy + Piracy/Survey": the primary a seat took, and what it took beside it. */
-export function handShapeOf(missions: ReadonlyArray<{ type: MissionType }>): string {
+function handShapeOf(missions: ReadonlyArray<{ type: MissionType }>): string {
   const label = (m: { type: MissionType }) => CARD_LABEL[m.type];
   const primaries = missions.filter((m) => MISSION_FAMILY[m.type] !== "secondary").map(label);
   const secondaries = missions.filter((m) => MISSION_FAMILY[m.type] === "secondary").map(label);
@@ -700,7 +700,7 @@ function aggregateUnfolding(games: PerGameStats[]): UnfoldingAggregate {
   };
 }
 
-export function distribution(values: number[]): Distribution {
+function distribution(values: number[]): Distribution {
   if (values.length === 0) return { min: 0, max: 0, mean: 0, median: 0, p25: 0, p75: 0, count: 0 };
   const sorted = [...values].sort((a, b) => a - b);
   const at = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];

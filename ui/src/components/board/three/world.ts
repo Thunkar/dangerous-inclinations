@@ -38,6 +38,7 @@ import {
   ringRadius,
   ringsOf,
   sectorEdgeAngle,
+  smoothstep,
   type Point,
   wellCenter,
 } from '../geometry'
@@ -201,11 +202,6 @@ function terraceElevations(wellId: GravityWellId): number[] {
   if (fall > cap) for (let i = 0; i < count; i++) elevations[i] *= cap / fall
   terraceCache.set(wellId, elevations)
   return elevations
-}
-
-function smoothstep(t: number): number {
-  const x = t <= 0 ? 0 : t >= 1 ? 1 : t
-  return x * x * (3 - 2 * x)
 }
 
 /** Radius inside which a well's surface is the flat floor its body rests on. */

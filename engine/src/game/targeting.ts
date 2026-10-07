@@ -22,10 +22,10 @@ import { missileCanReach } from "./missiles.ts";
 import {
   getSideFiringDirection,
   getSubsystemSide,
-  isDestroyed,
+  isOnBoard,
   isRingDirectionValid,
 } from "./ship.ts";
-import { isMooredAt } from "./stations.ts";
+import { isMooredAt, isMooredMidTurn } from "./stations.ts";
 
 /**
  * A seat as the targeting rules read it: a `Player`, or the `PlayerView` a
@@ -36,11 +36,6 @@ export interface Seat {
   hasDeployed: boolean;
   recovering: boolean;
   ship: Pick<ShipState, "wellId" | "ring" | "sector" | "hitPoints"> | null;
-}
-
-/** A deployed ship that is not destroyed. */
-export function isOnBoard(player: Pick<Seat, "hasDeployed" | "ship">): boolean {
-  return player.hasDeployed && player.ship !== null && !isDestroyed(player.ship);
 }
 
 /**
@@ -61,9 +56,14 @@ export function canBeFiredAt(target: Seat, stations: Station[]): boolean {
   return canBeScanned(target) && !isMooredAt(stations, positionOf(target.ship!));
 }
 
-/** Whether a ship here may fire at all: a moored ship fires at nobody (RULES §Stations). */
-export function canFireFrom(at: Position, stations: Station[]): boolean {
-  return !isMooredAt(stations, positionOf(at));
+/**
+ * Whether the acting ship may fire from `at`, having begun its turn at
+ * `start`: a moored ship fires at nobody (RULES §Stations, Moored), and during
+ * its own actions a ship is moored only while it holds the berth it began the
+ * turn on ({@link isMooredMidTurn}). One that arrives this turn still fires.
+ */
+export function canFireFrom(start: Position, at: Position, stations: Station[]): boolean {
+  return !isMooredMidTurn(stations, start, at);
 }
 
 export function isInWeaponRange(

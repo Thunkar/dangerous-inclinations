@@ -109,7 +109,7 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "subsystem_powered":
       return `${name(e.playerId)} powers ${e.subsystemType ? sub(e.subsystemType) : e.subsystemId} at ${e.amount}`;
     case "rotated":
-      return `${name(e.playerId)} rotates to ${e.facing}`;
+      return `${name(e.playerId)} rotates to ${e.facing}${heat(e.heat)}`;
     case "coasted":
       if (e.recovering) return `${name(e.playerId)} drifts to ${pos(e.to)}, nobody at the helm`;
       return e.moored

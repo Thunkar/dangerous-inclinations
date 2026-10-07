@@ -29,7 +29,7 @@ import type {
   SeizeAction,
 } from "../models/game.ts";
 import { OPENING_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
-import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
+import type { Subsystem, SubsystemId, SubsystemType } from "../models/subsystems.ts";
 import type { GameEvent, GameEventType } from "../models/events.ts";
 import type {
   SurveyMission,
@@ -52,11 +52,132 @@ import { ringVelocity, wrapSector } from "../game/geometry.ts";
 import { isInWeaponRange } from "../game/targeting.ts";
 import { cratesForMissions } from "../game/missions/missionDeck.ts";
 import { createDeterminismFields } from "../utils/rng.ts";
+import { viewFor } from "../game/view.ts";
+import { analyzeSituation, botDecideActions } from "../ai/index.ts";
+import { generateCandidates } from "../ai/planner.ts";
+import { DEFAULT_BOT_PARAMETERS, type ActionPlan } from "../ai/types.ts";
 
 export const BH = "blackhole";
 export const ALPHA = "planet-alpha";
 export const BETA = "planet-beta";
 export const GAMMA = "planet-gamma";
+
+/**
+ * Black hole ring 3, sector 4: where a ship on sector 0 of that ring lands
+ * after a coast, so a rival placed here is the one a coasting ship ends beside.
+ */
+export const LANDING: Position = { wellId: BH, ring: 3, sector: 4 };
+
+/** A position on `wellId` (the black hole by default) at `ring`, `sector`. */
+export const at = (ring: number, sector: number, wellId: string = BH): Position => ({
+  wellId,
+  ring,
+  sector,
+});
+
+/** A ship on black hole `ring`, `sector`, facing `facing`: the shooter's seat in a weapons test. */
+export const attackerAt = (
+  ring: number,
+  sector: number,
+  facing: Facing = "prograde"
+): Position & { facing: Facing } => ({ wellId: BH, ring, sector, facing });
+
+// ---------------------------------------------------------------------------
+// Loadouts
+// ---------------------------------------------------------------------------
+
+type Slot = SubsystemType | null;
+const hull = (bow: Slot, s0: Slot, s1: Slot, s2: Slot, s3: Slot): ShipLoadout => ({
+  forwardSlots: [bow],
+  sideSlots: [s0, s1, s2, s3],
+});
+
+/**
+ * Every hull a test flies, by what is in its slots (bow; side-0, side-1 port,
+ * side-2, side-3 starboard). A test that needs a ship names one of these.
+ */
+export const LOADOUTS = {
+  /** The default hull: railgun; laser, laser, shields, missiles. */
+  gunship: DEFAULT_LOADOUT,
+  /** Railgun; port laser, shields, starboard laser, missiles: a laser on each side. */
+  starboardLaser: hull("railgun", "laser", "shields", "laser", "missiles"),
+  /** Railgun; laser, rack, shields, missiles: every kind of gun, a port laser first. */
+  brawler: hull("railgun", "laser", "ballistic_rack", "shields", "missiles"),
+  /** Railgun; rack, laser, shields, missiles: every kind of gun, the rack on side-0. */
+  railRack: hull("railgun", "ballistic_rack", "laser", "shields", "missiles"),
+  /** Railgun; rack, laser, shields, laser: one rack and no launcher. */
+  rack: hull("railgun", "ballistic_rack", "laser", "shields", "laser"),
+  /** Railgun; rack, laser, rack, laser: two racks, one a side. */
+  twoRacks: hull("railgun", "ballistic_rack", "laser", "ballistic_rack", "laser"),
+  /** Railgun; rack, laser, rack, missiles: two racks and a launcher. */
+  racksAndMissiles: hull("railgun", "ballistic_rack", "laser", "ballistic_rack", "missiles"),
+  /** Railgun; rack, laser, shields, shields: a rack in front of two walls. */
+  rackTwoShields: hull("railgun", "ballistic_rack", "laser", "shields", "shields"),
+  /** Railgun; rack, radiator, shields, missiles: every gun aboard is one shields stop. */
+  slugger: hull("railgun", "ballistic_rack", "radiator", "shields", "missiles"),
+  /** Railgun; rack, radiator, shields, shields: off its ring only the rack bears. */
+  railgunRack: hull("railgun", "ballistic_rack", "radiator", "shields", "shields"),
+  /** Railgun; laser, rack, shields, radiator: the hunter the simulator's overrides name. */
+  hunter: hull("railgun", "laser", "ballistic_rack", "shields", "radiator"),
+  /** Railgun; laser, laser, shields, shields: two walls, no launcher. */
+  twoShields: hull("railgun", "laser", "laser", "shields", "shields"),
+  /** Railgun; four shields: more to light than a ship can cool. */
+  fourShields: hull("railgun", "shields", "shields", "shields", "shields"),
+  /** Railgun; radiator, laser, shields, laser: one radiator. */
+  radiator: hull("railgun", "radiator", "laser", "shields", "laser"),
+  /** Railgun; radiator, radiator, shields, laser: two radiators. */
+  twoRadiators: hull("railgun", "radiator", "radiator", "shields", "laser"),
+  /** Railgun; radiator, radiator, shields, shields: the railgun is the only gun. */
+  railgunOnly: hull("railgun", "radiator", "radiator", "shields", "shields"),
+  /** Railgun; missiles, radiator, shields, shields: a railgun and a launcher. */
+  raider: hull("railgun", "missiles", "radiator", "shields", "shields"),
+  /** Sensor; laser, laser, shields, missiles: the default hull with a sensor bow. */
+  sensor: hull("sensor_array", "laser", "laser", "shields", "missiles"),
+  /** Sensor; laser, plasma, shields, missiles: two port guns of different kinds. */
+  sensorGuns: hull("sensor_array", "laser", "plasma_cannon", "shields", "missiles"),
+  /** Sensor; radiator, laser, shields, missiles. */
+  sensorRadiator: hull("sensor_array", "radiator", "laser", "shields", "missiles"),
+  /** Sensor; laser, shields, radiator, missiles. */
+  sensorLaserMissiles: hull("sensor_array", "laser", "shields", "radiator", "missiles"),
+  /** Sensor; laser, missiles, shields, radiator: both port slots armed. */
+  sensorPortGuns: hull("sensor_array", "laser", "missiles", "shields", "radiator"),
+  /** Sensor; laser, shields, radiator, radiator: one port laser. */
+  sensorPortLaser: hull("sensor_array", "laser", "shields", "radiator", "radiator"),
+  /** Sensor; shields, radiator, radiator, laser: one starboard laser, 2 damage. */
+  sensorStarboardLaser: hull("sensor_array", "shields", "radiator", "radiator", "laser"),
+  /** Sensor; shields, radiator, radiator, rack: the only gun is one shields stop. */
+  sensorRack: hull("sensor_array", "shields", "radiator", "radiator", "ballistic_rack"),
+  /** Sensor; rack, laser, shields, radiator: a rack on side-0 and a wall on side-2. */
+  sensorRackWall: hull("sensor_array", "ballistic_rack", "laser", "shields", "radiator"),
+  /** Sensor; radiator, missiles, shields, rack: a launcher and a rack. */
+  sensorMissilesRack: hull("sensor_array", "radiator", "missiles", "shields", "ballistic_rack"),
+  /** Sensor; radiator, radiator, shields, shields: walls and nothing that shoots. */
+  sensorWalls: hull("sensor_array", "radiator", "radiator", "shields", "shields"),
+  /** Sensor; shields, shields, radiator, radiator: no weapon aboard. */
+  unarmed: hull("sensor_array", "shields", "shields", "radiator", "radiator"),
+  /** Sensor; plasma, shields, plasma, radiator: a plasma cannon each side. */
+  plasma: hull("sensor_array", "plasma_cannon", "shields", "plasma_cannon", "radiator"),
+  /** Disruptor; shields, shields, radiator, radiator: nothing else that shoots. */
+  disruptor: hull("disruptor", "shields", "shields", "radiator", "radiator"),
+  /** Disruptor; plasma, shields, radiator, radiator: plasma strips the wall the disruptor needs gone. */
+  disruptorPlasma: hull("disruptor", "plasma_cannon", "shields", "radiator", "radiator"),
+  /** Disruptor; laser, shields, radiator, radiator. */
+  disruptorLaser: hull("disruptor", "laser", "shields", "radiator", "radiator"),
+  /** Disruptor; disruptor, shields, radiator, radiator: one in the bow, one on side-0. */
+  twoDisruptors: hull("disruptor", "disruptor", "shields", "radiator", "radiator"),
+  /** Compressor; missiles, laser, shields, laser. */
+  compressor: hull("fuel_compressor", "missiles", "laser", "shields", "laser"),
+  /** Compressor; laser, laser, shields, radiator. */
+  compressorLasers: hull("fuel_compressor", "laser", "laser", "shields", "radiator"),
+  /** Compressor; shields, shields, radiator, laser: the hauler with no sensor. */
+  hauler: hull("fuel_compressor", "shields", "shields", "radiator", "laser"),
+  /** Missiles; missiles, missiles, radiator, shields: the missile boat that makes salvos fly. */
+  missileBoat: hull("missiles", "missiles", "missiles", "radiator", "shields"),
+  /** A launcher in the bow and four empty side slots. */
+  missileBow: hull("missiles", null, null, null, null),
+  /** An empty bow and one port laser: nothing else fires. */
+  laserOnly: hull(null, "laser", null, null, null),
+} satisfies Record<string, ShipLoadout>;
 
 export function makePlayer(
   id: string,
@@ -183,6 +304,17 @@ export function withSub(
   return withShip(state, playerId, updateSubsystem(getShip(state, playerId), subsystemId, patch));
 }
 
+/**
+ * The player's engines broken, so every move it has is a coast from where it
+ * was put, and a cube of heat on the track, so running cold to repair them is
+ * not on offer: what a bot does then is shoot.
+ */
+export function grounded(state: GameState, playerId = "p1"): GameState {
+  return withShip(withSub(state, playerId, "engines", { isBroken: true }), playerId, {
+    heat: { currentHeat: 1 },
+  });
+}
+
 /** Give a player missions and the crates those missions imply. */
 export function withMissions(state: GameState, playerId: string, missions: Mission[]): GameState {
   return withPlayer(state, playerId, { missions, cargo: cratesForMissions(missions) });
@@ -209,6 +341,23 @@ export function approachSector(state: GameState, planetId: string): number {
   const station = getStationForPlanet(state.stations, planetId);
   if (!station) throw new Error(`no station at ${planetId}`);
   return wrapSector(station.sector - ringVelocity(planetId, station.ring));
+}
+
+/** Where `planetId`'s station is now: its berth. */
+export function berthOf(state: GameState, planetId: string): Position {
+  const station = getStationForPlanet(state.stations, planetId);
+  if (!station) throw new Error(`no station at ${planetId}`);
+  return { wellId: planetId, ring: station.ring, sector: station.sector };
+}
+
+/** `playerId` moved onto `planetId`'s station ring, one coast short of the station. */
+export function shortOfStation(state: GameState, playerId: string, planetId: string): GameState {
+  const { ring } = berthOf(state, planetId);
+  return withShip(state, playerId, {
+    wellId: planetId,
+    ring,
+    sector: approachSector(state, planetId),
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -348,6 +497,55 @@ export const takenData = (mission: InterceptTransmissionMission | SurveyMission)
   isPickedUp: true,
 });
 
+/** The Deliver card's own crate (its id is the card's `cargoId`), aboard unless `isPickedUp` is false. */
+export const crateOf = (mission: DeliverCargoMission, isPickedUp = true): Cargo => ({
+  ...cratesForMissions([mission])[0],
+  isPickedUp,
+});
+
+/** The loot a Piracy card's seizure is sold as, aboard. */
+export const lootOf = (mission: PiracyMission): Cargo => lootCargo(mission.cargoId, mission.id);
+
+/** The black box a Salvage card takes from a wreck, aboard. */
+export const blackBoxOf = (mission: SalvageMission): Cargo =>
+  dataCargo(mission.cargoId, mission.id);
+
+/** The same items, every one of them aboard. */
+export const cratesAboard = (cargo: Cargo[]): Cargo[] =>
+  cargo.map((c) => ({ ...c, isPickedUp: true }));
+
+/**
+ * p1 holds `pirate` and sits one coast short of `at`; p2 holds `victim` at
+ * `at` with everything those cards imply aboard (the crates picked up, a
+ * Survey's or an Intercept's data taken), so p1's coast ends beside it. A
+ * `bystander` hand puts p3 at `at` too, loaded the same way.
+ */
+export function alongside(
+  pirate: Mission[],
+  victim: Mission[],
+  at: Position = LANDING,
+  bystander?: Mission[]
+): GameState {
+  let state = makeGameState([
+    makePlayer("p1", { ...at, sector: wrapSector(at.sector - ringVelocity(at.wellId, at.ring)) }),
+    makePlayer("p2", at),
+    ...(bystander ? [makePlayer("p3", at)] : []),
+  ]);
+  state = withMissions(state, "p1", pirate);
+  const loaded: Array<[string, Mission[]]> = [["p2", victim]];
+  if (bystander) loaded.push(["p3", bystander]);
+  for (const [id, missions] of loaded) {
+    state = withMissions(state, id, missions);
+    const data = missions.flatMap((m) =>
+      m.type === "survey" || m.type === "intercept_transmission" ? [takenData(m)] : []
+    );
+    state = withPlayer(state, id, {
+      cargo: [...cratesAboard(getPlayer(state, id).cargo), ...data],
+    });
+  }
+  return state;
+}
+
 /** What a station reads off an arriving ship: its hold, its hand, its tank and where it has sold. */
 export function dockingShip(state: GameState, playerId: string) {
   const p = getPlayer(state, playerId);
@@ -446,6 +644,9 @@ export const jump = (
   data: { destinationWellId, sectorAdjustment },
 });
 
+/** A coast with `playerId` already stamped on it, for `executeTurn` called directly. */
+export const coastAs = (playerId: string): PlayerAction => ({ ...coast(1), playerId });
+
 /** Execute a turn for the active player, stamping their id onto every action. */
 export function executeTurnAs(
   state: GameState,
@@ -474,11 +675,92 @@ export function expectRefusedUnless(refused: TurnResult, accepted: TurnResult): 
   expect(accepted.errors).toBeUndefined();
 }
 
+/**
+ * Run `check` on every case in turn. The first case that fails stops the loop
+ * and its assertion carries the case's label, so one test can walk a table of
+ * hundreds of turns and still say which one broke.
+ */
+export function checkEach<T>(
+  cases: readonly T[],
+  label: (c: T) => string,
+  check: (c: T) => void
+): void {
+  for (const c of cases) {
+    try {
+      check(c);
+    } catch (error) {
+      if (error instanceof Error) error.message = `${label(c)}: ${error.message}`;
+      throw error;
+    }
+  }
+}
+
 /** Execute and throw on validation errors (for setup steps). */
 export function mustExecute(state: GameState, ...actions: Array<Draft<PlayerAction>>): GameState {
   const result = executeTurnAs(state, ...actions);
   if (result.errors?.length) throw new Error(result.errors.join("; "));
   return result.gameState;
+}
+
+// ---------------------------------------------------------------------------
+// Bot turns
+// ---------------------------------------------------------------------------
+
+/** What `viewerId`'s bot (p1's by default) reads off the board from its own view. */
+export function situationOf(state: GameState, viewerId = "p1") {
+  return analyzeSituation(viewFor(state, viewerId), DEFAULT_BOT_PARAMETERS);
+}
+
+/** The engine accepts the turn `botId`'s bot decides on. */
+export function expectBotTurnAccepted(state: GameState, botId: string): void {
+  expect(
+    executeTurn(state, botDecideActions(viewFor(state, botId)).actions).errors
+  ).toBeUndefined();
+}
+
+/** The shots `botId`'s bot would take this turn. */
+export function shotsOf(state: GameState, botId: string): FireWeaponAction[] {
+  return botDecideActions(viewFor(state, botId)).actions.filter(
+    (a): a is FireWeaponAction => a.type === "fire_weapon"
+  );
+}
+
+/** The plan that shoots at `targetId`, as `botId`'s planner builds it. */
+export function planAgainst(state: GameState, botId: string, targetId: string): ActionPlan {
+  const plan = generateCandidates(situationOf(state, botId), DEFAULT_BOT_PARAMETERS).find(
+    (c) => c.targetId === targetId
+  );
+  if (!plan) throw new Error(`no candidate shooting at ${targetId}`);
+  return plan;
+}
+
+/**
+ * Play turns until `done` or the budget runs out. The bot decides from its
+ * own view; every other player coasts. `before` sees each of the bot's turns
+ * before it is played, `after` every state the table reaches.
+ */
+export function playUntil(
+  start: GameState,
+  botId: string,
+  done: (state: GameState) => boolean,
+  maxTurns = 60,
+  hooks: {
+    before?: (state: GameState, actions: PlayerAction[]) => void;
+    after?: (state: GameState, turn: number) => void;
+  } = {}
+): GameState {
+  let state = start;
+  for (let i = 0; i < maxTurns && state.phase === "active" && !done(state); i++) {
+    const active = state.players[state.activePlayerIndex];
+    const mine = active.id === botId;
+    const actions = mine ? botDecideActions(viewFor(state, botId)).actions : [coastAs(active.id)];
+    if (mine) hooks.before?.(state, actions);
+    const result = executeTurn(state, actions);
+    expect(result.errors, `turn ${i} by ${active.id}`).toBeUndefined();
+    state = result.gameState;
+    hooks.after?.(state, i);
+  }
+  return state;
 }
 
 // ---------------------------------------------------------------------------

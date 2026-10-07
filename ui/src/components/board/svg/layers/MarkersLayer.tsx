@@ -8,6 +8,7 @@ import { getWellName } from '@dangerous-inclinations/engine'
 import type { HomeMarker, StationMarker } from '../../model'
 import { positionPoint, wellColor } from '../../geometry'
 import { BOARD } from '../palette'
+import { placeLabel } from '../../../../utils/route'
 
 /** The sold-at squares under a station: their side and the step between them. */
 const SOLD_SIZE = 7
@@ -25,7 +26,7 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
         const p = positionPoint(home.position)
         return (
           <g key={`home-${home.playerId}`} opacity={0.8}>
-            <title>{`${home.name}'s Home · ${getWellName(home.position.wellId)} R${home.position.ring} S${home.position.sector}`}</title>
+            <title>{`${home.name}'s Home · ${placeLabel(home.position)}`}</title>
             {/* Landing-pad brackets at the four corners: a berth, not a hull outline
                 (a ship parked on its Home sits inside them). */}
             {[

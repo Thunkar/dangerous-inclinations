@@ -188,7 +188,7 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
  * scans, Destroy with guns, anything else hauls. A Survey is a dive any
  * loadout can make, so the secondaries never move the role.
  */
-export function classifyRole(missions: Mission[]): BotRole {
+function classifyRole(missions: Mission[]): BotRole {
   const active = missions.filter(isOpenMission);
   if (count(active, "intercept_transmission") > 0) return "interceptor";
   if (count(active, "destroy_ship") > 0) return "hunter";

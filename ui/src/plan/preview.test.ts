@@ -38,6 +38,15 @@ import {
   type PlanExtras,
   type PlanStep,
 } from './preview'
+import {
+  ALPHA,
+  LOADOUTS,
+  makeGameState,
+  makePlayer,
+  tankerMission,
+  withShip,
+  withSub,
+} from '../../../engine/src/test/testUtils.ts'
 
 interface Plan {
   steps: PlanStep[]
@@ -178,12 +187,7 @@ const GAMES: GameConfig[] = [
   {
     seed: 4,
     botCount: 3,
-    seatLoadouts: {
-      'bot-1': {
-        forwardSlots: ['missiles'],
-        sideSlots: ['missiles', 'missiles', 'radiator', 'shields'],
-      },
-    },
+    seatLoadouts: { 'bot-1': LOADOUTS.missileBoat },
     seatHands: { 'bot-1': 'destroy_ship' },
   },
 ]
@@ -192,21 +196,12 @@ const TURNS = GAMES.flatMap(playedTurns)
 const replaceMove = (steps: PlanStep[], move: MoveChoice): PlanStep[] =>
   steps.map(s => (s.kind === 'move' ? { ...s, move } : s))
 
-const withShip = (state: GameState, change: (player: Player) => Player): GameState => {
-  const next = structuredClone(state)
-  next.players[next.activePlayerIndex] = change(next.players[next.activePlayerIndex])
-  return next
-}
+/** The player whose turn it is. */
+const active = (state: GameState): string => state.players[state.activePlayerIndex].id
 
-const breakTile =
-  (tile: SubsystemId) =>
-  (player: Player): Player => ({
-    ...player,
-    ship: {
-      ...player.ship,
-      subsystems: player.ship.subsystems.map(s => (s.id === tile ? { ...s, isBroken: true } : s)),
-    },
-  })
+/** The active ship with one tile broken. */
+const breakTile = (state: GameState, tile: SubsystemId): GameState =>
+  withSub(state, active(state), tile, { isBroken: true })
 
 type Mutation = (turn: Turn, plan: Plan) => Array<{ state: GameState; plan: Plan }>
 
@@ -265,21 +260,21 @@ const MUTATIONS: Record<string, Mutation> = {
     })
   },
   'an empty tank': ({ state }, plan) => [
-    { state: withShip(state, p => ({ ...p, ship: { ...p.ship, reactionMass: 0 } })), plan },
+    { state: withShip(state, active(state), { reactionMass: 0 }), plan },
   ],
   'one fuel': ({ state }, plan) => [
     {
-      state: withShip(state, p => ({ ...p, ship: { ...p.ship, reactionMass: 1 } })),
+      state: withShip(state, active(state), { reactionMass: 1 }),
       plan: {
         ...plan,
         steps: replaceMove(plan.steps, { kind: 'burn', intensity: 'soft', adjustment: 1 }),
       },
     },
   ],
-  'broken engines': ({ state }, plan) => [{ state: withShip(state, breakTile('engines')), plan }],
+  'broken engines': ({ state }, plan) => [{ state: breakTile(state, 'engines'), plan }],
   'broken thrusters, rotating': ({ state }, plan) => [
     {
-      state: withShip(state, breakTile('rotation')),
+      state: breakTile(state, 'rotation'),
       plan: plan.steps.some(s => s.kind === 'rotate')
         ? plan
         : { ...plan, steps: [{ id: id(), kind: 'rotate' }, ...plan.steps] },
@@ -287,7 +282,7 @@ const MUTATIONS: Record<string, Mutation> = {
   ],
   'broken scoop, scooping': ({ state }, plan) => [
     {
-      state: withShip(state, breakTile('scoop')),
+      state: breakTile(state, 'scoop'),
       plan: { ...plan, steps: replaceMove(plan.steps, { kind: 'coast', scoop: true }) },
     },
   ],
@@ -378,7 +373,7 @@ const MUTATIONS: Record<string, Mutation> = {
     if (!sensor || !rival) return []
     return [
       {
-        state: withShip(state, breakTile(sensor.id)),
+        state: breakTile(state, sensor.id),
         plan: {
           ...plan,
           steps: [
@@ -462,7 +457,7 @@ const MUTATIONS: Record<string, Mutation> = {
 }
 
 describe('the plan preview against the engine', () => {
-  it('has real turns to read', () => {
+  it('finds nothing wrong with any turn a bot takes, and the engine takes what it sends', () => {
     expect(TURNS.length).toBeGreaterThan(100)
     // The opening round, a turn back from Home and a moored ship are all in there.
     expect(TURNS.some(t => t.state.turn === 1)).toBe(true)
@@ -477,9 +472,7 @@ describe('the plan preview against the engine', () => {
         )
       )
     ).toBe(true)
-  })
 
-  it('finds nothing wrong with any turn a bot takes, and the engine takes what it sends', () => {
     const disagreements = TURNS.flatMap(turn => {
       const active = turn.state.players[turn.state.activePlayerIndex]
       const plan = planOf(active, turn.actions)
@@ -558,5 +551,67 @@ describe('the plan preview against the engine', () => {
     })
     expect(offered).toBeGreaterThan(0)
     expect(blocked).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * Whether a plan ends with a stop at a station is the preview's alone to say
+ * (the order tables hold the rest of these two turns to the engine): it must
+ * offer the stop exactly when the engine docks.
+ */
+describe('the preview offers a dock exactly when the engine docks (RULES §Stations, Moored)', () => {
+  /** Railgun bow; side-0 the rack. A Tanker card, so arriving at a station has a sale to offer. */
+  const seat = (
+    sector: number,
+    ring: number,
+    facing: 'prograde' | 'retrograde',
+    rival: { ring: number; sector: number }
+  ): GameState =>
+    makeGameState([
+      makePlayer('p1', { wellId: ALPHA, ring, sector, facing }, LOADOUTS.railRack, {
+        missions: [tankerMission()],
+      }),
+      makePlayer('p2', { wellId: ALPHA, ...rival }),
+    ])
+  const shot = (subsystemId: SubsystemId): PlanStep => ({
+    id: id(),
+    kind: 'fire',
+    subsystemId,
+    targetId: 'p2',
+    criticalTarget: 'engines',
+    compensateRecoil: false,
+    count: 1,
+  })
+  const NO_EXTRAS: PlanExtras = { repair: null, dockSale: null, escorts: [], seizes: [] }
+
+  it.each<[string, () => GameState, () => PlanStep[], boolean]>([
+    [
+      // Ring 3, sector 22, retrograde: a soft burn drifts two and drops onto the station.
+      'a soft burn onto the station, then the rack',
+      () => seat(22, 3, 'retrograde', { ring: 2, sector: 1 }),
+      () => [
+        { id: id(), kind: 'move', move: { kind: 'burn', intensity: 'soft', adjustment: 0 } },
+        shot('side-0'),
+      ],
+      true,
+    ],
+    [
+      // Ring 3, sector 0, prograde: the railgun's recoil drops it onto the station's
+      // sector, and a coast at ring 2's speed carries it off.
+      'the railgun recoiling onto the station, then a coast',
+      () => seat(0, 3, 'prograde', { ring: 3, sector: 2 }),
+      () => [shot('forward-0'), { id: id(), kind: 'move', move: { kind: 'coast', scoop: false } }],
+      false,
+    ],
+  ])('%s', (_label, build, plan, docks) => {
+    const state = build()
+    const steps = plan()
+    const view = viewFor(state, 'p1')
+    const me = view.me!
+    const preview = previewPlan(view, me, steps, {})
+    const result = executeTurn(state, planActions(me, steps, preview, NO_EXTRAS))
+    expect(result.errors).toBeUndefined()
+    expect(preview.dockOffer !== null).toBe(docks)
+    expect(result.events.filter(e => e.type === 'docked')).toHaveLength(docks ? 1 : 0)
   })
 })

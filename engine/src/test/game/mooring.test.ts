@@ -3,52 +3,39 @@
  * §Stations).
  */
 import { describe, it, expect } from "vitest";
-import type { GameState, Position, ShipLoadout } from "../../models/game.ts";
+import type { GameState, Position } from "../../models/game.ts";
 import { getMissileStats } from "../../models/subsystems.ts";
 import { processOwnerMissiles } from "../../game/missiles.ts";
-import {
-  advanceStations,
-  getStationForPlanet,
-  isMooredAt,
-} from "../../game/stations.ts";
+import { advanceStations, isMooredAt } from "../../game/stations.ts";
 import { viewFor } from "../../game/view.ts";
 import { canBeFiredAt } from "../../game/targeting.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { botDecideActions } from "../../ai/index.ts";
 import { seatOptions } from "../../agent/options.ts";
+import { buildTurn, type TurnIntent } from "../../agent/intent.ts";
 import {
+  LOADOUTS,
   ALPHA,
   burn,
+  coast,
   eventsOf,
   eventTypes,
   executeTurnAs,
+  expectRefused,
   fire,
   getPlayer,
   getShip,
+  makeGameState,
   makeMissile,
+  makePlayer,
   makeTwoPlayerGame,
+  mustExecute,
   scan,
   withPower,
-  withSub,
+  withShip,
+  grounded,
+  berthOf,
 } from "../testUtils.ts";
-
-/** A rack to show point defence never rolls at a missile that does not attack. */
-const RACK: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["ballistic_rack", "laser", "shields", "laser"],
-};
-
-/** A sensor in the bow, to scan with. */
-const SENSOR_BOW: ShipLoadout = {
-  forwardSlots: ["sensor_array"],
-  sideSlots: ["laser", "laser", "shields", "missiles"],
-};
-
-/** Alpha's station at the start of a game: ring 2, sector 0. */
-function berthOf(state: GameState): Position {
-  const station = getStationForPlanet(state.stations, ALPHA)!;
-  return { wellId: ALPHA, ring: station.ring, sector: station.sector };
-}
 
 /** p1 two sectors behind p2 on Alpha's station ring, railgun powered: p2 dead ahead. */
 function railgunLine(p1Sector: number, p2Sector: number): GameState {
@@ -97,39 +84,33 @@ describe("moored ships are safe", () => {
     ["the same numbers round the black hole", (b) => ({ ...b, wellId: "blackhole" }), false],
   ])("a ship %s is moored and safe: %s", (_label, where, moored) => {
     const state = railgunLine(...CLEAR);
-    const position = where(berthOf(state));
+    const position = where(berthOf(state, ALPHA));
     expect(isMooredAt(state.stations, position)).toBe(moored);
   });
 
   it("the berth moves with its station: the old square is open water once the round ends", () => {
     const before = railgunLine(...CLEAR);
-    const oldBerth = berthOf(before);
+    const oldBerth = berthOf(before, ALPHA);
     const after = advanceStations(before).state;
-    const newBerth = berthOf(after);
+    const newBerth = berthOf(after, ALPHA);
     expect(newBerth).not.toEqual(oldBerth);
     expect(isMooredAt(after.stations, newBerth)).toBe(true);
     expect(isMooredAt(after.stations, oldBerth)).toBe(false);
   });
 
-  it.each<[string, boolean, Line]>([
-    ["clear of any station", true, CLEAR],
-    ["at a moored target", false, AT_TARGET],
-    ["from a mooring", false, FROM_BERTH],
-  ])("a railgun shot %s: accepted = %s", (_label, accepted, [p1, p2]) => {
-    const state = railgunLine(p1, p2);
-    const shot = executeTurnAs(state, fire(1, "forward-0", "p2"));
-    expect(shot.errors === undefined).toBe(accepted);
-    expect(getShip(shot.gameState, "p2").hitPoints < 10).toBe(accepted);
-  });
-
-  it.each<[string, boolean, Line]>([
-    ["clear of any station", true, CLEAR],
-    ["at a moored target", false, AT_TARGET],
-    ["from a mooring", false, FROM_BERTH],
-  ])("a missile launch %s: accepted = %s", (_l, accepted, [a, b]) => {
-    const state = railgunLine(a, b);
-    const launch = fire(1, "side-3", "p2", "engines", undefined, 1);
-    expect(executeTurnAs(state, launch).errors === undefined).toBe(accepted);
+  const shots = {
+    "a railgun shot": fire(1, "forward-0", "p2"),
+    "a missile launch": fire(1, "side-3", "p2", "engines", undefined, 1),
+  };
+  it.each<[keyof typeof shots, string, boolean, Line]>(
+    (Object.keys(shots) as Array<keyof typeof shots>).flatMap((shot) => [
+      [shot, "clear of any station", true, CLEAR],
+      [shot, "at a moored target", false, AT_TARGET],
+      [shot, "from a mooring", false, FROM_BERTH],
+    ])
+  )("%s %s: accepted = %s", (shot, _label, accepted, [p1, p2]) => {
+    const result = executeTurnAs(railgunLine(p1, p2), shots[shot]);
+    expect(result.errors === undefined).toBe(accepted);
   });
 
   it("a ship that burns off its berth fires after the move", () => {
@@ -147,7 +128,7 @@ describe("moored ships are safe", () => {
 
   it("a scan still reaches a moored ship: the rule is about weapons", () => {
     const state = makeTwoPlayerGame(
-      { wellId: ALPHA, ring: 2, sector: 22, loadout: SENSOR_BOW },
+      { wellId: ALPHA, ring: 2, sector: 22, loadout: LOADOUTS.sensor },
       { wellId: ALPHA, ring: 2, sector: 0 }
     );
     const result = executeTurnAs(state, scan(1, "p2"));
@@ -157,11 +138,14 @@ describe("moored ships are safe", () => {
 });
 
 describe("a missile that reaches a moored ship", () => {
-  /** p2 moored at Alpha's berth with its rack powered, a missile already on its sector. */
+  /**
+   * p2 moored at Alpha's berth with its rack powered, a missile already on its
+   * sector: the rack shows point defence never rolls at a missile that does not attack.
+   */
   function missileOnBerth(movesMade = 0): GameState {
     const base = makeTwoPlayerGame(
       { wellId: ALPHA, ring: 3, sector: 12 },
-      { wellId: ALPHA, ring: 2, sector: 0, loadout: RACK }
+      { wellId: ALPHA, ring: 2, sector: 0, loadout: LOADOUTS.rack }
     );
     const state = withPower(base, "p2", "side-0", 2);
     return {
@@ -190,7 +174,6 @@ describe("a missile that reaches a moored ship", () => {
 
 describe("bots and seats never offer a shot at or from a berth", () => {
   /** Engines broken: the bot can only coast, so it shoots from where it sits. */
-  const grounded = (state: GameState) => withSub(state, "p1", "engines", { isBroken: true });
 
   it.each<[string, Line]>([
     ["at a moored target", AT_TARGET],
@@ -216,5 +199,123 @@ describe("bots and seats never offer a shot at or from a berth", () => {
     const options = seatOptions(viewFor(railgunLine(a, b), "p1"));
     const railgun = options.weapons.find((w) => w.weapon === "forward-0")!;
     expect(railgun.targetsNow.includes("p2")).toBe(listed);
+  });
+});
+
+describe("moored from docking until leaving the sector (RULES §Stations, Moored)", () => {
+  /**
+   * S1: p1 on Alpha ring 3, sector 22, facing retrograde: a soft burn drifts
+   * it two sectors and drops it onto the station (ring 2, sector 0). p2 sits
+   * one sector on, on the station's ring, in the rack's box from the berth.
+   */
+  function arriving(): GameState {
+    return makeGameState([
+      makePlayer(
+        "p1",
+        { wellId: ALPHA, ring: 3, sector: 22, facing: "retrograde" },
+        LOADOUTS.railRack
+      ),
+      makePlayer("p2", { wellId: ALPHA, ring: 2, sector: 1 }, LOADOUTS.railRack),
+    ]);
+  }
+
+  /**
+   * S2: p1 on Alpha ring 3, sector 0, facing prograde, p2 two sectors ahead:
+   * an uncompensated railgun shot recoils p1 inward onto the station's sector.
+   */
+  function recoiling(): GameState {
+    return makeGameState([
+      makePlayer("p1", { wellId: ALPHA, ring: 3, sector: 0 }, LOADOUTS.railRack),
+      makePlayer("p2", { wellId: ALPHA, ring: 3, sector: 2 }, LOADOUTS.railRack),
+    ]);
+  }
+
+  it("a ship arriving at a station fires after its move, then docks", () => {
+    const state = arriving();
+    const result = executeTurnAs(state, burn(1, "soft"), fire(2, "side-0", "p2"));
+    expect(result.errors).toBeUndefined();
+    expect(getShip(result.gameState, "p1")).toMatchObject(berthOf(state, ALPHA));
+    expect(
+      eventsOf(result.events, "attack_resolved").filter((e) => e.attackerId === "p1")
+    ).toHaveLength(1);
+    expect(eventsOf(result.events, "docked")).toHaveLength(1);
+  });
+
+  it("from the end of that turn it is moored: nobody fires at it", () => {
+    // Holding the berth and riding the station are docking.test.ts's.
+    const docked = mustExecute(arriving(), burn(1, "soft"), fire(2, "side-0", "p2"));
+    // p2's turn: p1 is in the rack's box, and moored.
+    expect(canBeFiredAt(getPlayer(docked, "p1"), docked.stations)).toBe(false);
+    expectRefused(executeTurnAs(docked, fire(1, "side-0", "p1")), docked);
+  });
+
+  it("a ship that began its turn moored and coasts is still moored after the coast", () => {
+    const docked = mustExecute(arriving(), burn(1, "soft"), fire(2, "side-0", "p2"));
+    const p1Again = mustExecute(docked, coast(1));
+    // p2 is now beside the berth's new sector on the ring: in the rack's box.
+    const near = withShip(p1Again, "p2", { sector: berthOf(p1Again, ALPHA).sector + 1 });
+    expectRefused(executeTurnAs(near, coast(1), fire(2, "side-0", "p2")), near);
+    expectRefused(executeTurnAs(near, fire(1, "side-0", "p2"), coast(2)), near);
+  });
+
+  it.each<[string, Array<Parameters<typeof executeTurnAs>[1]>]>([
+    ["then a coast", [fire(1, "forward-0", "p2"), coast(2)]],
+    ["and no move", [fire(1, "forward-0", "p2")]],
+  ])(
+    "a railgun's recoil onto the station moors nothing: fired %s, the ship drifts off",
+    (_l, actions) => {
+      const state = recoiling();
+      const result = executeTurnAs(state, ...actions);
+      expect(result.errors).toBeUndefined();
+      expect(eventsOf(result.events, "recoil")[0].to).toEqual(berthOf(state, ALPHA));
+      // Ring 2 drifts 4 a turn round a planet.
+      expect(getShip(result.gameState, "p1")).toMatchObject({ wellId: ALPHA, ring: 2, sector: 4 });
+      expect(eventsOf(result.events, "coasted")[0].moored).toBeUndefined();
+      expect(eventsOf(result.events, "docked")).toHaveLength(0);
+    }
+  );
+
+  it.each<[string, () => GameState, TurnIntent, number]>([
+    [
+      "a shot after arriving at a station",
+      arriving,
+      {
+        move: { kind: "burn", intensity: "soft" },
+        fire: [{ weapon: "side-0", target: "p2", when: "after" }],
+      },
+      1,
+    ],
+    [
+      "a railgun's recoil onto the station, then a coast",
+      recoiling,
+      { move: { kind: "coast" }, fire: [{ weapon: "forward-0", target: "p2", when: "before" }] },
+      0,
+    ],
+  ])(
+    "the seat's builder foresees no refusal for %s, and the engine agrees",
+    (_l, build, intent, docks) => {
+      const state = build();
+      const built = buildTurn(viewFor(state, "p1"), intent);
+      expect(built.notes.filter((n) => n.includes("moored"))).toEqual([]);
+      const result = executeTurn(state, built.actions);
+      expect(result.errors).toBeUndefined();
+      expect(eventsOf(result.events, "docked")).toHaveLength(docks);
+    }
+  );
+
+  it("a ship the recoil put on the station's sector may still fire", () => {
+    // p3 one sector on from the berth, on its ring: the rack's from there.
+    const state = makeGameState([
+      ...recoiling().players,
+      makePlayer("p3", { wellId: ALPHA, ring: 2, sector: 1 }),
+    ]);
+    const result = executeTurnAs(
+      state,
+      fire(1, "forward-0", "p2"),
+      fire(2, "side-0", "p3"),
+      coast(3)
+    );
+    expect(result.errors).toBeUndefined();
+    expect(eventsOf(result.events, "attack_resolved").map((e) => e.targetId)).toEqual(["p2", "p3"]);
   });
 });

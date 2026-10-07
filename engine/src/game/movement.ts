@@ -4,6 +4,7 @@
  * optionally phasing the arrival sector for extra mass.
  */
 import type { BurnIntensity, Facing, GravityWellId, Position, ShipState } from "../models/game.ts";
+import { oppositeFacing } from "../models/game.ts";
 import {
   BURN_COSTS,
   SECTOR_ADJUSTMENT_COST_PER_SECTOR,
@@ -19,7 +20,7 @@ import { hasWorkingCompressor } from "./ship.ts";
 /**
  * One turn of drift. A moored ship (docked at a station) rides its station
  * instead: it holds its berth here and moves with the station at the end of
- * the round (RULES §Moored).
+ * the round (RULES §Stations, Moored).
  */
 export function applyOrbitalMovement(ship: ShipState, moored = false): ShipState {
   if (moored) return ship;
@@ -46,7 +47,7 @@ export function ringAfter(
  * forward (facing prograde, inward; retrograde, outward).
  */
 export function recoilRing(ship: Pick<ShipState, "wellId" | "ring" | "facing">): number | null {
-  return ringAfter({ ...ship, facing: ship.facing === "prograde" ? "retrograde" : "prograde" }, 1);
+  return ringAfter({ ...ship, facing: oppositeFacing(ship.facing) }, 1);
 }
 
 /**

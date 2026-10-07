@@ -52,9 +52,9 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 
 **Ring 1 is how you catch one.** A ship on the station's own ring drifts exactly as fast as the station, so the gap between them never closes by waiting, and every ring outside it is slower still. Ring 1 runs at 6: drop into it, let it carry you round faster than the station, and burn back out onto the sector the station will be in. Docking is a manoeuvre you fly, not a queue you join.
 
-**Moored.** A docked ship rides its station: it does not drift on its own, and it moves with the station when stations advance. Burn to cast off.
+**Moored.** A docked ship rides its station: it does not drift on its own, and it moves with the station when stations advance. Burn to cast off. A ship is moored from the moment it docks (step 4 of the turn it arrives) until it leaves the station's sector, so during the actions of the turn it arrives it is not yet moored: it may still fire after its move, and a railgun's recoil that puts it on the station's sector mid-turn moors nothing (its coast drifts it off as usual).
 
-**A berth is safe.** A moored ship can neither fire nor be fired at, missiles included: a missile that reaches a moored ship does not attack and flies on. Scans still reach it. Burn off the berth to fight.
+**A berth is safe.** A moored ship can neither fire nor be fired at, missiles included: a missile that reaches a moored ship does not attack and flies on. Scans still reach it. Your own missiles already in flight still fly and attack while you are moored; only launching is refused. Burn off the berth to fight.
 
 **A dock is a visit, not a state.** Everything docking gives you (cargo, repairs, full hull, missiles) happens the turn you **arrive**. Holding the berth afterwards is worth the ride the station gives you and whatever your scoop skims, and nothing else. Come back for more and it is a trip.
 
@@ -73,7 +73,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 
 ## A Turn
 
-If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, no energy on any subsystem, and drift with the ring like any ship that coasts. Face-up subsystems stay face-up. Play passes. **Until your next turn is over nobody can touch you**: no weapon fires at you, no missile attacks you and nobody scans you. That next turn is **a first round of your own**: you power, rotate and move as usual, but no weapon of yours fires and you scan nobody. From the turn after it you are live again, and so is everyone's aim at you.
+If your ship was destroyed, your whole turn is: place it on your Home sector (nearest empty sector if occupied), full hull, full fuel, heat 0, every broken subsystem repaired and your missiles reloaded, no energy on any subsystem, and drift with the ring like any ship that coasts. Face-up subsystems stay face-up. Play passes. **Until your next turn is over nobody can touch you**: no weapon fires at you, no missile attacks you and nobody scans you. That next turn is **a first round of your own**: you power, rotate and move as usual, but no weapon of yours fires and you scan nobody. From the turn after it you are live again, and so is everyone's aim at you.
 
 Otherwise:
 
@@ -81,7 +81,7 @@ Otherwise:
 2. **Actions,** in any order you choose. Each subsystem does one thing a turn (a ballistic rack also intercepts during other players' turns):
    - **Power.** Put energy on your shields (1 or 2), a ballistic rack (2) or a sensor array (2). They work until your next turn (see Energy and Heat).
    - **Rotate.** Flip facing (prograde ↔ retrograde). Thrusters take 1 energy.
-   - **Move.** Exactly one of: _coast_, _burn_ or _jump_. If you take no move, you coast.
+   - **Move.** Exactly one of: _coast_, _burn_ or _jump_. If you take no move, you coast after your other actions.
    - **Fire.** Any number of weapons, each at its own point in the sequence (before or after your move). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan.** With a sensor array (see Hidden Information).
 3. **Missiles.** Each of your missiles in flight moves and may attack.
@@ -108,7 +108,7 @@ Once a round, after the last player's turn:
 - **Heat is a track. It does not reset.** At your heat check, heat above **10** is hull damage and the track drops to 10. Then **dissipate** (5, plus 2 per working radiator) and carry the rest into your next turn.
 - So a hot turn is a debt, not a wound: take one, then cool off. Make more heat than you dissipate for long enough and you reach the **redline** at 10, where it costs hull every turn until you stop.
 - **A cold ship repairs itself.** If your heat is **0** at your heat check (you powered, used, absorbed and intercepted nothing since your last check), repair **one** broken subsystem of your choice. Everything is off and the crew is outside. It is the only repair away from a station, and it is slower: a station fixes everything at once, refills your hull and reloads your missiles, all on arrival.
-- **Shields absorb damage by spending their energy.** Each energy stops one point (two of plasma) and comes off the subsystem. **Every point absorbed is a point of heat**: put it on your heat track at once, and it is paid at your next check with the rest. A ballistic rack that rolls at missiles puts 2 heat on the track the same way, once a turn however many it rolls at. Shields are electromagnetic: they stop railgun slugs, ballistic rack rounds, missiles and plasma, **not lasers**.
+- **Shields absorb damage by spending their energy.** Each energy stops one point (two of plasma) and comes off the subsystem. **Every point absorbed is a point of heat**: put it on your heat track at once, and it is paid at your next check with the rest. A ballistic rack that rolls at missiles puts 2 heat on the track the same way, once a turn however many it rolls at, and a second rack that rolls pays its own 2. Shields are electromagnetic: they stop railgun slugs, ballistic rack rounds, missiles and plasma, **not lasers**.
 - Two full shields absorb 4 damage. They are **4 heat every turn**, absorbing or not, and up to 4 more when they are hit, against a dissipation of 5, so a wall under fire runs hot. Nothing forbids it; the arithmetic does.
 - No action is ever refused for energy. What a turn costs you is hull, and that is your decision to make.
 
@@ -121,7 +121,7 @@ Once a round, after the last player's turn:
 | Sensor array (forward)        | 2      | Scan; while it has energy, your criticals are 8–10                                      |
 | Fuel compressor (forward)     | none   | A jump costs 1 fuel instead of 3                                                        |
 | Missiles (forward or side)    | 2      | Launch any number of your guided missiles at one ship in your well (4 aboard)           |
-| Broadside laser (side)        | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, fires to one side only                  |
+| Broadside laser (side)        | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, one side only, never its own ring       |
 | Shields (either)              | 1 or 2 | While they have energy: 1 energy absorbs 1 damage and comes off; absorbed damage is heat |
 | Radiator (side)               | none   | +2 dissipation                                                                          |
 | Ballistic rack (side)         | 2      | 2 damage, ±1 ring/same ring, ±1 sector; while it has energy: rolls at 4 missiles a turn, for 2 heat |
@@ -181,12 +181,12 @@ A wall that holds is no protection against being named. **The energy on every sl
 **Point blank.** A ship in **your own sector** is in range of every weapon you carry, whatever its arc: there is no ahead, behind or side at zero range. Ending a turn on top of someone (a Piracy card does exactly that) puts you in reach of everything they have, and them in reach of everything of yours.
 
 - **Railgun.** Spinal: same ring, 1 to 5 sectors ahead in your facing direction. Firing pushes you one ring against your facing (inward facing prograde, outward facing retrograde) unless you **compensate** with engines (1 fuel, engine heat; engines can then not burn this turn). You cannot fire if the recoil would push you off the rings.
-- **Broadside laser.** Targets within 2 rings and 1 sector; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port subsystems (side 1–2) fire outward and starboard subsystems (side 3–4) fire inward; facing retrograde swaps them.
+- **Broadside laser.** Targets within 2 rings and 1 sector, never along its own ring; **shields do not stop it** (2 damage straight to the hull). Facing prograde, port subsystems (side 1–2) fire outward and starboard subsystems (side 3–4) fire inward; facing retrograde swaps them.
 - **Ballistic rack.** 2 damage, targets within 1 ring and 1 sector, either side, or on your own ring 1 sector away (the only damaging broadside that can join a railgun shot on your own ring). Firing it puts its energy on it, so a rack that fired is **up** until your next turn and shoots down missiles too; powering it without firing does the same.
 
-  While it has energy it **rolls at up to 4 missiles a turn**: a d10 against each one, on 2+ that missile is destroyed, and **the rack is used once for the turn** however many it rolls at. **Answering is 2 heat**: put it on your heat track when the rack first rolls in a turn, however many missiles it rolls at, and it is paid at your next check, like the damage a shield absorbs. Four is what its two energy could have thrown as a launcher, which is the whole of the symmetry: two energy put four missiles in the air, two shoot four down, and the fifth gets through. A ship expecting more than four at once carries a second rack and powers it every turn like the first.
+  While it has energy it **rolls at up to 4 missiles a turn**: a d10 against each one, on 2+ that missile is destroyed, and **the rack is used once for the turn** however many it rolls at. **Answering is 2 heat**: put it on your heat track when the rack first rolls in a turn, however many missiles it rolls at, and it is paid at your next check, like the damage a shield absorbs. Four is what its two energy could have thrown as a launcher, which is the whole of the symmetry: two energy put four missiles in the air, two shoot four down, and the fifth gets through. A ship expecting more than four at once carries a second rack and powers it every turn like the first, and that rack pays its own 2 heat the turn it rolls.
 
-- **Missiles.** Target **any ship in your well**, any distance, any facing: a missile is self-guided, so its own flight is its range and a launch that never catches up is simply a missile wasted. One action launches **as many of your remaining missiles as you like at one ship**, all naming the same critical slot, for **one use of the subsystem**: the magazine is the limit, not the heat. Place a token on your sector for each. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first), **except on the turn you launch it, when it only flies**. If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt. A missile that has flown three times without hitting is removed.
+- **Missiles.** Target **any ship in your well**, any distance, any facing: a missile is self-guided, so its own flight is its range and a launch that never catches up is simply a missile wasted. One action launches **as many of your remaining missiles as you like at one ship**, all naming the same critical slot, for **one use of the subsystem**: the magazine is the limit, not the heat. Place a token on your sector for each. At the end of each of your turns every missile of yours **rides its orbit, then flies up to 3 steps toward its target** (a step is one ring or one sector; close the ring gap first), **except on the turn you launch it, when it only flies**. If it ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt, rolling with whatever critical range your sensor gives you at that moment. A missile that has flown three times without hitting is removed.
 
   _The launch turn:_ a new missile flies its 3 steps from the sector you dropped it on, whether you launched before your move or after it. From its second turn on it drifts with its ring like everything else, which is how it keeps up with a target on a fast ring. So a missile launched on its target's sector attacks that same turn (a rack with energy on it still rolls first).
 - **Plasma cannon.** 4 damage, targets within 1 ring and 1 sector, fires to one side only like the laser, never along its own ring. Shields stop it two points per energy instead of one, so a full shield stops it whole (and its owner takes the 4 as heat) and a half shield lets half through.
@@ -216,7 +216,7 @@ secrets at the end of the game. What gives a subsystem away is doing its job.
 
 Face-up subsystems stay face-up, even after respawn.
 
-**Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, how many crates and how much data you carry, face-up subsystems and **the missiles left in a face-up missiles subsystem**, broken fixed systems, completed missions, wrecks and Escort markers.
+**Public:** positions, facing, hull, heat, **fuel**, the energy cubes on every slot, Home markers, what you carry, by kind (a crate, loot or data), face-up subsystems and **the missiles left in a face-up missiles subsystem**, broken fixed systems, completed missions, wrecks and Escort markers.
 **Private:** what a face-down subsystem is, the ammo in a face-down missiles subsystem, missions in hand, where your cargo is going.
 
 Energy is the tell. Using a subsystem turns it face-up, so energy on a **face-down** slot between turns means it was powered, not used: one can only be a half shield, and two is a full shield, a ballistic rack or a sensor array. That is a deduction from the energy, not a reveal: the subsystem is still face-down and a scan still costs you a turn to be sure. Shields go in the bow or on a side precisely so that a loaded bow is a guess and not a certain sensor array.
@@ -237,7 +237,7 @@ With a sensor array aboard and unbroken, target a ship on your ring within 3 sec
 
 **Secondary cards score one.** Survey, Piracy, Tanker, Escort, Salvage. Each is a thing you do rather than a primary someone sets you: no subsystem aboard can do it for you. Survey pays in data: take it the moment you dive, then file it at **any** station. Piracy pays in loot: the item you seize sells at **any** station. Tanker pays on arrival: the fuel you pump in is the card. Escort pays when the ship you mark sells with you in its well: you ride along on their run, in the open. Salvage pays in data too: the black box of somebody's wreck.
 
-**A hand is one primary and two secondaries**: two points and one and one, four held for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, hull breaks ties.
+**A hand is one primary and two secondaries**: two points and one and one, four held for the three that win. Your primary and either secondary is the win; the other secondary is your spare, taken when the game puts it in your way. Two secondaries alone are two points and win nothing. The round is played out; highest score wins, then hull, then fuel, then the earlier seat.
 
 | Card                                                | Points | Complete when                                                                                                                                                                                                     |
 | --------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -278,7 +278,7 @@ When your hull reaches 0:
 
 - remove your ship and put a **wreck** token on its sector (wrecks stay until a Salvage takes one, and drift with the stations once a round by their ring's speed); drop your cargo: Deliver crates go back to their pickup station (you must load them again), loot and data are lost; any Escort marker on your ship, and every Escort marker of yours, comes back to its owner;
 - your missiles in flight are removed;
-- on your next turn you respawn at Home and drift, and the turn after that is a first round of your own: untouchable until it is over, and on it no weapon of yours fires and you scan nobody (see A Turn). One turn gone.
+- on your next turn you respawn at Home, repaired and reloaded, and drift, and the turn after that is a first round of your own: untouchable until it is over, and on it no weapon of yours fires and you scan nobody (see A Turn). One turn gone.
 
 Being destroyed never removes you from the game, but it costs you cargo, tempo and position, and hands two points to anyone holding your Destroy card. Nobody collects it twice over: a ship coming back cannot be shot at the sector everyone knows it returns to, and it does not get to fire first for the privilege.
 
@@ -305,7 +305,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Repair           | a station, on arrival, fixes everything; or one subsystem a turn at 0 heat                                                                                             |
 | Scan             | same ring, within 3 sectors, sensor aboard and unbroken                                                                                                           |
 | First round      | no weapon fires and nobody scans                                                                                                                                  |
-| Respawn          | your missiles in flight are removed. Next turn: back at Home, full hull and tank, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at nobody and scan nobody |
+| Respawn          | your missiles in flight are removed. Next turn: back at Home, full hull and tank, repaired and reloaded, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at nobody and scan nobody |
 | Point blank      | a ship in your own sector is in range of every weapon                                                                                                             |
 | Docking          | on arrival only: full hull, repair all, reload missiles, and one thing: load your crates or sell one item; you stay moored until you burn away                                  |
 | Sales            | each station buys one item from you (a crate, data, loot or Tanker fuel), once per game; a sale marker shows it                                                   |
@@ -316,13 +316,13 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Hold             | no limit; public by kind, never by card                                                                                                                           |
 | Piracy           | end a turn, not moored, on an undocked ship carrying cargo: take one item of your choice                                                                          |
 | Ammo             | private while the missiles subsystem is face-down; public once it has fired                                                                                            |
-| Salvo            | one action launches any number of your missiles at one ship, for the subsystem's 2 energy once; a rack with energy on it rolls at 4 of them a turn for 2 heat on your track, one rack per 4 |
-| Win              | 3 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel                                                                          |
+| Salvo            | one action launches any number of your missiles at one ship, for the subsystem's 2 energy once; a rack with energy on it rolls at 4 of them a turn, one rack per 4, and each rack that rolls is 2 heat on your track |
+| Win              | 3 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel, then the earlier seat                                                   |
 | Hand             | 1 primary of 3 dealt, 2 of 3 secondaries dealt. Four points held, three win: the primary and either secondary                                                     |
 
 ### Turn cheat sheet
 
-1. Destroyed? Respawn at Home and drift. Turn over. Your next turn is a first round of your own: untouchable until it ends, no weapon of yours fires and you scan nobody.
+1. Destroyed? Respawn at Home, repaired and reloaded, and drift. Turn over. Your next turn is a first round of your own: untouchable until it ends, no weapon of yours fires and you scan nobody.
 2. Clear your loadout: every energy cube back to the supply.
 3. Actions in your order: power (shields, racks, sensors) · rotate · move (coast / burn / jump) · fire · scan. Each subsystem does one thing.
 4. Your missiles move.

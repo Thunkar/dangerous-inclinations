@@ -9,24 +9,18 @@ import {
   startGame,
   addBot,
   removeBot,
+  publicLobby,
 } from "../services/lobbyService.ts";
-import { getPlayer } from "../services/playerService.ts";
+import { requirePlayer } from "./caller.ts";
 
 export async function lobbyRoutes(fastify: FastifyInstance) {
   // Create lobby
   fastify.post<{ Headers: { "x-player-id": string } }>(
     "/api/lobbies",
     async (request, reply) => {
-      const playerId = request.headers["x-player-id"];
-
-      if (!playerId) {
-        return reply.code(401).send({ error: "Player ID required" });
-      }
-
-      const player = await getPlayer(playerId);
-      if (!player) {
-        return reply.code(401).send({ error: "Invalid player" });
-      }
+      const player = await requirePlayer(request.headers["x-player-id"], reply);
+      if (!player) return;
+      const { playerId } = player;
 
       const result = CreateLobbySchema.safeParse(request.body);
 
@@ -38,7 +32,7 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
       }
 
       const lobby = await createLobby(result.data, playerId);
-      return reply.send(lobby);
+      return reply.send(publicLobby(lobby));
     },
   );
 
@@ -71,9 +65,7 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
         return reply.code(404).send({ error: "Lobby not found" });
       }
 
-      // Don't expose password
-      const { password, ...safeLobby } = lobby;
-      return reply.send({ ...safeLobby, hasPassword: !!password });
+      return reply.send(publicLobby(lobby));
     },
   );
 
@@ -81,16 +73,9 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
   fastify.post<{ Headers: { "x-player-id": string } }>(
     "/api/lobbies/join",
     async (request, reply) => {
-      const playerId = request.headers["x-player-id"];
-
-      if (!playerId) {
-        return reply.code(401).send({ error: "Player ID required" });
-      }
-
-      const player = await getPlayer(playerId);
-      if (!player) {
-        return reply.code(401).send({ error: "Invalid player" });
-      }
+      const player = await requirePlayer(request.headers["x-player-id"], reply);
+      if (!player) return;
+      const { playerId } = player;
 
       const result = JoinLobbySchema.safeParse(request.body);
 
@@ -111,8 +96,7 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
         return reply.code(400).send({ error: joinResult.error });
       }
 
-      const { password, ...safeLobby } = joinResult.lobby!;
-      return reply.send({ ...safeLobby, hasPassword: !!password });
+      return reply.send(publicLobby(joinResult.lobby!));
     },
   );
 
@@ -183,8 +167,7 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: result.error });
     }
 
-    const { password, ...safeLobby } = result.lobby!;
-    return reply.send({ ...safeLobby, hasPassword: !!password });
+    return reply.send(publicLobby(result.lobby!));
   });
 
   // Remove bot (host only)

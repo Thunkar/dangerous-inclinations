@@ -34,7 +34,7 @@ export const DEFAULT_LOADOUT: ShipLoadout = {
 export const MIN_PLAYERS = 2;
 /**
  * Six seats. The board holds them comfortably (everyone deploys on the black
- * hole's two home rings, 24 sectors each), but the table changes shape as
+ * hole's three home rings, 24 sectors each), but the table changes shape as
  * seats are added: each opponent puts another Destroy and another Intercept in
  * every deck, so a six-player game is a fight and a three-player game is a
  * trade route. Two seats is still legal and still thin.
@@ -109,6 +109,11 @@ export function isQuietTurn(turn: number, me: { recovering: boolean }): boolean 
 }
 
 export type Facing = "prograde" | "retrograde";
+
+/** The facing a rotation turns a ship to. */
+export function oppositeFacing(facing: Facing): Facing {
+  return facing === "prograde" ? "retrograde" : "prograde";
+}
 export type BurnIntensity = "soft" | "medium" | "hard";
 
 export type GravityWellId = string; // 'blackhole' | 'planet-alpha' | ...
@@ -181,7 +186,7 @@ export interface ShipState {
   sector: number;
   facing: Facing;
   /**
-   * Fuel aboard. Public (RULES §Hidden information): the cubes sit on the loadout
+   * Fuel aboard. Public (RULES §Hidden Information): the cubes sit on the loadout
    * where anyone can count them. A tank was private and a spent pile public
    * for a day, which fooled nobody: every ship starts with the same ten and
    * every burn is announced, so the arithmetic was there for the doing.
@@ -330,7 +335,7 @@ export type PlayerAction =
   | EscortMarkAction
   | SeizeAction;
 
-export const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
+const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "rotate",
   "coast",
   "burn",
@@ -348,7 +353,7 @@ export const MOVE_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
 ]);
 
 /** Standing orders: named with the turn and settled at its end, so they carry no sequence. */
-export const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
+const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "repair",
   "dock_sale",
   "escort_mark",

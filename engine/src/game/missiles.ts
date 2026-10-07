@@ -35,8 +35,8 @@ import {
   wrapSector,
 } from "./geometry.ts";
 import { resolveAttack } from "./damage.ts";
-import { addHeat, isDestroyed, updateSubsystem, useSubsystem } from "./ship.ts";
-import { canBeFiredAt, isOnBoard } from "./targeting.ts";
+import { addHeat, isDestroyed, isOnBoard, updateSubsystem, useSubsystem } from "./ship.ts";
+import { canBeFiredAt } from "./targeting.ts";
 
 const MISSILE = getMissileStats();
 

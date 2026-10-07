@@ -34,7 +34,7 @@ export async function getPlayer(playerId: string): Promise<PlayerAuth | null> {
  * (`x-player-id`). The URL id only addresses the route, so reading someone
  * else's status or renaming someone else is refused rather than quietly done.
  */
-export type PlayerAccess = { ok: true; playerId: string } | { ok: false; code: 401 | 403; error: string };
+type PlayerAccess = { ok: true; playerId: string } | { ok: false; code: 401 | 403; error: string };
 
 export function checkPlayerAccess(callerId: string | undefined, targetPlayerId: string): PlayerAccess {
   if (!callerId) return { ok: false, code: 401, error: "Player ID required" };

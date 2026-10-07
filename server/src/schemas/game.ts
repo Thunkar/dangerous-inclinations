@@ -11,7 +11,7 @@ import {
 const subsystemTypes = Object.keys(SUBSYSTEM_CONFIGS) as [SubsystemType, ...SubsystemType[]];
 const Slot = z.enum(subsystemTypes).nullable();
 
-export const ShipLoadoutSchema = z
+const ShipLoadoutSchema = z
   .object({
     forwardSlots: z.tuple([Slot]),
     sideSlots: z.tuple([Slot, Slot, Slot, Slot]),
@@ -160,7 +160,7 @@ const RepairActionSchema = z
 
 /**
  * Name what a station buys if the turn arrives at one (RULES §Stations): an
- * item's cargo id, "fuel" or "none". No sequence either: it is read at
+ * item's cargo id, "fuel", "load" or "none". No sequence either: it is read at
  * docking, after every action.
  */
 const DockSaleActionSchema = z
@@ -195,7 +195,7 @@ const SeizeActionSchema = z
   })
   .strict();
 
-export const PlayerActionSchema = z.discriminatedUnion("type", [
+const PlayerActionSchema = z.discriminatedUnion("type", [
   CoastActionSchema,
   BurnActionSchema,
   RotateActionSchema,
@@ -227,7 +227,7 @@ export const SubmitTurnSchema = z
  * wire shape is an engine action, and every engine action a turn may carry
  * (all but `deploy_ship`) has a wire shape.
  */
-export type SubmittedAction = z.infer<typeof PlayerActionSchema>;
+type SubmittedAction = z.infer<typeof PlayerActionSchema>;
 const _actionsAreEngineActions: (a: SubmittedAction) => PlayerAction = (a) => a;
 void _actionsAreEngineActions;
 type UnsubmittableActionType = Exclude<
@@ -251,3 +251,8 @@ export const PreviewSchema = z
     actions: z.array(PlayerActionSchema).max(64),
   })
   .strict();
+
+/** A rejected payload's issues, one "path: message" line each, as a turn error lists them. */
+export function issueLines(error: z.ZodError): string[] {
+  return error.errors.map((issue) => `${issue.path.join(".") || "payload"}: ${issue.message}`);
+}

@@ -34,8 +34,11 @@ import type { GameEvent } from "../models/events.ts";
  *     point absorbed is heat on the owner's track.
  * v15: a ballistic rack that rolls at missiles puts INTERCEPT_HEAT on its
  *     owner's track, once a player-turn.
+ * v16: a ship is moored from docking until it leaves the sector, so it fires
+ *     after arriving and a recoil onto a station moors nothing; `rotated`
+ *     carries `heat`.
  */
-export const RECORDING_SCHEMA_VERSION = 15;
+export const RECORDING_SCHEMA_VERSION = 16;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

@@ -83,7 +83,7 @@ export const engineBots: BotStrategy = {
   decideActions: (view) => botDecideActions(view),
 };
 
-export interface GameServiceDeps {
+interface GameServiceDeps {
   kv: Kv;
   recordings: RecordingService;
   transport: GameTransport;

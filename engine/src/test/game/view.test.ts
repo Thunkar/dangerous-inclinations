@@ -1,15 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { OPENING_ROUNDS, FIRST_TURN } from "../../models/game.ts";
-import { MAX_HEAT } from "../../models/game.ts";
 import { opponentPositions, viewFor } from "../../game/view.ts";
 import { canSeeEvent, filterEventsFor } from "../../models/events.ts";
 import type { GameEvent } from "../../models/events.ts";
-import type { ShipLoadout } from "../../models/game.ts";
-import { STARTING_REACTION_MASS } from "../../models/game.ts";
 import { dealMissionOffers } from "../../game/missions/missionDeck.ts";
 import { Rng } from "../../utils/rng.ts";
 import { isPrimaryType, type Mission } from "../../models/missions.ts";
 import {
+  LOADOUTS,
   destroyMission,
   interceptMission,
   takenData,
@@ -17,9 +14,8 @@ import {
   BETA,
   GAMMA,
   crateCargo,
+  lootCargo,
   BH,
-  burn,
-  mustExecute,
   makeTwoPlayerGame,
   surveyMission,
   withMissile,
@@ -29,21 +25,15 @@ import {
   withSub,
 } from "../testUtils.ts";
 
-const SENSOR: ShipLoadout = {
-  forwardSlots: ["sensor_array"],
-  sideSlots: ["radiator", "laser", "shields", "missiles"],
-};
-const COMPRESSOR: ShipLoadout = {
-  forwardSlots: ["fuel_compressor"],
-  sideSlots: ["missiles", "laser", "shields", "laser"],
-};
-
-/** p2 has fired its side-0 laser (face-up); p1 has scanned p2's side-2. */
+/**
+ * p2 has fired its side-0 laser (face-up) and lost side-1 (broken, face-up);
+ * p1 has scanned p2's side-2, and side-0 after it was already face-up.
+ */
 function knownGame() {
   let state = makeTwoPlayerGame();
   state = withSub(state, "p2", "side-0", { isRevealed: true });
   state = withSub(state, "p2", "side-1", { isBroken: true, isRevealed: true });
-  state = withPlayer(state, "p1", { intel: { p2: ["side-2"] } });
+  state = withPlayer(state, "p1", { intel: { p2: ["side-2", "side-0"] } });
   return state;
 }
 
@@ -51,44 +41,35 @@ const slot = (view: ReturnType<typeof viewFor>, playerIndex: number, id: string)
   view.players[playerIndex].slots.find((s) => s.id === id)!;
 
 describe("view: what an opponent's loadout shows", () => {
-  const view = viewFor(knownGame(), "p1");
-
-  it("face-down tiles are unknown: no type, no condition", () => {
-    expect(slot(view, 1, "forward-0")).toEqual({
-      id: "forward-0",
-      group: "forward",
-      index: 0,
-      type: null,
-      isBroken: null,
-      knownVia: null,
-      allocatedEnergy: 0,
-      ammo: null,
-    });
-    expect(slot(view, 1, "side-3").type).toBeNull();
-  });
-
-  it("face-up tiles show their type and condition", () => {
-    expect(slot(view, 1, "side-0")).toMatchObject({
-      type: "laser",
-      isBroken: false,
-      knownVia: "revealed",
-    });
-    expect(slot(view, 1, "side-1")).toMatchObject({
-      type: "laser",
-      isBroken: true,
-      knownVia: "revealed",
-    });
-  });
-
-  it("scanned tiles are known only to the scanner", () => {
-    expect(slot(view, 1, "side-2")).toMatchObject({ type: "shields", knownVia: "scanned" });
-    expect(slot(viewFor(knownGame(), "p2"), 0, "side-2").type).toBeNull();
-    expect(slot(viewFor(knownGame(), null), 1, "side-2").type).toBeNull();
-  });
-
-  it("a tile that is both face-up and scanned counts as revealed", () => {
-    const state = withPlayer(knownGame(), "p1", { intel: { p2: ["side-0"] } });
-    expect(slot(viewFor(state, "p1"), 1, "side-0").knownVia).toBe("revealed");
+  // What a rival or a spectator reads off p2's slots.
+  it.each<[string, string | null, string, object]>([
+    [
+      "a face-down tile is unknown: no type, no condition",
+      "p1",
+      "forward-0",
+      { type: null, isBroken: null, knownVia: null, allocatedEnergy: 0, ammo: null },
+    ],
+    [
+      "a face-up tile shows its type and condition, and counts as revealed though also scanned",
+      "p1",
+      "side-0",
+      { type: "laser", isBroken: false, knownVia: "revealed" },
+    ],
+    [
+      "a broken face-up tile shows it is broken",
+      "p1",
+      "side-1",
+      { type: "laser", isBroken: true, knownVia: "revealed" },
+    ],
+    [
+      "a scanned tile is known to its scanner",
+      "p1",
+      "side-2",
+      { type: "shields", knownVia: "scanned" },
+    ],
+    ["a scanned tile is not known to anyone else", null, "side-2", { type: null, knownVia: null }],
+  ])("%s (viewer %s, %s)", (_label, viewer, id, expected) => {
+    expect(slot(viewFor(knownGame(), viewer), 1, id)).toMatchObject(expected);
   });
 
   it("fixed systems are always visible, including whether they are broken", () => {
@@ -128,7 +109,7 @@ describe("view: what an opponent's loadout shows", () => {
       hitPoints: 7,
       maxHitPoints: 10,
       heat: 3,
-      fuel: STARTING_REACTION_MASS,
+      fuel: 10,
       isDestroyed: false,
     });
     for (const secret of ["missions", "missionOffers", "cargo", "intel", "subsystems"]) {
@@ -139,14 +120,6 @@ describe("view: what an opponent's loadout shows", () => {
     for (const s of opponent.slots) {
       if (s.type === null) expect(s.ammo).toBeNull();
     }
-  });
-
-  it("fuel is public: a rival's tank is on the table like their hull", () => {
-    const state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
-    const after = mustExecute(state, burn(1, "medium", 2));
-    // A medium burn is 2 fuel, phased 2 sectors for 2 more.
-    expect(viewFor(after, "p2").players[0].ship!.fuel).toBe(STARTING_REACTION_MASS - 4);
-    expect(viewFor(after, "p1").players[0].ship!.fuel).toBe(STARTING_REACTION_MASS - 4);
   });
 
   it.each([
@@ -175,8 +148,8 @@ describe("view: what an opponent's loadout shows", () => {
   });
 
   it("a missile rack shows what is left in it only once it is face-up", () => {
-    // side-3 is the missiles tile on SENSOR; side-2 is one p1 has scanned.
-    let state = makeTwoPlayerGame({}, { loadout: SENSOR });
+    // side-3 is the missiles tile on LOADOUTS.sensorRadiator; side-2 is one p1 has scanned.
+    let state = makeTwoPlayerGame({}, { loadout: LOADOUTS.sensorRadiator });
     state = withPlayer(state, "p1", { intel: { p2: ["side-2"] } });
     const slot = (id: string) => viewFor(state, "p1").players[1].slots.find((x) => x.id === id)!;
 
@@ -212,20 +185,23 @@ describe("view: the viewer's own side", () => {
   });
 
   it("myStats reflect my loadout and the sensor I have up", () => {
-    let state = makeTwoPlayerGame({ loadout: SENSOR }, { loadout: COMPRESSOR });
+    let state = makeTwoPlayerGame(
+      { loadout: LOADOUTS.sensorRadiator },
+      { loadout: LOADOUTS.compressor }
+    );
     state = withPower(state, "p1", "forward-0", 2);
     // A sensor with energy on it widens every critical while it holds it.
     // Nothing on the loadout is billed at my next check, which is why there is
     // no heat figure here: it is cleared when my turn starts.
     expect(viewFor(state, "p1").myStats).toEqual({
       dissipationCapacity: 7,
-      maxHeat: MAX_HEAT,
+      maxHeat: 10,
       maxReactionMass: 10,
       lowestCriticalFace: 8,
     });
     expect(viewFor(state, "p2").myStats).toEqual({
       dissipationCapacity: 5,
-      maxHeat: MAX_HEAT,
+      maxHeat: 10,
       maxReactionMass: 10,
       lowestCriticalFace: 10,
     });
@@ -242,7 +218,7 @@ describe("view: the viewer's own side", () => {
     const state = withMissile(knownGame(), { ring: 3, sector: 5 });
     const view = viewFor(state, "p2");
     expect(view).toMatchObject({
-      turn: FIRST_TURN + OPENING_ROUNDS,
+      turn: state.turn,
       phase: "active",
       activePlayerIndex: 0,
       activePlayerId: "p1",
@@ -317,7 +293,8 @@ describe("view: a rival's hold", () => {
   it("item tokens do not follow the deal: a primary does not always hold the lower number", () => {
     // Each hand is dealt its primaries first, so tokens handed out in deal
     // order would put every Intercept's below every Survey's in the same hand.
-    const token = (m: Mission) => ("dataCargoId" in m ? m.dataCargoId : "cargoId" in m ? m.cargoId : null);
+    const token = (m: Mission) =>
+      "dataCargoId" in m ? m.dataCargoId : "cargoId" in m ? m.cargoId : null;
     let secondaryBelowPrimary = 0;
     for (let seed = 1; seed <= 20; seed++)
       for (const hand of dealMissionOffers(ids(3), new Rng(seed)).values())
@@ -327,7 +304,7 @@ describe("view: a rival's hold", () => {
     expect(secondaryBelowPrimary).toBeGreaterThan(0);
   });
 
-  it("shows each item by kind and token, and never the card behind it", () => {
+  it("shows each item aboard by kind and token, and never the card behind it", () => {
     const survey = surveyMission("survey-secret");
     const intercept = interceptMission("p1", "intercept-secret", BETA);
     let state = makeTwoPlayerGame();
@@ -336,15 +313,22 @@ describe("view: a rival's hold", () => {
       cargo: [
         { ...takenData(survey), id: "item-7" },
         { ...takenData(intercept), id: "item-3" },
+        { ...crateCargo(ALPHA, BETA), id: "item-5" },
+        // Waiting at its dock: not aboard.
+        { ...crateCargo(BETA, GAMMA, false), id: "item-6" },
+        lootCargo("item-9", "piracy-secret"),
       ],
     });
     const rival = viewFor(state, "p1").players.find((p) => p.id === "p2")!;
     expect(rival.hold).toEqual([
       { cargoId: "item-7", kind: "data" },
       { cargoId: "item-3", kind: "data" },
+      { cargoId: "item-5", kind: "crate" },
+      { cargoId: "item-9", kind: "loot" },
     ]);
     const text = JSON.stringify(rival);
     expect(text).not.toContain("survey-secret");
     expect(text).not.toContain("intercept-secret");
+    expect(text).not.toContain("piracy-secret");
   });
 });

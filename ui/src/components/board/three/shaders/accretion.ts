@@ -160,7 +160,7 @@ export const ACCRETION_VERTEX = /* glsl */ `
  * every twenty. Open the rings out, the disc grows into the room, the ratio
  * widens and the lap gets quicker with nothing here touched.
  */
-export const INNER_PERIOD = 9
+const INNER_PERIOD = 9
 
 /** Radians a second at the inner edge. */
 const INNER_RATE = (2 * Math.PI) / INNER_PERIOD

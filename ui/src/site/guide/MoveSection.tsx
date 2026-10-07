@@ -23,10 +23,9 @@ import { GuideSection, SubHead } from './parts'
 import { BurnDiagram, CoastDiagram, JumpDiagram } from './moveDiagrams'
 import { CHEATSHEET } from '../../text/cheatsheet'
 import { rich } from '../../utils/rich'
+import { span } from './windows'
 
 const T = CHEATSHEET.move
-
-const range = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`)
 
 /** What a move costs, as two stamped figures. */
 function Cost({ fuel, energy }: { fuel: string; energy: string }) {
@@ -296,10 +295,10 @@ export function MoveSection() {
         <Move
           title={T.burn.title}
           diagram={<BurnDiagram />}
-          fuel={range(soft.mass, hard.mass)}
-          energy={range(soft.energy, hard.energy)}
+          fuel={span(soft.mass, hard.mass)}
+          energy={span(soft.energy, hard.energy)}
         >
-          {rich(T.burn.text, { rings: range(soft.rings, hard.rings) })}
+          {rich(T.burn.text, { rings: span(soft.rings, hard.rings) })}
         </Move>
         <Move
           title={T.jump.title}

@@ -78,7 +78,11 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   // else's is still up until their own turn comes round.
   state = withActiveShip(state, activeIndex, clearLoadout(active.ship));
 
-  const processed = processActions(state, actions);
+  // Where the turn began: a ship is moored during its own actions only while
+  // it holds the berth it began on, and docks only on arrival (RULES §Stations).
+  const start = positionOf(active.ship);
+  const wasMoored = isMooredAt(gameState.stations, start);
+  const processed = processActions(state, actions, { start });
   if (!processed.success) {
     return { gameState, events: [], errors: processed.errors ?? ["Failed to process actions"] };
   }
@@ -93,7 +97,6 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
 
   // Arriving at a station, or holding a berth held since last turn? Only an
   // arrival is a visit (RULES §Stations).
-  const wasMoored = isMooredAt(gameState.stations, positionOf(active.ship));
   // The sale named for the visit, if any; without one the visit makes the default.
   const dockSale = actions.find((a) => a.type === "dock_sale")?.data.sale;
   const docking = processDocking(state, activeIndex, !wasMoored, dockSale);

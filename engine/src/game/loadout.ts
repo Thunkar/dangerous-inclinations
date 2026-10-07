@@ -103,17 +103,17 @@ export function calculateShipStatsFromLoadout(loadout: ShipLoadout): {
   };
 }
 
-export function countSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType): number {
+function countSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType): number {
   return [...loadout.forwardSlots, ...loadout.sideSlots].filter((t) => t === type).length;
 }
 
-export function hasSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType): boolean {
+function hasSubsystemInLoadout(loadout: ShipLoadout, type: SubsystemType): boolean {
   if (getSubsystemConfig(type).slotType === "fixed") return true;
   return countSubsystemInLoadout(loadout, type) > 0;
 }
 
 /** Tiles from a requirement that this loadout actually carries; any one satisfies it. */
-export function fittedForRequirement(
+function fittedForRequirement(
   loadout: ShipLoadout,
   requirement: MissionRequirement
 ): SubsystemType[] {

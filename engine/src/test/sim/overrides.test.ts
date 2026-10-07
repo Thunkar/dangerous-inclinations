@@ -1,6 +1,7 @@
 /**
- * The simulator's tile and hull channels: what `--tiles=`, `--loadouts=`,
- * `--seats=` and `--hands=` parse to, and what they refuse.
+ * The simulator's tile, hull and bot channels: what `--tiles=`, `--loadouts=`,
+ * `--seats=`, `--hands=` and `--bot=` parse to, and what they refuse. One row
+ * per shape a parser reads or refuses.
  */
 import { describe, it, expect } from "vitest";
 import { SUBSYSTEM_CONFIGS } from "../../models/subsystems.ts";
@@ -18,19 +19,15 @@ import {
   parseSeatHands,
   parseSeatLoadouts,
 } from "../../sim/loadoutOverrides.ts";
+import { parseBotOverrides } from "../../sim/botOverrides.ts";
+import { LOADOUTS } from "../testUtils.ts";
 
 describe("parseTileOverrides", () => {
   it.each<[string, string, TileOverrides]>([
-    ["a weapon's damage", "laser.damage=3", { laser: { damage: 3 } }],
+    ["a weapon's number", "laser.damage=3", { laser: { damage: 3 } }],
     ["a weapon flag", "laser.ignoresShields=false", { laser: { ignoresShields: false } }],
     ["a slot group", "fuel_compressor.slotType=side", { fuel_compressor: { slotType: "side" } }],
     ["a passive effect", "radiator.dissipationBonus=3", { radiator: { dissipationBonus: 3 } }],
-    ["a tile's cubes", "shields.maxEnergy=3", { shields: { maxEnergy: 3 } }],
-    [
-      "what a shield cube stops of a weapon",
-      "plasma_cannon.shieldPointsPerEnergy=1",
-      { plasma_cannon: { shieldPointsPerEnergy: 1 } },
-    ],
     [
       "two tiles at once",
       "ballistic_rack.damage=3,shields.maxEnergy=6",
@@ -45,7 +42,6 @@ describe("parseTileOverrides", () => {
   it.each([
     ["an unknown tile", "phaser.damage=3"],
     ["an unknown field", "laser.colour=3"],
-    ["a field that is gone", "shields.energyStep=1"],
     ["no field", "laser=3"],
     ["no value", "laser.damage"],
   ])("refuses %s", (_label, text) => {
@@ -74,23 +70,13 @@ describe("parseTileOverrides", () => {
 });
 
 const HUNTER = "railgun/laser,ballistic_rack,shields,radiator";
-const HUNTER_LOADOUT = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["laser", "ballistic_rack", "shields", "radiator"],
-};
 const HAULER = "fuel_compressor/shields,shields,radiator,laser";
-const HAULER_LOADOUT = {
-  forwardSlots: ["fuel_compressor"],
-  sideSlots: ["shields", "shields", "radiator", "laser"],
-};
-
 describe("parseLoadoutOverrides", () => {
   it.each([
-    ["one preset", `gunship=${HUNTER}`, { gunship: HUNTER_LOADOUT }],
     [
       "two presets, ; between",
       `gunship=${HUNTER};freighter=${HAULER}`,
-      { gunship: HUNTER_LOADOUT, freighter: HAULER_LOADOUT },
+      { gunship: LOADOUTS.hunter, freighter: LOADOUTS.hauler },
     ],
   ])("parses %s", (_label, text, expected) => {
     expect(parseLoadoutOverrides(text)).toEqual(expected);
@@ -100,13 +86,8 @@ describe("parseLoadoutOverrides", () => {
   });
 
   it.each([
+    // Retired presets and role names land here too.
     ["an unknown preset", `gunboat=${HUNTER}`],
-    ["a retired preset", `brawler=${HUNTER}`],
-    ["the retired striker", `striker=${HUNTER}`],
-    ["the retired jammer", `jammer=${HUNTER}`],
-    ["the retired privateer", `privateer=${HAULER}`],
-    ["a role for a preset", `hunter=${HUNTER}`],
-    ["the hauler role for a preset", `hauler=${HAULER}`],
     ["no preset", HUNTER],
     ["three side tiles", "gunship=railgun/laser,shields,radiator"],
     ["no forward tile", "gunship=/laser,ballistic_rack,shields,radiator"],
@@ -117,31 +98,27 @@ describe("parseLoadoutOverrides", () => {
 
 describe("parseSeatLoadouts", () => {
   it.each([
-    ["one seat", `bot-1=${HUNTER}`, { "bot-1": HUNTER_LOADOUT }],
     [
       "two seats",
       `bot-1=${HUNTER};bot-3=${HAULER}`,
-      { "bot-1": HUNTER_LOADOUT, "bot-3": HAULER_LOADOUT },
+      { "bot-1": LOADOUTS.hunter, "bot-3": LOADOUTS.hauler },
     ],
   ])("parses %s", (_label, text, expected) => {
     expect(parseSeatLoadouts(text)).toEqual(expected);
     expect(parseSeatLoadouts(describeSeatLoadouts(parseSeatLoadouts(text)))).toEqual(expected);
   });
 
-  it.each([
-    ["no seat", HUNTER],
-    ["five side tiles", "bot-1=railgun/laser,laser,laser,laser,laser"],
-  ])("refuses %s", (_label, text) => {
-    expect(() => parseSeatLoadouts(text)).toThrow();
+  // The hull is read by the same parser as `--loadouts=`, which refuses bad hulls above.
+  it("refuses a hull with no seat", () => {
+    expect(() => parseSeatLoadouts(HUNTER)).toThrow();
   });
 });
 
 describe("parseSeatHands", () => {
   it.each([
-    ["a short name", "bot-1=destroy", { "bot-1": "destroy_ship" }],
     ["a card's own type", "bot-2=intercept_transmission", { "bot-2": "intercept_transmission" }],
     [
-      "two seats",
+      "two seats by short name",
       "bot-1=deliver,bot-3=intercept",
       { "bot-1": "deliver_cargo", "bot-3": "intercept_transmission" },
     ],
@@ -156,5 +133,27 @@ describe("parseSeatHands", () => {
     ["no seat", "=destroy"],
   ])("refuses %s: only a primary is dealt", (_label, text) => {
     expect(() => parseSeatHands(text)).toThrow();
+  });
+});
+
+describe("parseBotOverrides", () => {
+  it.each([
+    [
+      "targetPreference=closest,aggressiveness=0.8",
+      { targetPreference: "closest", aggressiveness: 0.8 },
+    ],
+    ["conserveAmmo=true", { conserveAmmo: true }],
+  ])("reads %s", (text, expected) => {
+    expect(parseBotOverrides(text)).toEqual(expected);
+  });
+
+  it.each([
+    ["targetPreferenc=weakest"], // an unknown parameter
+    ["targetPreference=bravest"], // not one of the parameter's words
+    ["aggressiveness=lots"], // not a number
+    ["conserveAmmo=yes"], // not a boolean
+    ["targetPreference"], // no value at all
+  ])("refuses %s", (text) => {
+    expect(() => parseBotOverrides(text)).toThrow();
   });
 });

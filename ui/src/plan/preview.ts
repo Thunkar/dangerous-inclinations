@@ -27,7 +27,6 @@ import type {
   Position,
   SaleOffer,
   SeizableItem,
-  ShipState,
   Station,
   Subsystem,
   SubsystemId,
@@ -58,12 +57,14 @@ import {
   isDestroyed,
   isInWeaponRange,
   isMooredAt,
+  isMooredMidTurn,
   isOnBoard,
   isOpeningRound,
   isPowerableType,
   isQuietTurn,
   isWeaponType,
   lowestCriticalFace,
+  oppositeFacing,
   phasedJumpDestination,
   projectPosition,
   recoilRing,
@@ -128,13 +129,6 @@ const READY: MoveReadiness = { ok: true, reason: '' }
 const blocked = (reason: string): MoveReadiness => ({ ok: false, reason })
 
 const BURN_INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
-
-export const flip = (facing: Facing): Facing => (facing === 'prograde' ? 'retrograde' : 'prograde')
-
-/** My ship standing where a step starts, for the questions asked of a whole ship. */
-function shipAt(me: Player, at: StepContext): ShipState {
-  return { ...me.ship, ...at.position, facing: at.facing }
-}
 
 /**
  * The tile each step uses. Each tile does one thing a turn, so a tile a step
@@ -242,7 +236,8 @@ export function loadoutFor(
  * Where the ship is at the start of each step, and where the plan leaves it.
  * A rotation flips the facing, the move goes where the engine projects it,
  * and a railgun that is not compensated recoils one ring against its facing
- * (`recoilRing`).
+ * (`recoilRing`). A coast holds a berth only when the ship began the turn on
+ * it and is still there (`isMooredMidTurn`): a recoil onto a station drifts off.
  */
 export function walkSteps(
   me: Player,
@@ -257,7 +252,7 @@ export function walkSteps(
     starts.push({ position, facing })
     switch (step.kind) {
       case 'rotate':
-        facing = flip(facing)
+        facing = oppositeFacing(facing)
         break
       case 'move': {
         const move = step.move
@@ -276,7 +271,7 @@ export function walkSteps(
                 })
               : projectPosition(shipHere, facing, {
                   kind: 'coast',
-                  moored: isMooredAt(stations, position),
+                  moored: isMooredMidTurn(stations, me.ship, position),
                 })
           position = { wellId: p.wellId, ring: p.ring, sector: p.sector }
         }
@@ -335,7 +330,7 @@ export function targetsInRange(
 ): Target[] {
   if (step.kind === 'fire') {
     const weapon = loadout.find(s => s.id === step.subsystemId)
-    if (!weapon || !canFireFrom(shipAt(me, at), view.stations)) return []
+    if (!weapon || !canFireFrom(me.ship, at.position, view.stations)) return []
     const attacker = { ...at.position, facing: at.facing }
     return targets.filter(t => firable(view, t.id) && isInWeaponRange(weapon, attacker, t.position))
   }
@@ -592,7 +587,7 @@ export function planIssues(
           if (step.count < 1) problems.push(`${name}: a salvo launches at least one missile`)
         }
         const target = step.targetId ? seat(step.targetId) : undefined
-        if (!canFireFrom(shipAt(me, at), view.stations))
+        if (!canFireFrom(me.ship, at.position, view.stations))
           problems.push('A moored ship fires at nobody: burn off the berth first')
         else if (!step.targetId) problems.push(`${name}: pick a target`)
         else if (untouchable(step.targetId))
@@ -838,7 +833,7 @@ export function planActions(
           playerId: me.id,
           type: 'rotate',
           sequence: ++sequence,
-          data: { targetFacing: flip(at.facing) },
+          data: { targetFacing: oppositeFacing(at.facing) },
         })
         break
       case 'move':

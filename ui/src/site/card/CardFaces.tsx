@@ -55,6 +55,7 @@ import { TURN_STEPS } from '../turn'
 import { MovementDiagram } from './MovementDiagram'
 import { PRINTED_CARD } from '../../text/printedCard'
 import { rich, type RichTags } from '../../utils/rich'
+import { span } from '../guide/windows'
 
 const F = PRINTED_CARD.front
 const B = PRINTED_CARD.back
@@ -63,7 +64,6 @@ const RED_WORDS: RichTags = { red: text => <b className="r">{text}</b> }
 
 const PRIMARY = MISSION_POINTS.destroy_ship
 const SECONDARY = MISSION_POINTS.survey
-const range = (a: number, b: number) => (a === b ? `${a}` : `${a}–${b}`)
 
 function Card({ face, children }: { face: string; children: ReactNode }) {
   return (
@@ -174,8 +174,8 @@ export function CardFront() {
                 <Icon type="engines" />
               </td>
               <td className="k">{F.costs.burn.move}</td>
-              <td className="n">{range(soft.mass, hard.mass)}</td>
-              <td className="n">{range(soft.energy, hard.energy)}</td>
+              <td className="n">{span(soft.mass, hard.mass)}</td>
+              <td className="n">{span(soft.energy, hard.energy)}</td>
               <td className="di-w">{F.costs.burn.and}</td>
             </tr>
             <tr>

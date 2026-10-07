@@ -67,9 +67,8 @@ export const MISSION_OFFERS_PER_PLAYER =
 export const SURVEY_RING = 1;
 
 /**
- * Fuel a Tanker hands in, in one go, on arrival at a station. It was 8 while a
- * Deliver crate and the fuel could change hands on the same visit; with the
- * two on separate visits, 7 gives back about half the length that cost.
+ * Fuel a Tanker hands in, in one go, on arrival at a station: the station's one
+ * sale to that player. A hull that jumps in with a full tank arrives with it.
  */
 export const TANKER_FUEL = 5;
 
@@ -361,6 +360,17 @@ export function aboard(cargo: readonly Cargo[]): Cargo[] {
 }
 
 /**
+ * The hold with `item` aboard: an entry with the same id (an item a pirate
+ * took, left behind off the hold) is replaced rather than copied, else the item
+ * is added.
+ */
+export function withItemAboard(cargo: readonly Cargo[], item: Cargo): Cargo[] {
+  return cargo.some((c) => c.id === item.id)
+    ? cargo.map((c) => (c.id === item.id ? item : c))
+    : [...cargo, item];
+}
+
+/**
  * Whether an Intercept's transmission or a Survey's readings are in the hold:
  * the card's thing has been done and its data not yet filed. A pirate who
  * takes it, or a kill, puts the card back to undone by taking the data.
@@ -394,7 +404,4 @@ export function missionTargetsPlayer(
 
 export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
   return m.type === "intercept_transmission";
-}
-export function isSurveyMission(m: Mission): m is SurveyMission {
-  return m.type === "survey";
 }

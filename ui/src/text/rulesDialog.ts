@@ -75,7 +75,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Berth',
-      'a moored ship neither fires nor is fired at, missiles included; scans still reach it',
+      'moored from the moment you dock until you leave the sector, so on the turn you arrive you may still fire after the move; a moored ship neither fires nor is fired at, missiles included; scans still reach it',
     ],
     [
       'Wrecks',
@@ -116,7 +116,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Win',
-      '{pointsToWin} points trigger the final round; when it ends, highest score wins (hull, then fuel, break ties). Your primary and either secondary is a win; two secondaries are not',
+      '{pointsToWin} points trigger the final round; when it ends, highest score wins (hull, then fuel, then the earlier seat, break ties). Your primary and either secondary is a win; two secondaries are not',
     ],
   ],
 

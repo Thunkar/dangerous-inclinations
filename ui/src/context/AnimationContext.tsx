@@ -18,6 +18,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { GameEvent, GameView, Position } from '@dangerous-inclinations/engine'
+import { positionOf } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
 import { getPlayerColor } from '../utils/playerColors'
 import {
@@ -224,7 +225,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
       const player = view.players[index]
       const ship = player?.ship
       if (!ship || ship.isDestroyed) return
-      const position: Position = { wellId: ship.wellId, ring: ship.ring, sector: ship.sector }
+      const position: Position = positionOf(ship)
       const color = getPlayerColor(index)
       setPinged({ id: nextId('ping'), playerId, position })
       pushPing({

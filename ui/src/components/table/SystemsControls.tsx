@@ -54,11 +54,11 @@ export function SystemsControls() {
   const back = quiet && !isOpeningRound(view.turn)
   /**
    * Every step of the turn happens at a berth: moored at the start and still
-   * there at the end. A moored ship fires at nobody (RULES §Stations). A turn
-   * that only arrives at a berth can still fire before its move, so that one
-   * is left to the plan's own problems to explain.
+   * there at the end. A moored ship fires at nobody (RULES §Stations, Moored).
+   * A turn that arrives at a berth is not moored until it docks, so it fires
+   * before and after its move.
    */
-  const atBerth = plan.moored && !canFireFrom(plan.finalPosition.position, view.stations)
+  const atBerth = !canFireFrom(plan.me.ship, plan.finalPosition.position, view.stations)
 
   const fireBlock = (sub: Subsystem): string | null => {
     if (sub.isBroken) return 'Broken: it does nothing until repaired.'

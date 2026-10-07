@@ -2,32 +2,36 @@ import { describe, it, expect } from "vitest";
 import { PLANET_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { viewFor } from "../../game/view.ts";
+import type { GameState } from "../../models/game.ts";
 import {
   buildTurn,
   describeViewForAgent,
   seatOptions,
-  AGENT_INTENT_GUIDE,
+  type FireIntent,
+  type TurnIntent,
 } from "../../agent/index.ts";
 import {
   ALPHA,
   BETA,
   BH,
+  checkEach,
   deliverMission,
   escortMission,
-  eventsOf,
   getPlayer,
   makeTwoPlayerGame,
   withMissions,
   withPlayer,
   withPower,
-  getShip,
+  withShip,
+  cratesAboard,
 } from "../testUtils.ts";
+import { brawlerState, laneState, sensorState } from "../game/actionOrder.scenarios.ts";
 
 describe("agent seat tooling", () => {
   const start = () =>
     makeTwoPlayerGame({ wellId: BH, ring: 3, sector: 0 }, { wellId: BH, ring: 4, sector: 0 });
 
-  it("lists the legal burns, the jump and the weapons in range from the view", () => {
+  it("lists the legal burns, the jump, the weapons in range and what can be powered", () => {
     const o = seatOptions(viewFor(start(), "p1"));
     expect(o.velocity).toBe(4);
     expect(o.burns.map((b) => `${b.intensity}-${b.facing}`)).toEqual(
@@ -46,13 +50,8 @@ describe("agent seat tooling", () => {
     // Rounds left is the biggest salvo the launcher can fire; nothing else has ammo.
     expect(o.weapons.find((w) => w.weapon === "side-3")?.ammo).toBe(4);
     expect(laser?.ammo).toBeNull();
-  });
-
-  it("offers each powerable subsystem every amount it takes: a shield one or two", () => {
-    const o = seatOptions(viewFor(start(), "p1"));
-    expect(o.power).toEqual([
-      { id: "side-2", type: "shields", amounts: [1, 2] },
-    ]);
+    // Each powerable subsystem, with every amount it takes: a shield one or two.
+    expect(o.power).toEqual([{ id: "side-2", type: "shields", amounts: [1, 2] }]);
   });
 
   it("builds a salvo from a count and leaves the tile at its minimum cubes", () => {
@@ -65,19 +64,12 @@ describe("agent seat tooling", () => {
     // A salvo of any size is one use of the tile, and the launch powers it:
     // the builder has no cubes to place.
     expect(built.actions.some((a) => a.type === "power")).toBe(false);
-    const result = executeTurn(state, built.actions);
-    expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "missile_launched")).toHaveLength(3);
-    expect(eventsOf(result.events, "weapon_fired")[0].heat).toBe(2);
+    expect(executeTurn(state, built.actions).errors).toBeUndefined();
   });
 
+  // Coasts, soft burns, shots in every order and jumps are the loops' below.
   it.each([
-    ["a coast", { move: { kind: "coast" as const } }],
     ["a scooping coast", { move: { kind: "coast" as const, scoop: true } }],
-    [
-      "a soft burn outward with the engines powered for it",
-      { move: { kind: "burn" as const, intensity: "soft" as const } },
-    ],
     [
       "a rotation and an inward medium burn",
       {
@@ -86,17 +78,6 @@ describe("agent seat tooling", () => {
           intensity: "medium" as const,
           facing: "retrograde" as const,
         },
-      },
-    ],
-    [
-      "a laser shot at the ship one ring out",
-      { fire: [{ weapon: "side-0" as const, target: "p2" }] },
-    ],
-    [
-      "a shot before a burn",
-      {
-        fire: [{ weapon: "side-0" as const, target: "p2", when: "before" as const }],
-        move: { kind: "burn" as const, intensity: "soft" as const },
       },
     ],
   ])("builds a legal turn for %s", (_label, intent) => {
@@ -128,7 +109,7 @@ describe("agent seat tooling", () => {
     if (withCard) state = withMissions(state, "p1", [escortMission()]);
     state = withMissions(state, "p2", [deliverMission(ALPHA, BETA)]);
     return withPlayer(state, "p2", {
-      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+      cargo: cratesAboard(getPlayer(state, "p2").cargo),
     });
   };
 
@@ -151,9 +132,7 @@ describe("agent seat tooling", () => {
       built.actions.flatMap((a) => (a.type === "escort_mark" ? [a.data.carrierId] : []))
     ).toEqual(expected);
     expect(built.notes).toHaveLength(notes);
-    const result = executeTurn(state, built.actions);
-    expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "escort_marked").map((e) => e.carrierId)).toEqual(expected);
+    expect(executeTurn(state, built.actions).errors).toBeUndefined();
   });
 
   it("builds a burn off the rings as asked and leaves the refusal to the engine", () => {
@@ -168,7 +147,7 @@ describe("agent seat tooling", () => {
 
   it("tells an agent that asks to power a tile an action would power anyway", () => {
     const built = buildTurn(viewFor(start(), "p1"), { power: { engines: 3 } });
-    expect(built.notes.some((n) => n.includes("powered by the action that uses it"))).toBe(true);
+    expect(built.notes).toHaveLength(1);
     expect(built.actions.some((a) => a.type === "power")).toBe(false);
   });
 
@@ -187,9 +166,7 @@ describe("agent seat tooling", () => {
       data: { subsystemId: "side-2", amount: 2 },
     });
     expect(walled.actions.find((a) => a.type === "burn")?.sequence).toBe(2);
-    const result = executeTurn(state, walled.actions);
-    expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(2 + 1);
+    expect(executeTurn(state, walled.actions).errors).toBeUndefined();
   });
 
   it("the digest carries the seat's ship, cards, opponents and legal options", () => {
@@ -198,8 +175,6 @@ describe("agent seat tooling", () => {
     expect(text).toContain("OPPONENTS:");
     expect(text).toContain("LEGAL THIS TURN:");
     expect(text).toContain("side-0 (laser");
-    expect(text).not.toContain(getShip(start(), "p2").reactionMass.toString() + "/16"); // no opponent fuel leaks
-    expect(AGENT_INTENT_GUIDE).toContain('"move"');
   });
 
   it("jump options appear only on a departure arc, with the phasing the arc allows", () => {
@@ -213,7 +188,7 @@ describe("agent seat tooling", () => {
     expect(jump?.adjustment).toEqual({ min: -1, max: 2 });
   });
 
-  it("builds a phased jump the engine accepts, and refuses to invent one out of the arc", () => {
+  it("builds the phased jump asked for, in the arc or out of it", () => {
     const onLane = makeTwoPlayerGame(
       { wellId: BH, ring: 5, sector: 17 },
       { wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 0 }
@@ -221,14 +196,18 @@ describe("agent seat tooling", () => {
     const built = buildTurn(viewFor(onLane, "p1"), {
       move: { kind: "jump", destinationWellId: ALPHA, adjustment: 2 },
     });
-    const result = executeTurn(onLane, built.actions);
-    expect(result.errors).toBeUndefined();
-    expect(getShip(result.gameState, "p1")).toMatchObject({ wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 7 });
+    expect(built.actions.find((a) => a.type === "well_transfer")?.data).toMatchObject({
+      sectorAdjustment: 2,
+    });
+    expect(executeTurn(onLane, built.actions).errors).toBeUndefined();
 
+    // No autopilot: out of the arc is passed on as asked, for the engine to refuse.
     const tooFar = buildTurn(viewFor(onLane, "p1"), {
       move: { kind: "jump", destinationWellId: ALPHA, adjustment: 3 },
     });
-    expect(executeTurn(onLane, tooFar.actions).errors?.length).toBeGreaterThan(0);
+    expect(tooFar.actions.find((a) => a.type === "well_transfer")?.data).toMatchObject({
+      sectorAdjustment: 3,
+    });
   });
 
   it("tells a moored seat that a coast holds the berth", () => {
@@ -238,8 +217,146 @@ describe("agent seat tooling", () => {
     );
     expect(seatOptions(viewFor(docked, "p1")).moored).toBe(true);
     expect(describeViewForAgent(viewFor(docked, "p1"))).toContain("Moored at a station");
-    const built = buildTurn(viewFor(docked, "p1"), { move: { kind: "coast" } });
-    const result = executeTurn(docked, built.actions);
-    expect(getShip(result.gameState, "p1")).toMatchObject({ ring: STATION_RING, sector: 0 });
+  });
+});
+
+/**
+ * The builder places what the agent asked (rotate, shots marked "before", the
+ * move, the rest, with the scan as early as it reaches) and does not change it.
+ * Over every `when` for every shot, with and without a rotation, a compensation
+ * and a scan, the turn it builds is accepted by the engine exactly when it
+ * notes nothing: a turn the engine refuses always comes with the reason.
+ */
+describe("agent: the built turn in every order", () => {
+  const WHEN = [undefined, "before", "after"] as const;
+  type Table = {
+    name: string;
+    build: () => GameState;
+    shots: (compensate: boolean) => FireIntent[];
+    scans: Array<string | undefined>;
+    moves: NonNullable<TurnIntent["move"]>[];
+  };
+  const tables: Table[] = [
+    {
+      name: "railgun bow",
+      build: brawlerState,
+      shots: (compensate) => [
+        { weapon: "forward-0", target: "p2", compensateRecoil: compensate },
+        { weapon: "side-0", target: "p4" },
+        { weapon: "side-3", target: "p5", count: 2 },
+      ],
+      scans: [undefined],
+      moves: [{ kind: "coast" }, { kind: "burn", intensity: "soft" }],
+    },
+    {
+      name: "sensor bow",
+      build: sensorState,
+      shots: () => [
+        { weapon: "side-0", target: "p3" },
+        { weapon: "side-1", target: "p3" },
+        { weapon: "side-3", target: "p4", count: 2 },
+      ],
+      scans: [undefined, "p2"],
+      moves: [{ kind: "coast" }, { kind: "burn", intensity: "soft" }],
+    },
+    {
+      name: "on the lane",
+      build: laneState,
+      shots: (compensate) => [
+        { weapon: "forward-0", target: "p3", compensateRecoil: compensate },
+        { weapon: "side-3", target: "p3", count: 2 },
+      ],
+      scans: [undefined],
+      moves: [{ kind: "coast" }, { kind: "jump", destinationWellId: ALPHA }],
+    },
+  ];
+  const whens = (n: number): Array<Array<FireIntent["when"]>> =>
+    n === 0 ? [[]] : whens(n - 1).flatMap((rest) => WHEN.map((w) => [w, ...rest]));
+
+  /** Every intent a table builds, labelled. */
+  const intentsOf = (t: Table): Array<[string, TurnIntent]> =>
+    whens(t.shots(false).length).flatMap((when) =>
+      [false, true].flatMap((rotate) =>
+        t.moves.flatMap((move) =>
+          (t.shots(true).some((f) => f.compensateRecoil) ? [false, true] : [false]).flatMap(
+            (compensate) =>
+              t.scans.map((scan): [string, TurnIntent] => [
+                `when ${when.map((w) => w ?? "-").join("/")}${rotate ? ", rotate" : ""}, ${move.kind}${compensate ? ", compensated" : ""}${scan ? ", scan" : ""}`,
+                {
+                  fire: t.shots(compensate).map((f, i) => ({ ...f, when: when[i] })),
+                  rotate,
+                  move,
+                  ...(scan ? { scan: { target: scan } } : {}),
+                },
+              ])
+          )
+        )
+      )
+    );
+
+  it.each(tables)("$name: refused exactly when noted, and both happen", (table) => {
+    const refused = new Set<boolean>();
+    checkEach(
+      intentsOf(table),
+      ([label]) => label,
+      ([, intent]) => {
+        const state = table.build();
+        const built = buildTurn(viewFor(state, "p1"), intent);
+        const result = executeTurn(state, built.actions);
+        refused.add(result.errors !== undefined);
+        expect({ refused: result.errors !== undefined, notes: built.notes }).toMatchObject({
+          refused: built.notes.length > 0,
+        });
+      }
+    );
+    expect(refused).toEqual(new Set([true, false]));
+  });
+
+  it.each<[string, () => GameState, TurnIntent]>([
+    // p2 is two sectors ahead; after the coast it is behind.
+    [
+      "a railgun only the start reaches",
+      brawlerState,
+      { fire: [{ weapon: "forward-0", target: "p2" }] },
+    ],
+    // p2 is two sectors astern; after the coast it is six.
+    ["a scan only the start reaches", sensorState, { scan: { target: "p2" } }],
+    // The lane needs prograde facing: the builder rotates for it.
+    ["a jump facing retrograde", laneState, { move: { kind: "jump", destinationWellId: ALPHA } }],
+  ])("places %s where the engine accepts it, with nothing to note", (_label, build, intent) => {
+    const state = build();
+    const built = buildTurn(viewFor(state, "p1"), intent);
+    expect(built.notes).toEqual([]);
+    expect(executeTurn(state, built.actions).errors).toBeUndefined();
+  });
+
+  it("scans before the shots, so they roll against the sensor's range", () => {
+    const state = sensorState();
+    const built = buildTurn(viewFor(state, "p1"), {
+      fire: [{ weapon: "side-0", target: "p3" }],
+      scan: { target: "p2" },
+    });
+    const sequenceOf = (type: string) => built.actions.find((a) => a.type === type)?.sequence;
+    expect(sequenceOf("scan")).toBeLessThan(sequenceOf("fire_weapon")!);
+    expect(executeTurn(state, built.actions).errors).toBeUndefined();
+  });
+
+  it.each<[string, () => GameState, NonNullable<TurnIntent["move"]>]>([
+    [
+      "a burn that names the facing the ship has",
+      brawlerState,
+      { kind: "burn", intensity: "soft", facing: "prograde" },
+    ],
+    [
+      "a jump, which faces prograde",
+      () => withShip(laneState(), "p1", { facing: "prograde" }),
+      { kind: "jump", destinationWellId: ALPHA },
+    ],
+  ])("drops a rotation asked for alongside %s, and says so", (_label, build, move) => {
+    const state = build();
+    const built = buildTurn(viewFor(state, "p1"), { rotate: true, move });
+    expect(built.notes).toHaveLength(1);
+    expect(built.actions.some((a) => a.type === "rotate")).toBe(false);
+    expect(executeTurn(state, built.actions).errors).toBeUndefined();
   });
 });

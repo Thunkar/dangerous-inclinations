@@ -31,7 +31,7 @@ import { useFrame } from '@react-three/fiber'
 import { HULL_INK } from '../../../../ships/palette'
 import { TABLE } from '../../../../theme'
 import type { WreckToken } from '../../model'
-import { slideProgress, wreckHeading, wreckPoint, wreckRadius } from '../../geometry'
+import { driftProgress, wreckHeading, wreckPoint, wreckRadius } from '../../geometry'
 import { wreckLabel } from '../../labels'
 import { WRECK_BOW, WRECK_STERN, type Outline } from '../../shapes'
 import { LAYER, elevationAt, surfaceElevation, toWorld, yawFromHeading } from '../world'
@@ -90,12 +90,6 @@ const SHARDS: { at: [number, number, number]; turn: [number, number, number] }[]
   { at: [11.4 * SCALE, 1.2, -2.2 * SCALE], turn: [0.2, 1.6, 1.2] },
 ]
 
-function drift(wreck: WreckToken, now: number): number {
-  if (!wreck.motion) return 1
-  const raw = Math.min(1, Math.max(0, (now - wreck.motion.start) / wreck.motion.duration))
-  return slideProgress(raw)
-}
-
 function WreckMesh({ wreck }: { wreck: WreckToken }) {
   const group = useRef<Group>(null)
   const [hovered, setHovered] = useState(false)
@@ -126,7 +120,7 @@ function WreckMesh({ wreck }: { wreck: WreckToken }) {
     const motion = wreck.motion
     const now = performance.now()
     if (motion && now < motion.start + motion.duration) {
-      const point = wreckPoint(wreck.position, wreck.crowd, motion.from, drift(wreck, now))
+      const point = wreckPoint(wreck.position, wreck.crowd, motion.from, driftProgress(wreck, now))
       node.position.set(point.x, height, point.y)
       node.rotation.y = yawFromHeading(wreckHeading(point, wellId, wreck.id))
     } else if (!node.position.equals(rest.at)) {

@@ -7,11 +7,7 @@
 import type { Position, TransferLane } from '@dangerous-inclinations/engine'
 import { getWellName } from '@dangerous-inclinations/engine'
 import type { ShipToken } from './model'
-
-/** "Alpha R2 S7": a sector the way the board names it. */
-function place(position: Position): string {
-  return `${getWellName(position.wellId)} R${position.ring} S${position.sector}`
-}
+import { placeLabel } from '../../utils/route'
 
 export function shipLabel(
   ship: Pick<ShipToken, 'name' | 'hitPoints' | 'maxHitPoints' | 'heat' | 'facing' | 'escorts'>
@@ -22,15 +18,15 @@ export function shipLabel(
 }
 
 export function wreckLabel(position: Position): string {
-  return `Wreck · ${place(position)} · a Salvage holder can take its black box`
+  return `Wreck · ${placeLabel(position)} · a Salvage holder can take its black box`
 }
 
 export function deployLabel(position: Position): string {
-  return `Place your ship here · ${place(position)}. This sector becomes your Home.`
+  return `Place your ship here · ${placeLabel(position)}. This sector becomes your Home.`
 }
 
 export function routeCellLabel(position: Position): string {
-  return `Route to ${place(position)}`
+  return `Route to ${placeLabel(position)}`
 }
 
 /** "beta-a" → "A". The two lanes to a planet are told apart by their letter. */

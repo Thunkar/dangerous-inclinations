@@ -1,3 +1,9 @@
+/**
+ * The bots' route planner, one question per block: where a move could have
+ * started, the fastest route and its fuel, whether more fuel ever makes a
+ * route slower, what the alternatives keep in the tank, where a moving
+ * target will be, and how a jump is phased.
+ */
 import { describe, it, expect } from "vitest";
 import { PLANET_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import {
@@ -12,932 +18,201 @@ import {
   orbitingTarget,
   planFromShip,
 } from "../../ai/movementPlanner/index.ts";
-import type { OrientedPosition, OrbitalPosition } from "../../ai/movementPlanner/types.ts";
-import type { ShipState, Facing } from "../../models/game.ts";
-import { createInitialShipState } from "../../game/ship.ts";
+import type {
+  MovementPlan,
+  OrientedPosition,
+  OrbitalPosition,
+} from "../../ai/movementPlanner/types.ts";
+import type { Facing } from "../../models/game.ts";
+import type { PlannerTarget } from "../../ai/movementPlanner/index.ts";
 import { createInitialStations } from "../../game/stations.ts";
-import { calculateShipStatsFromLoadout, createSubsystemsFromLoadout } from "../../game/loadout.ts";
-
-describe("Movement Planner", () => {
-  describe("Predecessors", () => {
-    it("should find coast predecessors on same ring", () => {
-      const target: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 8, // Ring 3 velocity = 4, so predecessor was at sector 4
-        facing: "prograde",
-      };
-
-      const predecessors = getPredecessors(target, 10, false);
-
-      // Coast predecessors should be at sector 4 (8 - 4 = 4)
-      const coastPreds = predecessors.filter((p) => p.actionType === "coast");
-      expect(coastPreds.length).toBe(2); // Both facings
-
-      const coastPred = coastPreds[0];
-      expect(coastPred.position.sector).toBe(4);
-      expect(coastPred.position.ring).toBe(3);
-      expect(coastPred.massCost).toBe(0);
-    });
-
-    it("should find burn predecessors from adjacent rings", () => {
-      const target: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 10,
-        facing: "prograde",
-      };
-
-      const predecessors = getPredecessors(target, 10, false);
-
-      // Prograde burn raises orbit (outward), so to reach ring 3 via prograde,
-      // predecessor was at INNER ring (ring 1 or 2)
-      const progradePreds = predecessors.filter((p) => p.actionType === "burn_prograde");
-      expect(progradePreds.length).toBeGreaterThan(0);
-
-      // Prograde burn predecessors should be at rings <= 2 (inner rings)
-      for (const pred of progradePreds) {
-        expect(pred.position.ring).toBeLessThanOrEqual(2);
-      }
-
-      // Retrograde burn lowers orbit (inward), so to reach ring 3 via retrograde,
-      // predecessor was at OUTER ring (ring 4, 5, or 6)
-      const retrogradePreds = predecessors.filter((p) => p.actionType === "burn_retrograde");
-      expect(retrogradePreds.length).toBeGreaterThan(0);
-
-      // Retrograde burn predecessors should be at rings >= 4 (outer rings)
-      for (const pred of retrogradePreds) {
-        expect(pred.position.ring).toBeGreaterThanOrEqual(4);
-      }
-    });
-
-    it("should respect mass constraints", () => {
-      const target: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 10,
-        facing: "prograde",
-      };
-
-      // With 0 mass, only coast should be available
-      const noBurnPreds = getPredecessors(target, 0, false);
-      const burnPreds = noBurnPreds.filter(
-        (p) => p.actionType === "burn_prograde" || p.actionType === "burn_retrograde"
-      );
-      expect(burnPreds.length).toBe(0);
-
-      // Coast should still be available
-      const coastPreds = noBurnPreds.filter((p) => p.actionType === "coast");
-      expect(coastPreds.length).toBe(2);
-    });
-
-    it("should handle sector wraparound correctly", () => {
-      const target: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 2, // Near sector 0
-        facing: "prograde",
-      };
-
-      const predecessors = getPredecessors(target, 0, false);
-      const coastPreds = predecessors.filter((p) => p.actionType === "coast");
-
-      // Ring 3 velocity = 4, so predecessor at sector 2 - 4 = -2 → 22 (wrap)
-      expect(coastPreds[0].position.sector).toBe(22);
-    });
-  });
-
-  describe("planMovement", () => {
-    it("should find simple coast path on same ring", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 4, // 1 turn of coasting at velocity 4
-      };
-
-      const plan = planMovement(origin, destination, {
-        mode: "fastest",
-        maxTurns: 10,
-        availableMass: 10,
-      });
-
-      expect(plan).not.toBeNull();
-      expect(plan!.totalTurns).toBe(1);
-      expect(plan!.totalMassCost).toBe(0); // Coast is free
-      expect(plan!.steps.length).toBe(1);
-      expect(plan!.steps[0].actionType).toBe("coast");
-    });
-
-    it("should find simple burn path to adjacent ring", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde", // Need prograde to go to outer ring (raises orbit)
-      };
-      const destination: OrbitalPosition = {
-        wellId: "blackhole",
-        ring: 4,
-        sector: 4, // After orbital movement and soft burn
-      };
-
-      const plan = planMovement(origin, destination, {
-        mode: "fastest",
-        maxTurns: 10,
-        availableMass: 10,
-      });
-
-      expect(plan).not.toBeNull();
-      expect(plan!.totalTurns).toBe(1);
-      expect(plan!.totalMassCost).toBe(1); // Soft burn costs 1 mass
-      // Prograde burn raises orbit (ring 3 → ring 4)
-      expect(plan!.steps[0].actionType).toBe("burn_prograde");
-    });
-
-    it("should return null when destination is unreachable", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "blackhole",
-        ring: 1,
-        sector: 0,
-      };
-
-      // With only 0 mass, can't burn, so ring 1 is unreachable
-      const plan = planMovement(origin, destination, {
-        mode: "fastest",
-        maxTurns: 5,
-        availableMass: 0,
-      });
-
-      expect(plan).toBeNull();
-    });
-
-    it("should find fast route from BH R4S4 to Beta's lane ringS1 (cross-well)", () => {
-      // Real scenario: ship at BH R4S4 needs to reach Beta's lane ringS1
-      // Transfer to Beta is at BH R5 S2 -> Beta's lane ring S5
-      // After transfer + orbital movement (velocity=1): lands at Beta's lane ring S6
-      // Then needs to reach Beta's lane ring S1
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 4,
-        sector: 4,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "planet-beta",
-        ring: PLANET_OUTER_RING,
-        sector: 1,
-      };
-
-      // With fuel scoop, the ship recovers mass while coasting on inner rings,
-      // making burn-heavy routes affordable even with limited starting fuel
-      const result = planMovementAlternatives(origin, destination, {
-        maxTurns: 25,
-        availableMass: 10,
-        allowWellTransfers: true,
-        hasFuelScoop: true,
-      });
-
-      expect(result).not.toBeNull();
-      expect(result!.alternatives.length).toBeGreaterThanOrEqual(1);
-
-      const fastest = result!.alternatives[0];
-
-      // Should NOT take 10+ turns of coasting. Using inner rings should be much faster.
-      expect(fastest.totalTurns).toBeLessThanOrEqual(10);
-    });
-
-    it("should use faster inner rings to reach distant sectors", () => {
-      // From R4S3 to R5S2 - this used to take 10 turns of coasting
-      // The planner should find a faster path using inner rings with higher velocity
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 4,
-        sector: 3,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "blackhole",
-        ring: 5,
-        sector: 2,
-      };
-
-      const plan = planMovement(origin, destination, {
-        mode: "fastest",
-        maxTurns: 20,
-        availableMass: 10,
-      });
-
-      expect(plan).not.toBeNull();
-      // Should find a path faster than 10 turns by using inner rings
-      // Inner rings have higher velocity (R3=4, R2=6, R1=8 sectors/turn)
-      expect(plan!.totalTurns).toBeLessThan(10);
-    });
-
-    it("should find cheaper routes with fuel scoop enabled", () => {
-      // Use economical mode to see the difference in mass cost
-      // Ship starts with 6 mass (partially depleted), so scooping can recover up to max 10
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde",
-      };
-      // Same ring, 2 coasts ahead: scoop should recover fuel on each coast
-      const destination: OrbitalPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 8, // 2 turns of coasting at velocity 4
-      };
-
-      // Without scoop: 2 coasts, 0 mass cost
-      const planNoScoop = planMovement(origin, destination, {
-        mode: "economical",
-        maxTurns: 10,
-        availableMass: 6,
-      });
-
-      // With scoop: 2 coasts, each recovers velocity=4, but capped at tank room (4 units)
-      const planWithScoop = planMovement(origin, destination, {
-        mode: "economical",
-        maxTurns: 10,
-        availableMass: 6,
-        hasFuelScoop: true,
-        maxFuelCapacity: 10,
-      });
-
-      expect(planNoScoop).not.toBeNull();
-      expect(planWithScoop).not.toBeNull();
-
-      // Without scoop: coast is free, total mass = 0
-      expect(planNoScoop!.totalMassCost).toBe(0);
-
-      // With scoop: each coast recovers fuel, net mass should be negative
-      // but capped at -(maxFuelCapacity - availableMass) = -(10-6) = -4
-      expect(planWithScoop!.totalMassCost).toBeLessThan(0);
-      expect(planWithScoop!.totalMassCost).toBeGreaterThanOrEqual(-4); // Can't exceed tank capacity
-    });
-
-    it("should find path to different gravity well", () => {
-      // Start at black hole ring 5 at the correct transfer sector
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 5,
-        sector: 18, // Alpha outbound transfer sector
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "planet-alpha",
-        ring: PLANET_OUTER_RING,
-        sector: 6, // After transfer (toSector=5) + velocity 1 = sector 6
-      };
-
-      const plan = planMovement(origin, destination, {
-        mode: "fastest",
-        maxTurns: 10,
-        availableMass: 10,
-        allowWellTransfers: true,
-      });
-
-      expect(plan).not.toBeNull();
-      expect(plan!.crossesWells).toBe(true);
-    });
-  });
-
-  describe("planMovementAlternatives", () => {
-    it("should find alternatives for same-well routes", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 4,
-        sector: 3,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "blackhole",
-        ring: 5,
-        sector: 2,
-      };
-
-      const result = planMovementAlternatives(origin, destination, {
-        maxTurns: 20,
-        availableMass: 10,
-      });
-
-      expect(result).not.toBeNull();
-      expect(result!.alternatives.length).toBeGreaterThanOrEqual(1);
-      // First alternative should be labeled as fastest
-      expect(result!.alternatives[0].label).toContain("Fastest");
-    });
-
-    it("should find alternatives for cross-well routes", () => {
-      // Start at black hole ring 3, need to get to planet-alpha ring 2
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "planet-alpha",
-        ring: 2,
-        sector: 5,
-      };
-
-      const result = planMovementAlternatives(origin, destination, {
-        maxTurns: 20,
-        availableMass: 10,
-        allowWellTransfers: true,
-        hasFuelScoop: true,
-      });
-
-      expect(result).not.toBeNull();
-      expect(result!.alternatives.length).toBeGreaterThanOrEqual(1);
-
-      // All alternatives should cross wells
-      for (const alt of result!.alternatives) {
-        expect(alt.crossesWells).toBe(true);
-        // Should have a well_transfer step
-        const hasTransfer = alt.steps.some((s) => s.actionType === "well_transfer");
-        expect(hasTransfer).toBe(true);
-      }
-    });
-
-  });
-
-  describe("isReachable", () => {
-    it("should return true for reachable positions", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 4,
-      };
-
-      expect(isReachable(origin, destination, 5, 10, true)).toBe(true);
-    });
-
-    it("should return false for unreachable positions", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "planet-alpha",
-        ring: STATION_RING,
-        sector: 0,
-      };
-
-      // Can't reach the station ring from BH in 2 turns with no mass
-      expect(isReachable(origin, destination, 2, 0, false)).toBe(false);
-    });
-  });
-
-  describe("getReachablePositions", () => {
-    it("should find positions reachable in 1 turn", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde",
-      };
-
-      const reachable = getReachablePositions(origin, 1, 10, false);
-
-      // Should include origin (0 turns)
-      expect(reachable.has("blackhole:3:0")).toBe(true);
-
-      // Should include coast destination (1 turn)
-      expect(reachable.has("blackhole:3:4")).toBe(true);
-
-      // Should include burn destinations (1 turn)
-      // After soft prograde burn: ring 4
-      const ring4Positions = Array.from(reachable.values()).filter(
-        (p) => p.position.wellId === "blackhole" && p.position.ring === 4
-      );
-      expect(ring4Positions.length).toBeGreaterThan(0);
-    });
-
-    it("should track turn count correctly", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde",
-      };
-
-      const reachable = getReachablePositions(origin, 2, 10, false);
-
-      // Origin should be at turn 0
-      const originData = reachable.get("blackhole:3:0");
-      expect(originData?.turns).toBe(0);
-
-      // Coast destination should be at turn 1
-      const coast1 = reachable.get("blackhole:3:4");
-      expect(coast1?.turns).toBe(1);
-
-      // 2 turns of coasting should reach sector 8
-      const coast2 = reachable.get("blackhole:3:8");
-      expect(coast2?.turns).toBe(2);
-    });
-  });
-
-  describe("algorithm correctness", () => {
-    it("should pick lowest massCost among equal-turn paths in fastest mode", () => {
-      // Ship at R3S0 going to R3S8: 2 coasts. With scoop and room in tank,
-      // the massCost should be negative (fuel recovered), not zero.
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 0,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "blackhole",
-        ring: 3,
-        sector: 8,
-      };
-
-      const plan = planMovement(origin, destination, {
-        mode: "fastest",
-        maxTurns: 10,
-        availableMass: 6,
-        hasFuelScoop: true,
-        maxFuelCapacity: 10,
-      });
-
-      expect(plan).not.toBeNull();
-      expect(plan!.totalTurns).toBe(2);
-      // With scoop, coasting should recover fuel, so massCost should be negative
-      expect(plan!.totalMassCost).toBeLessThan(0);
-    });
-
-    it("BHR4S6 to BetaR3S1: reserve 4 vs 5 regression (planMovement)", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 4,
-        sector: 6,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "planet-beta",
-        ring: PLANET_OUTER_RING,
-        sector: 1,
-      };
-
-      // Reserve 4: availableMass = 6
-      const plan4 = planMovement(origin, destination, {
-        mode: "fastest",
-        maxTurns: 20,
-        availableMass: 6,
-        hasFuelScoop: true,
-        maxFuelCapacity: 10,
-        allowWellTransfers: true,
-      });
-      // Reserve 5: availableMass = 5
-      const plan5 = planMovement(origin, destination, {
-        mode: "fastest",
-        maxTurns: 20,
-        availableMass: 5,
-        hasFuelScoop: true,
-        maxFuelCapacity: 10,
-        allowWellTransfers: true,
-      });
-
-      // Both routes exist: the assertion below is worthless otherwise.
-      expect(plan4).not.toBeNull();
-      expect(plan5).not.toBeNull();
-      // More fuel should NEVER produce a slower route
-      expect(plan4!.totalTurns).toBeLessThanOrEqual(plan5!.totalTurns);
-    });
-
-    it("should not give worse routes when fuel reserve increases slightly (same-well)", () => {
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 4,
-        sector: 4,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "blackhole",
-        ring: 5,
-        sector: 2,
-      };
-
-      const plans = [];
-      for (const reserve of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
-        const avail = Math.max(0, 10 - reserve);
-        const plan = planMovement(origin, destination, {
-          mode: "fastest",
-          maxTurns: 20,
-          availableMass: avail,
-          hasFuelScoop: true,
-          maxFuelCapacity: 10,
-        });
-        plans.push({
-          reserve,
-          avail,
-          turns: plan?.totalTurns ?? Infinity,
-          mass: plan?.totalMassCost ?? Infinity,
-        });
-      }
-
-      // Turns should be non-decreasing as fuel decreases (reserve increases)
-      for (let i = 1; i < plans.length; i++) {
-        expect(plans[i].turns).toBeGreaterThanOrEqual(plans[i - 1].turns);
-      }
-    });
-
-    it("should not give worse routes when fuel reserve increases (cross-well via alternatives)", () => {
-      // This mirrors how the UI calls the planner
-      const origin: OrientedPosition = {
-        wellId: "blackhole",
-        ring: 4,
-        sector: 6,
-        facing: "prograde",
-      };
-      const destination: OrbitalPosition = {
-        wellId: "planet-beta",
-        ring: PLANET_OUTER_RING,
-        sector: 1,
-      };
-
-      const plans = [];
-      for (const reserve of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) {
-        const avail = Math.max(0, 10 - reserve);
-        const result = planMovementAlternatives(origin, destination, {
-          maxTurns: 20,
-          availableMass: avail,
-          hasFuelScoop: true,
-          maxFuelCapacity: 10,
-          allowWellTransfers: true,
-        });
-        const fastest = result?.alternatives[0];
-        plans.push({
-          reserve,
-          avail,
-          turns: fastest?.totalTurns ?? Infinity,
-          mass: fastest?.totalMassCost ?? Infinity,
-        });
-      }
-
-      // The reserve 4 vs 5 regression, the way the UI asks: both routes exist,
-      // or the comparison below passes on two nulls.
-      expect(plans.find((p) => p.reserve === 4)!.turns).toBeLessThan(Infinity);
-      expect(plans.find((p) => p.reserve === 5)!.turns).toBeLessThan(Infinity);
-      // Turns should be non-decreasing as fuel decreases (reserve increases)
-      for (let i = 1; i < plans.length; i++) {
-        expect(plans[i].turns).toBeGreaterThanOrEqual(plans[i - 1].turns);
-      }
-    });
-  });
+import { wrapSector } from "../../game/geometry.ts";
+import { ALPHA, BETA, BH, GAMMA, LOADOUTS, at, makePlayer } from "../testUtils.ts";
+
+/** A ship's place and facing: prograde unless the row says otherwise. */
+const facing = (position: OrbitalPosition, f: Facing = "prograde"): OrientedPosition => ({
+  ...position,
+  facing: f,
 });
 
-// ============================================================================
-// Dynamic-target planning: forward BFS, station meet-ups, orbitingTarget math
-// ============================================================================
-
-/** Create a ship with full fuel and a generic loadout for path tests. */
-function makeShip(
-  wellId: string,
-  ring: number,
-  sector: number,
-  facing: Facing = "prograde"
-): ShipState {
-  const loadout = {
-    forwardSlots: ["sensor_array"] as never,
-    sideSlots: ["shields", "radiator", "radiator", "laser"] as never,
+/** What a test reads off a plan. */
+const summary = (plan: MovementPlan | null) =>
+  plan && {
+    turns: plan.totalTurns,
+    mass: plan.totalMassCost,
+    actions: plan.steps.map((s) => s.actionType),
+    crossesWells: plan.crossesWells,
   };
-  const stats = calculateShipStatsFromLoadout(loadout);
-  return {
-    ...createInitialShipState({ wellId, ring, sector, facing }),
-    loadout,
-    subsystems: createSubsystemsFromLoadout(loadout),
-    reactionMass: stats.reactionMass,
-  };
-}
 
-describe("movementPlanner: orbitingTarget", () => {
+/** Alpha's station as a planner target, on `sector` of its ring now and advancing 4 a round. */
+const station = (sector: number) => orbitingTarget(at(STATION_RING, sector, ALPHA), 4);
+
+describe("getPredecessors: where a move onto a sector could have started", () => {
   it.each([
-    ["the origin before any advance", 4, 0, 4],
-    // The first action's match check fires before the round ends, so the
-    // station has not moved yet at turn 1.
-    ["the origin at turn 1: the round ends after it", 4, 1, 4],
-    ["one advance at turn 2", 0, 2, 4],
-    ["two advances at turn 3", 0, 3, 8],
-    ["across the ring boundary", 20, 2, 0],
-    ["on past the boundary", 20, 3, 4],
-  ])("positionAt gives %s", (_label, from, turn, sector) => {
-    const target = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: from }, 4);
-    expect(target.positionAt(turn)).toEqual({ wellId: "planet-alpha", ring: STATION_RING, sector });
-  });
-
-
-  it("isMatch checks spatial equality at the right turn", () => {
-    const target = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 0 }, 4);
-    expect(target.isMatch!({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 }, 2)).toBe(true);
-    expect(target.isMatch!({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 }, 3)).toBe(false);
-  });
-});
-
-describe("movementPlanner: staticTarget", () => {
-  it("returns the same position regardless of turn", () => {
-    const target = staticTarget({ wellId: "blackhole", ring: 3, sector: 5 });
-    expect(target.positionAt(0)).toEqual({ wellId: "blackhole", ring: 3, sector: 5 });
-    expect(target.positionAt(5)).toEqual({ wellId: "blackhole", ring: 3, sector: 5 });
-  });
-
-  it("matches by exact spatial equality", () => {
-    const target = staticTarget({ wellId: "blackhole", ring: 3, sector: 5 });
-    expect(target.isMatch!({ wellId: "blackhole", ring: 3, sector: 5 }, 0)).toBe(true);
-    expect(target.isMatch!({ wellId: "blackhole", ring: 3, sector: 6 }, 0)).toBe(false);
+    // Ring 3 drifts four a turn: a coast onto S2 started at S22, in either facing.
+    {
+      label: "a coast from four back, across sector 0, and no burn without fuel",
+      target: at(3, 2),
+      mass: 0,
+      expected: { coast: ["3:22", "3:22"], prograde: [], retrograde: [] },
+    },
+    // A prograde burn raises the orbit, so it came from inside; a retrograde
+    // one from outside.
+    {
+      label: "a burn outward from an inner ring, inward from an outer one",
+      target: at(3, 10),
+      mass: 10,
+      expected: { coast: ["3:6", "3:6"], prograde: [1, 2], retrograde: [4, 5] },
+    },
+  ])("$label", ({ target, mass, expected }) => {
+    const preds = getPredecessors(facing(target), mass, false);
+    const rings = (type: string) =>
+      [...new Set(preds.filter((p) => p.actionType === type).map((p) => p.position.ring))].sort();
+    expect({
+      coast: preds
+        .filter((p) => p.actionType === "coast" && p.massCost === 0)
+        .map((p) => `${p.position.ring}:${p.position.sector}`),
+      prograde: rings("burn_prograde"),
+      retrograde: rings("burn_retrograde"),
+    }).toEqual(expected);
   });
 });
 
-describe("movementPlanner: planMovementToTarget (forward BFS)", () => {
-  it("reaches a static target identically to the legacy reverse BFS", () => {
-    const origin: OrientedPosition = {
-      wellId: "planet-alpha",
-      ring: STATION_RING,
-      sector: 8,
-      facing: "prograde",
-    };
-    const target = staticTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 12 });
-    const fwd = planMovementToTarget(origin, target, { availableMass: 16 });
-    const rev = planMovement(
-      origin,
-      { wellId: "planet-alpha", ring: STATION_RING, sector: 12 },
-      { availableMass: 16 }
-    );
-    expect(fwd).not.toBeNull();
-    expect(rev).not.toBeNull();
-    expect(fwd!.totalTurns).toBe(rev!.totalTurns);
-  });
-
-  it("intercepts an orbiting station the bot trails by 8 sectors", () => {
-    // Bot at R1S8 retrograde. Station starts at R1S16, advancing +4/round.
-    // Pure-coast trails the station forever (same sector velocity); the
-    // planner must find a ring detour that times the meet correctly. This
-    // is the exact bug that motivated the redesign.
-    const plan = planMovementToTarget(
-      { wellId: "planet-alpha", ring: STATION_RING, sector: 8, facing: "retrograde" },
-      orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 16 }, 4),
-      { availableMass: 16 }
-    );
-    expect(plan).not.toBeNull();
-    expect(plan!.totalTurns).toBeGreaterThanOrEqual(2);
-    expect(plan!.totalTurns).toBeLessThanOrEqual(5);
-    const last = plan!.steps[plan!.steps.length - 1];
-    const expected = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 16 }, 4).positionAt(
-      plan!.totalTurns
-    );
-    expect(last.to.sector).toBe(expected.sector);
-    expect(last.to.ring).toBe(STATION_RING);
-  });
-
-  describe("arrivalMass: fuel that must be aboard on arrival", () => {
-    // From the black hole to Alpha's station: the jump alone costs more than two
-    // fuel, so only a route that dips and scoops back up arrives with eight.
-    const origin: OrientedPosition = { wellId: "blackhole", ring: 3, sector: 0, facing: "prograde" };
-    const station = createInitialStations().find((s) => s.planetId === "planet-alpha")!;
-    const target = orbitingTarget(
-      { wellId: station.planetId, ring: station.ring, sector: station.sector },
-      4
-    );
-    const tank = { availableMass: 10, maxFuelCapacity: 10, hasFuelScoop: true, maxTurns: 20 };
-
-    it("finds a route that runs low on the way and arrives with the fuel asked for", () => {
-      const plan = planMovementToTarget(origin, target, { ...tank, arrivalMass: 8 });
-      expect(plan).not.toBeNull();
-      expect(10 - plan!.totalMassCost).toBeGreaterThanOrEqual(8);
-    });
-
-    it("is not a floor: the same eight as a reserve the route may never touch finds nothing", () => {
-      const floor = planMovementToTarget(origin, target, {
-        ...tank,
-        availableMass: 2,
-        maxFuelCapacity: 2,
-      });
-      expect(floor).toBeNull();
-    });
-
-    it("finds nothing when more is asked for than the tank holds", () => {
-      expect(planMovementToTarget(origin, target, { ...tank, arrivalMass: 11 })).toBeNull();
-    });
-  });
-
-  it("returns null when the bot cannot intercept within the turn budget", () => {
-    const plan = planMovementToTarget(
-      { wellId: "planet-alpha", ring: STATION_RING, sector: 8, facing: "retrograde" },
-      orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 16 }, 4),
-      { availableMass: 16, maxTurns: 1 } // cannot match the station's sector in one turn
-    );
-    expect(plan).toBeNull();
-  });
-
-  it.each([
-    [4, -1],
-    [5, 0],
-    [6, 1],
-    [7, 2],
-  ])(
-    "reaches Alpha's lane ring S%i from the one lane sector with a jump phased by %i",
-    (sector, adjustment) => {
-      // BH R5 S17 is the second sector of the alpha-b departure arc; with
-      // phasing its jump reaches all four sectors of the arrival arc.
-      const plan = planMovement(
-        { wellId: "blackhole", ring: 5, sector: 17, facing: "prograde" },
-        { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector },
-        // availableMass must not exceed maxFuelCapacity (10 by default), or
-        // the planner's scoop-recovery floor clamps every step's cost.
-        { availableMass: 10, maxTurns: 4 }
-      );
-      expect(plan).not.toBeNull();
-      expect(plan!.steps).toHaveLength(1);
-      expect(plan!.steps[0]).toMatchObject({
-        actionType: "well_transfer",
-        sectorAdjustment: adjustment,
-        massCost: 3 + Math.abs(adjustment),
-      });
-    }
-  );
-
-  it("does not phase a jump it does not need to, and will not phase out of the arc", () => {
-    const unphased = planMovement(
-      { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
-      { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector: 4 },
-      { availableMass: 10, maxTurns: 4 }
-    );
-    expect(unphased!.steps[0].sectorAdjustment).toBe(0);
-    // Sector 8 is off the arrival arc: no single jump gets there.
-    const offArc = planMovement(
-      { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
-      { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector: 8 },
-      { availableMass: 10, maxTurns: 1 }
-    );
-    expect(offArc).toBeNull();
-  });
-
-  it("will not phase a jump it cannot pay for", () => {
-    const rich = planMovement(
-      { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
-      { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector: 7 },
-      { availableMass: 6, maxTurns: 1 }
-    );
-    expect(rich!.steps[0].massCost).toBe(6);
-    const poor = planMovement(
-      { wellId: "blackhole", ring: 5, sector: 16, facing: "prograde" },
-      { wellId: "planet-alpha", ring: PLANET_OUTER_RING, sector: 7 },
-      { availableMass: 5, maxTurns: 1 }
-    );
-    expect(poor).toBeNull();
-  });
-
-  it("handles cross-well dynamic targets", () => {
-    // BH R5 S18 is the BH→alpha transfer point, so the well_transfer
-    // is available on turn 1. After landing on alpha R3 S5 the bot still
-    // has to navigate down to R1, easily within budget.
-    const plan = planMovementToTarget(
-      { wellId: "blackhole", ring: 5, sector: 18, facing: "prograde" },
-      orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 0 }, 4),
-      { availableMass: 16 }
-    );
-    expect(plan).not.toBeNull();
-    expect(plan!.crossesWells).toBe(true);
-  });
-
-  it("does not falsely match at layer 0 (origin has no match check)", () => {
-    // Bot starts at the station's current sector but hasn't acted yet.
-    // The planner should still find a *real* meet at layer ≥ 1, not a
-    // 0-turn match that would give the bot nothing to do.
-    const plan = planMovementToTarget(
-      { wellId: "planet-alpha", ring: STATION_RING, sector: 4, facing: "prograde" },
-      orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 4 }, 4),
-      { availableMass: 16 }
-    );
-    expect(plan).not.toBeNull();
-    expect(plan!.totalTurns).toBeGreaterThanOrEqual(1);
+describe("planMovement: the route it picks and what it costs", () => {
+  const tank = { maxFuelCapacity: 10, hasFuelScoop: true };
+  it.each<
+    [string, OrientedPosition, OrbitalPosition, Parameters<typeof planMovement>[2], object | null]
+  >([
+    [
+      "a coast along the ring",
+      facing(at(3, 0)),
+      at(3, 4),
+      { availableMass: 10 },
+      { turns: 1, mass: 0, actions: ["coast"] },
+    ],
+    [
+      "a soft burn out a ring",
+      facing(at(3, 0)),
+      at(4, 4),
+      { availableMass: 10 },
+      { turns: 1, mass: 1, actions: ["burn_prograde"] },
+    ],
+    [
+      "nothing down two rings with no fuel",
+      facing(at(3, 0)),
+      at(1, 0),
+      { availableMass: 0, maxTurns: 5 },
+      null,
+    ],
+    // Inner rings are faster: ten turns of coasting on ring 4 is the slow way round.
+    [
+      "a dive through the fast rings to a sector far ahead",
+      facing(at(4, 3)),
+      at(5, 2),
+      { availableMass: 10, maxTurns: 20 },
+      { turns: 4 },
+    ],
+    [
+      "the jump from under Alpha's door",
+      facing(at(5, 18)),
+      at(PLANET_OUTER_RING, 6, ALPHA),
+      { availableMass: 10, allowWellTransfers: true },
+      { crossesWells: true, actions: ["well_transfer"] },
+    ],
+    [
+      "two free coasts without a scoop",
+      facing(at(3, 0)),
+      at(3, 8),
+      { mode: "economical", availableMass: 6 },
+      { turns: 2, mass: 0 },
+    ],
+    // Four sectors a coast, capped at the four the tank has room for.
+    [
+      "two scooping coasts, economical",
+      facing(at(3, 0)),
+      at(3, 8),
+      { mode: "economical", availableMass: 6, ...tank },
+      { turns: 2, mass: -4 },
+    ],
+    [
+      "two scooping coasts, fastest: equal turns, the cheapest",
+      facing(at(3, 0)),
+      at(3, 8),
+      { availableMass: 6, ...tank },
+      { turns: 2, mass: -4 },
+    ],
+  ])("%s", (_label, from, to, options, expected) => {
+    const plan = summary(planMovement(from, to, { mode: "fastest", maxTurns: 10, ...options }));
+    if (expected === null) expect(plan).toBeNull();
+    else expect(plan).toMatchObject(expected);
   });
 });
 
-describe("movementPlanner: planStationMeetUp (convenience)", () => {
-  it("returns null when the station is out of reach within the turn budget", () => {
-    // Another planet's station needs a climb to the lane ring, a jump, a
-    // crossing of black hole ring 5 and a descent: never three turns.
-    const ship = makeShip("planet-alpha", STATION_RING, 0, "prograde");
-    const meet = planStationMeetUp(ship, { planetId: "planet-beta", ring: STATION_RING, sector: 0 }, 3);
-    expect(meet).toBeNull();
-  });
-
-  it("chooses a plan that actually intercepts the station (regression: trailing bug)", () => {
-    // This is the bug that drove the redesign: on the station's own ring the
-    // bot's orbital velocity matches the station's, so coasting trails it
-    // forever. The planner must prove it lands on the station, not adjacent.
-    const ship = makeShip("planet-alpha", STATION_RING, 8, "retrograde");
-    const meet = planStationMeetUp(ship, {
-      planetId: "planet-alpha",
-      ring: STATION_RING,
-      sector: 16,
-    });
-    expect(meet).not.toBeNull();
-    const last = meet!.plan.steps[meet!.plan.steps.length - 1];
-    const expectedSector = (16 + 4 * Math.max(0, meet!.totalTurns - 1)) % 24;
-    expect(last.to.sector).toBe(expectedSector);
-    expect(last.to.ring).toBe(STATION_RING);
-    // And the meet it reports is where the station will be on arrival.
-    const expected = orbitingTarget({ wellId: "planet-alpha", ring: STATION_RING, sector: 16 }, 4).positionAt(
-      meet!.totalTurns
-    );
-    expect(meet!.meetPosition).toEqual(expected);
-  });
-});
-
-describe("movementPlanner: planFromShip falls back to the forward search", () => {
-  /** A ship with a working scoop and a dry tank on black hole ring 3. */
-  function dryShip(): ShipState {
-    return {
-      ...createInitialShipState({ wellId: "blackhole", ring: 3, sector: 0, facing: "prograde" }),
-      reactionMass: 0,
-    };
-  }
-
-  it("plans a route that scoops first, where the reverse search sees only a dry tank", () => {
-    const ship = dryShip();
-    // Ring 3 drifts 4 sectors a turn: coast (scooping 4 fuel), then a soft
-    // burn outward lands on ring 4, sector 8.
-    const destination: OrbitalPosition = { wellId: "blackhole", ring: 4, sector: 8 };
-
-    // The reverse search caps every predecessor's burn by the fuel the ship
-    // holds now, so it cannot see the refuelling coast at all.
-    expect(
-      planMovement(
-        { wellId: "blackhole", ring: 3, sector: 0, facing: "prograde" },
-        destination,
-        { mode: "fastest", maxTurns: 20, availableMass: 0, hasFuelScoop: true, maxFuelCapacity: 10 }
-      )
-    ).toBeNull();
-
-    const plan = planFromShip(ship, destination, "fastest", 20);
-    expect(plan).not.toBeNull();
-    expect(plan!.destination).toEqual(destination);
-    expect(plan!.steps[0].actionType).toBe("coast");
-    expect(plan!.steps.some((s) => s.actionType.startsWith("burn"))).toBe(true);
-  });
-
-  it("still returns the reverse plan when there is fuel for one, without a second search", () => {
-    const ship = createInitialShipState({
-      wellId: "blackhole",
-      ring: 3,
-      sector: 0,
-      facing: "prograde",
-    });
-    const destination: OrbitalPosition = { wellId: "blackhole", ring: 4, sector: 4 };
-    const plan = planFromShip(ship, destination, "fastest", 20);
-    expect(plan).not.toBeNull();
-    expect(plan!.totalTurns).toBe(1);
-  });
-
-  it("gives up rather than looping when the destination is genuinely unreachable", () => {
-    const ship = dryShip();
-    expect(planFromShip(ship, { wellId: "no-such-well", ring: 1, sector: 0 }, "fastest", 4)).toBeNull();
+describe("more fuel never makes a route slower", () => {
+  const scoop = { maxFuelCapacity: 10, hasFuelScoop: true, maxTurns: 20 };
+  const fastest = (plan: MovementPlan | null | undefined) => plan?.totalTurns ?? Infinity;
+  it.each<[string, (availableMass: number) => number]>([
+    [
+      "in one well",
+      (availableMass) =>
+        fastest(
+          planMovement(facing(at(4, 4)), at(5, 2), { mode: "fastest", availableMass, ...scoop })
+        ),
+    ],
+    [
+      "across wells",
+      (availableMass) =>
+        fastest(
+          planMovement(facing(at(4, 6)), at(PLANET_OUTER_RING, 1, BETA), {
+            mode: "fastest",
+            availableMass,
+            allowWellTransfers: true,
+            ...scoop,
+          })
+        ),
+    ],
+    // The way the UI asks: a reserve of 4 once found a slower route than 5.
+    [
+      "across wells, through the alternatives",
+      (availableMass) =>
+        fastest(
+          planMovementAlternatives(facing(at(4, 6)), at(PLANET_OUTER_RING, 1, BETA), {
+            availableMass,
+            allowWellTransfers: true,
+            ...scoop,
+          })?.alternatives[0]
+        ),
+    ],
+  ])("%s", (_label, turnsWith) => {
+    const turns = [10, 9, 8, 7, 6, 5, 4, 3, 2].map(turnsWith);
+    // Both sides of the old regression have a route, or the comparison is empty.
+    expect(turns[4]).toBeLessThan(Infinity);
+    expect(turns[5]).toBeLessThan(Infinity);
+    for (let i = 1; i < turns.length; i++) expect(turns[i]).toBeGreaterThanOrEqual(turns[i - 1]);
   });
 });
 
-describe("movementPlanner: a scoop only takes what the tank has room for", () => {
+describe("planMovementAlternatives: what every alternative keeps in the tank", () => {
   // The reverse search cannot see the tank at each coast; the plan it returns
-  // is replayed forwards, so a coast on a full tank is a plain coast (no scoop
-  // heat for nothing) and no coast ever fills the tank past its capacity.
-  const origin: OrientedPosition = { wellId: "blackhole", ring: 3, sector: 0, facing: "prograde" };
+  // is replayed forwards, so a coast on a full tank is a plain coast and no
+  // coast ever fills the tank past its capacity. A route to another well
+  // jumps on every alternative.
   it.each([
-    { fuel: 10, to: { wellId: "planet-alpha", ring: STATION_RING, sector: 12 } },
-    { fuel: 10, to: { wellId: "blackhole", ring: 1, sector: 5 } },
-    { fuel: 6, to: { wellId: "planet-gamma", ring: PLANET_OUTER_RING, sector: 9 } },
-  ])("from $fuel fuel to $to.wellId R$to.ring S$to.sector", ({ fuel, to }) => {
-    const result = planMovementAlternatives(origin, to as OrbitalPosition, {
+    { from: at(3, 0), fuel: 10, to: at(STATION_RING, 12, ALPHA) },
+    { from: at(3, 0), fuel: 10, to: at(1, 5) },
+    { from: at(3, 0), fuel: 6, to: at(PLANET_OUTER_RING, 9, GAMMA) },
+    // The fast rings, not ten turns of coasting to Beta's door.
+    { from: at(4, 4), fuel: 10, to: at(PLANET_OUTER_RING, 1, BETA), fastest: 9 },
+  ])("from $fuel fuel to $to.wellId R$to.ring S$to.sector", ({ from, fuel, to, fastest }) => {
+    const result = planMovementAlternatives(facing(from), to, {
       availableMass: fuel,
       maxFuelCapacity: 10,
       hasFuelScoop: true,
       allowWellTransfers: true,
-      maxTurns: 20,
+      maxTurns: 25,
     });
     expect(result).not.toBeNull();
+    if (fastest !== undefined) expect(result!.alternatives[0].totalTurns).toBe(fastest);
     for (const plan of result!.alternatives) {
       let tank = fuel;
       for (const step of plan.steps) {
@@ -947,6 +222,185 @@ describe("movementPlanner: a scoop only takes what the tank has room for", () =>
         expect(tank).toBeGreaterThanOrEqual(0);
       }
       expect(plan.totalMassCost).toBe(fuel - tank);
+      const jumps = plan.steps.some((s) => s.actionType === "well_transfer");
+      expect([plan.crossesWells, jumps]).toEqual([to.wellId !== BH, to.wellId !== BH]);
     }
+  });
+});
+
+describe("what a ship can reach", () => {
+  it.each<[string, OrbitalPosition, number, number, boolean]>([
+    ["a coast away in five turns", at(3, 4), 5, 10, true],
+    ["Alpha's station in two turns with no fuel", at(STATION_RING, 0, ALPHA), 2, 0, false],
+  ])("isReachable: %s", (_label, to, turns, mass, reachable) => {
+    expect(isReachable(facing(at(3, 0)), to, turns, mass, true)).toBe(reachable);
+  });
+
+  it("getReachablePositions counts the turns to each position and finds the burns", () => {
+    const reachable = getReachablePositions(facing(at(3, 0)), 2, 10, false);
+    expect(
+      ["blackhole:3:0", "blackhole:3:4", "blackhole:3:8"].map((k) => reachable.get(k)?.turns)
+    ).toEqual([0, 1, 2]);
+    expect([...reachable.values()].some((p) => p.position.ring === 4 && p.turns === 1)).toBe(true);
+  });
+});
+
+describe("planner targets: where a target is on each turn, and what meets it", () => {
+  it.each<[string, PlannerTarget, number, number]>([
+    // The first action's match check fires before the round ends, so the
+    // station has not moved yet at turn 1.
+    ["an orbit at turn 1: the round ends after it", station(4), 1, 4],
+    ["an orbit after one advance", station(0), 2, 4],
+    ["an orbit after two advances", station(0), 3, 8],
+    ["an orbit across the ring boundary", station(20), 2, 0],
+    ["a static target five turns on", staticTarget(at(3, 5)), 5, 5],
+  ])("%s", (_label, target, turn, sector) => {
+    const where = target.positionAt(turn);
+    expect(where.sector).toBe(sector);
+    expect(target.isMatch!(where, turn)).toBe(true);
+    expect(target.isMatch!({ ...where, sector: wrapSector(sector + 1) }, turn)).toBe(false);
+  });
+});
+
+describe("planMovementToTarget: the forward search", () => {
+  const ALPHA_STATION = createInitialStations().find((s) => s.planetId === ALPHA)!;
+  const alphaStation = orbitingTarget(at(ALPHA_STATION.ring, ALPHA_STATION.sector, ALPHA), 4);
+  const tank = { availableMass: 10, maxFuelCapacity: 10, hasFuelScoop: true, maxTurns: 20 };
+
+  it("reaches a static target in as many turns as the reverse search", () => {
+    const from = facing(at(STATION_RING, 8, ALPHA));
+    const to = at(STATION_RING, 12, ALPHA);
+    // Alpha's ring 2 drifts four a turn: one coast.
+    expect(planMovementToTarget(from, staticTarget(to), { availableMass: 16 })?.totalTurns).toBe(1);
+    expect(planMovement(from, to, { availableMass: 16 })?.totalTurns).toBe(1);
+  });
+
+  // From the black hole to Alpha's station: the jump alone costs more than
+  // two fuel, so only a route that dips and scoops back up arrives with eight.
+  it("crosses to another well's station and arrives with the fuel asked for", () => {
+    const plan = planMovementToTarget(facing(at(3, 0)), alphaStation, { ...tank, arrivalMass: 8 });
+    expect(plan?.crossesWells).toBe(true);
+    expect(10 - plan!.totalMassCost).toBeGreaterThanOrEqual(8);
+  });
+
+  it("meets an orbit on a turn after the first, never at the origin", () => {
+    // The ship starts on the station's sector but has not acted yet.
+    const plan = planMovementToTarget(facing(at(STATION_RING, 4, ALPHA)), station(4), {
+      availableMass: 16,
+    });
+    expect(plan?.totalTurns).toBe(2);
+  });
+
+  it.each<[string, () => unknown]>([
+    // Arrival fuel is not a floor: eight the route may never dip under is not
+    // there at all in a tank of two.
+    [
+      "a tank too small to arrive with the fuel",
+      () =>
+        planMovementToTarget(facing(at(3, 0)), alphaStation, {
+          ...tank,
+          availableMass: 2,
+          maxFuelCapacity: 2,
+        }),
+    ],
+    [
+      "more arrival fuel than the tank holds",
+      () => planMovementToTarget(facing(at(3, 0)), alphaStation, { ...tank, arrivalMass: 11 }),
+    ],
+    [
+      "a trailing station in one turn",
+      () =>
+        planMovementToTarget(facing(at(STATION_RING, 8, ALPHA), "retrograde"), station(16), {
+          availableMass: 16,
+          maxTurns: 1,
+        }),
+    ],
+    // A climb to the lane ring, a jump, a crossing of ring 5 and a descent.
+    [
+      "another planet's station in three turns",
+      () =>
+        planStationMeetUp(
+          makePlayer("p1", facing(at(STATION_RING, 0, ALPHA)), LOADOUTS.sensorStarboardLaser).ship,
+          { planetId: BETA, ring: STATION_RING, sector: 0 },
+          3
+        ),
+    ],
+  ])("finds nothing for %s", (_label, plan) => {
+    expect(plan()).toBeNull();
+  });
+
+  // On the station's own ring the ship drifts as fast as the station, so a
+  // coast trails it for ever: the meet needs a detour through another ring.
+  it("planStationMeetUp catches a station trailed by eight sectors", () => {
+    const ship = makePlayer(
+      "p1",
+      facing(at(STATION_RING, 8, ALPHA), "retrograde"),
+      LOADOUTS.sensorStarboardLaser
+    ).ship;
+    const meet = planStationMeetUp(ship, { planetId: ALPHA, ring: STATION_RING, sector: 16 });
+    // Two turns: the station has advanced once, S16 to S20, when the ship arrives.
+    expect(meet?.totalTurns).toBe(2);
+    expect(meet?.meetPosition).toEqual(at(STATION_RING, 20, ALPHA));
+    expect(meet?.plan.steps.at(-1)?.to).toMatchObject(at(STATION_RING, 20, ALPHA));
+  });
+});
+
+describe("a phased jump", () => {
+  // BH R5 S16-19 is Alpha's departure arc and Alpha R4 S4-7 its arrival arc:
+  // a jump lands on the matching sector, phased a sector at a fuel apiece.
+  it.each<[string, number, number, number, { sectorAdjustment: number; massCost: number } | null]>([
+    ["from S17 one back to S4", 17, 4, 10, { sectorAdjustment: -1, massCost: 4 }],
+    ["from S17 straight to S5", 17, 5, 10, { sectorAdjustment: 0, massCost: 3 }],
+    ["from S17 two on to S7", 17, 7, 10, { sectorAdjustment: 2, massCost: 5 }],
+    [
+      "from S16 three on to S7 with the fuel for it",
+      16,
+      7,
+      6,
+      { sectorAdjustment: 3, massCost: 6 },
+    ],
+    ["from S16 to S7 a fuel short", 16, 7, 5, null],
+    ["off the arrival arc", 16, 8, 10, null],
+  ])("%s", (_label, from, to, availableMass, step) => {
+    const plan = planMovement(facing(at(5, from)), at(PLANET_OUTER_RING, to, ALPHA), {
+      availableMass,
+      maxTurns: 1,
+    });
+    if (step === null) expect(plan).toBeNull();
+    else
+      expect(plan?.steps).toEqual([
+        expect.objectContaining({ actionType: "well_transfer", ...step }),
+      ]);
+  });
+});
+
+describe("planFromShip: the forward search behind the reverse one", () => {
+  it("plans a route that scoops first, where the reverse search sees only a dry tank", () => {
+    const ship = { ...makePlayer("p1", facing(at(3, 0))).ship, reactionMass: 0 };
+    // Coast (scooping four fuel), then a soft burn out lands on ring 4, S8.
+    const destination = at(4, 8);
+    // The reverse search caps every burn by the fuel aboard now, so it cannot
+    // see the refuelling coast at all.
+    expect(
+      planMovement(facing(at(3, 0)), destination, {
+        mode: "fastest",
+        maxTurns: 20,
+        availableMass: 0,
+        hasFuelScoop: true,
+        maxFuelCapacity: 10,
+      })
+    ).toBeNull();
+    expect(summary(planFromShip(ship, destination, "fastest", 20))).toMatchObject({
+      actions: ["coast", "burn_prograde"],
+    });
+  });
+
+  it.each([
+    ["with the fuel, the reverse plan", 10, at(4, 4), ["burn_prograde"]],
+    ["to nowhere, nothing rather than a loop", 0, at(1, 0, "no-such-well"), null],
+  ] as const)("returns %s", (_label, reactionMass, destination, actions) => {
+    const ship = { ...makePlayer("p1", facing(at(3, 0))).ship, reactionMass };
+    const plan = planFromShip(ship, destination, "fastest", 20);
+    expect(plan && plan.steps.map((s) => s.actionType)).toEqual(actions);
   });
 });

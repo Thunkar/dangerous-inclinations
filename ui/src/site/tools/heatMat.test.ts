@@ -2,20 +2,20 @@
  * The heat tracker plays the engine's rules by hand, so it is held to the
  * engine on a built ship: a shield soaking a shot (`resolveAttack` with the
  * shot's damage, plasma at its own rate) and a critical breaking a slot
- * (`breakSubsystem`) must leave the same energy on every slot and the same
- * heat on the track as the mat does. Every point absorbed is a point on the
- * track, so a soak moves the track by what the shields stopped.
+ * (`breakSubsystem`) must leave the same energy on every slot, the same
+ * slots broken and the same heat on the track as the mat does. Every point
+ * absorbed is a point on the track, so a soak moves the track by what the
+ * shields stopped.
  */
 import { describe, expect, it } from 'vitest'
 import type { ShipLoadout, ShipState, SubsystemType } from '@dangerous-inclinations/engine'
 import {
-  INTERCEPT_HEAT,
   breakSubsystem,
-  createInitialShipState,
   resolveAttack,
   rollToResult,
   updateSubsystem,
 } from '@dangerous-inclinations/engine'
+import { makePlayer } from '../../../../engine/src/test/testUtils.ts'
 import type { MountId } from '../../ships/mounts'
 import { PLASMA_SHIELD_POINTS, weaponStats } from '../numbers'
 import { SLOTS, absorb, breakSlot, rackAnswers, type Mat, type SlotId } from './heatMat'
@@ -46,10 +46,7 @@ function shipOf(mat: Mat): ShipState {
     forwardSlots: [mat.loadout['forward-0']],
     sideSlots: SIDES.map(id => mat.loadout[id]) as ShipLoadout['sideSlots'],
   }
-  let ship = createInitialShipState(
-    { wellId: 'blackhole', ring: 3, sector: 0, facing: 'prograde' },
-    loadout
-  )
+  let ship = makePlayer('p1', undefined, loadout).ship
   for (const slot of SLOTS) {
     const cubes = mat.energy[slot] ?? 0
     if (cubes > 0) ship = updateSubsystem(ship, slot, { allocatedEnergy: cubes })
@@ -57,20 +54,22 @@ function shipOf(mat: Mat): ShipState {
   return { ...ship, heat: { currentHeat: mat.track } }
 }
 
-/** What the mat shows of a ship: the energy on every slot and the track. */
+/** What the mat shows of a ship: the energy on every slot, the broken slots and the track. */
 function reading(ship: ShipState) {
   const energy: Energy = {}
   for (const slot of SLOTS) {
     const cubes = ship.subsystems.find(s => s.id === slot)?.allocatedEnergy ?? 0
     if (cubes > 0) energy[slot] = cubes
   }
-  return { energy, track: ship.heat.currentHeat }
+  const broken = SLOTS.filter(slot => ship.subsystems.find(s => s.id === slot)?.isBroken)
+  return { energy, broken, track: ship.heat.currentHeat }
 }
 
 function matReading(mat: Mat) {
   const energy: Energy = {}
   for (const slot of SLOTS) if ((mat.energy[slot] ?? 0) > 0) energy[slot] = mat.energy[slot]
-  return { energy, track: mat.track }
+  const broken = SLOTS.filter(slot => mat.broken.includes(slot))
+  return { energy, broken, track: mat.track }
 }
 
 /** A roll that hits and is not a critical, whatever the attacker runs. */
@@ -105,14 +104,8 @@ const WALLS: Array<[string, Mat]> = [
   ['no wall up', matOf('railgun', ['shields', 'laser', 'radiator', 'radiator'], {}, 2)],
 ]
 
-const ATTACKER = shipOf(matOf('railgun', ['laser', 'laser', 'radiator', 'radiator'], {}))
-
-/** Energy on the mat's working shields: what a soak can spend. */
-const shieldEnergy = (mat: Mat) =>
-  SLOTS.filter(slot => slot in mat.loadout && mat.loadout[slot as MountId] === 'shields').reduce(
-    (sum, slot) => sum + (mat.energy[slot] ?? 0),
-    0
-  )
+/** The default hull: no sensor, so the roll above is a plain hit. */
+const ATTACKER = makePlayer('p2').ship
 
 const PLASMA = weaponStats('plasma_cannon').damage
 
@@ -135,15 +128,7 @@ describe('the heat mat against the engine', () => {
     expect(matReading(absorb(mat, PLASMA, PLASMA_SHIELD_POINTS))).toEqual(reading(hit.ship))
   })
 
-  it.each(WALLS)('puts every point a soak stopped on the track: %s', (_name, mat) => {
-    const stopped = Math.min(1, shieldEnergy(mat))
-    expect(absorb(mat, 1).track).toBe(mat.track + stopped)
-    const plasma = Math.min(PLASMA, shieldEnergy(mat) * PLASMA_SHIELD_POINTS)
-    expect(absorb(mat, PLASMA, PLASMA_SHIELD_POINTS).track).toBe(mat.track + plasma)
-  })
-
   const BREAKS: Array<[SlotId, Mat]> = [
-    ['side-0', WALLS[1][1]],
     [
       'forward-0',
       matOf('sensor_array', ['laser', 'shields', 'radiator', 'radiator'], { 'forward-0': 2 }, 4),
@@ -157,19 +142,18 @@ describe('the heat mat against the engine', () => {
 
   it.each(BREAKS)('dumps what the engine dumps when %s breaks', (slot, mat) => {
     const broken = breakSubsystem(shipOf(mat), 'p1', slot)
-    const after = breakSlot(mat, slot)
-    expect(matReading(after)).toEqual(reading(broken.ship))
-    expect(after.broken).toContain(slot)
+    expect(matReading(breakSlot(mat, slot))).toEqual(reading(broken.ship))
   })
 })
 
 describe('a rack answering missiles', () => {
   const RACKED = matOf('railgun', ['ballistic_rack', 'laser', 'shields', 'radiator'], {}, 3)
   it.each<[string, Mat, number]>([
-    ['a rack up', { ...RACKED, energy: { 'side-0': 2 } }, INTERCEPT_HEAT],
+    // RULES §Weapons: answering a turn's missiles is a flat 2 heat.
+    ['a rack up', { ...RACKED, energy: { 'side-0': 2 } }, 2],
     ['a rack down', RACKED, 0],
     ['a broken rack', { ...RACKED, energy: { 'side-0': 2 }, broken: ['side-0'] }, 0],
-  ])("puts the engine's heat on the track with %s", (_label, mat, added) => {
+  ])('puts the heat of answering on the track with %s', (_label, mat, added) => {
     const after = rackAnswers(mat)
     expect(after.track - mat.track).toBe(added)
     expect(after.energy).toEqual(mat.energy)

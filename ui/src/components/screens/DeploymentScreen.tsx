@@ -21,7 +21,6 @@ import {
   orList,
   BLACK_HOLE_ID,
   SECTORS_PER_RING,
-  getWellName,
   legalDeploymentsAgainst,
   placedShipPositions,
 } from '@dangerous-inclinations/engine'
@@ -34,6 +33,7 @@ import { getPlayerColor } from '../../utils/playerColors'
 import { FONT_MONO, TABLE } from '../../theme'
 import { TableTalk } from '../table/TableTalk'
 import { Centered, Header } from './ScreenChrome'
+import { placeLabel } from '../../utils/route'
 
 /** What a ring does to a ship sitting on it, straight from the ring table. */
 function driftOf(ring: number): number {
@@ -197,7 +197,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                   {player.hasDeployed && player.home ? (
                     <Chip
                       size="small"
-                      label={`${getWellName(player.home.wellId)} R${player.home.ring} S${player.home.sector}`}
+                      label={placeLabel(player.home)}
                       variant="outlined"
                       sx={{
                         fontFamily: FONT_MONO,

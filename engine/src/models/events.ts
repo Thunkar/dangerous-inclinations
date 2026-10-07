@@ -47,7 +47,13 @@ export type GameEvent =
       /** Cubes the tile now holds. */
       amount: number;
     })
-  | (Base & { type: "rotated"; playerId: string; facing: Facing })
+  | (Base & {
+      type: "rotated";
+      playerId: string;
+      facing: Facing;
+      /** The cubes the rotation put on the thrusters: its heat at the check. */
+      heat: number;
+    })
   | (Base & {
       type: "coasted";
       playerId: string;
@@ -168,7 +174,7 @@ export type GameEvent =
       cause: "weapon" | "missile" | "heat";
     })
   | (Base & {
-      /** A cold ship's crew got outside and fixed one thing (RULES §Heat check). */
+      /** A cold ship's crew got outside and fixed one thing (RULES §Energy and Heat). */
       type: "subsystem_repaired";
       playerId: string;
       subsystemId: SubsystemId;

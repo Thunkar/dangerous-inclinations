@@ -11,6 +11,7 @@ import {
   calculateJumpMassCost,
 } from "../../models/rings.ts";
 import { findJump, phasedJumpDestination } from "../../models/gravityWells.ts";
+import { positionOf } from "../../game/geometry.ts";
 import { legalMoves, phasingAllowed } from "../../game/movement.ts";
 import type { MovementPreview } from "../../game/movement.ts";
 import type { MovementPlan } from "../movementPlanner/index.ts";
@@ -125,10 +126,7 @@ export function movementFromPlan(
   const destination = first.destinationWellId!;
   const adjustment = first.sectorAdjustment;
   if (!jumpIsLegal(ship, destination, adjustment)) return null;
-  const jump = findJump(
-    { wellId: ship.wellId, ring: ship.ring, sector: ship.sector },
-    destination
-  )!;
+  const jump = findJump(positionOf(ship), destination)!;
   return {
     kind: "jump",
     preview: { kind: "jump", jumpDestination: phasedJumpDestination(jump, adjustment) },

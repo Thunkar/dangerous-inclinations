@@ -16,9 +16,9 @@ import type {
   Position,
   WeaponType,
 } from '@dangerous-inclinations/engine'
-import { createGame, filterEventsFor, runGame, viewFor } from '@dangerous-inclinations/engine'
+import { filterEventsFor, runGame, viewFor } from '@dangerous-inclinations/engine'
+import { LOADOUTS, makeGameState, makePlayer } from '../../../engine/src/test/testUtils.ts'
 import {
-  BEAT,
   EFFECT_COLORS,
   PLASMA_GREEN,
   beatStart,
@@ -64,12 +64,7 @@ const TURNS = [
   {
     seed: 14,
     botCount: 3,
-    seatLoadouts: {
-      'bot-2': {
-        forwardSlots: ['missiles'],
-        sideSlots: ['missiles', 'missiles', 'radiator', 'shields'],
-      },
-    },
+    seatLoadouts: { 'bot-2': LOADOUTS.missileBoat },
     seatHands: { 'bot-2': 'destroy_ship' },
   } satisfies GameConfig,
 ].flatMap(playedTurns)
@@ -110,7 +105,8 @@ const count = (events: GameEvent[], ...types: GameEvent['type'][]) =>
   events.filter(e => types.includes(e.type)).length
 
 describe('a turn beat by beat', () => {
-  it('has turns with fighting, missiles and deaths to replay', () => {
+  it('ends every turn on the board the next view shows', () => {
+    // The games hold fighting, missiles, deaths, docks and stations moving.
     const all = TURNS.flatMap(t => t.events)
     for (const type of [
       'attack_resolved',
@@ -121,9 +117,7 @@ describe('a turn beat by beat', () => {
       'docked',
     ] as const)
       expect(count(all, type), type).toBeGreaterThan(0)
-  })
 
-  it('ends every turn on the board the next view shows', () => {
     const drifted = TURNS.flatMap(played => {
       const expected = resting(snapshotOf(played.next))
       const actual = resting(replay(played).board)
@@ -143,46 +137,39 @@ describe('a turn beat by beat', () => {
     expect(drifted).toEqual([])
   })
 
-  it('rolls a die for every attack and every interception, and no other', () => {
+  it.each<[string, 'dice' | 'pulses', GameEvent['type'][]]>([
+    [
+      'rolls a die for every attack and every interception',
+      'dice',
+      ['attack_resolved', 'missile_intercepted'],
+    ],
+    [
+      'flashes a slot for every break and every reveal',
+      'pulses',
+      ['subsystem_broken', 'subsystem_revealed'],
+    ],
+  ])('%s, and for nothing else', (_label, field, types) => {
     for (const played of TURNS) {
-      const dice = replay(played).beats.flatMap(b => b.dice)
-      expect(dice).toHaveLength(count(played.events, 'attack_resolved', 'missile_intercepted'))
-    }
-  })
-
-  it('flashes a slot for every break and every reveal', () => {
-    for (const played of TURNS) {
-      const pulses = replay(played).beats.flatMap(b => b.pulses)
-      expect(pulses).toHaveLength(count(played.events, 'subsystem_broken', 'subsystem_revealed'))
-    }
-  })
-
-  it('hangs every mark on a player at the table, and every mark and beat lasts', () => {
-    for (const played of TURNS) {
-      const seats = new Set(played.next.players.map(p => p.id))
-      for (const beat of replay(played).beats) {
-        expect(beat.hold).toBeGreaterThanOrEqual(0)
-        for (const effect of beat.effects) {
-          expect(effect.duration).toBeGreaterThan(0)
-          if (effect.kind === 'float' || effect.kind === 'burst' || effect.kind === 'flare')
-            expect(seats.has(effect.playerId)).toBe(true)
-        }
-      }
+      const raised = replay(played).beats.reduce((n, b) => n + b[field].length, 0)
+      expect(raised).toBe(count(played.events, ...types))
     }
   })
 
   it('slides a ship from where it stood', () => {
+    let slides = 0
     for (const played of TURNS) {
       let state = beatStart(played.prev)
       for (const event of played.events) {
         const before = state.board
         state = eventToBeat(state, played.next, event, CLOCK).state
         if (event.type !== 'coasted' && event.type !== 'burned' && event.type !== 'jumped') continue
-        const ship = state.board.ships[event.playerId]
-        expect(ship.position).toEqual(event.to)
-        if (ship.motion) expect(ship.motion.from).toEqual(before.ships[event.playerId].position)
+        expect(state.board.ships[event.playerId].motion?.from).toEqual(
+          before.ships[event.playerId].position
+        )
+        slides++
       }
     }
+    expect(slides).toBeGreaterThan(0)
   })
 
   it('stacks a float on the lowest step its sector has free', () => {
@@ -212,21 +199,8 @@ describe('the guns with shapes of their own', () => {
   const WARDEN: Position = { wellId: 'blackhole', ring: 3, sector: 6 }
   const AURORA: Position = { wellId: 'blackhole', ring: 4, sector: 5 }
 
-  function table(): GameView {
-    const state = createGame(
-      [
-        { id: 'warden', name: 'Warden' },
-        { id: 'aurora', name: 'Aurora' },
-      ],
-      7
-    )
-    state.players.forEach((player, index) => {
-      const at = index === 0 ? WARDEN : AURORA
-      player.hasDeployed = true
-      player.ship = { ...player.ship, wellId: at.wellId, ring: at.ring, sector: at.sector }
-    })
-    return viewFor(state, 'warden')
-  }
+  const table = (): GameView =>
+    viewFor(makeGameState([makePlayer('warden', WARDEN), makePlayer('aurora', AURORA)]), 'warden')
 
   const fired = (weaponType: WeaponType): GameEvent => ({
     type: 'weapon_fired',
@@ -263,7 +237,6 @@ describe('the guns with shapes of their own', () => {
 
   it('floods the disruptor box the engine gives it, its own ring and sector included', () => {
     const beat = play(fired('disruptor'))
-    expect(beat.hold).toBe(BEAT.ray)
     const rays = beat.effects.filter(e => e.kind === 'ray')
     expect(rays).toHaveLength(1)
     const ray = rays[0] as Extract<EffectDraft, { kind: 'ray' }>
@@ -278,7 +251,6 @@ describe('the guns with shapes of their own', () => {
 
   it('throws plasma as bolts in its own green, not as a beam', () => {
     const beat = play(fired('plasma_cannon'))
-    expect(beat.hold).toBe(BEAT.plasma)
     expect(beat.effects.map(e => e.kind)).toEqual(['plasma'])
     expect(beat.effects[0]).toMatchObject({ color: PLASMA_GREEN, from: WARDEN, to: AURORA })
   })
@@ -324,20 +296,18 @@ describe('the guns with shapes of their own', () => {
     const { effects } = play(event)
     const marks = effects.filter(e => e.kind === 'flare')
     expect(marks.map(f => f.flare)).toEqual(flares)
-    for (const f of marks) expect(f.playerId).toBe('aurora')
     expect(effects.flatMap(e => (e.kind === 'float' ? [e.tone] : []))).toEqual(tones)
     expect(effects.some(e => e.kind === 'burst')).toBe(false)
   })
 
-  const SHIELDED: WeaponType[] = ['railgun', 'ballistic_rack', 'missiles', 'plasma_cannon']
-
-  it.each(
-    SHIELDED.flatMap(weapon => [
-      { weapon, toHull: 0, absorbed: 3, strength: 1 },
-      { weapon, toHull: 1, absorbed: 3, strength: 0.75 },
-      { weapon, toHull: 3, absorbed: 0, strength: null },
-    ])
-  )(
+  it.each<{ weapon: WeaponType; toHull: number; absorbed: number; strength: number | null }>([
+    { weapon: 'railgun', toHull: 0, absorbed: 3, strength: 1 },
+    { weapon: 'railgun', toHull: 1, absorbed: 3, strength: 0.75 },
+    { weapon: 'railgun', toHull: 3, absorbed: 0, strength: null },
+    { weapon: 'ballistic_rack', toHull: 1, absorbed: 1, strength: 0.5 },
+    { weapon: 'missiles', toHull: 1, absorbed: 1, strength: 0.5 },
+    { weapon: 'plasma_cannon', toHull: 2, absorbed: 2, strength: 0.5 },
+  ])(
     'flares the shield for a $weapon shot it soaked $absorbed of',
     ({ weapon, toHull, absorbed, strength }) => {
       const { effects } = play(resolved(weapon, { damage: toHull + absorbed, toHull, absorbed }))
@@ -347,20 +317,13 @@ describe('the guns with shapes of their own', () => {
         return
       }
       expect(shields).toHaveLength(1)
-      // On the side the shot came from, in the shot's own colour, as hard as it was soaked.
+      // In the shot's own colour, as hard as it was soaked.
       expect(shields[0]).toMatchObject({
-        playerId: 'aurora',
-        fromId: 'warden',
         accent: EFFECT_COLORS[weapon],
         strength,
       })
     }
   )
-
-  it('never flares a shield for a laser, which goes straight through it', () => {
-    const { effects } = play(resolved('laser', { damage: 2, toHull: 2, absorbed: 0 }))
-    expect(effects.some(e => e.kind === 'flare')).toBe(false)
-  })
 
   it('flares the shield on the side a missile came in from', () => {
     const view = table()

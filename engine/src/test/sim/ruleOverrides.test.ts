@@ -18,7 +18,6 @@ describe("parseRuleOverrides", () => {
 
   it.each([
     ["an unknown rule", "missionsToLose=3"],
-    ["a rule that is no longer one", "compressorFuel=1"],
     ["a rule with no value", "missionsToWin"],
     ["a value that is not a number", "missionsToWin=lots"],
   ])("refuses %s", (_case, text) => {

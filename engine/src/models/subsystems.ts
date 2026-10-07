@@ -30,8 +30,9 @@
  *
  * Hidden information:
  * - Loadout tiles start face-down (`isRevealed: false`). A tile flips face-up
- *   the first time it does something visible (fires, absorbs, scans, discounts,
- *   prevents heat damage) or when it is broken by a critical hit. Powering a
+ *   the first time it does something visible (fires, intercepts, absorbs,
+ *   scans, discounts a jump, or, for a radiator, sheds heat: heat above the
+ *   base dissipation at a check) or when it is broken by a critical hit. Powering a
  *   tile is not using it and reveals nothing.
  * - Fixed systems are always revealed.
  * - Energy on a tile is public even while the tile is face-down. Using a tile

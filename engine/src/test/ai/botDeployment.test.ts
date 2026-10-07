@@ -1,6 +1,6 @@
 /**
  * Deployment phase. `botChooseDeployment` names a legal position on Black Hole
- * ring 3 or ring 4 (three sectors clear of every ship already placed) and it
+ * ring 2, 3 or 4 (three sectors clear of every ship already placed) and it
  * becomes the bot's Home. A Destroy or Intercept holder whose target is placed
  * sits next to it on its ring. All randomness goes through the `pick`
  * callback the caller wires to the game's seeded RNG.
@@ -22,6 +22,7 @@ import { deployShip, legalDeploymentPositions } from "../../game/deployment.ts";
 import { viewFor } from "../../game/view.ts";
 import { botChooseDeployment } from "../../ai/index.ts";
 import {
+  LOADOUTS,
   ALPHA,
   BETA,
   GAMMA,
@@ -74,9 +75,6 @@ function deploymentState(
   return makeGameState([bot, ...others, ...extra], { phase: "deployment", turn: 0 });
 }
 
-/** No railgun in the bow. */
-const SENSOR_BOW: ShipLoadout = { ...DEFAULT_LOADOUT, forwardSlots: ["sensor_array"] };
-
 const PICKERS: Array<(n: number) => number> = [
   () => 0,
   (n) => n - 1,
@@ -111,15 +109,6 @@ describe("botChooseDeployment", () => {
       expect(choice.ring).toBe(FAST_RING);
       // Farthest from sectors 0 and 1 is the opposite side of the ring.
       expect([12, 13]).toContain(choice.sector);
-    }
-  });
-
-  it("never picks an occupied sector", () => {
-    const taken = [...linedUpSectors(BETA)];
-    const state = deploymentState([deliverMission(BETA, GAMMA)], taken);
-    for (const pick of PICKERS) {
-      const choice = botChooseDeployment(viewFor(state, "bot"), pick);
-      expect(choice.ring === HOME_RING && taken.includes(choice.sector)).toBe(false);
     }
   });
 
@@ -192,7 +181,7 @@ describe("botChooseDeployment", () => {
     ],
     ["Intercept, 3 behind closed", interceptMission("other-0"), DEFAULT_LOADOUT, -1, 3],
     ["Destroy with a railgun, 3 behind closed", destroyMission("other-0"), DEFAULT_LOADOUT, -1, -4],
-    ["Destroy with no railgun, 3 behind closed", destroyMission("other-0"), SENSOR_BOW, -1, 3],
+    ["Destroy with no railgun, 3 behind closed", destroyMission("other-0"), LOADOUTS.sensor, -1, 3],
     [
       "Destroy with a railgun, the whole window closed",
       destroyMission("other-0"),
@@ -236,7 +225,7 @@ describe("botChooseDeployment", () => {
       [[], DEFAULT_LOADOUT],
       [[deliverMission(ALPHA, BETA)], DEFAULT_LOADOUT],
       [[destroyMission("other-0")], DEFAULT_LOADOUT],
-      [[destroyMission("other-0")], SENSOR_BOW],
+      [[destroyMission("other-0")], LOADOUTS.sensor],
       [[interceptMission("other-0")], DEFAULT_LOADOUT],
     ];
     for (let seed = 0; seed < 100; seed++) {

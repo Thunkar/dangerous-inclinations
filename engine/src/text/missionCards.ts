@@ -14,7 +14,7 @@ export const MISSION_CARDS = {
     title: "Destroy {target}",
     rule: "Bring the hull of {target} to 0 with a shot or a missile.",
     /** Under the card on the cheatsheet: what it needs aboard. */
-    needs: "Needs a weapon.",
+    needs: "Needs a weapon that deals damage.",
   },
   deliver_cargo: {
     name: "Deliver",
@@ -36,7 +36,7 @@ export const MISSION_CARDS = {
   piracy: {
     name: "Piracy",
     title: "Seize cargo and sell it",
-    rule: "End a turn on an undocked ship carrying cargo and take one item of your choice. Sell it at any station.",
+    rule: "End a turn, not moored, on an undocked ship carrying cargo: you may take one item of your choice. Sell it at any station.",
   },
   tanker: {
     name: "Tanker",
@@ -49,7 +49,7 @@ export const MISSION_CARDS = {
     title: "Escort {carrier} to a sale",
     /** Before the marker is down. */
     titleUnmarked: "Escort a carrier to a sale",
-    rule: "Mark an undocked carrier on your ring. Done at its next sale with you in its well. Back to you if either ship dies.",
+    rule: "End a turn, not moored, on the ring of an undocked carrier and mark it. Done at its next sale with you in its well. Back to you if either ship dies.",
   },
   salvage: {
     name: "Salvage",

@@ -6,7 +6,7 @@
  * This is a single-process lock: it serializes this server instance only. A
  * multi-instance deployment would need Redis locks instead.
  */
-export type KeyedLock = <T>(key: string, fn: () => Promise<T>) => Promise<T>;
+type KeyedLock = <T>(key: string, fn: () => Promise<T>) => Promise<T>;
 
 export function createKeyedLock(): KeyedLock {
   const chains = new Map<string, Promise<void>>();

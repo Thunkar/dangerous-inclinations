@@ -174,7 +174,7 @@ function shipView(player: Player): PublicShipView | null {
   };
 }
 
-export function playerViewFor(state: GameState, player: Player, viewer: Player | null): PlayerView {
+function playerViewFor(state: GameState, player: Player, viewer: Player | null): PlayerView {
   const isMe = viewer?.id === player.id;
   const scanned = new Set(viewer?.intel[player.id] ?? []);
   const loadoutKnown = player.hasSubmittedLoadout;

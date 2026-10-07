@@ -18,6 +18,7 @@ import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
 import { FONT_MONO, TABLE } from '../../theme'
 import { slotWithSubsystem } from '../../utils/slots'
+import { placeLabel } from '../../utils/route'
 
 export function SequenceList() {
   const plan = usePlan()
@@ -92,7 +93,7 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
           {offset + index + 1}. {stepTitle(step, nameOf, weapon)}
         </Typography>
         <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.78rem', color: TABLE.inkFaint, lineHeight: 1.3 }}>
-          from {getWellName(at.position.wellId)} R{at.position.ring} S{at.position.sector} · {at.facing}
+          from {placeLabel(at.position)} · {at.facing}
         </Typography>
 
         {step.kind === 'fire' && <FireControls step={step} />}

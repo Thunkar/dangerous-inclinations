@@ -114,7 +114,7 @@ export interface ShotOption {
 export const DISRUPTOR_WORTH = 2;
 
 /** A gun's rank when choosing which to break: its damage, a disruptor {@link DISRUPTOR_WORTH}. */
-export function gunWorth(type: SubsystemType): number {
+function gunWorth(type: SubsystemType): number {
   return getSubsystemConfig(type).weaponStats?.disrupts === true
     ? DISRUPTOR_WORTH
     : (getSubsystemConfig(type).weaponStats?.damage ?? 0);
@@ -165,7 +165,7 @@ export function volleyPotential(weapons: Subsystem[]): number {
  * Points of this weapon's damage a shield cube absorbs, or null when shields
  * do not stop it (lasers go straight through).
  */
-export function shieldPerCubeOf(weapon: Pick<Subsystem, "type">): number | null {
+function shieldPerCubeOf(weapon: Pick<Subsystem, "type">): number | null {
   const stats = getSubsystemConfig(weapon.type).weaponStats;
   return stats?.ignoresShields === true ? null : shieldPointsPerEnergyOf(stats);
 }
@@ -463,12 +463,14 @@ export function firingOptions(
   if (isQuietTurn(situation.view.turn, situation.me)) return intents;
   // Nor does anything reach a ship that just came back, or one at a berth.
   if (!canBeFiredAt(target.player, situation.view.stations)) return intents;
-  // And a ship at a berth fires at nobody: a phase that finds the bot moored
-  // (before the move while it still holds its berth, or after a move that
-  // ends on a station) has no shots.
+  // And a ship at a berth fires at nobody: a phase that finds the bot still
+  // holding the berth it began the turn on has no shots. Arriving is not
+  // being moored (RULES §Stations, Moored): a move that ends on a station
+  // fires after it.
   const stations = situation.view.stations;
-  const firesPre = canFireFrom(ctx.pre, stations);
-  const firesPost = canFireFrom(ctx.post, stations);
+  const start = situation.status.position;
+  const firesPre = canFireFrom(start, ctx.pre, stations);
+  const firesPost = canFireFrom(start, ctx.post, stations);
 
   for (const weapon of status.weapons) {
     if (!isWeaponReady(weapon)) continue;

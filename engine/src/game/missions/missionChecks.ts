@@ -14,7 +14,7 @@ import type {
   SalvageMission,
   Mission,
 } from "../../models/missions.ts";
-import { SURVEY_RING, dataAboard, missionPoints } from "../../models/missions.ts";
+import { SURVEY_RING, dataAboard, missionPoints, withItemAboard } from "../../models/missions.ts";
 import { BLACK_HOLE_ID } from "../../models/gravityWells.ts";
 import { isDestroyed } from "../ship.ts";
 import { positionOf, samePosition } from "../geometry.ts";
@@ -55,11 +55,8 @@ function takeItem(
     deliveryPlanetId: "any",
     isPickedUp: true,
   };
-  const next = cargo.some((c) => c.id === loot.id)
-    ? cargo.map((c) => (c.id === loot.id ? loot : c))
-    : [...cargo, loot];
   return {
-    cargo: next,
+    cargo: withItemAboard(cargo, loot),
     event: {
       type: "cargo_seized",
       pirateId: pirate.id,
@@ -134,11 +131,8 @@ function salvageWreck(
     deliveryPlanetId: "any",
     isPickedUp: true,
   };
-  const next = cargo.some((c) => c.id === blackBox.id)
-    ? cargo.map((c) => (c.id === blackBox.id ? blackBox : c))
-    : [...cargo, blackBox];
   return {
-    cargo: next,
+    cargo: withItemAboard(cargo, blackBox),
     wreckId: wreck.id,
     event: {
       type: "wreck_salvaged",
@@ -341,9 +335,7 @@ export function processMissionEvents(
           deliveryPlanetId: "any",
           isPickedUp: true,
         };
-        cargo = cargo.some((c) => c.id === data.id)
-          ? cargo.map((c) => (c.id === data.id ? data : c))
-          : [...cargo, data];
+        cargo = withItemAboard(cargo, data);
         events.push({
           type: "data_acquired",
           playerId,

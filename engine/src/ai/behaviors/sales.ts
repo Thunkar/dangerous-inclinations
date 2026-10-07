@@ -19,7 +19,7 @@ import { isOpenMission } from "../types.ts";
 type Seller = Pick<Player, "missions" | "cargo" | "soldAt">;
 
 /** The planet this seat's undone primary still has to sell at, and the card. */
-export function reservedStation(me: Seller): { planetId: string; missionId: string } | null {
+function reservedStation(me: Seller): { planetId: string; missionId: string } | null {
   for (const m of me.missions) {
     if (!isOpenMission(m)) continue;
     if (m.type === "deliver_cargo" || m.type === "intercept_transmission")

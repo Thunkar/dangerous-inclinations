@@ -23,7 +23,7 @@ import { aboard } from "../models/missions.ts";
 import { SECTORS_PER_RING } from "../models/rings.ts";
 import { wrapSector, samePosition, positionOf } from "./geometry.ts";
 import { applyOrbitalMovement } from "./movement.ts";
-import { createInitialShipState, isDestroyed } from "./ship.ts";
+import { createInitialShipState, isDestroyed, isOnBoard } from "./ship.ts";
 
 export function needsRespawn(player: Player): boolean {
   return player.hasDeployed && isDestroyed(player.ship);
@@ -56,9 +56,7 @@ export function dropCargo(player: Player): { player: Player; events: EventDraft[
 /** Home sector if free, otherwise the nearest free sector on the Home marker's ring. */
 export function findRespawnPosition(state: GameState, home: Position, selfId: string): Position {
   const occupied = (pos: Position) =>
-    state.players.some(
-      (p) => p.id !== selfId && p.hasDeployed && !isDestroyed(p.ship) && samePosition(p.ship, pos)
-    );
+    state.players.some((p) => p.id !== selfId && isOnBoard(p) && samePosition(p.ship, pos));
   for (let offset = 0; offset <= SECTORS_PER_RING / 2; offset++) {
     for (const sign of offset === 0 ? [1] : [1, -1]) {
       const candidate = { ...home, sector: wrapSector(home.sector + sign * offset) };
@@ -68,7 +66,7 @@ export function findRespawnPosition(state: GameState, home: Position, selfId: st
   return home;
 }
 
-export function createRespawnedShip(previous: ShipState, position: Position): ShipState {
+function createRespawnedShip(previous: ShipState, position: Position): ShipState {
   const fresh = createInitialShipState({ ...position, facing: "prograde" }, previous.loadout, {
     hitPoints: previous.maxHitPoints,
     maxHitPoints: previous.maxHitPoints,

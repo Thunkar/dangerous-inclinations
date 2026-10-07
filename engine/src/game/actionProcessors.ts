@@ -33,13 +33,14 @@ import { applyOrbitalMovement, applyBurn, applyRotation, recoilRing } from "./mo
 import { resolveAttack } from "./damage.ts";
 import { createMissile } from "./missiles.ts";
 import { processScan } from "./scan.ts";
-import { isMooredAt } from "./stations.ts";
+import { isMooredMidTurn } from "./stations.ts";
 import { unplacedEscorts } from "./escort.ts";
 import { freePiracyCards } from "./piracy.ts";
 import {
   findSubsystem,
   hasWorkingCompressor,
   isDestroyed,
+  isOnBoard,
   requestedDraw,
   updateSubsystem,
   useSubsystem,
@@ -58,6 +59,7 @@ import {
   validateSeizeAction,
   validateScanAction,
   validateWellTransferAction,
+  type TurnContext,
 } from "./validators.ts";
 
 interface ProcessResult {
@@ -83,7 +85,16 @@ function withPlayer(state: GameState, playerId: string, update: (p: Player) => P
   return { ...state, players: state.players.map((p) => (p.id === playerId ? update(p) : p)) };
 }
 
-export function processActions(state: GameState, actions: PlayerAction[]): ProcessResult {
+/**
+ * @param turn where the acting ship began its turn (`state` is the start of
+ *   the turn, loadout cleared): it is moored only while it holds that berth,
+ *   so a coast holds it and a shot is refused only then (RULES §Stations, Moored).
+ */
+export function processActions(
+  state: GameState,
+  actions: PlayerAction[],
+  turn: TurnContext
+): ProcessResult {
   const sequenceErrors = validateActionSequence(actions);
   if (sequenceErrors.length > 0)
     return { success: false, state, events: [], errors: sequenceErrors };
@@ -176,9 +187,7 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
   }
 
   // Ships alive when the turn began: shots at one of these that dies mid-turn are skipped, not errors.
-  const aliveAtStart = new Set(
-    state.players.filter((p) => p.hasDeployed && !isDestroyed(p.ship)).map((p) => p.id)
-  );
+  const aliveAtStart = new Set(state.players.filter(isOnBoard).map((p) => p.id));
   for (const a of tactical) {
     let err: string[] | null = null;
     switch (a.type) {
@@ -189,7 +198,7 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
         err = run(a, validateRotateAction, processRotation);
         break;
       case "coast":
-        err = run(a, validateCoastAction, processCoast);
+        err = run(a, validateCoastAction, (s, c) => processCoast(s, c, turn));
         break;
       case "burn":
         err = run(a, validateBurnAction, processBurn);
@@ -208,7 +217,7 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
           });
           break;
         }
-        err = run(a, validateFireWeaponAction, processFireWeapon);
+        err = run(a, (s, f) => validateFireWeaponAction(s, f, turn), processFireWeapon);
         break;
       case "scan":
         if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
@@ -238,7 +247,7 @@ export function processActions(state: GameState, actions: PlayerAction[]): Proce
         data: { activateScoop: false },
       } as CoastAction,
       validateCoastAction,
-      processCoast
+      (s, c) => processCoast(s, c, turn)
     );
     if (err) return { success: false, state, events: [], errors: err };
   }
@@ -284,24 +293,34 @@ function processPower(state: GameState, action: PowerAction): Step {
 
 function processRotation(state: GameState, action: RotateAction): Step {
   const events: EventDraft[] = [];
+  let heat = 0;
   const next = withPlayer(state, action.playerId, (p) => {
     const used = useSubsystem(applyRotation(p.ship, action.data.targetFacing), p.id, "rotation");
+    heat = used.heat;
     events.push(...used.events);
     return { ...p, ship: used.ship };
   });
-  events.push({ type: "rotated", playerId: action.playerId, facing: action.data.targetFacing });
+  events.push({
+    type: "rotated",
+    playerId: action.playerId,
+    facing: action.data.targetFacing,
+    heat,
+  });
   return { state: next, events };
 }
 
-function processCoast(state: GameState, action: CoastAction): Step {
+function processCoast(state: GameState, action: CoastAction, turn: TurnContext): Step {
   const events: EventDraft[] = [];
   let massScooped = 0;
   let heat = 0;
   // A ship docked at a station is moored: it holds its berth and rides the
-  // station at the end of the round instead of drifting now (RULES §Moored).
-  const moored = isMooredAt(
+  // station at the end of the round instead of drifting now (RULES §Stations,
+  // Moored). Only a berth held since the turn began: a ship the turn has put
+  // on a station's sector (a railgun's recoil) is not docked, and drifts off.
+  const moored = isMooredMidTurn(
     state.stations,
-    positionOf(state.players.find((p) => p.id === action.playerId)!.ship)
+    turn.start,
+    state.players.find((p) => p.id === action.playerId)!.ship
   );
   const next = withPlayer(state, action.playerId, (p) => {
     let ship = applyOrbitalMovement(p.ship, moored);
@@ -461,7 +480,8 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
     }
     attacker = {
       ...attacker,
-      ship: updateSubsystem(attacker.ship, weapon.id, (s) => ({ ammo: (s.ammo ?? salvo) - salvo })),
+      // Validated: the magazine holds the salvo.
+      ship: updateSubsystem(attacker.ship, weapon.id, (s) => ({ ammo: s.ammo! - salvo })),
     };
     players[attackerIndex] = attacker;
     working = { ...working, players, missiles: [...working.missiles, ...launched] };

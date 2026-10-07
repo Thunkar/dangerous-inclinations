@@ -19,6 +19,7 @@ import type {
   SeizeAction,
   ScanAction,
   WellTransferAction,
+  Position,
 } from "../models/game.ts";
 import {
   MOVE_ACTION_TYPES,
@@ -43,9 +44,9 @@ import {
 import { findJump, getJumpAdjustmentRange } from "../models/gravityWells.ts";
 import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
-import { findSubsystem, hasWorkingCompressor, requestedDraw } from "./ship.ts";
+import { findSubsystem, hasWorkingCompressor, isOnBoard, requestedDraw } from "./ship.ts";
 import { recoilRing, ringAfter } from "./movement.ts";
-import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange, isOnBoard } from "./targeting.ts";
+import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange } from "./targeting.ts";
 import { findReadySensor, inScanRange } from "./scan.ts";
 
 export function validateActionSequence(actions: PlayerAction[]): string[] {
@@ -226,14 +227,25 @@ function quietTurnRefusal(state: GameState, player: Player, what: "fire" | "scan
     : "Back from Home: this turn is a first round of your own, so you scan nobody";
 }
 
-export function validateFireWeaponAction(state: GameState, action: FireWeaponAction): string[] {
+/** What an action of the turn needs to know about the turn itself. */
+export interface TurnContext {
+  /** Where the acting ship began its turn: it is moored only while it holds that berth. */
+  start: Position;
+}
+
+export function validateFireWeaponAction(
+  state: GameState,
+  action: FireWeaponAction,
+  turn: TurnContext
+): string[] {
   const player = requirePlayer(state, action.playerId);
   const quiet = quietTurnRefusal(state, player, "fire");
   if (quiet) return [quiet];
-  // A moored ship neither fires nor is fired at (RULES §Stations). Where the
-  // ship is when the action comes up is what counts: burn off the berth first
-  // and the shot after the move is fine.
-  if (!canFireFrom(player.ship, state.stations))
+  // A moored ship neither fires nor is fired at (RULES §Stations, Moored). A
+  // ship is moored from the moment it docks at the end of the turn it arrives
+  // until it leaves the sector: one that began the turn at a berth fires once
+  // it has burned off, and one arriving this turn fires before and after its move.
+  if (!canFireFrom(turn.start, player.ship, state.stations))
     return ["A moored ship fires at nobody: burn off the berth first"];
   const weapon = findSubsystem(player.ship, action.data.subsystemId);
   if (!weapon) return [`Weapon ${action.data.subsystemId} not found`];

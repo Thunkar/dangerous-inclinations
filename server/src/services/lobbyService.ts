@@ -40,6 +40,13 @@ export interface Lobby {
   createdAt: number;
 }
 
+/** A lobby as a client sees it: whether it has a password, never the password. */
+export function publicLobby({ password, ...lobby }: Lobby): Omit<Lobby, "password"> & {
+  hasPassword: boolean;
+} {
+  return { ...lobby, hasPassword: !!password };
+}
+
 const lobbyKey = (lobbyId: string) => `${LOBBY_KEY_PREFIX}${lobbyId}`;
 
 /**

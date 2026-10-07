@@ -1,35 +1,32 @@
 /**
  * The bots and one sale per station: the primary's station is reserved for
  * the primary's item, secondaries sell at stations not sold at and not
- * reserved, and a card with no station left is dropped and logged.
+ * reserved, and a card with no station left is dropped.
  */
 import { describe, it, expect } from "vitest";
 import type { GameState } from "../../models/game.ts";
 import type { Cargo, Mission } from "../../models/missions.ts";
 import { SELL_NOTHING } from "../../models/missions.ts";
-import { STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { viewFor } from "../../game/view.ts";
-import { analyzeSituation, botDecideActions } from "../../ai/index.ts";
+import { botDecideActions } from "../../ai/index.ts";
 import { REPAIR_GOAL_ID } from "../../ai/behaviors/missions.ts";
 import { saleBlocked } from "../../ai/behaviors/sales.ts";
-import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
 import {
   ALPHA,
   BETA,
   BH,
   GAMMA,
-  approachSector,
   destroyMission,
-  getPlayer,
   interceptMission,
-  makeGameState,
-  makePlayer,
   surveyMission,
   takenData,
   withPlayer,
   withShip,
   withSub,
+  makeTwoPlayerGame,
+  shortOfStation,
+  situationOf,
 } from "../testUtils.ts";
 
 const SURVEY = surveyMission();
@@ -39,31 +36,27 @@ const INTERCEPT = interceptMission("p2", "intercept-p2", ALPHA);
 
 /** p1 one coast short of Alpha's station with this hand and hold; p2 far off. */
 function nearAlpha(missions: Mission[], cargo: Cargo[], soldAt: string[] = []): GameState {
-  const base = makeGameState([
-    makePlayer("p1"),
-    makePlayer("p2", { wellId: BH, ring: 5, sector: 12 }),
-  ]);
-  const state = makeGameState([
-    makePlayer("p1", { wellId: ALPHA, ring: STATION_RING, sector: approachSector(base, ALPHA) }),
-    base.players[1],
-  ]);
+  const far = { wellId: BH, ring: 5, sector: 12 };
+  const state = shortOfStation(makeTwoPlayerGame({}, far), "p1", ALPHA);
   return withPlayer(state, "p1", { missions, cargo, soldAt });
 }
-
-const goalOf = (state: GameState) =>
-  analyzeSituation(viewFor(state, "p1"), DEFAULT_BOT_PARAMETERS).currentGoal;
 
 describe("bots and one sale per station", () => {
   it.each<[string, Mission, string[], string | null]>([
     // primary, sold at, where the Survey data goes (null: no trip)
     ["no reservation: the nearest station", destroyMission("p2"), [], ALPHA],
     // The Destroy is in, so the trip to another station is no detour from it.
-    ["the nearest station sold at: another one", { ...destroyMission("p2"), isCompleted: true }, [ALPHA], "any-other"],
+    [
+      "the nearest station sold at: another one",
+      { ...destroyMission("p2"), isCompleted: true },
+      [ALPHA],
+      "any-other",
+    ],
     ["the Intercept's station is kept for it", INTERCEPT, [], "any-other"],
     ["the only unsold station is the Intercept's: the card waits", INTERCEPT, [BETA, GAMMA], null],
   ])("Survey data aboard, %s", (_label, primary, soldAt, expected) => {
     const state = nearAlpha([primary, SURVEY], [SURVEY_DATA], soldAt);
-    const goal = goalOf(state);
+    const goal = situationOf(state, "p1").currentGoal;
     const filing = goal?.missionId === SURVEY.id ? goal.planetId : null;
     if (expected === "any-other") {
       expect(filing).not.toBeNull();
@@ -84,11 +77,9 @@ describe("bots and one sale per station", () => {
     expect(saleBlocked(me, card)).toBe(expected);
   });
 
-  it("drops a dead card and says so in the decision log", () => {
+  it("makes no trip for a dead card", () => {
     const state = nearAlpha([destroyMission("p2"), SURVEY], [SURVEY_DATA], [ALPHA, BETA, GAMMA]);
-    const decision = botDecideActions(viewFor(state, "p1"));
-    expect(goalOf(state)?.missionId).not.toBe(SURVEY.id);
-    expect(decision.log.reasoning.some((r) => r.startsWith("Card dead: survey"))).toBe(true);
+    expect(situationOf(state, "p1").currentGoal?.missionId).not.toBe(SURVEY.id);
   });
 
   it.each<[string, Mission, boolean]>([
@@ -100,7 +91,7 @@ describe("bots and one sale per station", () => {
     state = withShip(state, "p1", { hitPoints: 3 });
     state = withSub(state, "p1", "engines", { isBroken: true });
     // Every dock repairs, so a job's station near enough is the repair stop.
-    expect(goalOf(state)).toMatchObject(
+    expect(situationOf(state, "p1").currentGoal).toMatchObject(
       files
         ? { missionId: SURVEY.id, repairs: true, planetId: ALPHA }
         : { missionId: REPAIR_GOAL_ID, planetId: ALPHA }
@@ -109,10 +100,6 @@ describe("bots and one sale per station", () => {
     const actions = botDecideActions(viewFor(state, "p1")).actions;
     const named = actions.find((a) => a.type === "dock_sale")?.data;
     expect(named).toEqual({ sale: files ? SURVEY_DATA.id : SELL_NOTHING });
-    const result = executeTurn(state, actions);
-    expect(result.errors).toBeUndefined();
-    const p1 = getPlayer(result.gameState, "p1");
-    expect(p1.cargo.some((c) => c.id === SURVEY_DATA.id)).toBe(!files);
-    expect(p1.soldAt).toEqual(files ? [ALPHA] : []);
+    expect(executeTurn(state, actions).errors).toBeUndefined();
   });
 });

@@ -18,6 +18,7 @@ import {
   isPrimaryType,
 } from "../../models/missions.ts";
 import { missionsMissingRequirements } from "../../game/loadout.ts";
+import { LOADOUTS } from "../testUtils.ts";
 
 const FULL = process.env.FULL_BOT_GAMES === "1";
 const SEEDS = FULL ? [1, 2, 3, 4, 5, 6, 7, 8] : [1, 2];
@@ -25,14 +26,8 @@ const MAX_TURNS = 120;
 
 /** Hulls forced on seat 1: each can fly some hands and not others. */
 const FORCED_HULLS: Array<[string, ShipLoadout]> = [
-  [
-    "a hauler with no sensor",
-    { forwardSlots: ["fuel_compressor"], sideSlots: ["shields", "shields", "radiator", "laser"] },
-  ],
-  [
-    "a sensor bow with no gun",
-    { forwardSlots: ["sensor_array"], sideSlots: ["shields", "shields", "radiator", "radiator"] },
-  ],
+  ["a hauler with no sensor", LOADOUTS.hauler],
+  ["a sensor bow with no gun", LOADOUTS.unarmed],
 ];
 
 describe("bot-vs-bot games", () => {

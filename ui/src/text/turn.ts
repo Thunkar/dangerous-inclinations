@@ -14,7 +14,7 @@ export const TURN = {
     respawn: {
       title: 'Respawn',
       blurb:
-        'Destroyed? This turn you come back: Home, full hull and fuel, drifting. Nobody can touch you until your next turn ends, and on it you fire at nobody and scan nobody.',
+        'Destroyed? This turn you come back: Home, full hull and fuel, repaired and reloaded, drifting. Nobody can touch you until your next turn ends, and on it you fire at nobody and scan nobody.',
       terse: 'Destroyed? Home, full hull and fuel. Turn over',
     },
     clear: {
@@ -30,7 +30,7 @@ export const TURN = {
     missiles: {
       title: 'Missiles',
       blurb:
-        "Each of yours rides its orbit (not on the turn you launched it), flies {steps} steps and hits if it reaches its target's sector.",
+        "Each of yours rides its orbit (not on the turn you launched it), flies {steps} steps and attacks if it reaches its target's sector.",
       terse: 'Ride the orbit (not on launch), fly {steps}, hit on its sector',
     },
     docking: {
@@ -42,7 +42,7 @@ export const TURN = {
     heatCheck: {
       title: 'Heat check',
       blurb:
-        'Every point of energy on your loadout is 1 heat. Over {maxHeat} is hull damage and the track stops at {maxHeat}. Dissipate {dissipation} (+{radiator} a radiator), carry the rest. At 0, repair one subsystem.',
+        'Every point of energy on your loadout is 1 heat; at 0, repair one subsystem. Over {maxHeat} is hull damage and the track stops at {maxHeat}. Dissipate {dissipation} (+{radiator} a radiator), carry the rest.',
       terse:
         'Energy converts to heat. Over {maxHeat}, your ship takes damage. Dissipate {dissipation} (+{radiator} per radiator)',
     },

@@ -49,6 +49,7 @@ import {
   getSubsystemConfig,
   getWellName,
   hasWorkingCompressor,
+  oppositeFacing,
   phasedJumpDestination,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
@@ -63,6 +64,7 @@ import { SequenceList } from './SequenceList'
 import { ShipEnergyLoadout } from './ShipEnergyLoadout'
 import { SystemsControls } from './SystemsControls'
 import { StatusBlock } from './StatusBlock'
+import { placeLabel } from '../../utils/route'
 
 const INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
 
@@ -430,7 +432,7 @@ function DockSaleControl() {
 function EscortControl() {
   const plan = usePlan()
   const disabled = plan.disabled
-  const { view } = useGame()
+  const { nameOf } = useGame()
   const offer = plan.escortOffer
   if (!offer) return null
   const full = plan.escortChoices.length >= offer.markers
@@ -444,7 +446,7 @@ function EscortControl() {
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
           {offer.carriers.map(carrierId => {
             const on = plan.escortChoices.includes(carrierId)
-            const name = view.players.find(p => p.id === carrierId)?.name ?? carrierId
+            const name = nameOf(carrierId)
             const off = disabled || (!on && full)
             return (
               <ChoiceChip
@@ -476,7 +478,7 @@ const ITEM_WORD: Record<SeizableItem['kind'], string> = { crate: 'crate', loot: 
 function SeizeControl() {
   const plan = usePlan()
   const disabled = plan.disabled
-  const { view } = useGame()
+  const { nameOf } = useGame()
   const offer = plan.seizeOffer
   if (!offer) return null
   const full = plan.seizeChoices.length >= offer.cards
@@ -491,7 +493,7 @@ function SeizeControl() {
           {offer.items.map(item => {
             const key = seizeKey(item)
             const on = plan.seizeChoices.includes(key)
-            const name = view.players.find(p => p.id === item.victimId)?.name ?? item.victimId
+            const name = nameOf(item.victimId)
             const off = disabled || (!on && full)
             return (
               <ChoiceChip
@@ -686,7 +688,7 @@ function OrientationControls() {
       </Tooltip>
       <Typography variant="caption" sx={{ fontFamily: FONT_MONO, color: TABLE.inkSoft }} noWrap>
         {facing}
-        {rotating ? ` → ${facing === 'prograde' ? 'retrograde' : 'prograde'}` : ''}
+        {rotating ? ` → ${oppositeFacing(facing)}` : ''}
       </Typography>
     </Box>
   )
@@ -890,7 +892,7 @@ function MoveControls() {
                 <Chip
                   key={option.lane.id}
                   size="small"
-                  label={`${getWellName(landing.wellId)} R${landing.ring} S${landing.sector}`}
+                  label={placeLabel(landing)}
                   color={selected ? 'primary' : 'default'}
                   variant={selected ? 'filled' : 'outlined'}
                   onClick={() =>

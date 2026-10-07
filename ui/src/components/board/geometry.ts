@@ -487,6 +487,22 @@ export function slideProgress(raw: number): number {
   return raw < 0.5 ? 2 * raw * raw : 1 - (-2 * raw + 2) ** 2 / 2
 }
 
+/** How far a drifting wreck is along its slide at `now`, eased; 1 when it is not moving. */
+export function driftProgress(
+  wreck: { motion?: { start: number; duration: number } },
+  now: number
+): number {
+  if (!wreck.motion) return 1
+  const raw = Math.min(1, Math.max(0, (now - wreck.motion.start) / wreck.motion.duration))
+  return slideProgress(raw)
+}
+
+/** Smoothstep on [0, 1], clamped: the same curve as GLSL's `smoothstep(0, 1, t)`. */
+export function smoothstep(t: number): number {
+  const x = t <= 0 ? 0 : t >= 1 ? 1 : t
+  return x * x * (3 - 2 * x)
+}
+
 /** Interpolate along the ring arc between two positions in the same well. */
 export function interpolatePositions(from: Position, to: Position, t: number): Point {
   const a = positionPoint(from)

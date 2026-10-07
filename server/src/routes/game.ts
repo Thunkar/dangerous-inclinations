@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { gameService } from "../services/live.ts";
-import { getPlayer } from "../services/playerService.ts";
+import { requirePlayer } from "./caller.ts";
 import { findLobbyByGameId } from "../services/lobbyService.ts";
 import {
   ChatSchema,
@@ -8,6 +8,7 @@ import {
   ForkSchema,
   LoadoutSubmissionSchema,
   PreviewSchema,
+  issueLines,
 } from "../schemas/game.ts";
 import type { PlayerAction } from "@dangerous-inclinations/engine";
 
@@ -94,7 +95,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({
         ok: false,
         error: "Invalid preview request",
-        errors: parsed.error.errors.map((i) => `${i.path.join(".") || "payload"}: ${i.message}`),
+        errors: issueLines(parsed.error),
       });
     }
     const result = await gameService.previewTurn(
@@ -164,10 +165,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
   fastify.post<{ Headers: { "x-player-id"?: string } }>(
     "/api/games/fork",
     async (request, reply) => {
-      const playerId = request.headers["x-player-id"];
-      if (!playerId) return reply.code(401).send({ error: "Player ID required" });
-      const player = await getPlayer(playerId);
-      if (!player) return reply.code(401).send({ error: "Invalid player" });
+      const player = await requirePlayer(request.headers["x-player-id"], reply);
+      if (!player) return;
+      const { playerId } = player;
       const body = ForkSchema.safeParse(request.body);
       if (!body.success)
         return reply.code(400).send({ error: "Invalid request", details: body.error.errors });

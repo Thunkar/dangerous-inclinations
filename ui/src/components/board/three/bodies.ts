@@ -52,7 +52,7 @@
  * disc followed on its own.
  */
 import type { GravityWellId } from '@dangerous-inclinations/engine'
-import { wellVisual } from '../geometry'
+import { smoothstep, wellVisual } from '../geometry'
 import { PRINT_SCALE, funnelFloorRadius, sectorLabelBand, surfaceElevation } from './world'
 
 /**
@@ -160,10 +160,10 @@ export function budget(): BlackHoleBudget {
  */
 export type BlackHoleTreatment = 'blaze' | 'warp' | 'halo'
 
-export const BLACK_HOLE_TREATMENTS: readonly BlackHoleTreatment[] = ['blaze', 'warp', 'halo']
+const BLACK_HOLE_TREATMENTS: readonly BlackHoleTreatment[] = ['blaze', 'warp', 'halo']
 
 /** The one the board draws when nothing asks for another. */
-export const DEFAULT_TREATMENT: BlackHoleTreatment = 'blaze'
+const DEFAULT_TREATMENT: BlackHoleTreatment = 'blaze'
 
 interface Tuning {
   /** Inner edge of the disc, as a multiple of the horizon: the last stable orbit. */
@@ -237,7 +237,7 @@ const TUNING: Record<BlackHoleTreatment, Tuning> = {
  * every other dev flag on this board; the default is what the table draws.
  */
 let asked: BlackHoleTreatment | null = null
-export function blackHoleTreatment(): BlackHoleTreatment {
+function blackHoleTreatment(): BlackHoleTreatment {
   if (asked) return asked
   const flag =
     typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('bh')
@@ -305,12 +305,6 @@ export interface SheetShape {
   lift: number
 }
 
-/** Smoothstep, the same curve GLSL's has, so the mirror below is exact. */
-function ease(t: number): number {
-  const x = t <= 0 ? 0 : t >= 1 ? 1 : t
-  return x * x * (3 - 2 * x)
-}
-
 /**
  * A point of the disc's sheet, at a fraction `u` along its radius and an
  * azimuth `theta`, relative to the plane through the hole's centre. `y` is up;
@@ -330,8 +324,9 @@ export function sheetPoint(
   shape: SheetShape
 ): { x: number; y: number; z: number } {
   const radius = shape.inner + (shape.outer - shape.inner) * u
-  const lean = shape.tilt * (1 - shape.warp * ease(u))
-  const settle = shape.lift * shape.warp * ease((u - 0.12) / 0.88)
+  // Smoothstep, the same curve GLSL's has, so the shader's mirror of this is exact.
+  const lean = shape.tilt * (1 - shape.warp * smoothstep(u))
+  const settle = shape.lift * shape.warp * smoothstep((u - 0.12) / 0.88)
   return {
     x: radius * Math.cos(theta),
     y: radius * Math.sin(theta) * Math.sin(lean) - settle,

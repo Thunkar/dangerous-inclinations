@@ -42,26 +42,26 @@ export const PLANET_RINGS: RingConfig[] = [
 ];
 
 export const BLACK_HOLE_ID: GravityWellId = "blackhole";
-export const BLACK_HOLE: GravityWell = {
+const BLACK_HOLE: GravityWell = {
   id: BLACK_HOLE_ID,
   name: "Black Hole",
   type: "blackhole",
   rings: BLACKHOLE_RINGS,
 };
 
-export const PLANET_ALPHA: GravityWell = {
+const PLANET_ALPHA: GravityWell = {
   id: "planet-alpha",
   name: "Alpha",
   type: "planet",
   rings: PLANET_RINGS,
 };
-export const PLANET_BETA: GravityWell = {
+const PLANET_BETA: GravityWell = {
   id: "planet-beta",
   name: "Beta",
   type: "planet",
   rings: PLANET_RINGS,
 };
-export const PLANET_GAMMA: GravityWell = {
+const PLANET_GAMMA: GravityWell = {
   id: "planet-gamma",
   name: "Gamma",
   type: "planet",

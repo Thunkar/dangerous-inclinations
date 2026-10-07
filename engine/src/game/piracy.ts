@@ -12,7 +12,7 @@ import { aboard, holdItemKind } from "../models/missions.ts";
 import type { GameView } from "./view.ts";
 import { positionOf, samePosition } from "./geometry.ts";
 import { isMooredAt } from "./stations.ts";
-import { isDestroyed } from "./ship.ts";
+import { isDestroyed, isOnBoard } from "./ship.ts";
 
 /** One item a pirate could take, as a `seize` action names it. */
 export interface SeizableItem {
@@ -84,10 +84,7 @@ export function seizableItems(
   if (freePiracyCards(me.missions, me.cargo).length === 0) return [];
   const seats: PiracySeat[] = view.players.map((p) => ({
     id: p.id,
-    position:
-      p.ship && !p.ship.isDestroyed
-        ? { wellId: p.ship.wellId, ring: p.ship.ring, sector: p.ship.sector }
-        : null,
+    position: p.ship && !p.ship.isDestroyed ? positionOf(p.ship) : null,
     items: p.hold,
   }));
   return candidates(seats, view.stations, playerId, position);
@@ -107,7 +104,7 @@ export function seizableItemsAtEndOfTurn(
   if (!pirate || isDestroyed(pirate.ship)) return [];
   const seats: PiracySeat[] = players.map((p) => ({
     id: p.id,
-    position: p.hasDeployed && !isDestroyed(p.ship) ? positionOf(p.ship) : null,
+    position: isOnBoard(p) ? positionOf(p.ship) : null,
     items: aboard(p.cargo).map((c) => ({ cargoId: c.id, kind: holdItemKind(c) })),
   }));
   return candidates(seats, stations, pirateId, positionOf(pirate.ship));

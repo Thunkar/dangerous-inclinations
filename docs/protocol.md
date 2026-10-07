@@ -28,17 +28,19 @@ and resolves a seat from these routes.
 | POST | `/api/players` | `{ playerName, agent? }` | the new player; a body with any other field (a `playerId` included) is `400` |
 | GET | `/api/players/:playerId` | none | the player, or `404` |
 | PUT | `/api/players/:playerId` | `{ playerName }` | the renamed player; `x-player-id` must be that player (`401` without it, `403` for anyone else) |
-| GET | `/api/players/:playerId/status` | none | `{ player, lobby, view }`: the caller's lobby (if any) and its game view (once started); own id only, as for PUT |
+| GET | `/api/players/:playerId/status` | none | `{ player, lobby, view }`: the caller's lobby (if any) and its game view (once started); own id only, as for PUT. A game saved under other rules is `410` once: the player leaves its lobby on the way out |
 | POST | `/api/lobbies` | `{ lobbyName, password?, maxPlayers? }` | the lobby, with the caller as host; `maxPlayers` is `MIN_PLAYERS`..`MAX_PLAYERS` (default `MAX_PLAYERS`) |
 | GET | `/api/lobbies` | none | `{ lobbyId, lobbyName, hasPassword, maxPlayers, currentPlayers, gameStarted, createdAt }[]` |
 | GET | `/api/lobbies/:lobbyId` | none | the lobby: seats, `hostPlayerId`, `hasPassword` and, once started, `gameId` (never the password) |
-| POST | `/api/lobbies/join` | `{ lobbyId, password? }` | the lobby, or `400 { error }` (full, started, wrong password) |
-| POST | `/api/lobbies/:lobbyId/leave` | none | `{ success: true }`; a lobby left with no humans is deleted with its game |
-| POST | `/api/lobbies/:lobbyId/start` | none | `{ gameId }` (host only; `MIN_PLAYERS`..`MAX_PLAYERS` seats, at least one human) |
-| POST | `/api/lobbies/:lobbyId/bot` | `{ botName? }` | the lobby with a bot seat added (host only) |
-| DELETE | `/api/lobbies/:lobbyId/bot/:botId` | none | `{ success: true }` (host only, before the start) |
+| POST | `/api/lobbies/join` | `{ lobbyId, password? }` | the lobby, or `400 { error }` (not found, full, started, wrong password); joining a lobby you already sit in returns it |
+| POST | `/api/lobbies/:lobbyId/leave` | none | `{ success: true }`, or `404` for an unknown lobby; a host who leaves hands the lobby to the first remaining seat, and a lobby left with no humans is deleted with its game |
+| POST | `/api/lobbies/:lobbyId/start` | none | `{ gameId }` (host only; `MIN_PLAYERS`..`MAX_PLAYERS` seats, at least one human, not started yet), or `400 { error }` |
+| POST | `/api/lobbies/:lobbyId/bot` | `{ botName? }` | the lobby with a bot seat added (host only, before the start, not full), or `400 { error }` |
+| DELETE | `/api/lobbies/:lobbyId/bot/:botId` | none | `{ success: true }` (host only, before the start), or `400 { error }` |
 
-Every lobby route but the two GETs needs `x-player-id`.
+Every lobby route but the two GETs needs `x-player-id` (`401` without it; creating
+and joining also refuse an unknown player with `401`). A body that fails its
+schema is `400 { error, details }`.
 
 A lobby settles nothing but its name, its seats and its password: a game is
 played to `DEFAULT_POINTS_TO_WIN` and there is no table agreement to negotiate.
@@ -52,17 +54,22 @@ information) and the simulator can still play a batch at another number
 | Method | Path | Body | Response |
 |--------|------|------|----------|
 | GET | `/api/games/:gameId` | none | `{ view: GameView, events: GameEvent[], seats }` (full filtered history; `seats` = `{ playerId, playerName, isBot, agent? }[]` from the lobby: who plays each seat) |
-| GET | `/api/games/:gameId/turns` | none | `{ turns: { index, turn, actorId, eventCount }[] }`: every player-turn so far the caller saw an event of, oldest first, with no views (the timeline) |
-| GET | `/api/games/:gameId/turns/:index` | none | `{ from: GameView, to: GameView, events: GameEvent[] }`: that turn as the caller saw it, to replay over the board; `404` past the end |
+| GET | `/api/games/:gameId/turns` | none | `{ turns: { index, turn, actorId, eventCount }[] }`: every player-turn so far the caller saw an event of, oldest first, with no views (the timeline); `404` before the game is active (the recording starts there) |
+| GET | `/api/games/:gameId/turns/:index` | none | `{ from: GameView, to: GameView, events: GameEvent[] }`: that turn as the caller saw it, to replay over the board; `400` for an index that is not a non-negative integer, `404` past the end |
 | POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance }` | `{ view }` or `400 { error }` |
 | POST | `/api/games/:gameId/deploy` | `{ ring: 2 \| 3 \| 4, sector: number }` | `{ view }` or `400 { error }`. Black Hole ring 2, 3 or 4, at least three sectors from every ship already placed (if no position is that clear, the clearest ones are legal instead); the position becomes the player's Home |
-| POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` (at most 64) | `{ ok, errors?, events? }` (dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn) |
+| POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` (at most 64) | `{ ok, error?, errors?, events? }` (dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn). `error` when it is not the caller's turn or the game is not active, `errors` for the engine's reasons; a malformed body is `400` with `ok: false` |
 | GET | `/api/games/:gameId/chat` | none | `{ messages: ChatMessage[] }` (table talk, oldest first) |
-| POST | `/api/games/:gameId/chat` | `{ text, kind?: "say" \| "think" }` | `{ message }`; broadcast to the table as a `CHAT` socket message. `say` is heard by everyone; `think` is a player's reasoning, shown to humans, not fed to other agents |
-| POST | `/api/games/fork` | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` (all required) | `{ gameId, view }` (archived recordings of the current schema only; the seat must be your own original seat or a bot's) |
+| POST | `/api/games/:gameId/chat` | `{ text, kind?: "say" \| "think" }` (`text` 1–2000 characters after trimming, `kind` default `say`) | `{ message }`; broadcast to the table as a `CHAT` socket message. `say` is heard by everyone; `think` is a player's reasoning, shown to humans, not fed to other agents |
+| POST | `/api/games/fork` | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` (all required; `turnIndex` `-1` is the initial state) | `{ gameId, view }`, or `400 { error }` (archived recordings of the current schema only, from a snapshot after deployment; the seat must be your own original seat or a bot's). The fork has no lobby, so its `seats` is empty |
 | GET | `/api/health` | none | `{ status, uptimeSeconds, botInvalidTurns, pendingFinalizations, recordingsDir }` |
 | GET | `/api/recordings` | none | `{ recordings: { recordingId, createdAt, source, turnCount, winnerId?, label? }[] }`: the **finished** recordings made under the current recording schema, newest first |
-| GET | `/api/recordings/:id` | none | a finished recording (full states; the game is over), or `410 { error }` for a stale one |
+| GET | `/api/recordings/:id` | none | a finished recording (full states; the game is over), `404` for an unknown one, or `410 { error }` for a stale one |
+
+Every `/api/games/:gameId` route needs `x-player-id`: `401` without it, `404` for
+an unknown game, `403` for a caller who is not one of its players. Fork needs it
+too (`401` without it or for an unknown player). A loadout or deployment body
+that fails its schema is `400 { error, details }`.
 
 Loadout and deployment submissions for bots happen server-side through the AI
 (`botChooseLoadout`, `botChooseDeployment` with the game's seeded RNG via
@@ -75,7 +82,8 @@ Server → client:
 ```ts
 { type: "CONNECTED", room: "game", roomId }
 { type: "GAME_VIEW", payload: { view: GameView, events: GameEvent[] } }
-  // on connect (events = full filtered history) and on any phase change
+  // on connect (events = full filtered history), and to every seat after each
+  // loadout or deployment submission (events = the deployments it made, the submitter's and the bots' that followed)
 { type: "TURN_EXECUTED", payload: {
     view: GameView,            // for this recipient
     events: GameEvent[],       // this turn's events, filtered for this recipient
@@ -83,7 +91,8 @@ Server → client:
     turnNumber: number,
     actions?: PlayerAction[] } }  // actions only included when recipient === playerId
 { type: "TURN_ERROR", payload: { error?: string, errors?: string[] } }
-  // only to the submitter
+  // only to the submitter: `errors` for a malformed message or the engine's reasons,
+  // `error` for a stale or out-of-turn submission, a game not active, or a failed save
 { type: "CHAT", payload: { id, gameId, playerId, name, kind: "say" | "think", text, turn, at } }
   // a line posted with POST /api/games/:gameId/chat, to every seat
 ```
@@ -91,7 +100,7 @@ Server → client:
 Client → server:
 
 ```ts
-{ type: "SUBMIT_TURN", payload: { actions: PlayerAction[], turn: number, activePlayerId: string } }
+{ type: "SUBMIT_TURN", payload: { actions: PlayerAction[] /* at most 64 */, turn: number, activePlayerId: string } }
   // rejected with TURN_ERROR if turn/activePlayerId don't match the server state (stale or duplicate submission)
   // actions are schema-checked (strict discriminated union, finite integers); one malformed action rejects the submission
 ```
@@ -158,6 +167,13 @@ public, `stations_moved` carries the drifted `wrecks`, and
 turn (an Escort pays on the carrier's sale, with the escort in that planet's
 well).
 
+The game socket is closed with code 1008 when `playerId` or `roomId` is
+missing, the player or game is unknown, or the player has no seat in the game
+(1001 if the game is deleted during the handshake). `TURN_EXECUTED` is sent for
+every committed turn, bots' included, and a connection resumes the bots of a
+game left with one to act (after a server restart), so turns can arrive right
+after the initial `GAME_VIEW` without anyone submitting.
+
 Per-recipient sending: `broadcastViews(room, roomId, (playerId) => message)`
 builds every game message for its recipient; the single-string
 `broadcastToRoom` is only for lobby and global messages, which carry no game
@@ -178,6 +194,7 @@ Server to client only; both carry no game state.
 { type: "CONNECTED", room: "lobby", roomId }
 { type: "PLAYER_JOINED", payload: { playerId, playerName, isBot, agent? } }
 { type: "PLAYER_LEFT", payload: { playerId } }   // left through the route, or a bot removed
+                                                  // (the last human leaving deletes the lobby instead: LOBBY_DELETED on /ws/global)
 { type: "GAME_STARTING", payload: { gameId } }   // each client then joins /ws/game for its own view
 ```
 
@@ -192,7 +209,10 @@ leaves its seat where it is and announces nothing.
    own `TURN_EXECUTED`.
 3. The human player set comes from the persisted registry
    (`getHumanPlayerIds`), never from who happens to be connected.
-4. A game is torn down only after its last human socket has been closed for
+4. A socket's initial `GAME_VIEW` comes before any `TURN_EXECUTED`: the
+   socket joins the room inside the snapshot and its messages are held until
+   that view is sent. A `SUBMIT_TURN` sent before then is queued, not dropped.
+5. A game is torn down only after its last human socket has been closed for
    90 seconds with no human reconnecting, so reloads and flaky connections
    don't destroy a game in progress.
 
@@ -212,8 +232,9 @@ migrated; the table starts a new game.
 ### Ship appearance
 
 Loadout submission optionally includes a `ShipAppearance`: `paint` and
-`secondaryPaint` (six-digit hex), `finish` (`matte`, `metal`), and `armorRelief`,
-`spineHeight` (finite 0–1). Those five fields are all it accepts: the strict
+`secondaryPaint` (`#` and six hex digits) and `livery` (`band`, `split`,
+`chevron`, `stern`, `spine`: the pattern, always in the seat's colour). Those
+three fields are all it accepts: the strict
 shared schema rejects any other, custom player identification colors included,
 and a submission carrying an appearance it rejects is refused whole.
 It is validated and saved atomically with loadout and mission choices, then locked

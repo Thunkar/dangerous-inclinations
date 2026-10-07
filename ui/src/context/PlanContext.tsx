@@ -37,7 +37,7 @@ import {
   getJumpOptions,
   getSubsystemConfig,
   heatFromCubes,
-  isMooredAt,
+  isMooredMidTurn,
   ringVelocity,
 } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
@@ -302,9 +302,11 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   )
 
   const jumpOptions = useMemo(() => getJumpOptions(moveFrom.position), [moveFrom])
+  // Moored only on a berth held since the turn began: a railgun's recoil onto
+  // a station before the move does not dock the ship, and its coast drifts.
   const moored = useMemo(
-    () => isMooredAt(view.stations, moveFrom.position),
-    [view.stations, moveFrom]
+    () => isMooredMidTurn(view.stations, me.ship, moveFrom.position),
+    [view.stations, me.ship, moveFrom]
   )
   const jumpAdjustmentRange = useMemo(() => {
     const move = moveStep.move

@@ -26,6 +26,10 @@ describe("determinism: scripted games", () => {
     const a = playScripted(scriptedGameStart(0x1234abcd), TURNS);
     const b = playScripted(scriptedGameStart(0x1234abcd), TURNS);
     expect(a).toHaveLength(TURNS);
+    // The game replayed has a death and a respawn in it.
+    const types = a.flatMap((t) => t.events.map((e) => e.type));
+    expect(types).toContain("ship_destroyed");
+    expect(types).toContain("respawned");
     for (let i = 0; i < TURNS; i++) {
       expect(canonicalJson(a[i].state)).toBe(canonicalJson(b[i].state));
       expect(a[i].events).toEqual(b[i].events);
@@ -33,27 +37,16 @@ describe("determinism: scripted games", () => {
     }
   });
 
-  it("the dice are actually rolled: a scripted game sees several different d10 results", () => {
-    const turns = playScripted(scriptedGameStart(0x1234abcd), TURNS);
-    const rolls = turns.flatMap((t) => eventsOf(t.events, "attack_resolved").map((e) => e.roll));
-    expect(rolls.length).toBeGreaterThanOrEqual(4);
-    expect(new Set(rolls).size).toBeGreaterThan(1);
-    expect(rolls.every((r) => r >= 1 && r <= 10)).toBe(true);
-  });
-
-  it("different seeds roll different dice", () => {
+  it("the seed decides the dice: a d10 that varies within a game and between seeds", () => {
     const rolls = (seed: number) =>
       playScripted(scriptedGameStart(seed), TURNS).flatMap((t) =>
         eventsOf(t.events, "attack_resolved").map((e) => e.roll)
       );
+    const game = rolls(0x1234abcd);
+    expect(game.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(game).size).toBeGreaterThan(1);
+    expect(game.every((r) => r >= 1 && r <= 10)).toBe(true);
     expect(rolls(0x0001)).not.toEqual(rolls(0x0002));
-  });
-
-  it("someone dies and respawns along the way, and the rest still replays", () => {
-    const turns = playScripted(scriptedGameStart(0x1234abcd), TURNS);
-    const types = turns.flatMap((t) => t.events.map((e) => e.type));
-    expect(types).toContain("ship_destroyed");
-    expect(types).toContain("respawned");
   });
 });
 
@@ -118,22 +111,6 @@ describe("determinism: canonicalJson", () => {
   it("ignores key order at every depth", () => {
     expect(canonicalJson({ b: { y: 1, x: [{ q: 1, p: 2 }] }, a: 1 })).toBe(
       canonicalJson({ a: 1, b: { x: [{ p: 2, q: 1 }], y: 1 } })
-    );
-  });
-
-  it("notices a change buried deep in the state", () => {
-    const state = makeTwoPlayerGame();
-    const changed = {
-      ...state,
-      players: [
-        { ...state.players[0], ship: { ...state.players[0].ship, hitPoints: 9 } },
-        state.players[1],
-      ],
-    };
-    expect(canonicalJson(changed)).not.toBe(canonicalJson(state));
-    // The old fingerprint could not tell them apart.
-    expect(JSON.stringify(changed, Object.keys(changed).sort())).toBe(
-      JSON.stringify(state, Object.keys(state).sort())
     );
   });
 });

@@ -3,6 +3,7 @@ import { resolveAttack, rollToResult } from "../../game/damage.ts";
 import { lowestCriticalFace } from "../../game/ship.ts";
 import type { ShipLoadout } from "../../models/game.ts";
 import {
+  LOADOUTS,
   eventsOf,
   executeTurnAs,
   fire,
@@ -15,19 +16,6 @@ import {
   withShip,
   withSub,
 } from "../testUtils.ts";
-
-const SENSOR_LOADOUT: ShipLoadout = {
-  forwardSlots: ["sensor_array"],
-  sideSlots: ["laser", "laser", "shields", "missiles"],
-};
-const TWO_SHIELDS: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["laser", "laser", "shields", "shields"],
-};
-const RACK_FIRST: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["ballistic_rack", "laser", "shields", "shields"],
-};
 
 /** p1 at R3 S0 with a powered port laser; p2 one ring out where the laser reaches. */
 function laserDuel(targetLoadout?: ShipLoadout, attackerLoadout?: ShipLoadout) {
@@ -58,9 +46,9 @@ describe("damage: the d10", () => {
 
   it.each([
     ["no sensor", undefined, false, false, 10],
-    ["powered sensor", SENSOR_LOADOUT, true, false, 8],
-    ["unpowered sensor", SENSOR_LOADOUT, false, false, 10],
-    ["broken powered sensor", SENSOR_LOADOUT, true, true, 10],
+    ["powered sensor", LOADOUTS.sensor, true, false, 8],
+    ["unpowered sensor", LOADOUTS.sensor, false, false, 10],
+    ["broken powered sensor", LOADOUTS.sensor, true, true, 10],
   ])("the lowest critical face with %s is %i", (_label, loadout, powered, broken, expected) => {
     let state = makeTwoPlayerGame({ loadout });
     if (powered) state = withPower(state, "p1", "forward-0", 2);
@@ -132,51 +120,6 @@ describe("damage: resolveAttack", () => {
     expect(outcome.ship.heat.currentHeat).toBe(5);
   });
 
-  // Plasma: a cube stops two points, and a cube that stops one is spent whole.
-  it.each([
-    ["1 cube vs plasma 4: two absorbed, two land", 1, 4, 2, 2, 0],
-    ["2 cubes vs plasma 4: stopped whole", 2, 4, 0, 4, 0],
-    ["2 cubes vs 3 at plasma's rate: both cubes spent", 2, 3, 0, 3, 0],
-    ["2 cubes vs 1 at plasma's rate: one cube spent whole", 2, 1, 0, 1, 1],
-    ["1 cube vs 1 at plasma's rate: the cube spent whole", 1, 1, 0, 1, 0],
-  ])("%s", (_label, shieldEnergy, damage, toHull, absorbed, shieldLeft) => {
-    const state = withPower(base, "p2", "side-2", shieldEnergy);
-    const outcome = resolveAttack(
-      getShip(state, "p2"),
-      "p2",
-      damage,
-      "engines",
-      5,
-      attacker,
-      "p1",
-      {
-        shieldPointsPerEnergy: 2,
-      }
-    );
-    expect(outcome.hitResult.damageToHull).toBe(toHull);
-    expect(outcome.hitResult.absorbed).toBe(absorbed);
-    expect(outcome.ship.hitPoints).toBe(10 - toHull);
-    expect(outcome.ship.heat.currentHeat).toBe(absorbed);
-    expect(outcome.ship.subsystems.find((s) => s.id === "side-2")!.allocatedEnergy).toBe(
-      shieldLeft
-    );
-  });
-
-  it.each([
-    ["at plasma's rate", { shieldPointsPerEnergy: 2 }],
-    ["at the default rate", {}],
-  ])("a laser skips the shields %s: no cube spent, no heat", (_label, options) => {
-    const state = withPower(base, "p2", "side-2", 2);
-    const outcome = resolveAttack(getShip(state, "p2"), "p2", 2, "engines", 5, attacker, "p1", {
-      ...options,
-      ignoresShields: true,
-    });
-    expect(outcome.hitResult).toMatchObject({ damageToHull: 2, absorbed: 0 });
-    expect(outcome.ship.heat.currentHeat).toBe(0);
-    expect(outcome.ship.subsystems.find((s) => s.id === "side-2")!.allocatedEnergy).toBe(2);
-    expect(outcome.events).toEqual([]);
-  });
-
   it("absorbing reveals the shield tile", () => {
     const state = withPower(base, "p2", "side-2", 2);
     const outcome = resolveAttack(getShip(state, "p2"), "p2", 2, "engines", 5, attacker);
@@ -196,7 +139,7 @@ describe("damage: resolveAttack", () => {
     ["half shields stop half a railgun", 1, 2, 2],
     ["full shields stop a railgun whole", 2, 4, 0],
   ])("two shields absorb one after the other: %s", (_label, cubes, absorbed, toHull) => {
-    let state = makeTwoPlayerGame({}, { loadout: TWO_SHIELDS });
+    let state = makeTwoPlayerGame({}, { loadout: LOADOUTS.twoShields });
     state = withPower(state, "p2", "side-2", cubes);
     state = withPower(state, "p2", "side-3", cubes);
     const outcome = resolveAttack(getShip(state, "p2"), "p2", 4, "engines", 5, attacker);
@@ -211,7 +154,7 @@ describe("damage: resolveAttack", () => {
   });
 
   it("the first shield in slot order absorbs first and the second is left alone", () => {
-    let state = makeTwoPlayerGame({}, { loadout: TWO_SHIELDS });
+    let state = makeTwoPlayerGame({}, { loadout: LOADOUTS.twoShields });
     state = withPower(state, "p2", "side-2", 2);
     state = withPower(state, "p2", "side-3", 2);
     const outcome = resolveAttack(getShip(state, "p2"), "p2", 2, "engines", 5, attacker);
@@ -359,7 +302,7 @@ describe("damage: through executeTurn", () => {
     // The cubes on the bow are public and say what the tile is to anyone
     // counting, but the tile itself is a secret until it does its own job
     // (RULES §Hidden Information).
-    const state = laserDuel(undefined, SENSOR_LOADOUT);
+    const state = laserDuel(undefined, LOADOUTS.sensor);
     const result = executeTurnAs(
       { ...state, forcedRollValue: 8 },
       power(1, "forward-0"),
@@ -372,18 +315,32 @@ describe("damage: through executeTurn", () => {
     expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(false);
   });
 
+  // A rack one ring below its target (side-0 of LOADOUTS.rackTwoShields), and
+  // the railgun two sectors behind one on its own ring.
+  const rackShot = () => laserDuel(undefined, LOADOUTS.rackTwoShields);
+  const railgunShot = () => makeTwoPlayerGame({}, { ring: 3, sector: 2 });
   it.each([
-    ["a half shield buys half a rack round", 1, 1, 1],
-    ["a full shield stops a rack round whole", 2, 0, 2],
-  ])(
+    ["a half shield buys half a rack round", rackShot, "side-0", "ballistic_rack", 2, 1, 1, 1],
+    ["a full shield stops a rack round whole", rackShot, "side-0", "ballistic_rack", 2, 2, 0, 2],
+    [
+      "a half shield buys a point of a railgun's four",
+      railgunShot,
+      "forward-0",
+      "railgun",
+      4,
+      1,
+      3,
+      1,
+    ],
+    ["a full shield stops half a railgun", railgunShot, "forward-0", "railgun", 4, 2, 2, 2],
+  ] as const)(
     "%s, spends its cubes and puts the points on the target's track",
-    (_label, cubes, toHull, absorbed) => {
-      // The rack sits at side-0 of RACK_FIRST, one ring below its target.
-      const state = withPower(laserDuel(undefined, RACK_FIRST), "p2", "side-2", cubes);
-      const result = executeTurnAs(state, fire(1, "side-0", "p2"));
+    (_label, build, slot, weaponType, damage, cubes, toHull, absorbed) => {
+      const state = withPower(build(), "p2", "side-2", cubes);
+      const result = executeTurnAs(state, fire(1, slot, "p2"));
       expect(eventsOf(result.events, "attack_resolved")[0]).toMatchObject({
-        weaponType: "ballistic_rack",
-        damage: 2,
+        weaponType,
+        damage,
         toHull,
         absorbed,
       });

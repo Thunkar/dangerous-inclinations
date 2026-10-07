@@ -28,7 +28,7 @@ import type {
   ScanAction,
   TacticalAction,
 } from "../models/game.ts";
-import { MAX_HEAT, isQuietTurn } from "../models/game.ts";
+import { MAX_HEAT, isQuietTurn, oppositeFacing } from "../models/game.ts";
 import { SELL_NOTHING, SURVEY_RING } from "../models/missions.ts";
 import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
@@ -112,8 +112,6 @@ const CARGO_DENIAL = 4;
  */
 const LOADED_DENIAL = 0.5;
 
-const flip = (f: Facing): Facing => (f === "prograde" ? "retrograde" : "prograde");
-
 /**
  * Build the full action sequence for one movement choice.
  */
@@ -131,7 +129,7 @@ function buildCandidate(
   const moored = status.moored;
 
   // A movement whose heat alone would gut the hull is not worth it. Heat is
-  // hull damage only above the top of the track (RULES §Heat check).
+  // hull damage only above the top of the track (RULES §Energy and Heat).
   const movementHeatDamage = Math.max(0, status.heat + movement.engineEnergy - MAX_HEAT);
   if (movementHeatDamage > 0 && status.hull - movementHeatDamage < MIN_HULL_AFTER_OVERHEAT) {
     movement = coastChoice(false);
@@ -164,7 +162,7 @@ function buildCandidate(
   /** Whether this turn may fire at `o` from `at` at all, whatever the weapon. */
   const mayFireAt = (o: Opponent, at: Position) =>
     !isQuietTurn(view.turn, me) &&
-    canFireFrom(at, view.stations) &&
+    canFireFrom(status.position, at, view.stations) &&
     o.sameWell &&
     canBeFiredAt(o.player, view.stations) &&
     !holdFire.has(o.player.id);
@@ -181,8 +179,8 @@ function buildCandidate(
           (o) =>
             mayFireAt(o, landing) && isInWeaponRange(railgun, { ...landing, facing: f }, o.position)
         ).length;
-      if (shotsWith(ship.facing) === 0 && shotsWith(flip(ship.facing)) > 0)
-        facing = flip(ship.facing);
+      if (shotsWith(ship.facing) === 0 && shotsWith(oppositeFacing(ship.facing)) > 0)
+        facing = oppositeFacing(ship.facing);
     }
   }
   const rotate = facing !== ship.facing;
@@ -191,8 +189,8 @@ function buildCandidate(
   const post = { ...landing, facing };
   const endsOnStation = getStationAt(view.stations, post) !== undefined;
   /**
-   * "Arrives at a station" (deliberately not "is at one"). Since RULES §Moored
-   * a docked ship stays docked, so a coast keeps ending on the station; if
+   * "Arrives at a station" (deliberately not "is at one"). Since a docked ship
+   * stays docked (RULES §Stations, Moored), a coast keeps ending on the station; if
    * that counted as completing a mission step (`completesStep` below, +35 on
    * missionProgress) a moored bot would rate sitting still as progress every
    * turn and loiter in port. Measured: median game length went 33 -> 44

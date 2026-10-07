@@ -2,13 +2,13 @@
  * Stations orbit each planet on STATION_RING and advance at the end of every
  * round. A ship is docked when it ends its turn on a station's sector, and it
  * stays docked: a moored ship rides its station round instead of drifting on
- * its own (RULES §Moored).
+ * its own (RULES §Stations, Moored).
  */
 import type { GameState, GravityWell, Position, Station } from "../models/game.ts";
 import type { EventDraft } from "../models/events.ts";
 import { PLANETS, STATION_RING } from "../models/gravityWells.ts";
-import { driftPosition, positionOf } from "./geometry.ts";
-import { isDestroyed } from "./ship.ts";
+import { driftPosition, positionOf, samePosition } from "./geometry.ts";
+import { isOnBoard } from "./ship.ts";
 
 export const STATION_INITIAL_SECTOR = 0;
 
@@ -54,6 +54,20 @@ export function isMooredAt(stations: Station[], position: Position): boolean {
 }
 
 /**
+ * Moored during the ship's own actions (RULES §Stations, Moored): it was on a
+ * station's sector when its turn began and has not left it. A ship that
+ * arrives is not moored until it docks at the end of its turn, so it may fire
+ * after its move and a railgun's recoil onto the berth moors nothing. Stations
+ * do not move during a turn and no move can leave a sector and come back to
+ * it (a burn changes ring and every drift is at least one sector), so "still
+ * on the start's sector" is "has not left it". Every ship that is not acting
+ * is moored exactly when {@link isMooredAt} says so.
+ */
+export function isMooredMidTurn(stations: Station[], start: Position, at: Position): boolean {
+  return isMooredAt(stations, positionOf(start)) && samePosition(positionOf(start), positionOf(at));
+}
+
+/**
  * End of the round: every station advances, and the ships moored to them go
  * with it. A destroyed ship is off the board and rides nothing. Wrecks drift
  * in the same step, each by its own ring's speed (RULES §Missions, Salvage).
@@ -62,7 +76,7 @@ export function advanceStations(state: GameState): { state: GameState; events: E
   const stations = updateStationPositions(state.stations);
   const riders: string[] = [];
   const players = state.players.map((player) => {
-    if (!player.hasDeployed || isDestroyed(player.ship)) return player;
+    if (!isOnBoard(player)) return player;
     const station = getStationAt(state.stations, positionOf(player.ship));
     if (!station) return player;
     const moved = stations.find((s) => s.id === station.id)!;

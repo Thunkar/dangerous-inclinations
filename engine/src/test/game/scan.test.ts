@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
 import {
+  LOADOUTS,
   GAMMA,
   coast,
   eventsOf,
@@ -19,14 +20,12 @@ import {
   withShip,
 } from "../testUtils.ts";
 
-const SENSOR: ShipLoadout = {
-  forwardSlots: ["sensor_array"],
-  sideSlots: ["laser", "laser", "shields", "missiles"],
-};
-
 /** p1 at R3 S0 with a sensor aboard; p2 on the same ring `sectors` ahead. The scan powers it. */
 function scanner(sectors = 3, targetLoadout?: ShipLoadout): GameState {
-  return makeTwoPlayerGame({ loadout: SENSOR }, { ring: 3, sector: sectors, loadout: targetLoadout });
+  return makeTwoPlayerGame(
+    { loadout: LOADOUTS.sensor },
+    { ring: 3, sector: sectors, loadout: targetLoadout }
+  );
 }
 
 describe("scan: a successful scan", () => {

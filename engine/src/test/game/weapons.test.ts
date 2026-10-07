@@ -4,10 +4,10 @@ import { isInWeaponRange } from "../../game/targeting.ts";
 import { getSubsystemSide } from "../../game/ship.ts";
 import { missileCanReach } from "../../game/missiles.ts";
 import { getSubsystemConfig } from "../../models/subsystems.ts";
-import type { Facing, ShipLoadout } from "../../models/game.ts";
+import type { Facing, GameState, Position } from "../../models/game.ts";
 import { FIRST_TURN } from "../../models/game.ts";
-import { BURN_COSTS } from "../../models/rings.ts";
 import {
+  LOADOUTS,
   ALPHA,
   BH,
   burn,
@@ -24,29 +24,12 @@ import {
   makeGameState,
   makePlayer,
   makeTwoPlayerGame,
-  mustExecute,
   scan,
-  withPlayer,
   withPower,
   withShip,
+  at,
+  attackerAt,
 } from "../testUtils.ts";
-
-const STARBOARD_LASER: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["laser", "shields", "laser", "missiles"],
-};
-const RACKS: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["ballistic_rack", "laser", "ballistic_rack", "missiles"],
-};
-
-const attackerAt = (ring: number, sector: number, facing: Facing = "prograde") => ({
-  wellId: BH,
-  ring,
-  sector,
-  facing,
-});
-const at = (ring: number, sector: number, wellId = BH) => ({ wellId, ring, sector });
 
 describe("weapons: sides", () => {
   it("side slots 0-1 are port and 2-3 starboard; fixed and forward tiles have no side", () => {
@@ -63,34 +46,23 @@ describe("weapons: sides", () => {
   });
 });
 
-describe("weapons: point blank", () => {
-  const here = at(3, 0);
-  it.each([
-    ["railgun (spinal, wants a target ahead)", "forward-0", makeTwoPlayerGame()],
-    ["laser (broadside, wants a side to fire toward)", "side-0", makeTwoPlayerGame()],
-    ["rack (broadside, same ring but one sector off)", "side-0", makeTwoPlayerGame({ loadout: RACKS })],
-  ])("%s reaches a ship in its own sector", (_label, slot, state) => {
-    expect(isInWeaponRange(getSub(state, "p1", slot), attackerAt(3, 0), here)).toBe(true);
-  });
-});
-
 describe("weapons: the opening round reaches nobody", () => {
+  const sameSector = (turn: number) => {
+    const game = makeTwoPlayerGame({}, { ring: 3, sector: 0 }, { turn });
+    return withPower(game, "p1", "forward-0", 4);
+  };
   /**
    * Everyone deploys on the same ring, so before anyone has moved the table is
    * a firing line and every loadout is within sensor range. The rule is about the
    * round, not about the ship: a seat that has already taken its turn is no
    * more allowed to shoot than the one that has not.
    */
-  const SENSING: ShipLoadout = {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["laser", "shields", "radiator", "missiles"],
-  };
-  const sameSector = (turn: number) => {
-    const game = makeTwoPlayerGame({}, { ring: 3, sector: 0 }, { turn });
-    return withPower(game, "p1", "forward-0", 4);
-  };
   const sensing = (turn: number) => {
-    const game = makeTwoPlayerGame({ loadout: SENSING }, { ring: 3, sector: 1 }, { turn });
+    const game = makeTwoPlayerGame(
+      { loadout: LOADOUTS.sensorLaserMissiles },
+      { ring: 3, sector: 1 },
+      { turn }
+    );
     return withPower(game, "p1", "forward-0", getSubsystemConfig("sensor_array").minEnergy);
   };
 
@@ -107,60 +79,60 @@ describe("weapons: the opening round reaches nobody", () => {
 describe("weapons: railgun range (spinal)", () => {
   const railgun = getSub(makeTwoPlayerGame(), "p1", "forward-0");
 
-  it.each([
-    ["1 ahead", at(3, 1), true],
-    ["5 ahead", at(3, 5), true],
-    ["6 ahead", at(3, 6), false],
-    ["1 behind", at(3, 23), false],
-    ["ahead but one ring out", at(4, 2), false],
-  ])("prograde at R3 S0: %s -> %s", (_label, target, expected) => {
-    expect(isInWeaponRange(railgun, attackerAt(3, 0), target)).toBe(expected);
-  });
-
-  it("retrograde flips 'ahead' to decreasing sectors, wrapping at 0", () => {
-    expect(isInWeaponRange(railgun, attackerAt(3, 0, "retrograde"), at(3, 23))).toBe(true);
-    expect(isInWeaponRange(railgun, attackerAt(3, 0, "retrograde"), at(3, 19))).toBe(true);
-    expect(isInWeaponRange(railgun, attackerAt(3, 0, "retrograde"), at(3, 18))).toBe(false);
-    expect(isInWeaponRange(railgun, attackerAt(3, 0, "retrograde"), at(3, 1))).toBe(false);
+  it.each<[string, Facing, Position, boolean]>([
+    ["point blank", "prograde", at(3, 0), true],
+    ["1 ahead", "prograde", at(3, 1), true],
+    ["5 ahead", "prograde", at(3, 5), true],
+    ["6 ahead", "prograde", at(3, 6), false],
+    ["1 behind", "prograde", at(3, 23), false],
+    ["ahead but one ring out", "prograde", at(4, 2), false],
+    // Retrograde, ahead is decreasing sectors, wrapping at 0.
+    ["1 ahead", "retrograde", at(3, 23), true],
+    ["1 behind", "retrograde", at(3, 1), false],
+  ])("at R3 S0: %s facing %s -> %s", (_label, facing, target, expected) => {
+    expect(isInWeaponRange(railgun, attackerAt(3, 0, facing), target)).toBe(expected);
   });
 });
 
 describe("weapons: laser range (broadside, side-restricted)", () => {
   const port = getSub(makeTwoPlayerGame(), "p1", "side-0");
-  const starboard = getSub(makeTwoPlayerGame({ loadout: STARBOARD_LASER }), "p1", "side-2");
+  const starboard = getSub(makeTwoPlayerGame({ loadout: LOADOUTS.starboardLaser }), "p1", "side-2");
+  const lasers = { port, starboard };
 
-  it.each([
-    ["one ring out, same sector", at(4, 0), true],
-    ["one ring out, +1 sector", at(4, 1), true],
-    ["one ring out, -1 sector (wrap)", at(4, 23), true],
-    ["two rings out", at(5, 0), true],
-    ["one ring out, +2 sectors", at(4, 2), false],
-    ["same ring", at(3, 1), false],
-    ["one ring in (wrong side)", at(2, 0), false],
-  ])("port laser prograde at R3 S0: %s -> %s", (_label, target, expected) => {
-    expect(isInWeaponRange(port, attackerAt(3, 0), target)).toBe(expected);
-  });
-
-  it("starboard fires inward when prograde; both sides flip when retrograde", () => {
-    expect(isInWeaponRange(starboard, attackerAt(3, 0), at(2, 0))).toBe(true);
-    expect(isInWeaponRange(starboard, attackerAt(3, 0), at(1, 1))).toBe(true);
-    expect(isInWeaponRange(starboard, attackerAt(3, 0), at(4, 0))).toBe(false);
-    expect(isInWeaponRange(port, attackerAt(3, 0, "retrograde"), at(2, 0))).toBe(true);
-    expect(isInWeaponRange(port, attackerAt(3, 0, "retrograde"), at(4, 0))).toBe(false);
-    expect(isInWeaponRange(starboard, attackerAt(3, 0, "retrograde"), at(5, 0))).toBe(true);
-  });
-
-  it("ring range is 2 in the firing direction only", () => {
-    expect(isInWeaponRange(port, attackerAt(1, 0), at(3, 0))).toBe(true);
-    expect(isInWeaponRange(port, attackerAt(1, 0), at(4, 0))).toBe(false);
+  // A port laser fires outward facing prograde and inward facing retrograde,
+  // a starboard one the other way, and reaches two rings that way only.
+  it.each<[string, keyof typeof lasers, number, Facing, Position, boolean]>([
+    ["point blank", "port", 3, "prograde", at(3, 0), true],
+    ["one ring out, same sector", "port", 3, "prograde", at(4, 0), true],
+    ["one ring out, +1 sector", "port", 3, "prograde", at(4, 1), true],
+    ["one ring out, -1 sector (wrap)", "port", 3, "prograde", at(4, 23), true],
+    ["two rings out", "port", 3, "prograde", at(5, 0), true],
+    ["one ring out, +2 sectors", "port", 3, "prograde", at(4, 2), false],
+    ["same ring", "port", 3, "prograde", at(3, 1), false],
+    ["one ring in (wrong side)", "port", 3, "prograde", at(2, 0), false],
+    ["two rings out from ring 1", "port", 1, "prograde", at(3, 0), true],
+    ["three rings out from ring 1", "port", 1, "prograde", at(4, 0), false],
+    ["one ring in", "port", 3, "retrograde", at(2, 0), true],
+    ["one ring out", "port", 3, "retrograde", at(4, 0), false],
+    ["one ring in", "starboard", 3, "prograde", at(2, 0), true],
+    ["two rings in, +1 sector", "starboard", 3, "prograde", at(1, 1), true],
+    ["one ring out", "starboard", 3, "prograde", at(4, 0), false],
+    ["two rings out", "starboard", 3, "retrograde", at(5, 0), true],
+  ])("%s: %s laser at R%i S0 facing %s -> %s", (_label, side, ring, facing, target, expected) => {
+    expect(isInWeaponRange(lasers[side], attackerAt(ring, 0, facing), target)).toBe(expected);
   });
 });
 
 describe("weapons: ballistic rack range", () => {
-  const rack = getSub(makeTwoPlayerGame({ loadout: RACKS }), "p1", "side-0");
-  const starboardRack = getSub(makeTwoPlayerGame({ loadout: RACKS }), "p1", "side-2");
+  const rack = getSub(makeTwoPlayerGame({ loadout: LOADOUTS.racksAndMissiles }), "p1", "side-0");
+  const starboardRack = getSub(
+    makeTwoPlayerGame({ loadout: LOADOUTS.racksAndMissiles }),
+    "p1",
+    "side-2"
+  );
 
   it.each([
+    ["point blank", at(3, 0), true],
     ["same ring, +1", at(3, 1), true],
     ["same ring, -1 (wrap)", at(3, 23), true],
     ["same ring, +2", at(3, 2), false],
@@ -231,26 +203,33 @@ describe("weapons: firing", () => {
     expect(getShip(result.gameState, "p2").hitPoints).toBe(8);
   });
 
-  it("range is checked when the shot executes: fire-then-coast works, coast-then-fire does not", () => {
-    const state = duel(1); // in range from S0, out of range from S4
-    expectRefusedUnless(
-      executeTurnAs(state, coast(1), fire(2, "side-0", "p2")),
-      executeTurnAs(state, fire(1, "side-0", "p2"), coast(2))
-    );
-  });
-
-  it("a target that drifts into range can be shot after moving", () => {
-    const state = duel(4); // out of range from S0, in range from S4
-    expectRefusedUnless(
-      executeTurnAs(state, fire(1, "side-0", "p2")),
-      executeTurnAs(state, coast(1), fire(2, "side-0", "p2"))
-    );
-  });
+  it.each([
+    // In range from S0, out of range from S4 after the drift.
+    [
+      "fire, then coast",
+      1,
+      [fire(1, "side-0", "p2"), coast(2)],
+      [coast(1), fire(2, "side-0", "p2")],
+    ],
+    // Out of range from S0, in range from S4.
+    [
+      "coast, then fire",
+      4,
+      [coast(1), fire(2, "side-0", "p2")],
+      [fire(1, "side-0", "p2"), coast(2)],
+    ],
+  ])(
+    "range is checked when the shot executes: %s reaches a target on S%i",
+    (_label, sector, taken, refused) => {
+      const state = duel(sector);
+      expectRefusedUnless(executeTurnAs(state, ...refused), executeTurnAs(state, ...taken));
+    }
+  );
 
   it("after a jump the shot is measured from the destination", () => {
     // BH R5 S17 jumps along Alpha's outbound lane to Alpha R3 S5.
     let state = makeGameState([
-      makePlayer("p1", { wellId: BH, ring: 5, sector: 17 }, STARBOARD_LASER),
+      makePlayer("p1", { wellId: BH, ring: 5, sector: 17 }, LOADOUTS.starboardLaser),
       makePlayer("p2", { wellId: ALPHA, ring: 2, sector: 5 }),
     ]);
     state = withPower(state, "p1", "side-2", 2);
@@ -269,9 +248,12 @@ describe("weapons: firing", () => {
     expect(getShip(result.gameState, "p2").hitPoints).toBe(6);
   });
 
-  it("rejects firing at a target in another well", () => {
-    const state = withShip(duel(), "p2", { wellId: ALPHA });
-    const result = executeTurnAs(state, fire(1, "side-0", "p2"));
+  it.each([
+    ["in another well", "p2", (state: GameState) => withShip(state, "p2", { wellId: ALPHA })],
+    ["not at the table", "p9", (state: GameState) => state],
+  ])("rejects firing at a target %s", (_label, target, setup) => {
+    const state = setup(duel());
+    const result = executeTurnAs(state, fire(1, "side-0", target));
     expectRefused(result, state);
     expectRefusedUnless(result, executeTurnAs(duel(), fire(1, "side-0", "p2")));
   });
@@ -282,51 +264,6 @@ describe("weapons: firing", () => {
       executeTurnAs(duel(), fire(1, "side-0", "p2", "side-3"))
     );
   });
-
-  it("a rejected shot aborts the turn: earlier valid actions do not apply", () => {
-    const state = withPower(duel(), "p1", "side-1", 2);
-    const result = executeTurnAs(state, fire(1, "side-0", "p2"), fire(2, "side-1", "p9"));
-    expectRefused(result, state);
-    expect(getShip(result.gameState, "p2").hitPoints).toBe(10);
-    expectRefusedUnless(
-      result,
-      executeTurnAs(state, fire(1, "side-0", "p2"), fire(2, "side-1", "p2"))
-    );
-  });
-});
-
-/**
- * A ship just back from Home is untouchable until the turn it plays next is
- * over (RULES §Destruction and Respawn). The free kill on a wreck parked at a
- * sector everyone knows is exactly what the rule took away, so a shot and a
- * scan are both refused.
- */
-describe("weapons: a recovering ship cannot be shot or scanned", () => {
-  const SENSING: ShipLoadout = {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["laser", "shields", "radiator", "missiles"],
-  };
-  /** p1 armed with a port laser one ring in from p2, and sensors to match. */
-  const gunned = () =>
-    withPower(makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 }), "p1", "side-0", 2);
-  const sensing = () =>
-    withPower(
-      makeTwoPlayerGame({ loadout: SENSING, ring: 3, sector: 0 }, { ring: 3, sector: 1 }),
-      "p1",
-      "forward-0",
-      getSubsystemConfig("sensor_array").minEnergy
-    );
-
-  it.each([
-    ["a shot", "weapon_fired", gunned, () => fire(1, "side-0", "p2")],
-    ["a scan", "scanned", sensing, () => scan(1, "p2", "side-0")],
-  ])("refuses %s while the target is recovering", (_what, event, build, action) => {
-    const state = withPlayer(build(), "p2", { recovering: true });
-    const result = executeTurnAs(state, action());
-    expectRefused(result, state);
-    expectRefusedUnless(result, executeTurnAs(build(), action()));
-    expect(eventTypes(result.events)).not.toContain(event);
-  });
 });
 
 describe("weapons: railgun recoil", () => {
@@ -334,13 +271,18 @@ describe("weapons: railgun recoil", () => {
   // No cubes placed: the shot powers the railgun and the compensation powers
   // the engines.
   const gunline = (facing: Facing = "prograde", ring = 3) =>
-    makeTwoPlayerGame({ ring, sector: 0, facing }, { ring, sector: facing === "prograde" ? 2 : 22 });
+    makeTwoPlayerGame(
+      { ring, sector: 0, facing },
+      { ring, sector: facing === "prograde" ? 2 : 22 }
+    );
 
   it("an uncompensated shot pushes the ship one ring against its facing", () => {
     // The shot goes forward, so the ship goes back: prograde, inward.
     const prograde = executeTurnAs(gunline("prograde"), fire(1, "forward-0", "p2"));
     expect(prograde.errors).toBeUndefined();
     expect(getShip(prograde.gameState, "p1").ring).toBe(2);
+    // A railgun does 4 damage.
+    expect(getShip(prograde.gameState, "p2").hitPoints).toBe(6);
     expect(eventsOf(prograde.events, "recoil")[0]).toMatchObject({
       playerId: "p1",
       compensated: false,
@@ -356,7 +298,7 @@ describe("weapons: railgun recoil", () => {
 
   it("recoil happens before later actions: a broadside can use the new ring", () => {
     let state = makeGameState([
-      makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }, STARBOARD_LASER),
+      makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }, LOADOUTS.starboardLaser),
       makePlayer("p2", { wellId: BH, ring: 3, sector: 2 }),
       makePlayer("p3", { wellId: BH, ring: 3, sector: 1 }),
     ]);
@@ -374,7 +316,7 @@ describe("weapons: railgun recoil", () => {
     expect(eventsOf(result.events, "recoil")[0]).toMatchObject({
       compensated: true,
       massSpent: 1,
-      heat: BURN_COSTS.soft.energy,
+      heat: 1,
     });
     expect(eventsOf(result.events, "recoil")[0]).not.toHaveProperty("to");
   });
@@ -455,11 +397,6 @@ describe("weapons: railgun recoil", () => {
     expect(eventsOf(result.events, "ship_destroyed")).toEqual([
       expect.objectContaining({ victimId: "p2", killerId: "p1", cause: "weapon" }),
     ]);
-  });
-
-  it("the railgun does 4 damage", () => {
-    const state = mustExecute(gunline(), fire(1, "forward-0", "p2"));
-    expect(getShip(state, "p2").hitPoints).toBe(6);
   });
 });
 

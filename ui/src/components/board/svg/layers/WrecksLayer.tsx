@@ -12,7 +12,7 @@
  */
 import { memo } from 'react'
 import type { WreckToken } from '../../model'
-import { slideProgress, wreckHeading, wreckPoint } from '../../geometry'
+import { driftProgress, wreckHeading, wreckPoint } from '../../geometry'
 import { wreckLabel } from '../../labels'
 import { WRECK_BOW, WRECK_STERN, outlinePath } from '../../shapes'
 import { BOARD } from '../palette'
@@ -35,17 +35,11 @@ const SHARDS = [
   'M 11 -3 L 12.6 -1.4 L 10.6 -1.8 Z',
 ]
 
-function drift(wreck: WreckToken, now: number): number {
-  if (!wreck.motion) return 1
-  const raw = Math.min(1, Math.max(0, (now - wreck.motion.start) / wreck.motion.duration))
-  return slideProgress(raw)
-}
-
 export const WrecksLayer = memo(function WrecksLayer({ wrecks, now }: WrecksLayerProps) {
   return (
     <g className="wrecks">
       {wrecks.map(wreck => {
-        const t = drift(wreck, now)
+        const t = driftProgress(wreck, now)
         const p = wreckPoint(wreck.position, wreck.crowd, wreck.motion?.from, t)
         const angle = (wreckHeading(p, wreck.position.wellId, wreck.id) * 180) / Math.PI
         return (

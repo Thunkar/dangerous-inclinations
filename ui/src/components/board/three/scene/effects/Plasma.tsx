@@ -113,7 +113,7 @@ export function Plasma({
   const pool = useEffectMaterial('shock')
   const boltMaterials = useMemo(() => [first, second, third], [first, second, third])
 
-  const cloud = useMemo(emberGeometry, [])
+  const cloud = useMemo(() => emberGeometry(), [])
   useEffect(() => () => cloud.dispose(), [cloud])
   useLight(pool)
 

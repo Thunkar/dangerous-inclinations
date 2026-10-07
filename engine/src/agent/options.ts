@@ -55,7 +55,7 @@ export interface SeatOptions {
   dissipation: number;
   /**
    * Broken subsystems, and whether a repair could land this turn: only a ship that
-   * carries no heat in and makes none can name one (RULES §Heat check).
+   * carries no heat in and makes none can name one (RULES §Energy and Heat).
    */
   repair: { broken: SubsystemId[]; possibleThisTurn: boolean };
   /** Every burn the engines, the thrusters and the tank allow, phasing included (`legalMoves`). */
@@ -133,9 +133,10 @@ export function seatOptions(view: GameView): SeatOptions {
       const noAmmo = weapon.type === "missiles" && (weapon.ammo ?? 0) <= 0;
       const cold = quiet;
       // A moored ship neither fires nor is fired at (RULES §Stations): nobody
-      // is a target from a berth, and nobody at one is a target.
+      // is a target from a berth held since the turn began, and nobody at one
+      // is a target.
       const inRange = (from: Position & { facing: Facing }) => {
-        if (!canFireFrom(from, view.stations)) return [];
+        if (!canFireFrom(here, from, view.stations)) return [];
         return opponents
           .filter(
             (o) =>

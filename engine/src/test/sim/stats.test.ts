@@ -10,15 +10,14 @@ import type { PlayerAction } from "../../models/game.ts";
 import type { GameRunResult, TurnStat } from "../../sim/runGame.ts";
 import { aggregateStats, computePerGameStats } from "../../sim/stats.ts";
 import {
-  BH,
   destroyMission,
   escortMission,
   makeGameState,
   makePlayer,
   surveyMission,
+  LANDING,
 } from "../testUtils.ts";
 
-const at = { wellId: BH, ring: 3, sector: 4 };
 const done = <M extends Mission>(m: M): M => ({ ...m, isCompleted: true });
 const destroy = done(destroyMission("p2"));
 const survey = done(surveyMission());
@@ -75,7 +74,7 @@ function cannedRun(): GameRunResult {
           missionId: "escort-2",
           cause: "carrier_destroyed",
         },
-        { type: "wreck_left", turn: 5, wreckId: "w1", victimId: "p2", at },
+        { type: "wreck_left", turn: 5, wreckId: "w1", victimId: "p2", at: LANDING },
         completed(5, "p1", destroy, 2),
       ]),
       turn(7, "p1", [
@@ -86,7 +85,7 @@ function cannedRun(): GameRunResult {
           victimId: "p2",
           kind: "data",
           cargoId: "d",
-          at,
+          at: LANDING,
         },
       ]),
       turn(6, "p1", [

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { CreatePlayerSchema, UpdatePlayerSchema } from "../schemas/player.ts";
 import { checkPlayerAccess, createPlayer, getPlayer, updatePlayerName } from "../services/playerService.ts";
-import { findPlayerLobby, leaveLobby } from "../services/lobbyService.ts";
+import { findPlayerLobby, leaveLobby, publicLobby } from "../services/lobbyService.ts";
 import { gameService } from "../services/live.ts";
 import { StaleGameError } from "../services/gameService.ts";
 
@@ -60,8 +60,7 @@ export async function playerRoutes(fastify: FastifyInstance) {
       const lobby = await findPlayerLobby(playerId);
       if (!lobby) return reply.send({ player, lobby: null, view: null });
 
-      const { password, ...safeLobby } = lobby;
-      const lobbyResponse = { ...safeLobby, hasPassword: !!password };
+      const lobbyResponse = publicLobby(lobby);
       try {
         const view = lobby.gameId ? await gameService.getView(lobby.gameId, playerId) : null;
         return reply.send({ player, lobby: lobbyResponse, view });

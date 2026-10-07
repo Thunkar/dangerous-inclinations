@@ -3,7 +3,7 @@
  * smoke test can run them against an in-memory game service.
  */
 import type { PlayerAction } from "@dangerous-inclinations/engine";
-import { SubmitTurnSchema } from "../schemas/game.ts";
+import { SubmitTurnSchema, issueLines } from "../schemas/game.ts";
 import type { ServerGameMessage } from "../protocol.ts";
 import { StaleGameError, type GameService } from "../services/gameService.ts";
 
@@ -31,10 +31,7 @@ export async function answerSubmission(
   const parsed = SubmitTurnSchema.safeParse(message);
   if (!parsed.success) {
     // A malformed action fails the whole submission: never a silent coast.
-    return turnError(
-      "Invalid SUBMIT_TURN message",
-      parsed.error.errors.map((issue) => `${issue.path.join(".") || "payload"}: ${issue.message}`)
-    );
+    return turnError("Invalid SUBMIT_TURN message", issueLines(parsed.error));
   }
   const { actions, turn, activePlayerId } = parsed.data.payload;
   try {

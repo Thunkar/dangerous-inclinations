@@ -35,6 +35,7 @@ import {
   staticTarget,
   planMovementAlternatives,
   planMovementToTarget,
+  samePosition,
   wrapSector,
 } from '@dangerous-inclinations/engine'
 import { stationMarkers, type BoardModel } from '../../components/board/model'
@@ -54,9 +55,6 @@ type Picking = 'ship' | 'destination'
 
 /** Where the ship is going: a fixed sector, or a planet's station, which moves. */
 type Destination = { kind: 'sector'; at: Position } | { kind: 'station'; planetId: GravityWellId }
-
-const same = (a: Position, b: Position) =>
-  a.wellId === b.wellId && a.ring === b.ring && a.sector === b.sector
 
 const BODIES = GRAVITY_WELLS.map(well => ({
   value: well.id,
@@ -164,7 +162,7 @@ export function RoutePlannerTool() {
       )
       return plan ? [{ ...plan, label: 'fastest' }] : []
     }
-    if (same(from, destination.at)) return []
+    if (samePosition(from, destination.at)) return []
     // Only the forward search knows the fuel at every step, so a route that has
     // to arrive with some is one plan from it rather than a set of alternatives.
     if (keep > 0) {
@@ -182,7 +180,7 @@ export function RoutePlannerTool() {
   /** A click on the board: the ship, a station (which then moves), or a sector. */
   const pick = (position: Position) => {
     if (picking === 'ship') return setFrom(position)
-    const hit = stations.find(s => same(stationAt(s), position))
+    const hit = stations.find(s => samePosition(stationAt(s), position))
     setDestination(
       hit ? { kind: 'station', planetId: hit.planetId } : { kind: 'sector', at: position }
     )
@@ -398,7 +396,7 @@ export function RoutePlannerTool() {
         <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
           {!route ? (
             <Box sx={{ fontFamily: FONT_SANS, fontSize: '1rem' }}>
-              {destination.kind === 'sector' && same(from, destination.at)
+              {destination.kind === 'sector' && samePosition(from, destination.at)
                 ? 'The ship is already there.'
                 : keep > 0
                   ? `No route there within ${ROUTE_SEARCH_TURNS} turns on ${fuel} fuel that arrives with ${keep}.`

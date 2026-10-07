@@ -51,7 +51,7 @@ export function getAdjustmentRange(velocity: number): { min: number; max: number
 }
 
 /** Phasing costs 1 fuel a sector, on a burn or on a jump. */
-export function phasingMassCost(sectorAdjustment: number): number {
+function phasingMassCost(sectorAdjustment: number): number {
   return Math.abs(sectorAdjustment) * SECTOR_ADJUSTMENT_COST_PER_SECTOR;
 }
 

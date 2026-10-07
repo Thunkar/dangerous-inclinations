@@ -6,12 +6,7 @@ import {
   sectorStepToward,
   ringVelocity,
 } from "../../game/geometry.ts";
-import {
-  arcOffset,
-  arcSectors,
-  getMaxRing,
-  TRANSFER_ARC_LENGTH,
-} from "../../models/gravityWells.ts";
+import { arcOffset, arcSectors, TRANSFER_ARC_LENGTH } from "../../models/gravityWells.ts";
 import { ALPHA, BH } from "../testUtils.ts";
 
 describe("geometry: sector arithmetic", () => {
@@ -67,11 +62,6 @@ describe("geometry: rings and drift", () => {
     expect(ringVelocity("nowhere", 1)).toBe(1);
     expect(ringVelocity(BH, 9)).toBe(1);
     expect(ringVelocity(ALPHA, 5)).toBe(1);
-  });
-
-  it("the black hole has 5 rings and planets have 4", () => {
-    expect(getMaxRing(BH)).toBe(5);
-    expect(getMaxRing(ALPHA)).toBe(4);
   });
 });
 

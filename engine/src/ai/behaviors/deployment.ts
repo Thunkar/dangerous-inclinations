@@ -75,7 +75,7 @@ export function chooseDeployment(view: GameView, pick: (n: number) => number): D
 
   const take = (from: Position[]): DeploymentChoice => {
     const p = from[pick(from.length)];
-    return { wellId: p.wellId, ring: p.ring, sector: p.sector };
+    return positionOf(p);
   };
   const onRing = (ring: number) => legal.filter((p) => p.ring === ring);
   const farthest = (from: Position[]): Position[] => {

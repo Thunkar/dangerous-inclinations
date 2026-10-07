@@ -11,9 +11,10 @@ import {
   PLANET_OUTER_RING,
   STATION_RING,
 } from "../../models/gravityWells.ts";
-import { COMPRESSED_JUMP_MASS, SECTORS_PER_RING } from "../../models/rings.ts";
-import type { ShipLoadout } from "../../models/game.ts";
+import { SECTORS_PER_RING } from "../../models/rings.ts";
+import type { Facing, ShipLoadout } from "../../models/game.ts";
 import {
+  LOADOUTS,
   ALPHA,
   BETA,
   BH,
@@ -27,31 +28,20 @@ import {
   getShip,
   getSub,
   jump,
-  makeGameState,
-  makePlayer,
+  makeTwoPlayerGame,
   rotate,
   withShip,
   withSub,
 } from "../testUtils.ts";
 
-const COMPRESSOR: ShipLoadout = {
-  forwardSlots: ["fuel_compressor"],
-  sideSlots: ["missiles", "laser", "shields", "laser"],
-};
-
-function readyToJump(
+/** p1 at `wellId` R`ring` S`sector`; p2 parked out of the way on black hole ring 4. */
+const readyToJump = (
   wellId: string,
   ring: number,
   sector: number,
-  facing: "prograde" | "retrograde" = "prograde",
+  facing: Facing = "prograde",
   loadout?: ShipLoadout
-) {
-  // Nothing pre-powered: a jump powers the engines to its three itself.
-  return makeGameState([
-    makePlayer("p1", { wellId, ring, sector, facing }, loadout),
-    makePlayer("p2", { wellId: BH, ring: 4, sector: 12 }),
-  ]);
-}
+) => makeTwoPlayerGame({ wellId, ring, sector, facing, loadout }, { ring: 4, sector: 12 });
 
 describe("jumps: lane geometry", () => {
   it("the whole of black hole ring 5 is lanes, each sector in exactly one; only outbound arcs offer a jump", () => {
@@ -60,7 +50,7 @@ describe("jumps: lane geometry", () => {
         arcSectors(l.blackHoleArc)
       )
     );
-    expect(outbound.size).toBe(SECTORS_PER_RING / 2);
+    expect(outbound.size).toBe(12);
     for (let sector = 0; sector < SECTORS_PER_RING; sector++) {
       expect(getJumpOptions({ wellId: BH, ring: 5, sector })).toHaveLength(
         outbound.has(sector) ? 1 : 0
@@ -81,7 +71,11 @@ describe("jumps: lane geometry", () => {
     "BH R5 S%i jumps to %s's lane ring S%i, keeping the offset inside the arc",
     (sector, planet, landing) => {
       const [option] = getJumpOptions({ wellId: BH, ring: 5, sector });
-      expect(option.destination).toEqual({ wellId: planet, ring: PLANET_OUTER_RING, sector: landing });
+      expect(option.destination).toEqual({
+        wellId: planet,
+        ring: PLANET_OUTER_RING,
+        sector: landing,
+      });
     }
   );
 
@@ -91,10 +85,13 @@ describe("jumps: lane geometry", () => {
     [BETA, 16, 12],
     [BETA, 19, 15],
     [GAMMA, 17, 21],
-  ])("%s lane ring S%i jumps back to BH R5 S%i along the inbound lane", (planet, sector, landing) => {
-    const [option] = getJumpOptions({ wellId: planet, ring: PLANET_OUTER_RING, sector });
-    expect(option.destination).toEqual({ wellId: BH, ring: 5, sector: landing });
-  });
+  ])(
+    "%s lane ring S%i jumps back to BH R5 S%i along the inbound lane",
+    (planet, sector, landing) => {
+      const [option] = getJumpOptions({ wellId: planet, ring: PLANET_OUTER_RING, sector });
+      expect(option.destination).toEqual({ wellId: BH, ring: 5, sector: landing });
+    }
+  );
 
   it.each([
     [ALPHA, PLANET_OUTER_RING, 0],
@@ -141,7 +138,9 @@ describe("jumps: lane geometry", () => {
     expect(findJump({ wellId: BH, ring: 5, sector: 17 }, ALPHA)?.lane.id).toBe("alpha-b");
     expect(findJump({ wellId: BH, ring: 5, sector: 17 }, BETA)).toBeUndefined();
     expect(findJump({ wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 17 }, BETA)).toBeUndefined();
-    expect(findJump({ wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 17 }, BH)?.lane.id).toBe("alpha-a");
+    expect(findJump({ wellId: ALPHA, ring: PLANET_OUTER_RING, sector: 17 }, BH)?.lane.id).toBe(
+      "alpha-a"
+    );
   });
 });
 
@@ -224,7 +223,7 @@ describe("jumps: executing a well transfer", () => {
 
   it("a working fuel compressor pays two of the lane's three fuel and is revealed", () => {
     // The lane is 3 and the tile pays 2 of it, so a compressed jump is 1.
-    const state = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
+    const state = withShip(readyToJump(BH, 5, 17, "prograde", LOADOUTS.compressor), "p1", {
       reactionMass: 1,
     });
     const result = executeTurnAs(state, jump(1, ALPHA));
@@ -245,9 +244,14 @@ describe("jumps: executing a well transfer", () => {
   });
 
   it("a broken compressor pays for nothing", () => {
-    const state = withSub(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", "forward-0", {
-      isBroken: true,
-    });
+    const state = withSub(
+      readyToJump(BH, 5, 17, "prograde", LOADOUTS.compressor),
+      "p1",
+      "forward-0",
+      {
+        isBroken: true,
+      }
+    );
     const result = executeTurnAs(state, jump(1, ALPHA));
     expect(getShip(result.gameState, "p1").reactionMass).toBe(10 - 3);
     expect(eventsOf(result.events, "jumped")[0].compressed).toBe(false);
@@ -282,25 +286,28 @@ describe("jumps: phasing inside the arrival arc", () => {
     [0, 5, 3],
     [1, 6, 4],
     [2, 7, 5],
-  ])("a jump phased by %i lands on Alpha's lane ring S%i and costs %i fuel", (adjustment, landing, fuel) => {
-    const result = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA, adjustment));
-    expect(result.errors).toBeUndefined();
-    expect(getShip(result.gameState, "p1")).toMatchObject({
-      wellId: ALPHA,
-      ring: PLANET_OUTER_RING,
-      sector: landing,
-      reactionMass: 10 - fuel,
-    });
-    expect(eventsOf(result.events, "jumped")).toEqual([
-      expect.objectContaining({
-        to: { wellId: ALPHA, ring: PLANET_OUTER_RING, sector: landing },
-        sectorAdjustment: adjustment,
-        massSpent: fuel,
-        // Phasing is fuel, never heat: the engines already burned their cubes.
-        heat: 3,
-      }),
-    ]);
-  });
+  ])(
+    "a jump phased by %i lands on Alpha's lane ring S%i and costs %i fuel",
+    (adjustment, landing, fuel) => {
+      const result = executeTurnAs(readyToJump(BH, 5, 17), jump(1, ALPHA, adjustment));
+      expect(result.errors).toBeUndefined();
+      expect(getShip(result.gameState, "p1")).toMatchObject({
+        wellId: ALPHA,
+        ring: PLANET_OUTER_RING,
+        sector: landing,
+        reactionMass: 10 - fuel,
+      });
+      expect(eventsOf(result.events, "jumped")).toEqual([
+        expect.objectContaining({
+          to: { wellId: ALPHA, ring: PLANET_OUTER_RING, sector: landing },
+          sectorAdjustment: adjustment,
+          massSpent: fuel,
+          // Phasing is fuel, never heat: the engines already burned their cubes.
+          heat: 3,
+        }),
+      ]);
+    }
+  );
 
   // The last column is the nearest phasing inside the arc from the same sector.
   it.each([
@@ -330,33 +337,27 @@ describe("jumps: phasing inside the arrival arc", () => {
   });
 
   it("a compressor cheapens the lane but never the phasing", () => {
-    const phasing = 2;
-    const state = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
-      reactionMass: COMPRESSED_JUMP_MASS + phasing,
+    // The lane at one and two sectors of phasing at one each.
+    const state = withShip(readyToJump(BH, 5, 17, "prograde", LOADOUTS.compressor), "p1", {
+      reactionMass: 3,
     });
-    const result = executeTurnAs(state, jump(1, ALPHA, phasing));
+    const result = executeTurnAs(state, jump(1, ALPHA, 2));
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1")).toMatchObject({ sector: 7, reactionMass: 0 });
-    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({
-      massSpent: COMPRESSED_JUMP_MASS + phasing,
-      compressed: true,
-    });
+    expect(eventsOf(result.events, "jumped")[0]).toMatchObject({ massSpent: 3, compressed: true });
   });
 
   it("a compressor with a dry tank cannot jump at all", () => {
-    const dry = withShip(readyToJump(BH, 5, 17, "prograde", COMPRESSOR), "p1", {
+    const dry = withShip(readyToJump(BH, 5, 17, "prograde", LOADOUTS.compressor), "p1", {
       reactionMass: 0,
     });
-    const lane = withShip(dry, "p1", { reactionMass: COMPRESSED_JUMP_MASS });
+    const lane = withShip(dry, "p1", { reactionMass: 1 });
     // Dry, the lane is refused; with the lane's one fuel it is taken.
     expectRefusedUnless(executeTurnAs(dry, jump(1, ALPHA)), executeTurnAs(lane, jump(1, ALPHA)));
     // The lane's fuel and nothing for the phasing: refused until the phasing is paid.
     expectRefusedUnless(
       executeTurnAs(lane, jump(1, ALPHA, 1)),
-      executeTurnAs(
-        withShip(dry, "p1", { reactionMass: COMPRESSED_JUMP_MASS + 1 }),
-        jump(1, ALPHA, 1)
-      )
+      executeTurnAs(withShip(dry, "p1", { reactionMass: 2 }), jump(1, ALPHA, 1))
     );
   });
 

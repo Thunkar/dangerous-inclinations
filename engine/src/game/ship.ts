@@ -46,6 +46,17 @@ export function isDestroyed(ship: Pick<ShipState, "hitPoints">): boolean {
   return ship.hitPoints <= 0;
 }
 
+/**
+ * A deployed ship that is not destroyed. Takes a `Player` or a `PlayerView`,
+ * whose ship is null before it deploys.
+ */
+export function isOnBoard(player: {
+  hasDeployed: boolean;
+  ship: Pick<ShipState, "hitPoints"> | null;
+}): boolean {
+  return player.hasDeployed && player.ship !== null && !isDestroyed(player.ship);
+}
+
 export function findSubsystem(ship: ShipState, id: SubsystemId): Subsystem | undefined {
   return ship.subsystems.find((s) => s.id === id);
 }
@@ -177,7 +188,7 @@ export function drawFor(type: Subsystem["type"], requested?: number): number {
  * always adds the draw. A rack intercepting on somebody else's turn is already
  * holding its cubes (it was powered, or it fired), and it adds nothing.
  */
-export function powerForUse(ship: ShipState, id: SubsystemId, draw: number): ShipState {
+function powerForUse(ship: ShipState, id: SubsystemId, draw: number): ShipState {
   const sub = findSubsystem(ship, id);
   if (!sub || sub.allocatedEnergy >= draw) return ship;
   return updateSubsystem(ship, id, { allocatedEnergy: draw });

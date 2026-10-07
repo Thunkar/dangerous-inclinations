@@ -521,7 +521,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     return getJumpOptions(plan.moveFrom.position).map(o => o.lane.id)
   }, [plan])
 
-  // Exactly where the rules would let this ship go (RULES §Deployment): both
+  // Exactly where the rules would let this ship go (RULES §Setup): both
   // rings, three sectors clear of every ship already placed: the engine's own
   // answer, so the board cannot offer a cell the server would refuse.
   const legalDeployments = useMemo<Position[]>(

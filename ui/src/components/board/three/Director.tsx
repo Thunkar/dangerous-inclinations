@@ -48,6 +48,7 @@ import {
   MIN_DISTANCE,
   TABLE_PITCHES,
   WELL_MARGIN,
+  forwardOf,
   solveEye,
   type Controls,
 } from './framing'
@@ -134,12 +135,6 @@ function smoothDamp(
   const temp = (velocity.v + omega * change) * delta
   velocity.v = (velocity.v - omega * temp) * decay
   return goal + (change + temp) * decay
-}
-
-/** The camera's forward vector for a compass direction and a pitch. */
-function forwardOf(look: Vector3, pitchDeg: number): Vector3 {
-  const pitch = MathUtils.degToRad(pitchDeg)
-  return new Vector3(look.x * Math.cos(pitch), -Math.sin(pitch), look.z * Math.cos(pitch))
 }
 
 /**

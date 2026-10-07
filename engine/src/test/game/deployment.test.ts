@@ -18,7 +18,6 @@ import { DAMAGING_WEAPON_TYPES } from "../../models/subsystems.ts";
 import type { Mission, MissionRequirement } from "../../models/missions.ts";
 import { MISSIONS_PER_PLAYER } from "../../models/missions.ts";
 import {
-  MISSION_OFFERS_PER_PLAYER,
   MISSION_REQUIREMENTS,
   PRIMARIES_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
@@ -29,6 +28,7 @@ import { DEFAULT_LOADOUT } from "../../models/game.ts";
 import { HOME_RING } from "../../models/gravityWells.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
 import {
+  LOADOUTS,
   BH,
   canonicalJson,
   coast,
@@ -52,9 +52,7 @@ const SPECS = [
 const pickHand = (state: GameState, playerId: string) => {
   const offers = getPlayer(state, playerId).missionOffers;
   const primary = offers.filter((m) => isPrimaryType(m.type)).slice(0, PRIMARIES_PER_PLAYER);
-  const secondaries = offers
-    .filter((m) => !isPrimaryType(m.type))
-    .slice(0, SECONDARIES_PER_PLAYER);
+  const secondaries = offers.filter((m) => !isPrimaryType(m.type)).slice(0, SECONDARIES_PER_PLAYER);
   return [...primary, ...secondaries].map((m) => m.id);
 };
 
@@ -74,23 +72,18 @@ const padHand = (cards: Mission[]): Mission[] => {
 };
 
 /**
- * A loadout that can fly any hand: the sensor array is what Intercept and Survey
+ * createGame + both loadouts submitted: the game sits in the deployment phase.
+ * The sensor hull can fly any hand: the array is what Intercept and Survey
  * need, and nothing else on a card asks for a particular tile.
  */
-const ANY_HAND: ShipLoadout = {
-  forwardSlots: ["sensor_array"],
-  sideSlots: ["laser", "laser", "shields", "missiles"],
-};
-
-/** createGame + both loadouts submitted: the game sits in the deployment phase. */
 function readyToDeploy(seed = 11): GameState {
   let state = createGame(SPECS, seed);
   state = submitLoadout(state, "p1", {
-    loadout: ANY_HAND,
+    loadout: LOADOUTS.sensor,
     missionIds: pickHand(state, "p1"),
   }).state;
   state = submitLoadout(state, "p2", {
-    loadout: ANY_HAND,
+    loadout: LOADOUTS.sensor,
     missionIds: pickHand(state, "p2"),
   }).state;
   return state;
@@ -109,7 +102,7 @@ describe("setup: createGame", () => {
     });
     expect(state.stations).toHaveLength(3);
     for (const p of state.players) {
-      expect(p.missionOffers).toHaveLength(MISSION_OFFERS_PER_PLAYER);
+      expect(p.missionOffers).toHaveLength(6);
       expect(p).toMatchObject({
         missions: [],
         cargo: [],
@@ -142,15 +135,13 @@ describe("setup: createGame", () => {
 });
 
 describe("setup: submitLoadout", () => {
-  const custom: ShipLoadout = {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["radiator", "missiles", "shields", "ballistic_rack"],
-  };
-
   it("records the loadout and mission picks, issuing crates for deliver missions", () => {
     const start = createGame(SPECS, 3);
     const ids = pickHand(start, "p1");
-    const { state, error } = submitLoadout(start, "p1", { loadout: custom, missionIds: ids });
+    const { state, error } = submitLoadout(start, "p1", {
+      loadout: LOADOUTS.sensorMissilesRack,
+      missionIds: ids,
+    });
     expect(error).toBeUndefined();
     const p1 = getPlayer(state, "p1");
     expect(p1.hasSubmittedLoadout).toBe(true);
@@ -158,36 +149,39 @@ describe("setup: submitLoadout", () => {
     expect(p1.ship.subsystems.find((s) => s.id === "forward-0")?.type).toBe("sensor_array");
     expect(p1.ship.subsystems.find((s) => s.id === "side-3")?.type).toBe("ballistic_rack");
     // A crate per Deliver, and nothing else starts in a hold.
-    expect(p1.cargo).toHaveLength(
-      p1.missions.filter((m) => m.type === "deliver_cargo").length
-    );
+    expect(p1.cargo).toHaveLength(p1.missions.filter((m) => m.type === "deliver_cargo").length);
     expect(state.phase).toBe("loadout");
     expect(getPlayer(state, "p2").hasSubmittedLoadout).toBe(false);
   });
 
-  it("moves to deployment once everyone has submitted, last seat placing first", () => {
-    const state = readyToDeploy();
-    expect(state.phase).toBe("deployment");
-    expect(state.activePlayerIndex).toBe(1);
-  });
-
   // Each row changes one thing in a submission the engine takes.
-  type Submission = { state: GameState; playerId: string; loadout: ShipLoadout; missionIds: string[] };
+  type Submission = {
+    state: GameState;
+    playerId: string;
+    loadout: ShipLoadout;
+    missionIds: string[];
+  };
   const legalSubmission = (): Submission => {
     const state = createGame(SPECS, 3);
-    return { state, playerId: "p1", loadout: ANY_HAND, missionIds: pickHand(state, "p1") };
+    return { state, playerId: "p1", loadout: LOADOUTS.sensor, missionIds: pickHand(state, "p1") };
   };
   const submit = (s: Submission) =>
     submitLoadout(s.state, s.playerId, { loadout: s.loadout, missionIds: s.missionIds });
 
   it.each([
-    ["the wrong phase", (s: Submission) => ({ ...s, state: { ...s.state, phase: "active" as const } })],
+    [
+      "the wrong phase",
+      (s: Submission) => ({ ...s, state: { ...s.state, phase: "active" as const } }),
+    ],
     ["an unknown player", (s: Submission) => ({ ...s, playerId: "p9" })],
     [
       "an invalid loadout",
       (s: Submission) => ({
         ...s,
-        loadout: { forwardSlots: ["laser"], sideSlots: ["laser", "laser", "laser", "laser"] } as ShipLoadout,
+        loadout: {
+          forwardSlots: ["laser"],
+          sideSlots: ["laser", "laser", "laser", "laser"],
+        } as ShipLoadout,
       }),
     ],
     ["too few missions", (s: Submission) => ({ ...s, missionIds: s.missionIds.slice(1) })],
@@ -203,19 +197,19 @@ describe("setup: submitLoadout", () => {
   it("rejects missions that were not offered and a second submission", () => {
     const start = createGame(SPECS, 3);
     const foreign = submitLoadout(start, "p1", {
-      loadout: ANY_HAND,
+      loadout: LOADOUTS.sensor,
       missionIds: pickHand(start, "p2"),
     });
     expect(foreign.error).toBeDefined();
     expect(foreign.state).toBe(start);
     // The same submission with p1's own offers is taken, once.
     const first = submitLoadout(start, "p1", {
-      loadout: ANY_HAND,
+      loadout: LOADOUTS.sensor,
       missionIds: pickHand(start, "p1"),
     });
     expect(first.error).toBeUndefined();
     const twice = submitLoadout(first.state, "p1", {
-      loadout: ANY_HAND,
+      loadout: LOADOUTS.sensor,
       missionIds: pickHand(start, "p1"),
     });
     expect(twice.error).toBeDefined();
@@ -224,21 +218,13 @@ describe("setup: submitLoadout", () => {
 });
 
 describe("setup: a kept card the loadout can never fly", () => {
-  /** Guns and no sensors: fine for a Destroy, dead weight for an Intercept. */
-  const GUNSHIP: ShipLoadout = {
-    forwardSlots: ["railgun"],
-    sideSlots: ["laser", "laser", "shields", "missiles"],
-  };
-  /** Sensors and nothing that shoots: the mirror image. */
-  const UNARMED: ShipLoadout = {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "shields", "radiator", "radiator"],
-  };
-
   const SENSOR_ARRAY = MISSION_REQUIREMENTS.intercept_transmission[0];
   const WEAPON = MISSION_REQUIREMENTS.destroy_ship[0];
 
-  /** card, what GUNSHIP is missing for it, what UNARMED is missing for it. */
+  /**
+   * card, what the gunship (guns, no sensor) is missing for it, what the
+   * unarmed hull (a sensor, nothing that shoots) is missing for it.
+   */
   const CARDS: Array<[string, Mission, MissionRequirement[], MissionRequirement[]]> = [
     ["a Destroy", destroyMission("p2"), [], [WEAPON]],
     ["a Deliver", deliverMission("planet-alpha", "planet-beta"), [], []],
@@ -253,10 +239,10 @@ describe("setup: a kept card the loadout can never fly", () => {
     (_label, mission, onGunship, onUnarmed) => {
       const gaps = (missing: MissionRequirement[]) =>
         missing.length > 0 ? [{ mission, missing }] : [];
-      expect(missionsMissingRequirements([mission], GUNSHIP)).toEqual(gaps(onGunship));
-      expect(missionsMissingRequirements([mission], UNARMED)).toEqual(gaps(onUnarmed));
-      // ANY_HAND carries both a gun and the array, so it can fly every card.
-      expect(missionsMissingRequirements([mission], ANY_HAND)).toEqual([]);
+      expect(missionsMissingRequirements([mission], LOADOUTS.gunship)).toEqual(gaps(onGunship));
+      expect(missionsMissingRequirements([mission], LOADOUTS.unarmed)).toEqual(gaps(onUnarmed));
+      // LOADOUTS.sensor carries both a gun and the array, so it can fly every card.
+      expect(missionsMissingRequirements([mission], LOADOUTS.sensor)).toEqual([]);
     }
   );
 
@@ -278,13 +264,13 @@ describe("setup: a kept card the loadout can never fly", () => {
   );
 
   it("reports which of a requirement's tiles are aboard, for the loadout screen", () => {
-    expect(missionRequirementStatus("destroy_ship", GUNSHIP)).toEqual([
+    expect(missionRequirementStatus("destroy_ship", LOADOUTS.gunship)).toEqual([
       { requirement: WEAPON, fitted: ["railgun", "laser", "missiles"], met: true },
     ]);
-    expect(missionRequirementStatus("destroy_ship", UNARMED)).toEqual([
+    expect(missionRequirementStatus("destroy_ship", LOADOUTS.unarmed)).toEqual([
       { requirement: WEAPON, fitted: [], met: false },
     ]);
-    expect(missionRequirementStatus("deliver_cargo", UNARMED)).toEqual([]);
+    expect(missionRequirementStatus("deliver_cargo", LOADOUTS.unarmed)).toEqual([]);
   });
 
   /** A hand of three, offered to p1, so the picks are exactly what we want to test. */
@@ -297,8 +283,8 @@ describe("setup: a kept card the loadout can never fly", () => {
    * the array and a gun at once.
    */
   it.each([
-    ["an Intercept on a hull with no sensor array", interceptMission("p2"), GUNSHIP],
-    ["a Destroy on a hull with no weapon", destroyMission("p2"), UNARMED],
+    ["an Intercept on a hull with no sensor array", interceptMission("p2"), LOADOUTS.gunship],
+    ["a Destroy on a hull with no weapon", destroyMission("p2"), LOADOUTS.unarmed],
   ] as Array<[string, Mission, ShipLoadout]>)(
     "refuses %s, and takes the same hand once what it asks for is aboard",
     (_label, card, loadout) => {
@@ -308,7 +294,7 @@ describe("setup: a kept card the loadout can never fly", () => {
       const refused = submitLoadout(state, "p1", { loadout, missionIds });
       expect(refused.error).toBeDefined();
       expect(refused.state).toBe(state);
-      const taken = submitLoadout(state, "p1", { loadout: ANY_HAND, missionIds });
+      const taken = submitLoadout(state, "p1", { loadout: LOADOUTS.sensor, missionIds });
       expect(taken.error).toBeUndefined();
       expect(getPlayer(taken.state, "p1").missions.map((m) => m.id)).toEqual(missionIds);
     }
@@ -319,7 +305,7 @@ describe("setup: a kept card the loadout can never fly", () => {
     const keep = padHand([deliverMission("planet-alpha", "planet-beta")]);
     const state = offered([...keep, destroyMission("p2"), interceptMission("p2")]);
     const result = submitLoadout(state, "p1", {
-      loadout: UNARMED,
+      loadout: LOADOUTS.unarmed,
       missionIds: keep.map((m) => m.id),
     });
     expect(result.error).toBeUndefined();
@@ -328,11 +314,12 @@ describe("setup: a kept card the loadout can never fly", () => {
 });
 
 describe("loadout: validation and instantiation", () => {
-  // RULES §Setup: forward is railgun, sensor array, fuel compressor, shields or
-  // missiles; side is laser, radiator, shields, ballistic rack or missiles. The
-  // guns that care where they point stay put, the rack stays off the bow (a
-  // cheap bow gun has no predator), and shields and missiles go either way so a
-  // loaded bow is never a certain sensor array.
+  // RULES §Setup: forward is railgun, sensor array, fuel compressor, shields,
+  // missiles or disruptor; side is laser, radiator, shields, ballistic rack,
+  // missiles, plasma cannon or disruptor. The guns that care where they point
+  // stay put, the rack stays off the bow (a cheap bow gun has no predator), and
+  // shields, missiles and the disruptor go either way so a loaded bow is never
+  // a certain sensor array.
   it.each<[SubsystemType, boolean, boolean]>([
     ["railgun", true, false],
     ["sensor_array", true, false],
@@ -342,6 +329,8 @@ describe("loadout: validation and instantiation", () => {
     ["laser", false, true],
     ["radiator", false, true],
     ["ballistic_rack", false, true],
+    ["plasma_cannon", false, true],
+    ["disruptor", true, true],
     ["engines", false, false],
   ])("%s fits the bow: %s, a side: %s", (type, forward, side) => {
     expect(canInstallInSlot(type, "forward")).toBe(forward);
@@ -389,12 +378,8 @@ describe("loadout: validation and instantiation", () => {
       dissipationCapacity: 5,
       reactionMass: 10,
     });
-    const passive: ShipLoadout = {
-      forwardSlots: ["railgun"],
-      sideSlots: ["radiator", "radiator", "shields", "laser"],
-    };
     // Radiators are the only passive a loadout can stack: the tank is 10 on every ship.
-    expect(calculateShipStatsFromLoadout(passive)).toEqual({
+    expect(calculateShipStatsFromLoadout(LOADOUTS.twoRadiators)).toEqual({
       dissipationCapacity: 9,
       reactionMass: 10,
     });
@@ -478,7 +463,10 @@ describe("deployment", () => {
     const p2First = deployShip(state, "p2", 0, HOME_RING);
     expect(p2First.success).toBe(true);
     const afterP2 = p2First.state;
-    expect(deployShip(afterP2, "p2", 12, HOME_RING)).toMatchObject({ success: false, state: afterP2 });
+    expect(deployShip(afterP2, "p2", 12, HOME_RING)).toMatchObject({
+      success: false,
+      state: afterP2,
+    });
     expect(deployShip(afterP2, "p1", 12, HOME_RING).success).toBe(true);
   });
 
@@ -516,23 +504,15 @@ describe("deployment", () => {
     expect(active).toMatchObject({ phase: "active", activePlayerIndex: 0, turn: 1 });
   });
 
-  it("no turns can be taken before the game is active", () => {
+  it("no turn is taken before the game is active, and a freshly started game plays", () => {
     const state = readyToDeploy();
-    const result = executeTurn(state, [{ ...coast(1), playerId: "p1" }]);
-    expect(result.errors?.length).toBeGreaterThan(0);
-    expect(result.gameState).toBe(state);
-    // Once both ships are placed the same turn is taken.
-    let active = deployShip(state, "p2", 12, HOME_RING).state;
+    const early = executeTurn(state, [{ ...coast(1), playerId: "p1" }]);
+    expect(early.errors?.length).toBeGreaterThan(0);
+    expect(early.gameState).toBe(state);
+    // Once both ships are placed the same turn is taken: it drifts the first ship two sectors.
+    let active = deployShip(state, "p2", 12, HOME_RING).state; // last seat places first
     active = transitionToActivePhase(deployShip(active, "p1", 0, HOME_RING).state);
-    expect(executeTurn(active, [{ ...coast(1), playerId: "p1" }]).errors).toBeUndefined();
-  });
-
-  it("a freshly started game plays: the first turn drifts the first ship two sectors", () => {
-    let state = readyToDeploy();
-    state = deployShip(state, "p2", 12, HOME_RING).state; // last seat places first
-    state = deployShip(state, "p1", 0, HOME_RING).state;
-    state = transitionToActivePhase(state);
-    const next = mustExecute(state, coast(1));
+    const next = mustExecute(active, coast(1));
     expect(getShip(next, "p1")).toMatchObject({ wellId: BH, ring: HOME_RING, sector: 2 });
     expect(next.activePlayerIndex).toBe(1);
   });

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { BURN_COSTS } from "../../models/rings.ts";
-import type { GameState, ShipLoadout } from "../../models/game.ts";
+import type { Facing, GameState } from "../../models/game.ts";
 import { legalMoves, phasingAllowed, projectPosition } from "../../game/movement.ts";
 import { executeTurn } from "../../game/turns.ts";
 import {
+  LOADOUTS,
   ALPHA,
   BH,
   burn,
@@ -14,8 +14,6 @@ import {
   expectRefusedUnless,
   getShip,
   jump,
-  makePlayer,
-  makeGameState,
   makeTwoPlayerGame,
   mustExecute,
   rotate,
@@ -24,17 +22,9 @@ import {
   withSub,
 } from "../testUtils.ts";
 
-function shipAt(
-  wellId: string,
-  ring: number,
-  sector: number,
-  facing: "prograde" | "retrograde" = "prograde"
-) {
-  return makeGameState([
-    makePlayer("p1", { wellId, ring, sector, facing }),
-    makePlayer("p2", { wellId: BH, ring: 5, sector: 12 }),
-  ]);
-}
+/** p1 at `wellId` R`ring` S`sector`, p2 parked out of the way on black hole ring 5. */
+const shipAt = (wellId: string, ring: number, sector: number, facing: Facing = "prograde") =>
+  makeTwoPlayerGame({ wellId, ring, sector, facing }, { ring: 5, sector: 12 });
 
 describe("movement: drift", () => {
   it.each([
@@ -110,8 +100,7 @@ describe("movement: burns", () => {
   ] as const)(
     "a %s burn facing %s from BH ring 3 ends on ring %i for %i mass",
     (intensity, facing, ring, mass) => {
-      // Nothing pre-powered: the burn puts its own cubes on the engines, so
-      // its heat is the burn's number and never more.
+      // What a burn costs in heat is the energy table's (energy.test.ts).
       const state = shipAt(BH, 3, 0, facing);
       const result = executeTurnAs(state, burn(1, intensity));
       expect(result.errors).toBeUndefined();
@@ -124,7 +113,6 @@ describe("movement: burns", () => {
         from: { wellId: BH, ring: 3, sector: 0 },
         to: { wellId: BH, ring, sector: 4 },
         massSpent: mass,
-        heat: BURN_COSTS[intensity].energy,
       });
     }
   );
@@ -162,10 +150,11 @@ describe("movement: burns", () => {
     // Ring 2 prograde: a hard burn lands on ring 5, so the board is not the reason.
     const withMass = (mass: number) =>
       withShip(makeTwoPlayerGame({ ring: 2 }), "p1", { reactionMass: mass });
-    const short = withMass(BURN_COSTS.hard.mass - 1);
+    // A hard burn is three mass.
+    const short = withMass(2);
     const result = executeTurnAs(short, burn(1, "hard"));
     expectRefused(result, short);
-    expectRefusedUnless(result, executeTurnAs(withMass(BURN_COSTS.hard.mass), burn(1, "hard")));
+    expectRefusedUnless(result, executeTurnAs(withMass(3), burn(1, "hard")));
   });
 
   it("rejects a burn when the engines are broken", () => {
@@ -296,10 +285,8 @@ describe("movement: fuel scoop", () => {
   });
 
   it("the scoop takes the headroom, never more: the tank holds 10 on every loadout", () => {
-    let state = makeTwoPlayerGame({ ring: 1 });
-    expect(getShip(state, "p1").reactionMass).toBe(10);
     // Black hole ring 1 offers eight; only the four that fit are taken.
-    state = withShip(state, "p1", { reactionMass: 6 });
+    const state = withShip(makeTwoPlayerGame({ ring: 1 }), "p1", { reactionMass: 6 });
     expect(getShip(mustExecute(state, coast(1, true)), "p1").reactionMass).toBe(10);
   });
 
@@ -343,10 +330,6 @@ describe("movement: projectPosition", () => {
 });
 
 describe("movement: legalMoves agrees with the referee", () => {
-  const COMPRESSOR_HULL: ShipLoadout = {
-    forwardSlots: ["fuel_compressor"],
-    sideSlots: ["laser", "laser", "shields", "radiator"],
-  };
   // BH ring 5, sector 1: inside Beta's outbound departure arc (sectors 0-3).
   const ON_LANE = { wellId: BH, ring: 5, sector: 1 } as const;
   const setups: Array<[string, () => GameState]> = [
@@ -372,7 +355,7 @@ describe("movement: legalMoves agrees with the referee", () => {
     [
       "a lane end with a compressor and two fuel",
       () =>
-        withShip(makeTwoPlayerGame({ ...ON_LANE, loadout: COMPRESSOR_HULL }), "p1", {
+        withShip(makeTwoPlayerGame({ ...ON_LANE, loadout: LOADOUTS.compressorLasers }), "p1", {
           reactionMass: 2,
         }),
     ],

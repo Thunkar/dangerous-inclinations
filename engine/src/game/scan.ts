@@ -15,7 +15,12 @@ import type { GameState, Player, Position, ScanAction } from "../models/game.ts"
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo } from "../models/missions.ts";
-import { SCAN_SECTOR_RANGE, dataAboard, isInterceptTransmissionMission } from "../models/missions.ts";
+import {
+  SCAN_SECTOR_RANGE,
+  dataAboard,
+  isInterceptTransmissionMission,
+  withItemAboard,
+} from "../models/missions.ts";
 import { sectorDistance } from "./geometry.ts";
 import { findSubsystem, useSubsystem } from "./ship.ts";
 
@@ -113,9 +118,7 @@ export function processScan(state: GameState, action: ScanAction): ScanResult {
       };
       // Data a pirate took is still in the hold, un-picked: scanning again
       // puts the same data back aboard rather than a second copy of it.
-      cargo = cargo.some((c) => c.id === data.id)
-        ? cargo.map((c) => (c.id === data.id ? data : c))
-        : [...cargo, data];
+      cargo = withItemAboard(cargo, data);
       events.push({
         type: "data_acquired",
         playerId: scanner.id,

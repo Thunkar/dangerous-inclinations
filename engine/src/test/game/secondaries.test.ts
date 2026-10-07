@@ -1,24 +1,29 @@
 /**
- * The shuffled secondary pile's rules: two of a kind are two jobs, Salvage
- * (wrecks) and Escort (markers). RULES §Missions.
+ * The secondary cards (RULES §Missions): Survey's dive, Tanker's pump, two of
+ * a kind as two jobs, Salvage (wrecks) and Escort (markers). Piracy has
+ * piracy.test.ts, and a sale's choice at a station docking.test.ts.
  */
 import { describe, it, expect } from "vitest";
-import type { GameState, Wreck } from "../../models/game.ts";
+import type { GameState, Player, Wreck } from "../../models/game.ts";
 import type { Mission, SurveyMission } from "../../models/missions.ts";
-import { MISSION_POINTS, TANKER_FUEL, dataAboard } from "../../models/missions.ts";
+import { dataAboard } from "../../models/missions.ts";
 import { STATION_RING } from "../../models/gravityWells.ts";
 import { filterEventsFor } from "../../models/events.ts";
-import { getStationForPlanet } from "../../game/stations.ts";
 import { positionOf, ringVelocity, wrapSector } from "../../game/geometry.ts";
-import { escortCandidates, unplacedEscorts } from "../../game/escort.ts";
+import {
+  escortCandidates,
+  escortCandidatesAtEndOfTurn,
+  unplacedEscorts,
+} from "../../game/escort.ts";
 import { viewFor } from "../../game/view.ts";
 import {
+  LOADOUTS,
   ALPHA,
   BETA,
   BH,
   GAMMA,
-  approachSector,
   coast,
+  crateCargo,
   deliverMission,
   dockSale,
   escortMark,
@@ -26,14 +31,15 @@ import {
   eventsOf,
   eventTypes,
   dataCargo,
-  lootCargo,
   executeTurnAs,
   expectRefused,
   expectRefusedUnless,
   fire,
   getPlayer,
+  getShip,
   makeGameState,
   makePlayer,
+  makeTwoPlayerGame,
   piracyMission,
   salvageMission,
   surveyMission,
@@ -43,10 +49,17 @@ import {
   withPlayer,
   withPower,
   withShip,
+  LANDING,
+  berthOf,
+  blackBoxOf,
+  cratesAboard,
+  lootOf,
+  shortOfStation,
 } from "../testUtils.ts";
 
 /** Ring 3 of the black hole drifts 4: a coast from S0 ends on S4. */
-const LANDING = { wellId: BH, ring: 3, sector: 4 } as const;
+
+type At = { wellId: string; ring: number; sector: number };
 
 const wreckAt = (id: string, at: { wellId: string; ring: number; sector: number }): Wreck => ({
   id,
@@ -74,15 +87,8 @@ function arriving(
   planet: string,
   missions: Mission[]
 ): GameState {
-  let next = withShip(state, playerId, {
-    wellId: planet,
-    ring: STATION_RING,
-    sector: approachSector(state, planet),
-  });
-  next = withMissions(next, playerId, missions);
-  return withPlayer(next, playerId, {
-    cargo: getPlayer(next, playerId).cargo.map((c) => ({ ...c, isPickedUp: true })),
-  });
+  const next = withMissions(shortOfStation(state, playerId, planet), playerId, missions);
+  return withPlayer(next, playerId, { cargo: cratesAboard(getPlayer(next, playerId).cargo) });
 }
 
 describe("two of a kind are two jobs", () => {
@@ -111,7 +117,7 @@ describe("two of a kind are two jobs", () => {
     const state = withShip(
       arriving(table(), "p1", ALPHA, [tankerMission("tanker-a"), tankerMission("tanker-b")]),
       "p1",
-      { reactionMass: 2 * TANKER_FUEL }
+      { reactionMass: 10 }
     );
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(1);
@@ -119,8 +125,72 @@ describe("two of a kind are two jobs", () => {
       "tanker-a",
     ]);
     const p1 = getPlayer(result.gameState, "p1");
-    expect(p1.points).toBe(MISSION_POINTS.tanker);
+    expect(p1.points).toBe(1);
     expect(p1.missions.map((m) => m.isCompleted)).toEqual([true, false]);
+  });
+});
+
+/** p1 at `position` (black hole ring 1 by default) with its sensor array powered, holding a Survey. */
+function surveying(position: At = { wellId: BH, ring: 1, sector: 0 }): GameState {
+  const state = withMissions(
+    makeTwoPlayerGame(
+      { ...position, loadout: LOADOUTS.sensorPortLaser },
+      { wellId: BH, ring: 4, sector: 12 }
+    ),
+    "p1",
+    [surveyMission("survey-1")]
+  );
+  return withPower(state, "p1", "forward-0", 2);
+}
+
+describe("survey: the dive", () => {
+  it("survey data is taken on any turn ended on ring 1 (privately)", () => {
+    const result = executeTurnAs(surveying(), coast(1));
+    expect(eventsOf(result.events, "data_acquired")).toEqual([
+      expect.objectContaining({
+        playerId: "p1",
+        kind: "survey",
+        missionId: "survey-1",
+        privateTo: ["p1"],
+      }),
+    ]);
+    expect(getPlayer(result.gameState, "p1").cargo).toEqual([
+      expect.objectContaining({ missionId: "survey-1", kind: "data", deliveryPlanetId: "any" }),
+    ]);
+  });
+
+  it.each<[string, At]>([
+    ["ring 2 of the black hole", { wellId: BH, ring: 2, sector: 0 }],
+    ["the innermost ring of a planet", { wellId: ALPHA, ring: 1, sector: 5 }],
+  ])("survey is not held on %s", (_label, position) => {
+    const result = executeTurnAs(surveying(position), coast(1));
+    expect(eventTypes(result.events)).not.toContain("data_acquired");
+  });
+
+  it("a ship that burns up on ring 1 acquires nothing", () => {
+    const state = withShip(surveying(), "p1", { hitPoints: 1, heat: { currentHeat: 20 } });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventTypes(result.events)).toContain("ship_destroyed");
+    expect(eventTypes(result.events)).not.toContain("data_acquired");
+  });
+});
+
+describe("tanker: the pump", () => {
+  // Arrive with the card's five fuel or more and hand that much in; one short
+  // is also docking.test.ts's sale that falls back to the default.
+  it.each([
+    [5, true],
+    [4, false],
+  ])("arriving with %i fuel pumps the load: %s", (fuel, pumped) => {
+    const state = withShip(arriving(table(), "p1", ALPHA, [tankerMission()]), "p1", {
+      reactionMass: fuel,
+    });
+    const result = executeTurnAs(state, coast(1));
+    expect(eventsOf(result.events, "fuel_pumped")).toEqual(
+      pumped ? [expect.objectContaining({ playerId: "p1", amount: 5, planetId: ALPHA })] : []
+    );
+    expect(getShip(result.gameState, "p1").reactionMass).toBe(pumped ? 0 : fuel);
+    expect(getPlayer(result.gameState, "p1").points).toBe(pumped ? 1 : 0);
   });
 });
 
@@ -165,36 +235,33 @@ describe("salvage: wrecks", () => {
   );
 
   it.each([
-    ["the black hole's ring 1", { wellId: BH, ring: 1, sector: 23 }],
-    ["a planet's ring 2", { wellId: ALPHA, ring: 2, sector: 5 }],
-  ])("a wreck on %s drifts by its ring's speed once a round, with the stations", (_label, at) => {
-    const state = { ...table(), wrecks: [wreckAt("w", at)] };
-    // p1's turn is not the end of the round: nothing drifts.
-    const midRound = executeTurnAs(state, coast(1));
-    expect(midRound.gameState.wrecks).toEqual([wreckAt("w", at)]);
+    ["the black hole's ring 1", { wellId: BH, ring: 1, sector: 23 }, 7],
+    ["a planet's ring 2", { wellId: ALPHA, ring: 2, sector: 5 }, 9],
+  ])(
+    "a wreck on %s drifts by its ring's speed once a round, with the stations, to sector %i",
+    (_label, at, sector) => {
+      const state = { ...table(), wrecks: [wreckAt("w", at)] };
+      // p1's turn is not the end of the round: nothing drifts.
+      const midRound = executeTurnAs(state, coast(1));
+      expect(midRound.gameState.wrecks).toEqual([wreckAt("w", at)]);
 
-    const roundEnd = executeTurnAs(midRound.gameState, coast(1));
-    const drifted = wreckAt("w", {
-      ...at,
-      sector: wrapSector(at.sector + ringVelocity(at.wellId, at.ring)),
-    });
-    expect(roundEnd.gameState.wrecks).toEqual([drifted]);
-    expect(eventsOf(roundEnd.events, "stations_moved")).toEqual([
-      expect.objectContaining({ wrecks: [drifted] }),
-    ]);
-  });
+      const roundEnd = executeTurnAs(midRound.gameState, coast(1));
+      const drifted = wreckAt("w", { ...at, sector });
+      expect(roundEnd.gameState.wrecks).toEqual([drifted]);
+      expect(eventsOf(roundEnd.events, "stations_moved")).toEqual([
+        expect.objectContaining({ wrecks: [drifted] }),
+      ]);
+    }
+  );
 
   it("a wreck on a berth rides with its station: still on the berth when the round ends", () => {
     const base = table();
-    const station = getStationForPlanet(base.stations, ALPHA)!;
-    const berth = { wellId: ALPHA, ring: station.ring, sector: station.sector };
+    const berth = berthOf(base, ALPHA);
     const state = { ...base, wrecks: [wreckAt("w", berth)] };
     const roundEnd = executeTurnAs(executeTurnAs(state, coast(1)).gameState, coast(1));
-    const moved = getStationForPlanet(roundEnd.gameState.stations, ALPHA)!;
-    expect(moved.sector).not.toBe(station.sector);
-    expect(roundEnd.gameState.wrecks).toEqual([
-      wreckAt("w", { wellId: ALPHA, ring: moved.ring, sector: moved.sector }),
-    ]);
+    const moved = berthOf(roundEnd.gameState, ALPHA);
+    expect(moved.sector).not.toBe(berth.sector);
+    expect(roundEnd.gameState.wrecks).toEqual([wreckAt("w", moved)]);
   });
 
   it("takes a wreck's black box aboard as the card's data on a turn ended on its sector", () => {
@@ -205,7 +272,7 @@ describe("salvage: wrecks", () => {
       expect.objectContaining({ playerId: "p1", wreckId: "w", cargoId: card.cargoId }),
     ]);
     expect(result.gameState.wrecks).toEqual([]);
-    expect(getPlayer(result.gameState, "p1").cargo).toEqual([dataCargo(card.cargoId, card.id)]);
+    expect(getPlayer(result.gameState, "p1").cargo).toEqual([blackBoxOf(card)]);
     // Data on the table: everyone sees a piece of data aboard, and no crate.
     expect(viewFor(result.gameState, "p2").players[0].cargoAboard).toEqual({ crates: 0, data: 1 });
     expect(eventTypes(filterEventsFor(result.events, "p2"))).toContain("wreck_salvaged");
@@ -214,7 +281,7 @@ describe("salvage: wrecks", () => {
   it("files a black box at any station, which is the whole card", () => {
     const card = salvageMission();
     const state = withPlayer(arriving(table(), "p1", BETA, [card]), "p1", {
-      cargo: [dataCargo(card.cargoId, card.id)],
+      cargo: [blackBoxOf(card)],
     });
     const result = executeTurnAs(state, coast(1));
     expect(eventsOf(result.events, "cargo_delivered")).toEqual([
@@ -224,7 +291,7 @@ describe("salvage: wrecks", () => {
     expect(eventsOf(result.events, "mission_completed").map((e) => e.mission.id)).toEqual([
       card.id,
     ]);
-    expect(getPlayer(result.gameState, "p1").points).toBe(MISSION_POINTS.salvage);
+    expect(getPlayer(result.gameState, "p1").points).toBe(1);
   });
 
   it.each([
@@ -238,7 +305,7 @@ describe("salvage: wrecks", () => {
       // `arriving` puts the Deliver's crate aboard; the black box rides beside it.
       const base = arriving(table(), "p1", ALPHA, [deliver, card]);
       const state = withPlayer(base, "p1", {
-        cargo: [...getPlayer(base, "p1").cargo, dataCargo(card.cargoId, card.id)],
+        cargo: [...getPlayer(base, "p1").cargo, blackBoxOf(card)],
       });
       const result = executeTurnAs(
         state,
@@ -271,19 +338,14 @@ describe("salvage: wrecks", () => {
       "arriving at a station",
       () => {
         const base = arriving(table(), "p1", ALPHA, [salvageMission()]);
-        const station = getStationForPlanet(base.stations, ALPHA)!;
-        return {
-          ...base,
-          wrecks: [wreckAt("w", { wellId: ALPHA, ring: station.ring, sector: station.sector })],
-        };
+        return { ...base, wrecks: [wreckAt("w", berthOf(base, ALPHA))] };
       },
     ],
     [
       "already moored at a station",
       () => {
         const base = withMissions(table(), "p1", [salvageMission()]);
-        const station = getStationForPlanet(base.stations, ALPHA)!;
-        const berth = { wellId: ALPHA, ring: station.ring, sector: station.sector };
+        const berth = berthOf(base, ALPHA);
         return { ...withShip(base, "p1", berth), wrecks: [wreckAt("w", berth)] };
       },
     ],
@@ -295,7 +357,7 @@ describe("salvage: wrecks", () => {
           deliverMission(ALPHA, GAMMA),
         ]);
         return withPlayer(state, "p1", {
-          cargo: getPlayer(state, "p1").cargo.map((c) => ({ ...c, isPickedUp: true })),
+          cargo: cratesAboard(getPlayer(state, "p1").cargo),
         });
       },
     ],
@@ -325,7 +387,7 @@ describe("salvage: wrecks", () => {
       () => {
         const card = salvageMission();
         const state = withMissions({ ...table(), wrecks: [wreckAt("w", LANDING)] }, "p1", [card]);
-        return withPlayer(state, "p1", { cargo: [dataCargo(card.cargoId, card.id)] });
+        return withPlayer(state, "p1", { cargo: [blackBoxOf(card)] });
       },
     ],
   ])("takes nothing %s", (_label, build) => {
@@ -337,10 +399,9 @@ describe("salvage: wrecks", () => {
 
   it("a moored ship that dies of its own heat leaves a wreck on the berth, salvaged by the next arrival", () => {
     const base = withMissions(table(), "p2", [salvageMission()]);
-    const station = getStationForPlanet(base.stations, ALPHA)!;
-    const berth = { wellId: ALPHA, ring: station.ring, sector: station.sector };
+    const berth = berthOf(base, ALPHA);
     let state = withShip(base, "p1", { ...berth, hitPoints: 1, heat: { currentHeat: 30 } });
-    state = withShip(state, "p2", { ...berth, sector: approachSector(state, ALPHA) });
+    state = shortOfStation(state, "p2", ALPHA);
 
     const death = executeTurnAs(state, coast(1));
     expect(eventsOf(death.events, "wreck_left")).toEqual([
@@ -370,14 +431,12 @@ describe("salvage: wrecks", () => {
 });
 
 describe("escort: markers", () => {
-  type At = { wellId: string; ring: number; sector: number };
-
   /** p1 holds `escorts` and lands on BH R3 S4; p2 sits at `p2At` carrying what `p2Missions` imply. */
   function meeting(escorts: Mission[], p2Missions: Mission[], p2At: At = LANDING): GameState {
     let state = withMissions(table(p2At), "p1", escorts);
     state = withMissions(state, "p2", p2Missions);
     return withPlayer(state, "p2", {
-      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+      cargo: cratesAboard(getPlayer(state, "p2").cargo),
     });
   }
 
@@ -387,7 +446,7 @@ describe("escort: markers", () => {
     for (const id of ["p2", "p3"]) {
       state = withMissions(state, id, [deliverMission(ALPHA, GAMMA, `deliver-${id}`)]);
       state = withPlayer(state, id, {
-        cargo: getPlayer(state, id).cargo.map((c) => ({ ...c, isPickedUp: true })),
+        cargo: cratesAboard(getPlayer(state, id).cargo),
       });
     }
     return state;
@@ -396,9 +455,77 @@ describe("escort: markers", () => {
   const marksOf = (state: GameState) =>
     getPlayer(state, "p1").missions.map((m) => (m.type === "escort" ? m.markedPlayerId : null));
 
-  /** Alpha's station sector, and a sector of its ring that is not the berth. */
-  const berth = (state: GameState) => getStationForPlanet(state.stations, ALPHA)!;
-  const offBerth = (state: GameState) => wrapSector(berth(state).sector + 8);
+  /** A sector of Alpha's station ring that is not the berth. */
+  const offBerth = (state: GameState) => wrapSector(berthOf(state, ALPHA).sector + 8);
+
+  /**
+   * Who an Escort marker may go on is asked from two sides: a seat's own view
+   * (the bots, the seat CLI and the table's plan) and the referee's state at
+   * the end of the turn. The two must give the same answer, or a seat is
+   * offered a marker the referee refuses.
+   */
+  it("the seat's view and the referee agree on the candidates, on 300 random tables", () => {
+    // A few squares, one of them Alpha's berth at the start, so ships share rings often.
+    const squares: At[] = [
+      { wellId: BH, ring: 3, sector: 4 },
+      { wellId: BH, ring: 3, sector: 5 },
+      { wellId: ALPHA, ring: 2, sector: 0 },
+      { wellId: ALPHA, ring: 2, sector: 6 },
+      { wellId: ALPHA, ring: 1, sector: 0 },
+    ];
+    const ids = ["p1", "p2", "p3", "p4"];
+    /** A small seeded generator: the same tables every run. */
+    const lcg = (seed: number) => {
+      let s = seed >>> 0;
+      return (n: number) => {
+        s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+        return (s >>> 16) % n;
+      };
+    };
+    const randomTable = (seed: number) => {
+      const pick = lcg(seed);
+      const players: Player[] = ids.map((id) => {
+        const cargo = [
+          [],
+          [crateCargo(ALPHA, BH)],
+          [dataCargo(`data-${id}`, `survey-${id}`)],
+          [crateCargo(ALPHA, BH, false)],
+        ][pick(4)];
+        const rivals = ids.filter((other) => other !== id);
+        const missions: Mission[] = [
+          [],
+          [escortMission(`escort-${id}`)],
+          [escortMission(`escort-${id}-a`), escortMission(`escort-${id}-b`)],
+          [escortMission(`escort-${id}-a`, rivals[pick(3)]), escortMission(`escort-${id}-b`)],
+          [{ ...escortMission(`escort-${id}`), isCompleted: true }],
+        ][pick(5)];
+        return makePlayer(id, squares[pick(squares.length)], undefined, {
+          cargo,
+          missions,
+          ...(pick(6) === 0 ? { ship: { hitPoints: 0 } } : {}),
+        } as Partial<Player>);
+      });
+      return makeGameState(players);
+    };
+
+    let offered = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const state = randomTable(seed);
+      for (const player of state.players) {
+        if (player.ship.hitPoints <= 0) continue;
+        const fromView = escortCandidates(
+          viewFor(state, player.id),
+          player.id,
+          positionOf(player.ship)
+        );
+        const fromState = escortCandidatesAtEndOfTurn(state.players, state.stations, player.id);
+        expect(fromView, `seed ${seed}, ${player.id}`).toEqual(fromState);
+        offered += fromState.length;
+      }
+    }
+    // Enough tables offer a marker for the agreement to mean something.
+    expect(offered).toBeGreaterThan(20);
+  });
 
   it("marks an undocked rival carrying a crate when the player names it, face-up for the table", () => {
     const result = executeTurnAs(
@@ -497,7 +624,7 @@ describe("escort: markers", () => {
         });
         state = withMissions(state, "p2", [deliverMission(ALPHA, GAMMA)]);
         return withPlayer(state, "p2", {
-          cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+          cargo: cratesAboard(getPlayer(state, "p2").cargo),
         });
       },
     ],
@@ -511,11 +638,11 @@ describe("escort: markers", () => {
         state = withShip(state, "p2", {
           wellId: ALPHA,
           ring: STATION_RING,
-          sector: berth(state).sector,
+          sector: berthOf(state, ALPHA).sector,
         });
         state = withMissions(state, "p2", [deliverMission(ALPHA, GAMMA)]);
         return withPlayer(state, "p2", {
-          cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+          cargo: cratesAboard(getPlayer(state, "p2").cargo),
         });
       },
     ],
@@ -548,7 +675,7 @@ describe("escort: markers", () => {
     ]);
     state = withMissions(state, "p2", [deliverMission(ALPHA, GAMMA)]);
     state = withPlayer(state, "p2", {
-      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+      cargo: cratesAboard(getPlayer(state, "p2").cargo),
     });
     state = withPlayer(state, "p3", { missions: [escortMission("escort-p3", "p2")] });
     const p2At = positionOf(getPlayer(state, "p2").ship);
@@ -625,10 +752,7 @@ describe("escort: markers", () => {
   /** Where p1, the escort, waits while p2 sells at Beta. */
   type Where = (state: GameState) => At;
   const IN_BETA_WELL: Where = () => ({ wellId: BETA, ring: 4, sector: 0 });
-  const MOORED_AT_BETA: Where = (state) => {
-    const station = getStationForPlanet(state.stations, BETA)!;
-    return { wellId: BETA, ring: station.ring, sector: station.sector };
-  };
+  const MOORED_AT_BETA: Where = (state) => berthOf(state, BETA);
   const IN_ALPHA_WELL: Where = () => ({ wellId: ALPHA, ring: 3, sector: 0 });
   const IN_BLACK_HOLE: Where = () => ({ wellId: BH, ring: 3, sector: 0 });
 
@@ -650,8 +774,7 @@ describe("escort: markers", () => {
   function carrierSells(card: Mission, escortAt: Where): GameState {
     let state = carrierArrives([card], 0, escortAt);
     // The loot rides as the Piracy card's crate, not a crate made at the deal.
-    if (card.type === "piracy")
-      state = withPlayer(state, "p2", { cargo: [lootCargo(card.cargoId, card.id)] });
+    if (card.type === "piracy") state = withPlayer(state, "p2", { cargo: [lootOf(card)] });
     if (card.type === "survey") state = withPlayer(state, "p2", { cargo: [takenData(card)] });
     return state;
   }
@@ -672,10 +795,10 @@ describe("escort: markers", () => {
       const result = executeTurnAs(carrierSells(card, escortAt), coast(1));
       expect(eventTypes(result.events)).toContain(sale);
       const escort = escortPaid(result.events);
-      expect(escort).toEqual([expect.objectContaining({ points: MISSION_POINTS.escort })]);
+      expect(escort).toEqual([expect.objectContaining({ points: 1 })]);
       expect(escort[0].mission.type).toBe("escort");
       const p1 = getPlayer(result.gameState, "p1");
-      expect(p1.points).toBe(MISSION_POINTS.escort);
+      expect(p1.points).toBe(1);
       expect(p1.missions[0].isCompleted).toBe(true);
       // A finished Escort's marker is off the ship.
       expect(viewFor(result.gameState, null).players[1].escortedBy).toEqual([]);
@@ -711,7 +834,7 @@ describe("escort: markers", () => {
       sold,
       empty,
     ]);
-    state = withPlayer(state, "p2", { cargo: [lootCargo(sold.cargoId, sold.id)] });
+    state = withPlayer(state, "p2", { cargo: [lootOf(sold)] });
     state = withPlayer(state, "p1", { missions: [escortMission("escort-p1", "p2")] });
     state = withShip(state, "p1", IN_BETA_WELL(state));
     const result = executeTurnAs({ ...state, activePlayerIndex: 1 }, coast(1));
@@ -834,25 +957,34 @@ describe("escort: markers", () => {
     expect(JSON.stringify(viewFor(result.gameState, "p1"))).toContain("escort-1");
   });
 
-  it.each<[string, Where, { isCompleted: boolean; released: boolean }]>([
+  it.each<[string, Mission, string, Where, { isCompleted: boolean; released: boolean }]>([
     [
-      "with the escort in its well, the sale came first: done",
+      "delivers a crate and then dies at its heat check, with the escort in its well: the sale came first, done",
+      deliverMission(ALPHA, BETA),
+      "cargo_delivered",
       IN_BETA_WELL,
       { isCompleted: true, released: false },
     ],
     [
-      "with the escort elsewhere, nothing was paid: the marker comes back",
+      "pumps fuel and then dies at its heat check, with the escort in its well: done",
+      tankerMission("tanker-p2"),
+      "fuel_pumped",
+      IN_BETA_WELL,
+      { isCompleted: true, released: false },
+    ],
+    [
+      "delivers a crate and then dies at its heat check, with the escort elsewhere: nothing was paid, the marker comes back",
+      deliverMission(ALPHA, BETA),
+      "cargo_delivered",
       IN_ALPHA_WELL,
       { isCompleted: false, released: true },
     ],
-  ])("a carrier that sells and then dies at its heat check, %s", (_label, escortAt, expected) => {
-    const state = withShip(carrierArrives([deliverMission(ALPHA, BETA)], 0, escortAt), "p2", {
+  ])("a carrier that %s", (_label, card, sale, escortAt, expected) => {
+    const state = withShip(carrierArrives([card], 0, escortAt), "p2", {
       heat: { currentHeat: 60 },
     });
     const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).toEqual(
-      expect.arrayContaining(["cargo_delivered", "ship_destroyed"])
-    );
+    expect(eventTypes(result.events)).toEqual(expect.arrayContaining([sale, "ship_destroyed"]));
     expect(p1Escort(result.gameState)).toMatchObject({
       isCompleted: expected.isCompleted,
       markedPlayerId: expected.released ? null : "p2",
@@ -861,18 +993,6 @@ describe("escort: markers", () => {
       expected.released ? [expect.objectContaining({ cause: "carrier_destroyed" })] : []
     );
     expect(getPlayer(result.gameState, "p1").points).toBe(expected.isCompleted ? 1 : 0);
-  });
-
-  it("a carrier that pumps fuel and then dies at its heat check did it first: the Escort is done", () => {
-    const state = withShip(carrierArrives([tankerMission("tanker-p2")]), "p2", {
-      heat: { currentHeat: 60 },
-    });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).toEqual(
-      expect.arrayContaining(["fuel_pumped", "ship_destroyed"])
-    );
-    expect(eventTypes(result.events)).not.toContain("escort_released");
-    expect(p1Escort(result.gameState).isCompleted).toBe(true);
   });
 
   /**
@@ -887,7 +1007,7 @@ describe("escort: markers", () => {
     ]);
     state = withMissions(state, "p2", [deliverMission(ALPHA, GAMMA)]);
     state = withPlayer(state, "p2", {
-      cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
+      cargo: cratesAboard(getPlayer(state, "p2").cargo),
     });
     state = withShip(state, "p1", { hitPoints: 1 });
     state = withPower(state, "p2", "forward-0", 4);
@@ -978,7 +1098,7 @@ describe("escort: markers", () => {
     let state = markedCarrier(null).state;
     state = withMissions(state, "p3", [deliverMission(ALPHA, GAMMA)]);
     state = withPlayer(state, "p3", {
-      cargo: getPlayer(state, "p3").cargo.map((c) => ({ ...c, isPickedUp: true })),
+      cargo: cratesAboard(getPlayer(state, "p3").cargo),
     });
     state = withPlayer(state, "p1", {
       missions: [escortMission("escort-a", "p2"), escortMission("escort-b", "p3")],

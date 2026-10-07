@@ -5,7 +5,7 @@ import { z } from "zod";
  * Public, like a name: everyone at the table sees who is a person, a bot and
  * an agent. A bot is the server's own AI; an agent is an outside program.
  */
-export const AgentSchema = z.object({
+const AgentSchema = z.object({
   driver: z.enum(["claude", "codex"]),
   model: z.string().min(1).max(80),
 });

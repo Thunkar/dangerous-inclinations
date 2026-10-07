@@ -293,7 +293,7 @@ wedge through the black hole, the mark). `site/poster.tsx` holds the pieces
 (numbered sections, points, chips, the ledger a heat check is written in).
 
 **One icon set** (`ui/src/art/`): the artwork is the PNGs in
-`public/assets/icons`, traced to vector once by `scripts/trace-icons.py` into
+`ui/public/assets/icons`, traced to vector once by `scripts/trace-icons.py` into
 the generated `art/paths.ts`. Drawn from the vector rather than the bitmap for
 two reasons: a bitmap flattened by a CSS filter can be made white but not
 black, and the card needs black ink; and a 400px bitmap at 6mm is not what you

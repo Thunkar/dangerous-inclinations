@@ -21,7 +21,7 @@ import type {
   Subsystem,
   WeaponType,
 } from '@dangerous-inclinations/engine'
-import { BURN_COSTS, HOME_RING, samePosition } from '@dangerous-inclinations/engine'
+import { BURN_COSTS, HOME_RING, positionOf, samePosition } from '@dangerous-inclinations/engine'
 import { TABLE } from '../design/tokens'
 import { BASE_CRIT, SENSOR_CRIT } from '../site/numbers'
 import { weaponReach } from '../components/board/reach'
@@ -333,7 +333,7 @@ export function snapshotOf(view: GameView): BoardOverlay {
   for (const player of view.players) {
     if (!player.ship) continue
     ships[player.id] = {
-      position: { wellId: player.ship.wellId, ring: player.ship.ring, sector: player.ship.sector },
+      position: positionOf(player.ship),
       facing: player.ship.facing,
       alive: !player.ship.isDestroyed,
     }
@@ -346,7 +346,7 @@ export function snapshotOf(view: GameView): BoardOverlay {
     stations: view.stations,
     wrecks: view.wrecks.map(w => ({
       id: w.id,
-      position: { wellId: w.wellId, ring: w.ring, sector: w.sector },
+      position: positionOf(w),
     })),
     escorts,
   }
@@ -416,12 +416,12 @@ function critThresholdFor(view: GameView, attackerId: string, sensing: boolean):
  * engine does not emit. Their Home (or the ring everyone deploys on) keeps the
  * effect on the board rather than nowhere.
  */
-function positionOf(board: BoardOverlay, next: GameView, playerId: string): Position {
+function effectPosition(board: BoardOverlay, next: GameView, playerId: string): Position {
   const ship = board.ships[playerId]
   if (ship) return ship.position
   const player = next.players.find(p => p.id === playerId)
   const fromNext = player?.ship
-  if (fromNext) return { wellId: fromNext.wellId, ring: fromNext.ring, sector: fromNext.sector }
+  if (fromNext) return positionOf(fromNext)
   return player?.home ?? { wellId: 'blackhole', ring: HOME_RING, sector: 0 }
 }
 
@@ -466,7 +466,7 @@ export function eventToBeat(
   const effects: EffectDraft[] = []
   const dice: DieDraft[] = []
   const pulses: string[] = []
-  const at = (playerId: string) => positionOf(board, next, playerId)
+  const at = (playerId: string) => effectPosition(board, next, playerId)
 
   /**
    * A short mark over a ship, for the things it just did. The board was only
@@ -693,9 +693,7 @@ export function eventToBeat(
         const missile = event.missileId
           ? board.missiles.find(m => m.id === event.missileId)
           : undefined
-        const missileAt: Position | undefined = missile
-          ? { wellId: missile.wellId, ring: missile.ring, sector: missile.sector }
-          : undefined
+        const missileAt: Position | undefined = missile ? positionOf(missile) : undefined
         const approach =
           missileAt && !samePosition(missileAt, at(event.targetId)) ? missileAt : undefined
         if (event.missileId) board.missiles = board.missiles.filter(m => m.id !== event.missileId)
@@ -788,9 +786,7 @@ export function eventToBeat(
           // The rack is the ship being shot at; the other end is a missile in
           // flight, which is a place and not a hull.
           fromId: event.targetId,
-          to: missile
-            ? { wellId: missile.wellId, ring: missile.ring, sector: missile.sector }
-            : { wellId: 'blackhole', ring: 1, sector: 0 },
+          to: missile ? positionOf(missile) : { wellId: 'blackhole', ring: 1, sector: 0 },
           color: EFFECT_COLORS.pdc,
           duration: 400,
         })
@@ -905,7 +901,7 @@ export function eventToBeat(
         board.wrecks = board.wrecks.map(wreck => {
           const to = drifted.get(wreck.id)
           if (!to) return wreck
-          const position: Position = { wellId: to.wellId, ring: to.ring, sector: to.sector }
+          const position: Position = positionOf(to)
           if (position.sector === wreck.position.sector) return { id: wreck.id, position }
           drifting = true
           return {
@@ -915,16 +911,11 @@ export function eventToBeat(
           }
         })
         if (drifting) effects.push({ kind: 'tween', duration: BEAT.move })
-        // Moored ships ride their station round (RULES §Moored): slide them
+        // Moored ships ride their station round (RULES §Stations, Moored): slide them
         // along with it rather than letting them snap at the end.
         for (const riderId of event.riders) {
           const rider = next.players.find(p => p.id === riderId)?.ship
-          if (rider)
-            moveShip(
-              riderId,
-              { wellId: rider.wellId, ring: rider.ring, sector: rider.sector },
-              'coast'
-            )
+          if (rider) moveShip(riderId, positionOf(rider), 'coast')
         }
         return event.riders.length > 0 || drifting ? BEAT.move : BEAT.small
       }
@@ -962,7 +953,7 @@ export function shotKey(shot: ShotDraft): string {
  * already filming (a rotation, a die being read, a heat check).
  */
 export function shotFor(state: BeatState, next: GameView, event: GameEvent): ShotDraft | null {
-  const at = (playerId: string) => positionOf(state.board, next, playerId)
+  const at = (playerId: string) => effectPosition(state.board, next, playerId)
   const duel = (attackerId: string, targetId: string): ShotDraft => ({
     kind: 'duel',
     attackerId,

@@ -4,32 +4,24 @@
  * a shot left after the move reaches nobody, and one before it does.
  */
 import { describe, expect, it } from 'vitest'
-import type { GameState, Player } from '@dangerous-inclinations/engine'
-import { setupBotGame, viewFor } from '@dangerous-inclinations/engine'
+import { viewFor } from '@dangerous-inclinations/engine'
+import {
+  LOADOUTS,
+  at,
+  makeGameState,
+  makePlayer,
+} from '../../../engine/src/test/testUtils.ts'
 import { reachesOnlyBeforeMove, shotIndex, type PlanStep } from './preview'
 
+/** The starboard laser: it bears inward facing prograde. */
 const LASER = 'side-2'
 
-/** p1 on black hole ring 1 sector 22 facing prograde with a laser in side-2; bot-2 on ring 2 sector 23. */
-function table(): GameState {
-  const state = setupBotGame(1, 2)
-  const [me, them] = state.players
-  const armed: Player = {
-    ...me,
-    ship: {
-      ...me.ship,
-      wellId: 'blackhole',
-      ring: 1,
-      sector: 22,
-      facing: 'prograde',
-      subsystems: me.ship.subsystems.map(s =>
-        s.id === LASER ? { ...s, type: 'laser', isBroken: false, allocatedEnergy: 0 } : s
-      ),
-    },
-  }
-  const target: Player = { ...them, ship: { ...them.ship, wellId: 'blackhole', ring: 2, sector: 23 } }
-  return { ...state, turn: 5, activePlayerIndex: 0, players: [armed, target] }
-}
+/** p1 on black hole ring 1 sector 22, prograde, a laser in side-2; p2 on ring 2 sector 23. */
+const table = () =>
+  makeGameState([
+    makePlayer('p1', at(1, 22), LOADOUTS.starboardLaser),
+    makePlayer('p2', at(2, 23)),
+  ])
 
 const rotate: PlanStep = { id: 'rotate', kind: 'rotate' }
 const coast: PlanStep = { id: 'move', kind: 'move', move: { kind: 'coast', scoop: false } }

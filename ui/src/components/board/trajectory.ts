@@ -36,6 +36,7 @@ import {
   positionPoint,
   ringRadius,
   ringsOf,
+  smoothstep,
   wellCenter,
   type Point,
 } from './geometry'
@@ -101,11 +102,6 @@ function ringGap(wellId: GravityWellId, ring: number): number {
   // A well with a single ring has no gap to measure against; a quarter of its
   // radius is the same order as a gap would have been.
   return Number.isFinite(gap) ? gap : here * 0.25
-}
-
-function smoothstep(t: number): number {
-  const x = t <= 0 ? 0 : t >= 1 ? 1 : t
-  return x * x * (3 - 2 * x)
 }
 
 /** A leg rides a ring when it stays in one well and never leaves one ring. */

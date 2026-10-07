@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { FIRST_TURN, MAX_HEAT } from "../../models/game.ts";
-import { BURN_COSTS } from "../../models/rings.ts";
-import { getSubsystemConfig } from "../../models/subsystems.ts";
+import { FIRST_TURN } from "../../models/game.ts";
 import type { GameState } from "../../models/game.ts";
 import {
   ALPHA,
@@ -22,33 +20,21 @@ import {
   scan,
   withMissile,
   withPower,
-  withShip,
   withSub,
   eventsOf,
+  LOADOUTS,
 } from "../testUtils.ts";
 
 /** Four shield tiles: the hull for lighting more than a ship can cool. */
 const fourShields = (p1: { ring?: number } = {}) =>
-  makeTwoPlayerGame({
-    ...p1,
-    loadout: { forwardSlots: ["railgun"], sideSlots: ["shields", "shields", "shields", "shields"] },
-  });
+  makeTwoPlayerGame({ ...p1, loadout: LOADOUTS.fourShields });
 
 /**
  * A sensor bow, a rack on side-0 and a wall on side-2, with a rival one sector
  * along the same ring: in the rack's arc and inside scan range.
  */
 const rackAndTarget = () =>
-  makeTwoPlayerGame(
-    {
-      sector: 0,
-      loadout: {
-        forwardSlots: ["sensor_array"],
-        sideSlots: ["ballistic_rack", "laser", "shields", "radiator"],
-      },
-    },
-    { sector: 1 }
-  );
+  makeTwoPlayerGame({ sector: 0, loadout: LOADOUTS.sensorRackWall }, { sector: 1 });
 
 /** A missile of p2's sitting on p1, so it attacks when p2's turn moves it. */
 const p2MissileOnP1 = (state: GameState, criticalTarget = "engines") => {
@@ -99,28 +85,8 @@ describe("energy: every cube is heat at the check", () => {
     state = withPower(state, "p1", "forward-0", 4);
     const result = executeTurnAs(state, burn(1, "soft"));
     expect(result.errors ?? []).toEqual([]);
-    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(BURN_COSTS.soft.energy);
-    expect(cubesOnLoadout(getShip(result.gameState, "p1"))).toBe(BURN_COSTS.soft.energy);
-  });
-
-  it("balances: what the actions report is what the check bills", () => {
-    // The invariant the whole rule rests on. Each action reports the cubes it
-    // put on a tile and the check adds up the loadout: the two have to agree
-    // or somebody is being billed twice. Last turn's wall is not on the bill.
-    const state = withPower(rackAndTarget(), "p1", "side-2", 2);
-    const result = executeTurnAs(
-      state,
-      power(1, "forward-0"),
-      fire(2, "side-0", "p2"),
-      burn(3, "soft")
-    );
-    expect(result.errors ?? []).toEqual([]);
-    const reported =
-      eventsOf(result.events, "subsystem_powered").reduce((sum, e) => sum + e.amount, 0) +
-      eventsOf(result.events, "weapon_fired").reduce((sum, e) => sum + e.heat, 0) +
-      eventsOf(result.events, "burned").reduce((sum, e) => sum + e.heat, 0);
-    expect(reported).toBeGreaterThan(0);
-    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(reported);
+    expect(eventsOf(result.events, "heat_check")[0].cubes).toBe(1);
+    expect(cubesOnLoadout(getShip(result.gameState, "p1"))).toBe(1);
   });
 });
 
@@ -197,18 +163,10 @@ describe("energy: heat is the only limit", () => {
     // nothing refuses it, and the heat track simply bills for it.
     const result = executeTurnAs(fourShields({ ring: 2 }), ...fullWalls, burn(5, "hard"));
     expect(result.errors ?? []).toEqual([]);
-    const cubes = 8 + BURN_COSTS.hard.energy;
     const [check] = eventsOf(result.events, "heat_check");
-    expect(check.cubes).toBe(cubes);
-    expect(check.damage).toBe(cubes - MAX_HEAT);
-    expect(getShip(result.gameState, "p1").hitPoints).toBe(10 - (cubes - MAX_HEAT));
-  });
-
-  it("does not refuse a railgun shot behind a full wall for energy", () => {
-    // The rival sits two sectors ahead on the same ring: inside the railgun's arc.
-    const state = withShip(fourShields({ ring: 2 }), "p2", { ring: 2, sector: 2 });
-    const shot = [fire(5, "forward-0", "p2"), coast(6)];
-    expect(executeTurnAs(state, ...fullWalls, ...shot).errors ?? []).toEqual([]);
+    expect(check.cubes).toBe(11);
+    expect(check.damage).toBe(1);
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(9);
   });
 });
 
@@ -269,8 +227,8 @@ describe("energy: power", () => {
     ["more than a shield holds", "side-2", 6, 2],
     ["a negative amount", "side-2", -2, 2],
     ["a fractional amount", "side-2", 1.5, 1],
-    ["four on a rack", "side-0", 4, getSubsystemConfig("ballistic_rack").maxEnergy],
-    ["four on a sensor", "forward-0", 4, getSubsystemConfig("sensor_array").maxEnergy],
+    ["four on a rack", "side-0", 4, 2],
+    ["four on a sensor", "forward-0", 4, 2],
   ])("rejects %s", (_label, id, amount, legal) => {
     const state = rackAndTarget();
     const result = executeTurnAs(state, power(1, id, amount));

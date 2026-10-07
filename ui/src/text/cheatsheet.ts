@@ -46,7 +46,7 @@ export const CHEATSHEET = {
   goal: {
     kicker: 'The goal',
     title: '{points} points end the round',
-    lede: 'Score your secret mission cards. When anyone reaches {points}, finish the round; the highest score wins, then the most hull, then the most fuel.',
+    lede: 'Score your secret mission cards. When anyone reaches {points}, finish the round; the highest score wins, then the most hull, then the most fuel, then the earlier seat.',
     /** How the sample cards name their rivals. */
     rivals: {
       'left-1': 'the 1st player to your left',
@@ -218,7 +218,7 @@ export const CHEATSHEET = {
     reach: {
       railgun:
         'Same ring, 1–{sectors} sectors ahead. The recoil pushes you a ring against your facing, unless you spend 1 fuel to hold.',
-      laser: '±{rings} rings, ±{sectors} sector, off one side. <b>Ignores shields.</b>',
+      laser: '±{rings} rings, ±{sectors} sector, off one side, never along your own ring. <b>Ignores shields.</b>',
       ballistic_rack:
         '±{rings} ring, ±{sectors} sector, either side. With energy on it, shoots down {intercepts} missiles a turn on {on}+, for {heat} heat however many.',
       missiles:
@@ -307,12 +307,12 @@ export const CHEATSHEET = {
       {
         when: 'At 0 hull',
         title: 'Off the board',
-        text: 'Leave a wreck. Crates go back to their station, data is lost, Escort markers on you and yours go back to their owners, and your missiles in flight are removed. Your Destroy holder scores {destroyPoints}.',
+        text: 'Leave a wreck. Crates go back to their station, loot and data are lost, Escort markers on you and yours go back to their owners, and your missiles in flight are removed. Your Destroy holder scores {destroyPoints}.',
       },
       {
         when: 'Your next turn',
         title: 'Back at Home',
-        text: 'Full hull and fuel, heat 0, drifting. That is the turn.',
+        text: 'Full hull and fuel, repaired and reloaded, heat 0, drifting. That is the turn.',
       },
       {
         when: 'The turn after',

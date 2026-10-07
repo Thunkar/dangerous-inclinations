@@ -13,7 +13,6 @@ import {
   MAX_HEAT,
   MAX_REACTION_MASS,
   getMissileStats,
-  getWellName,
   heatAfterCheck,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
@@ -23,6 +22,7 @@ import { usePlanOptional } from '../../context/PlanContext'
 import { EscortedBy } from './EscortedBy'
 import { SoldAt } from './SoldAt'
 import { slotShortLabel, slotWithSubsystem } from '../../utils/slots'
+import { placeLabel } from '../../utils/route'
 
 /**
  * One round in a launcher: filled while it is aboard, an empty outline once it
@@ -156,7 +156,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
           }}
           noWrap
         >
-          {getWellName(me.ship.wellId)} R{me.ship.ring} S{me.ship.sector}
+          {placeLabel(me.ship)}
         </Typography>
         {state && (
           <Tooltip title={state.tip}>

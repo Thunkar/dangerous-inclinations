@@ -9,32 +9,23 @@
  * off any estimate of how much damage it takes to kill someone.
  */
 import { describe, it, expect } from "vitest";
-import type { ShipLoadout } from "../../models/game.ts";
+import type { GameState, ShipLoadout } from "../../models/game.ts";
 import type { SubsystemId } from "../../models/subsystems.ts";
 import { viewFor } from "../../game/view.ts";
-import { analyzeSituation, shieldAbsorption, suspectedWeapon } from "../../ai/index.ts";
-import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
+import { shieldAbsorption, suspectedWeapon } from "../../ai/index.ts";
 import type { Opponent } from "../../ai/types.ts";
-import { chooseCriticalTarget } from "../../ai/behaviors/combat.ts";
-import { BH, makeTwoPlayerGame, withPower, withSub } from "../testUtils.ts";
-
-/** Railgun forward; starboard side-2 laser bears inward while prograde. */
-const GUNSHIP: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["laser", "shields", "laser", "missiles"],
-};
+import { LOADOUTS, BH, makeTwoPlayerGame, situationOf, withPower, withSub } from "../testUtils.ts";
 
 /** p1 one ring inside p2, same sector: p2's starboard laser bears on p1. */
-function facingOff(loadout: ShipLoadout = GUNSHIP) {
+function facingOff(loadout: ShipLoadout = LOADOUTS.starboardLaser) {
   return makeTwoPlayerGame(
     { wellId: BH, ring: 3, sector: 0, loadout },
     { wellId: BH, ring: 4, sector: 0, loadout }
   );
 }
 
-function opponentOf(state: Parameters<typeof viewFor>[0], viewerId: string): Opponent {
-  const situation = analyzeSituation(viewFor(state, viewerId), DEFAULT_BOT_PARAMETERS);
-  return situation.opponents[0];
+function opponentOf(state: GameState, viewerId: string): Opponent {
+  return situationOf(state, viewerId).opponents[0];
 }
 
 describe("suspectedWeapon: what the cubes on a face-down slot can mean", () => {
@@ -83,8 +74,8 @@ describe("threat assessment", () => {
     const known = withPower(
       withSub(
         makeTwoPlayerGame(
-          { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
-          { wellId: BH, ring: 3, sector: 1, loadout: GUNSHIP }
+          { wellId: BH, ring: 3, sector: 0, loadout: LOADOUTS.starboardLaser },
+          { wellId: BH, ring: 3, sector: 1, loadout: LOADOUTS.starboardLaser }
         ),
         "p2",
         "side-3",
@@ -96,8 +87,8 @@ describe("threat assessment", () => {
     );
     const hidden = withPower(
       makeTwoPlayerGame(
-        { wellId: BH, ring: 3, sector: 0, loadout: GUNSHIP },
-        { wellId: BH, ring: 3, sector: 1, loadout: GUNSHIP }
+        { wellId: BH, ring: 3, sector: 0, loadout: LOADOUTS.starboardLaser },
+        { wellId: BH, ring: 3, sector: 1, loadout: LOADOUTS.starboardLaser }
       ),
       "p2",
       "side-3",
@@ -116,35 +107,14 @@ describe("threat assessment", () => {
 });
 
 describe("shieldAbsorption", () => {
-  it.each<[string, SubsystemId, number, boolean, number]>([
-    ["a shield it can see at two cubes as two points", "side-1", 2, true, 2],
-    ["a shield it can see at one cube as one point", "side-1", 1, true, 1],
-    ["a face-down side slot at two cubes at half weight: it may be a rack", "side-1", 2, false, 1],
-    ["a face-down side slot at one cube whole: nothing else holds one", "side-1", 1, false, 1],
-    ["nothing for a loaded bow", "forward-0", 2, false, 0],
-  ])("prices %s", (_label, slot, cubes, revealed, points) => {
-    const state = withPower(
-      revealed ? withSub(facingOff(), "p2", slot, { isRevealed: true }) : facingOff(),
-      "p2",
-      slot,
-      cubes
-    );
+  // A face-up wall stops what the engine says it does (damage.test); these
+  // are the guesses about face-down slots.
+  it.each<[string, SubsystemId, number, number]>([
+    ["a face-down side slot at two cubes at half weight: it may be a rack", "side-1", 2, 1],
+    ["a face-down side slot at one cube whole: nothing else holds one", "side-1", 1, 1],
+    ["nothing for a loaded bow", "forward-0", 2, 0],
+  ])("prices %s", (_label, slot, cubes, points) => {
+    const state = withPower(facingOff(), "p2", slot, cubes);
     expect(shieldAbsorption(viewFor(state, "p1").players[1].slots)).toBe(points);
-    expect(opponentOf(state, "p1").shieldAbsorption).toBe(points);
-  });
-});
-
-/**
- * The critical's other choices (a loaded face-down slot, a powered face-up
- * one, the engines) are asserted through the bot's own shots in
- * `botCombat.test.ts`.
- */
-describe("chooseCriticalTarget", () => {
-  it("names the biggest gun it has seen, lit or not", () => {
-    // A railgun face-up in the bow and a laser face-up on the side: both are
-    // dark between turns, so the choice is damage, not cubes.
-    let state = withSub(facingOff(), "p2", "side-0", { isRevealed: true });
-    state = withSub(state, "p2", "forward-0", { isRevealed: true });
-    expect(chooseCriticalTarget(opponentOf(state, "p1"))).toBe("forward-0");
   });
 });

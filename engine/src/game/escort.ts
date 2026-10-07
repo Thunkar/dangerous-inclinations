@@ -14,7 +14,7 @@ import { aboard } from "../models/missions.ts";
 import type { GameView } from "./view.ts";
 import { positionOf } from "./geometry.ts";
 import { isMooredAt } from "./stations.ts";
-import { isDestroyed } from "./ship.ts";
+import { isDestroyed, isOnBoard } from "./ship.ts";
 
 /**
  * A seat as the question needs it: where it is (null off the board), whether
@@ -94,10 +94,7 @@ export function escortCandidates(view: GameView, playerId: string, position: Pos
   if (!me || me.id !== playerId) return [];
   const seats: EscortSeat[] = view.players.map((p) => ({
     id: p.id,
-    position:
-      p.ship && !p.ship.isDestroyed
-        ? { wellId: p.ship.wellId, ring: p.ship.ring, sector: p.ship.sector }
-        : null,
+    position: p.ship && !p.ship.isDestroyed ? positionOf(p.ship) : null,
     carrying: p.cargoCount > 0,
     escorted: p.escortedBy.length > 0,
   }));
@@ -118,7 +115,7 @@ export function escortCandidatesAtEndOfTurn(
   if (!escort || isDestroyed(escort.ship)) return [];
   const seats: EscortSeat[] = players.map((p) => ({
     id: p.id,
-    position: p.hasDeployed && !isDestroyed(p.ship) ? positionOf(p.ship) : null,
+    position: isOnBoard(p) ? positionOf(p.ship) : null,
     carrying: aboard(p.cargo).length > 0,
     escorted: players.some((other) => markedBy(other).has(p.id)),
   }));

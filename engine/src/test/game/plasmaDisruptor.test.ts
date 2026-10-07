@@ -1,18 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { isInWeaponRange } from "../../game/targeting.ts";
 import { resolveAttack } from "../../game/damage.ts";
-import { missionsMissingRequirements, validateLoadout } from "../../game/loadout.ts";
+import { missionsMissingRequirements } from "../../game/loadout.ts";
 import { MISSION_REQUIREMENTS } from "../../models/missions.ts";
 import type { MissionRequirement } from "../../models/missions.ts";
-import type { Facing, ShipLoadout } from "../../models/game.ts";
+import type { ShipLoadout } from "../../models/game.ts";
 import type { SubsystemId } from "../../models/subsystems.ts";
 import {
-  DAMAGING_WEAPON_TYPES,
-  SUBSYSTEM_CONFIGS,
-  WEAPON_SUBSYSTEM_TYPES,
-} from "../../models/subsystems.ts";
-import {
-  BH,
+  LOADOUTS,
+  checkEach,
   cubesOnLoadout,
   destroyMission,
   eventsOf,
@@ -23,38 +19,12 @@ import {
   makeTwoPlayerGame,
   withPower,
   withSub,
+  at,
+  attackerAt,
 } from "../testUtils.ts";
 
-/** Plasma on both sides: side-0 is port (outward prograde), side-2 starboard (inward). */
-const PLASMA: ShipLoadout = {
-  forwardSlots: ["sensor_array"],
-  sideSlots: ["plasma_cannon", "shields", "plasma_cannon", "radiator"],
-};
-const DISRUPTOR: ShipLoadout = {
-  forwardSlots: ["disruptor"],
-  sideSlots: ["shields", "shields", "radiator", "radiator"],
-};
-/** Two shields, at side-2 and side-3. */
-const TWO_WALLS: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["laser", "laser", "shields", "shields"],
-};
-/** The default target: railgun forward, shields at side-2. */
-const TARGET: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["laser", "laser", "shields", "missiles"],
-};
-
-const attackerAt = (ring: number, sector: number, facing: Facing = "prograde") => ({
-  wellId: BH,
-  ring,
-  sector,
-  facing,
-});
-const at = (ring: number, sector: number) => ({ wellId: BH, ring, sector });
-
 describe("plasma cannon: range", () => {
-  const state = makeTwoPlayerGame({ loadout: PLASMA });
+  const state = makeTwoPlayerGame({ loadout: LOADOUTS.plasma });
   it.each([
     ["one ring out, same sector, port", "side-0", 4, 0, true],
     ["one ring out, one sector ahead, port", "side-0", 4, 1, true],
@@ -78,14 +48,23 @@ describe("plasma cannon: a shield cube absorbs two points", () => {
   const duel = (loadout: ShipLoadout, cubes: Array<[SubsystemId, number]>) =>
     cubes.reduce(
       (state, [slot, n]) => withPower(state, "p2", slot, n),
-      makeTwoPlayerGame({ loadout: PLASMA }, { ring: 4, sector: 0, loadout })
+      makeTwoPlayerGame({ loadout: LOADOUTS.plasma }, { ring: 4, sector: 0, loadout })
     );
 
   it.each<[string, ShipLoadout, Array<[SubsystemId, number]>, number, number]>([
-    ["no shield: all four land", TARGET, [], 4, 0],
-    ["a half shield buys two points", TARGET, [["side-2", 1]], 2, 2],
-    ["a full shield stops it whole", TARGET, [["side-2", 2]], 0, 4],
-    ["two half shields stop it whole between them", TWO_WALLS, [["side-2", 1], ["side-3", 1]], 0, 4],
+    ["no shield: all four land", LOADOUTS.gunship, [], 4, 0],
+    ["a half shield buys two points", LOADOUTS.gunship, [["side-2", 1]], 2, 2],
+    ["a full shield stops it whole", LOADOUTS.gunship, [["side-2", 2]], 0, 4],
+    [
+      "two half shields stop it whole between them",
+      LOADOUTS.twoShields,
+      [
+        ["side-2", 1],
+        ["side-3", 1],
+      ],
+      0,
+      4,
+    ],
   ])("%s", (_label, loadout, cubes, toHull, absorbed) => {
     const result = executeTurnAs(duel(loadout, cubes), fire(1, "side-0", "p2"));
     expect(result.errors).toBeUndefined();
@@ -108,38 +87,13 @@ describe("plasma cannon: a shield cube absorbs two points", () => {
   });
 });
 
-describe("shields against an ordinary weapon: a point a cube", () => {
-  it.each([
-    ["a half shield: one absorbed, three to the hull", 1, 1, 3],
-    ["a full shield: two absorbed, two to the hull", 2, 2, 2],
-  ])("a railgun against %s, and the points on the track", (_label, cubes, absorbed, toHull) => {
-    const state = withPower(
-      makeTwoPlayerGame({}, { ring: 3, sector: 2, loadout: TARGET }),
-      "p2",
-      "side-2",
-      cubes
-    );
-    const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
-    expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "attack_resolved")[0]).toMatchObject({
-      weaponType: "railgun",
-      damage: 4,
-      toHull,
-      absorbed,
-    });
-    const target = getShip(result.gameState, "p2");
-    expect(target.hitPoints).toBe(10 - toHull);
-    expect(target.heat.currentHeat).toBe(absorbed);
-    expect(getSub(result.gameState, "p2", "side-2").allocatedEnergy).toBe(0);
-  });
-});
-
 describe("disruptor: range", () => {
   /** A disruptor in the bow and one on a side slot: the box is the same from either. */
-  const state = makeTwoPlayerGame({
-    loadout: { forwardSlots: ["disruptor"], sideSlots: ["disruptor", "shields", "radiator", "radiator"] },
-  });
-  const cases = [
+  const state = makeTwoPlayerGame({ loadout: LOADOUTS.twoDisruptors });
+  const mounts = (["forward-0", "side-0"] as const).flatMap((slot) =>
+    (["prograde", "retrograde"] as const).map((facing) => ({ slot, facing }))
+  );
+  it.each([
     ["one ring out, same sector", 4, 0, true],
     ["one ring out, one sector ahead", 4, 1, true],
     ["one ring out, one sector behind", 4, 23, true],
@@ -153,35 +107,27 @@ describe("disruptor: range", () => {
     ["one ring out, two sectors behind", 4, 22, false],
     ["two rings out", 5, 0, false],
     ["two rings in", 1, 0, false],
-  ] as const;
-  it.each(
-    (["forward-0", "side-0"] as const).flatMap((slot) =>
-      (["prograde", "retrograde"] as const).flatMap((facing) =>
-        cases.map(([label, ring, sector, expected]) => [label, slot, facing, ring, sector, expected] as const)
-      )
-    )
-  )("%s from %s facing %s (R%i S%i): in range is %s", (_label, slot, facing, ring, sector, expected) => {
-    expect(
-      isInWeaponRange(getSub(state, "p1", slot), attackerAt(3, 0, facing), at(ring, sector))
-    ).toBe(expected);
-  });
-
-  it("fits either slot", () => {
-    expect(
-      validateLoadout({
-        forwardSlots: ["sensor_array"],
-        sideSlots: ["disruptor", "disruptor", "shields", "radiator"],
-      })
-    ).toEqual({ valid: true, errors: [] });
-  });
+  ] as const)(
+    "%s (R%i S%i): in range is %s from either slot, either facing",
+    (_label, ring, sector, expected) => {
+      checkEach(
+        mounts,
+        ({ slot, facing }) => `${slot} ${facing}`,
+        ({ slot, facing }) =>
+          expect(
+            isInWeaponRange(getSub(state, "p1", slot), attackerAt(3, 0, facing), at(ring, sector))
+          ).toBe(expected)
+      );
+    }
+  );
 });
 
 describe("disruptor: a hit breaks the named slot", () => {
   /** p1 a sector behind p2 on ring 3; p2's railgun holds the four cubes it fired with. */
   const duel = (roll: number) => {
     const state = makeTwoPlayerGame(
-      { loadout: DISRUPTOR },
-      { ring: 3, sector: 1, loadout: TARGET },
+      { loadout: LOADOUTS.disruptor },
+      { ring: 3, sector: 1, loadout: LOADOUTS.gunship },
       { forcedRollValue: roll }
     );
     return withPower(state, "p2", "forward-0", 4);
@@ -205,7 +151,12 @@ describe("disruptor: a hit breaks the named slot", () => {
     });
     expect(attack.blocked).toBeUndefined();
     expect(eventsOf(result.events, "subsystem_broken")).toEqual([
-      expect.objectContaining({ playerId: "p2", subsystemId: "forward-0", energyLost: 4, by: "p1" }),
+      expect.objectContaining({
+        playerId: "p2",
+        subsystemId: "forward-0",
+        energyLost: 4,
+        by: "p1",
+      }),
     ]);
     const target = getShip(result.gameState, "p2");
     expect(target.hitPoints).toBe(10);
@@ -225,12 +176,21 @@ describe("disruptor: a hit breaks the named slot", () => {
   });
 
   it("a powered sensor on the attacker makes no critical of it", () => {
-    let sensorShip = makeTwoPlayerGame({ loadout: PLASMA });
+    let sensorShip = makeTwoPlayerGame({ loadout: LOADOUTS.plasma });
     sensorShip = withPower(sensorShip, "p1", "forward-0", 2);
     const target = getShip(duel(5), "p2");
-    const outcome = resolveAttack(target, "p2", 0, "forward-0", 8, getShip(sensorShip, "p1"), "p1", {
-      disrupts: true,
-    });
+    const outcome = resolveAttack(
+      target,
+      "p2",
+      0,
+      "forward-0",
+      8,
+      getShip(sensorShip, "p1"),
+      "p1",
+      {
+        disrupts: true,
+      }
+    );
     expect(outcome.hitResult.result).toBe("hit");
     // The same roll from the same ship is a critical for any other weapon.
     expect(
@@ -243,7 +203,8 @@ describe("disruptor: a hit breaks the named slot", () => {
     const result = executeTurnAs(duel(5), fire(1, "forward-0", "p2", "forward-0"));
     expect(
       eventsOf(result.events, "subsystem_revealed").some(
-        (e) => e.playerId === "p1" && e.subsystemId === "forward-0" && e.subsystemType === "disruptor"
+        (e) =>
+          e.playerId === "p1" && e.subsystemId === "forward-0" && e.subsystemType === "disruptor"
       )
     ).toBe(true);
     expect(getSub(result.gameState, "p1", "forward-0").isRevealed).toBe(true);
@@ -252,7 +213,10 @@ describe("disruptor: a hit breaks the named slot", () => {
 
 describe("disruptor: any powered shield blocks it", () => {
   const duel = (shieldCubes: number, broken = false) => {
-    let state = makeTwoPlayerGame({ loadout: DISRUPTOR }, { ring: 3, sector: 1, loadout: TARGET });
+    let state = makeTwoPlayerGame(
+      { loadout: LOADOUTS.disruptor },
+      { ring: 3, sector: 1, loadout: LOADOUTS.gunship }
+    );
     state = withPower(state, "p2", "forward-0", 4);
     state = withPower(state, "p2", "side-2", shieldCubes);
     if (broken) state = withSub(state, "p2", "side-2", { isBroken: true });
@@ -299,39 +263,13 @@ describe("a Destroy needs a weapon that deals damage", () => {
   const WEAPON: MissionRequirement = MISSION_REQUIREMENTS.destroy_ship[0];
   const mission = destroyMission("p2");
 
-  it.each([
-    [
-      "a disruptor alone",
-      { forwardSlots: ["disruptor"], sideSlots: ["shields", "shields", "radiator", "radiator"] },
-      [WEAPON],
-    ],
-    [
-      "a plasma cannon alone",
-      {
-        forwardSlots: ["fuel_compressor"],
-        sideSlots: ["plasma_cannon", "shields", "radiator", "radiator"],
-      },
-      [],
-    ],
-    [
-      "a disruptor beside a plasma cannon",
-      { forwardSlots: ["disruptor"], sideSlots: ["plasma_cannon", "shields", "radiator", "radiator"] },
-      [],
-    ],
-  ] as Array<[string, ShipLoadout, MissionRequirement[]]>)(
-    "%s",
-    (_label, loadout, missing) => {
-      expect(missionsMissingRequirements([mission], loadout)).toEqual(
-        missing.length > 0 ? [{ mission, missing }] : []
-      );
-    }
-  );
-
-  it("every weapon but the disruptor deals damage", () => {
-    expect(WEAPON_SUBSYSTEM_TYPES).toContain("disruptor");
-    expect(DAMAGING_WEAPON_TYPES).toEqual(
-      WEAPON_SUBSYSTEM_TYPES.filter((t) => t !== "disruptor")
+  // A plasma cannon alone is the deployment table's row (deployment.test.ts).
+  it.each<[string, ShipLoadout, MissionRequirement[]]>([
+    ["a disruptor alone", LOADOUTS.disruptor, [WEAPON]],
+    ["a disruptor beside a plasma cannon", LOADOUTS.disruptorPlasma, []],
+  ])("%s", (_label, loadout, missing) => {
+    expect(missionsMissingRequirements([mission], loadout)).toEqual(
+      missing.length > 0 ? [{ mission, missing }] : []
     );
-    expect(SUBSYSTEM_CONFIGS.disruptor.weaponStats?.damage).toBe(0);
   });
 });

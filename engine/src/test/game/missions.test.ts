@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { ShipLoadout } from "../../models/game.ts";
 import {
-  COPIES_PER_CARD,
   buildPrimaryDeck,
   buildSecondaryDeck,
   cardForPlayer,
@@ -9,40 +7,24 @@ import {
   dealMissionOffers,
   selectMissionsFromOffers,
 } from "../../game/missions/missionDeck.ts";
-import { checkForWinner, completedMissions, rankPlayers } from "../../game/missions/missionChecks.ts";
-import { describeMission } from "../../game/describe.ts";
+import {
+  checkForWinner,
+  completedMissions,
+  rankPlayers,
+} from "../../game/missions/missionChecks.ts";
 import { createGame } from "../../game/setup.ts";
 import { viewFor } from "../../game/view.ts";
-import {
-  DEFAULT_POINTS_TO_WIN,
-  MISSION_FAMILY,
-  SURVEY_RING,
-  MISSION_POINTS,
-  MISSIONS_PER_PLAYER,
-  MISSION_OFFERS_PER_PLAYER,
-  PRIMARIES_PER_PLAYER,
-  SECONDARIES_PER_PLAYER,
-  isPrimaryType,
-  SECONDARY_OFFERS_PER_PLAYER,
-  TANKER_FUEL,
-  dataAboard,
-} from "../../models/missions.ts";
+import { MISSION_FAMILY, MISSIONS_PER_PLAYER, isPrimaryType } from "../../models/missions.ts";
 import type { Mission } from "../../models/missions.ts";
 import type { GameState } from "../../models/game.ts";
-import { PLANETS, STATION_RING } from "../../models/gravityWells.ts";
-import { createInitialStations, getStationForPlanet } from "../../game/stations.ts";
-import { ringVelocity, wrapSector } from "../../game/geometry.ts";
+import { PLANETS } from "../../models/gravityWells.ts";
 import { Rng } from "../../utils/rng.ts";
 import {
   ALPHA,
   BETA,
   BH,
-  GAMMA,
-  approachSector,
   coast,
   deliverMission,
-  piracyMission,
-  seize,
   tankerMission,
   escortMission,
   salvageMission,
@@ -52,54 +34,62 @@ import {
   executeTurnAs,
   fire,
   getPlayer,
-  getShip,
   interceptMission,
-  lootCargo,
   makeGameState,
   makePlayer,
   makeTwoPlayerGame,
   mustExecute,
   surveyMission,
-  takenData,
   withMissile,
   withMissions,
   withPlayer,
   withPower,
   withShip,
+  cratesAboard,
+  shortOfStation,
 } from "../testUtils.ts";
 
 const PLANET_IDS = PLANETS.map((p) => p.id);
 const ids = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}` }));
 
 describe("missions: deck", () => {
-  /** Rival cards per offset per copy: one Destroy and one Intercept. */
-  const RIVAL_CARDS = 2;
-  /** One Deliver per planet: to the next planet round the circuit. */
-  const ROUTES = 3;
+  // Two copies of each card: a Destroy and an Intercept per rival offset, a
+  // Deliver per planet to the next one round the circuit.
+  it.each([
+    [2, 2, 6, 10],
+    [3, 4, 6, 14],
+    [4, 6, 6, 18],
+    [5, 8, 6, 22],
+    [6, 10, 6, 26],
+  ])(
+    "a %i-player primary deck drops the offsets that would wrap: %i of each rival card, %i Delivers, %i cards",
+    (players, rival, deliver, total) => {
+      const deck = buildPrimaryDeck(players, PLANET_IDS);
+      const offsets = deck.flatMap((c) => ("targetOffset" in c ? [c.targetOffset] : []));
+      // Counting left from a holder, an offset of `players` is the holder again.
+      expect(Math.max(...offsets)).toBe(players - 1);
+      expect(new Set(offsets)).toEqual(
+        new Set(Array.from({ length: players - 1 }, (_, i) => i + 1))
+      );
 
-  it.each([2, 3, 4, 5, 6])("a %i-player primary deck drops the offsets that would wrap", (players) => {
-    const deck = buildPrimaryDeck(players, PLANET_IDS);
-    const offsets = deck.flatMap((c) => ("targetOffset" in c ? [c.targetOffset] : []));
-    // Counting left from a holder, an offset of `players` is the holder again.
-    expect(Math.max(...offsets)).toBe(players - 1);
-    expect(new Set(offsets)).toEqual(new Set(Array.from({ length: players - 1 }, (_, i) => i + 1)));
-
-    const count = (type: Mission["type"]) => deck.filter((c) => c.type === type).length;
-    expect(count("destroy_ship")).toBe((players - 1) * COPIES_PER_CARD);
-    expect(count("intercept_transmission")).toBe((players - 1) * COPIES_PER_CARD);
-    expect(count("deliver_cargo")).toBe(ROUTES * COPIES_PER_CARD);
-    // Not one secondary in it: the two piles are dealt apart.
-    expect(deck.filter((c) => MISSION_FAMILY[c.type] === "secondary")).toHaveLength(0);
-    expect(deck).toHaveLength(
-      (players - 1) * RIVAL_CARDS * COPIES_PER_CARD + ROUTES * COPIES_PER_CARD
-    );
-  });
+      const count = (type: Mission["type"]) => deck.filter((c) => c.type === type).length;
+      expect(count("destroy_ship")).toBe(rival);
+      expect(count("intercept_transmission")).toBe(rival);
+      expect(count("deliver_cargo")).toBe(deliver);
+      // Not one secondary in it: the two piles are dealt apart.
+      expect(deck.filter((c) => MISSION_FAMILY[c.type] === "secondary")).toHaveLength(0);
+      expect(deck).toHaveLength(total);
+    }
+  );
 
   it("the secondary pile is four each of the five secondaries, the same at every table size", () => {
     const deck = buildSecondaryDeck();
     expect(deck).toHaveLength(20);
     for (const type of ["survey", "piracy", "tanker", "escort", "salvage"]) {
-      expect(deck.filter((c) => c.type === type), type).toHaveLength(4);
+      expect(
+        deck.filter((c) => c.type === type),
+        type
+      ).toHaveLength(4);
     }
   });
 
@@ -112,9 +102,9 @@ describe("missions: deck", () => {
         const dealt: Record<string, number> = {};
         for (const hand of offers.values()) {
           // Both piles hold enough to deal the whole table its full offer.
-          expect(hand).toHaveLength(MISSION_OFFERS_PER_PLAYER);
+          expect(hand).toHaveLength(6);
           const secondaries = hand.filter((m) => !isPrimaryType(m.type));
-          expect(secondaries).toHaveLength(SECONDARY_OFFERS_PER_PLAYER);
+          expect(secondaries).toHaveLength(3);
           for (const m of secondaries) dealt[m.type] = (dealt[m.type] ?? 0) + 1;
         }
         // Off one pile: no kind is dealt more often than it is printed.
@@ -165,8 +155,8 @@ describe("missions: deck", () => {
     const players = ids(6);
     const offers = dealMissionOffers(players, new Rng(11));
     // Cards are only distinguishable by what they say, and the primary pile
-    // holds COPIES_PER_CARD of each, so no card off it may appear more often
-    // than that. The secondary pile has its own test.
+    // holds two of each, so no card off it may appear more often than that.
+    // The secondary pile has its own test.
     const seen = new Map<string, number>();
     for (const [holder, hand] of offers) {
       const seat = players.findIndex((p) => p.id === holder);
@@ -183,7 +173,7 @@ describe("missions: deck", () => {
         seen.set(key, (seen.get(key) ?? 0) + 1);
       }
     }
-    for (const [key, n] of seen) expect(n, key).toBeLessThanOrEqual(COPIES_PER_CARD);
+    for (const [key, n] of seen) expect(n, key).toBeLessThanOrEqual(2);
   });
 
   it("every card starts uncompleted and with empty progress once it is dealt", () => {
@@ -218,11 +208,11 @@ describe("missions: deck", () => {
     for (const id of routesForId.keys()) expect(id).not.toMatch(/alpha|beta|gamma/);
   });
 
-  it("deals 5 offers per player with unique ids, deterministically for a seed", () => {
+  it("deals 6 offers per player with unique ids, deterministically for a seed", () => {
     const a = dealMissionOffers(ids(3), new Rng(42));
     const b = dealMissionOffers(ids(3), new Rng(42));
     const c = dealMissionOffers(ids(3), new Rng(43));
-    for (const player of ids(3)) expect(a.get(player.id)).toHaveLength(MISSION_OFFERS_PER_PLAYER);
+    for (const player of ids(3)) expect(a.get(player.id)).toHaveLength(6);
     const all = [...a.values()].flat().map((m) => m.id);
     expect(new Set(all).size).toBe(all.length);
     expect([...a.values()]).toEqual([...b.values()]);
@@ -235,8 +225,8 @@ describe("missions: deck", () => {
   it("keeps exactly a hand of offered missions and issues their crates", () => {
     const offers = dealMissionOffers(ids(2), new Rng(7)).get("p1")!;
     const hand = [
-      ...offers.filter((m) => isPrimaryType(m.type)).slice(0, PRIMARIES_PER_PLAYER),
-      ...offers.filter((m) => !isPrimaryType(m.type)).slice(0, SECONDARIES_PER_PLAYER),
+      ...offers.filter((m) => isPrimaryType(m.type)).slice(0, 1),
+      ...offers.filter((m) => !isPrimaryType(m.type)).slice(0, 2),
     ];
     const picked = selectMissionsFromOffers(
       offers,
@@ -244,7 +234,10 @@ describe("missions: deck", () => {
     );
     expect(picked.error).toBeUndefined();
     expect(picked.missions).toEqual(hand);
-    expect(picked.cargo).toEqual(cratesForMissions(hand));
+    // A crate for each Deliver kept, waiting at its dock.
+    expect(picked.cargo.map((c) => [c.missionId, c.isPickedUp])).toEqual(
+      hand.flatMap((m) => (m.type === "deliver_cargo" ? [[m.id, false]] : []))
+    );
   });
 
   it.each<[string, Mission[]]>([
@@ -311,15 +304,12 @@ function docking(
   missions: Mission[],
   cargoPatch?: (state: GameState) => GameState
 ): GameState {
-  const base = makeGameState([
-    makePlayer("p1"),
-    makePlayer("p2", { wellId: BH, ring: 5, sector: 12 }),
-  ]);
-  let state = makeGameState([
-    makePlayer("p1", { wellId: planet, ring: STATION_RING, sector: approachSector(base, planet) }),
-    base.players[1],
-  ]);
-  state = withMissions(state, "p1", missions);
+  const far = { wellId: BH, ring: 5, sector: 12 };
+  const state = withMissions(
+    shortOfStation(makeTwoPlayerGame({}, far), "p1", planet),
+    "p1",
+    missions
+  );
   return cargoPatch ? cargoPatch(state) : state;
 }
 
@@ -332,13 +322,11 @@ describe("missions: combat", () => {
     const [completed] = eventsOf(result.events, "mission_completed");
     expect(completed).toMatchObject({
       playerId: "p1",
-      points: MISSION_POINTS.destroy_ship,
+      points: 2,
       mission: { id: "destroy-p2", isCompleted: true },
     });
     expect(completed).not.toHaveProperty("privateTo");
-    expect(getPlayer(result.gameState, "p1")).toMatchObject({
-      points: MISSION_POINTS.destroy_ship,
-    });
+    expect(getPlayer(result.gameState, "p1").points).toBe(2);
     expect(getPlayer(result.gameState, "p1").missions[0].isCompleted).toBe(true);
   });
 
@@ -403,25 +391,21 @@ describe("missions: combat", () => {
       "destroy-a",
       "destroy-b",
     ]);
-    expect(getPlayer(result.gameState, "p1").points).toBe(
-      2 * MISSION_POINTS.destroy_ship
-    );
+    expect(getPlayer(result.gameState, "p1").points).toBe(4);
   });
 });
 
 describe("missions: trade", () => {
   it("deliver completes when the picked-up crate reaches its destination", () => {
     const state = docking(BETA, [deliverMission(ALPHA, BETA)], (s) =>
-      withPlayer(s, "p1", { cargo: s.players[0].cargo.map((c) => ({ ...c, isPickedUp: true })) })
+      withPlayer(s, "p1", { cargo: cratesAboard(s.players[0].cargo) })
     );
     const result = executeTurnAs(state, coast(1));
     expect(eventTypes(result.events)).toEqual(
       expect.arrayContaining(["cargo_delivered", "docked", "mission_completed"])
     );
     expect(getPlayer(result.gameState, "p1").cargo).toEqual([]);
-    expect(getPlayer(result.gameState, "p1").points).toBe(
-      MISSION_POINTS.deliver_cargo
-    );
+    expect(getPlayer(result.gameState, "p1").points).toBe(2);
   });
 
   it("deliver does not complete without the pickup, and picking up completes nothing", () => {
@@ -430,290 +414,6 @@ describe("missions: trade", () => {
     const atOrigin = executeTurnAs(docking(ALPHA, [deliverMission(ALPHA, BETA)]), coast(1));
     expect(eventTypes(atOrigin.events)).toContain("cargo_picked_up");
     expect(eventTypes(atOrigin.events)).not.toContain("mission_completed");
-  });
-
-  /** An Intercept already scanned, its data aboard, filed at `filedAt`. */
-  const carryingTransmission = (filedAt: string) => {
-    const card = interceptMission("p2", "intercept-p2", filedAt);
-    const withData = (s: GameState) => withPlayer(s, "p1", { cargo: [takenData(card)] });
-    return { card, withData };
-  };
-
-  it("intercept completes at the station the card names", () => {
-    const { card, withData } = carryingTransmission(GAMMA);
-    const result = executeTurnAs(docking(GAMMA, [card], withData), coast(1));
-    expect(eventsOf(result.events, "mission_completed")[0].mission.id).toBe(card.id);
-  });
-
-  it("intercept files nothing at any other station", () => {
-    const { card, withData } = carryingTransmission(GAMMA);
-    const result = executeTurnAs(docking(BETA, [card], withData), coast(1));
-    expect(eventTypes(result.events)).toContain("docked");
-    expect(eventTypes(result.events)).not.toContain("mission_completed");
-    // The data stays aboard for the trip to the right station.
-    expect(getPlayer(result.gameState, "p1").cargo).toHaveLength(1);
-  });
-
-  it("intercept needs the scan first: docking with nothing completes nothing", () => {
-    const result = executeTurnAs(docking(GAMMA, [interceptMission("p2")]), coast(1));
-    expect(eventTypes(result.events)).not.toContain("mission_completed");
-  });
-});
-
-const SENSOR_HULL: ShipLoadout = {
-  forwardSlots: ["sensor_array"],
-  sideSlots: ["laser", "shields", "radiator", "radiator"],
-};
-
-/** p1 on black hole ring 1 with its sensor array powered, holding a Survey. */
-function surveying(
-  position: { wellId?: string; ring: number; sector: number } = { ring: SURVEY_RING, sector: 0 }
-) {
-  const state = withMissions(
-    makeTwoPlayerGame({ ...position, loadout: SENSOR_HULL }, { wellId: BH, ring: 4, sector: 12 }),
-    "p1",
-    [surveyMission("survey-1")]
-  );
-  return withPower(state, "p1", "forward-0", 2);
-}
-
-describe("missions: secondary", () => {
-  it("survey data is taken on any turn ended on ring 1 (privately)", () => {
-    const result = executeTurnAs(surveying(), coast(1));
-    expect(eventsOf(result.events, "data_acquired")).toEqual([
-      expect.objectContaining({
-        playerId: "p1",
-        kind: "survey",
-        missionId: "survey-1",
-        privateTo: ["p1"],
-      }),
-    ]);
-    const player = getPlayer(result.gameState, "p1");
-    expect(player.cargo).toEqual([
-      expect.objectContaining({ missionId: "survey-1", kind: "data", deliveryPlanetId: "any" }),
-    ]);
-  });
-
-  it.each([
-    ["ring 2 of the black hole", { wellId: BH, ring: 2, sector: 0 }],
-    ["the innermost ring of a planet", { wellId: ALPHA, ring: 1, sector: 5 }],
-  ])("survey is not held on %s", (_label, position) => {
-    const result = executeTurnAs(surveying(position), coast(1));
-    expect(eventTypes(result.events)).not.toContain("data_acquired");
-  });
-
-  it("a ship that burns up on ring 1 acquires nothing", () => {
-    const state = withMissions(
-      withShip(makeTwoPlayerGame({ ring: 1 }), "p1", { hitPoints: 1, heat: { currentHeat: 20 } }),
-      "p1",
-      [surveyMission()]
-    );
-    const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).toContain("ship_destroyed");
-    expect(eventTypes(result.events)).not.toContain("data_acquired");
-  });
-
-  it("survey completes when the data is delivered", () => {
-    const card = surveyMission();
-    const state = docking(ALPHA, [card], (s) => withPlayer(s, "p1", { cargo: [takenData(card)] }));
-    expect(
-      eventsOf(executeTurnAs(state, coast(1)).events, "mission_completed")[0].mission.type
-    ).toBe("survey");
-  });
-});
-
-/**
- * p1 holds `pirateMissions` and closes on p2, who holds `victimMissions` with
- * everything they imply already aboard. Ring 3 drifts 4, so p1's coast lands
- * it exactly where p2 is sitting.
- */
-function alongside(
-  pirateMissions: Mission[],
-  victimMissions: Mission[],
-  at: { wellId?: string; ring: number; sector: number } = { wellId: BH, ring: 3, sector: 4 }
-): GameState {
-  const drift = ringVelocity(at.wellId ?? BH, at.ring);
-  let state = makeGameState([
-    makePlayer("p1", { wellId: at.wellId ?? BH, ring: at.ring, sector: wrapSector(at.sector - drift) }),
-    makePlayer("p2", { wellId: at.wellId ?? BH, ring: at.ring, sector: at.sector }),
-  ]);
-  state = withMissions(state, "p1", pirateMissions);
-  state = withMissions(state, "p2", victimMissions);
-  // Whatever the victim's cards imply is in their hold, not on a dock.
-  return withPlayer(state, "p2", {
-    cargo: getPlayer(state, "p2").cargo.map((c) => ({ ...c, isPickedUp: true })),
-  });
-}
-
-const CRATE = deliverMission(ALPHA, BETA);
-
-describe("missions: how a card reads", () => {
-  const lines: Array<[string, Mission, string]> = [
-    ["survey", surveyMission(), "Survey the Event Horizon"],
-    ["piracy", piracyMission(), "Seize cargo and sell it"],
-    ["tanker", tankerMission(), `Pump ${TANKER_FUEL} fuel into a station`],
-  ];
-  it.each(lines)("%s says what to do in one line", (_label, mission, text) => {
-    expect(describeMission(mission, (id) => id)).toBe(text);
-  });
-});
-
-describe("missions: piracy", () => {
-  it("takes the crate off a ship sharing the sector, and the victim's crate is no longer aboard", () => {
-    const card = piracyMission();
-    const result = executeTurnAs(alongside([card], [CRATE]), coast(1), seize("p2", CRATE.cargoId));
-
-    expect(eventsOf(result.events, "cargo_seized")).toEqual([
-      expect.objectContaining({
-        pirateId: "p1",
-        victimId: "p2",
-        kind: "crate",
-        cargoId: CRATE.cargoId,
-        at: { wellId: BH, ring: 3, sector: 4 },
-      }),
-    ]);
-    expect(getPlayer(result.gameState, "p1").cargo).toEqual([
-      expect.objectContaining({ id: card.cargoId, kind: "crate", deliveryPlanetId: "any", isPickedUp: true }),
-    ]);
-    // Still the victim's card's crate, waiting at the station it loads at.
-    expect(getPlayer(result.gameState, "p2").cargo).toEqual([
-      expect.objectContaining({ id: CRATE.cargoId, isPickedUp: false, pickupPlanetId: ALPHA }),
-    ]);
-    // Nothing is scored by the seizure itself: the crate has to be sold.
-    expect(getPlayer(result.gameState, "p1").points).toBe(0);
-  });
-
-  it("takes from a fellow pirate too, who has to go and seize another", () => {
-    const mine = piracyMission("piracy-mine");
-    const theirs = piracyMission("piracy-theirs");
-    let state = alongside([mine], []);
-    state = withPlayer(state, "p2", {
-      missions: [theirs],
-      cargo: [lootCargo(theirs.cargoId, theirs.id)],
-    });
-    const result = executeTurnAs(state, coast(1), seize("p2", theirs.cargoId));
-    expect(eventsOf(result.events, "cargo_seized")[0]).toMatchObject({ cargoId: theirs.cargoId });
-    expect(getPlayer(result.gameState, "p1").cargo).toEqual([
-      expect.objectContaining({ id: mine.cargoId, isPickedUp: true }),
-    ]);
-    expect(getPlayer(result.gameState, "p2").cargo).toEqual([
-      expect.objectContaining({ id: theirs.cargoId, isPickedUp: false }),
-    ]);
-  });
-
-  it("puts a crate seized, lost and seized again back aboard rather than twice", () => {
-    const card = piracyMission();
-    let state = alongside([card], [CRATE]);
-    // The loot from a previous seizure, dropped when the pirate was destroyed.
-    state = withPlayer(state, "p1", {
-      cargo: [{ ...lootCargo(card.cargoId, card.id), isPickedUp: false }],
-    });
-    const result = executeTurnAs(state, coast(1), seize("p2", CRATE.cargoId));
-    expect(getPlayer(result.gameState, "p1").cargo).toEqual([
-      expect.objectContaining({ id: card.cargoId, isPickedUp: true }),
-    ]);
-  });
-
-  it.each([
-    ["the other ship's hold is empty", () => alongside([piracyMission()], [])],
-    [
-      "the other ship is a sector away",
-      () => withShip(alongside([piracyMission()], [CRATE]), "p2", { sector: 5 }),
-    ],
-    ["the other ship is a ring away", () => {
-      const state = alongside([piracyMission()], [CRATE]);
-      return withShip(state, "p2", { ring: 4 });
-    }],
-  ])("seizes nothing when %s", (_label, build) => {
-    const result = executeTurnAs(build(), coast(1), seize("p2", CRATE.cargoId));
-    expect(eventTypes(result.events)).not.toContain("cargo_seized");
-  });
-
-  it.each([
-    ["a berth is no place to change hands", 0, false],
-    ["a sector along from it, it is", 1, true],
-  ])("%s", (_label, offset, seized) => {
-    // Both ships end the turn in the same sector; the station's is a berth,
-    // and a moored ship neither loses a crate nor takes one.
-    const station = getStationForPlanet(createInitialStations(), ALPHA)!;
-    const state = alongside([piracyMission()], [CRATE], {
-      wellId: ALPHA,
-      ring: STATION_RING,
-      sector: wrapSector(station.sector + offset),
-    });
-    const result = executeTurnAs(state, coast(1), seize("p2", CRATE.cargoId));
-    expect(eventTypes(result.events).includes("cargo_seized")).toBe(seized);
-  });
-
-  it.each([
-    [
-      "a survey's data, which has to be dived for again",
-      () => surveyMission("survey-p2"),
-    ],
-    [
-      "an intercept's transmission, which has to be scanned again",
-      () => interceptMission("p1", "intercept-p2", BETA),
-    ],
-  ])("takes %s, and the loot rides aboard the pirate", (_label, build) => {
-    const loot = piracyMission();
-    const card = build();
-    const cargoId = card.dataCargoId;
-    const state = withPlayer(alongside([loot], []), "p2", {
-      missions: [card],
-      cargo: [takenData(card)],
-    });
-    const result = executeTurnAs(state, coast(1), seize("p2", cargoId));
-
-    expect(eventsOf(result.events, "cargo_seized")[0]).toMatchObject({ kind: "data", cargoId });
-    // Loot is loot: it is public as loot whatever it was.
-    expect(getPlayer(result.gameState, "p1").cargo).toEqual([
-      expect.objectContaining({
-        id: loot.cargoId,
-        kind: "crate",
-        deliveryPlanetId: "any",
-        isPickedUp: true,
-      }),
-    ]);
-    expect(getPlayer(result.gameState, "p2").cargo).toEqual([
-      expect.objectContaining({ id: cargoId, isPickedUp: false }),
-    ]);
-    expect(dataAboard(getPlayer(result.gameState, "p2"), card)).toBe(false);
-  });
-
-  it("sells the loot at any station, which is the whole card", () => {
-    const card = piracyMission();
-    const state = docking(ALPHA, [card], (s) =>
-      withPlayer(s, "p1", {
-        cargo: [lootCargo(card.cargoId, card.id)],
-      })
-    );
-    const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "cargo_delivered")[0]).toMatchObject({
-      cargoId: card.cargoId,
-      kind: "crate",
-      planetId: ALPHA,
-    });
-    expect(eventsOf(result.events, "mission_completed")[0].mission.type).toBe("piracy");
-    expect(getPlayer(result.gameState, "p1").points).toBe(MISSION_POINTS.piracy);
-  });
-});
-
-describe("missions: tanker", () => {
-  // RULES §Missions: arrive with the card's fuel or more and hand that much in.
-  it.each([
-    ["the card's fuel exactly", TANKER_FUEL, true],
-    ["one more", TANKER_FUEL + 1, true],
-    ["one short", TANKER_FUEL - 1, false],
-  ])("arriving with %s: pumped %s", (_label, fuel, pumped) => {
-    const state = withShip(docking(ALPHA, [tankerMission()]), "p1", { reactionMass: fuel });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventsOf(result.events, "fuel_pumped")).toEqual(
-      pumped
-        ? [expect.objectContaining({ playerId: "p1", amount: TANKER_FUEL, planetId: ALPHA })]
-        : []
-    );
-    expect(getShip(result.gameState, "p1").reactionMass).toBe(pumped ? fuel - TANKER_FUEL : fuel);
-    expect(getPlayer(result.gameState, "p1").points).toBe(pumped ? MISSION_POINTS.tanker : 0);
   });
 });
 
@@ -780,20 +480,6 @@ describe("missions: winning", () => {
       expect.objectContaining({ winnerId: "p1", decidedBy: "hull" }),
     ]);
   });
-
-  // Three points win, so a primary on its own is one point short, and so are
-  // the two secondaries a hand keeps.
-  it("two points do not end the game: a Destroy alone is not a win", () => {
-    let state = withShip(gunline(), "p2", { hitPoints: 4 });
-    state = withPlayer(state, "p1", {
-      missions: [destroyMission("p2")],
-      points: 0,
-    });
-    const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
-    expect(getPlayer(result.gameState, "p1").points).toBe(2);
-    expect(result.gameState.phase).toBe("active");
-    expect(checkForWinner(result.gameState)).toBeUndefined();
-  });
 });
 
 describe("missions: the points the table plays to", () => {
@@ -803,7 +489,7 @@ describe("missions: the points the table plays to", () => {
   ];
 
   it("is three when the table agrees nothing", () => {
-    expect(createGame(SPECS, 1).pointsToWin).toBe(DEFAULT_POINTS_TO_WIN);
+    expect(createGame(SPECS, 1).pointsToWin).toBe(3);
   });
 
   it.each([

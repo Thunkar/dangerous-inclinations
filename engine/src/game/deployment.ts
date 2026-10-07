@@ -30,7 +30,7 @@ function deploymentPositions(): Position[] {
   );
 }
 
-export function isDeploymentPositionFree(state: GameState, position: Position): boolean {
+function isDeploymentPositionFree(state: GameState, position: Position): boolean {
   return !state.players.some((p) => p.hasDeployed && samePosition(p.ship, position));
 }
 

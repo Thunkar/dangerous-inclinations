@@ -78,6 +78,12 @@ export const MAX_POLAR = MathUtils.degToRad(82)
 
 export type Controls = React.ComponentRef<typeof CameraControls>
 
+/** The camera's forward vector for a compass direction and a pitch. */
+export function forwardOf(look: Vector3, pitchDeg: number): Vector3 {
+  const pitch = MathUtils.degToRad(pitchDeg)
+  return new Vector3(look.x * Math.cos(pitch), -Math.sin(pitch), look.z * Math.cos(pitch))
+}
+
 /**
  * Place the camera so that every point is inside the frustum, as close as it
  * can be and with the points centred in the picture.
@@ -107,8 +113,7 @@ export function solveEye(
   if (points.length === 0) return null
   const tanV = Math.tan(MathUtils.degToRad(camera.fov) / 2) * fill
   const tanH = tanV * Math.max(0.2, camera.aspect)
-  const pitch = MathUtils.degToRad(pitchDeg)
-  const forward = new Vector3(look.x * Math.cos(pitch), -Math.sin(pitch), look.z * Math.cos(pitch))
+  const forward = forwardOf(look, pitchDeg)
   const right = new Vector3(-forward.z, 0, forward.x).normalize()
   const up = right.clone().cross(forward)
 
