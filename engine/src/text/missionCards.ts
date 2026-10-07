@@ -36,7 +36,7 @@ export const MISSION_CARDS = {
   piracy: {
     name: "Piracy",
     title: "Seize cargo and sell it",
-    rule: "End a turn, not moored, on an undocked ship carrying cargo: you may take one item of your choice. Sell it at any station.",
+    rule: "End a turn on an undocked ship carrying cargo: you may take one item of your choice. Sell it at any station.",
   },
   tanker: {
     name: "Tanker",
@@ -49,12 +49,12 @@ export const MISSION_CARDS = {
     title: "Escort {carrier} to a sale",
     /** Before the marker is down. */
     titleUnmarked: "Escort a carrier to a sale",
-    rule: "End a turn, not moored, on the ring of an undocked carrier and mark it. Done at its next sale with you in its well. Back to you if either ship dies.",
+    rule: "End a turn on the ring of an undocked carrier and mark it. Done at its next sale with you in its well.",
   },
   salvage: {
     name: "Salvage",
     title: "Salvage a wreck's black box and file it",
-    rule: "End a turn on a wreck to take its black box, one a turn. File it at any station.",
+    rule: "End a turn on a wreck to take its black box. File its data at any station.",
   },
 } as const satisfies Record<
   MissionType,

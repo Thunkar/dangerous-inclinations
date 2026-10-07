@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
+import { getStationForPlanet, isMooredAt, stationSectors } from "../../game/stations.ts";
 import { salesOnArrival } from "../../game/docking.ts";
 import { viewFor } from "../../game/view.ts";
 import type { GameState, ShipLoadout } from "../../models/game.ts";
@@ -65,6 +65,10 @@ describe("docking: stations", () => {
     const afterP2 = executeTurnAs(afterP1.gameState, coast(1));
     expect(afterP2.gameState.stations.map((s) => s.sector)).toEqual([4, 4, 4]);
     expect(eventTypes(afterP2.events)).toContain("stations_moved");
+  });
+
+  it("a station only ever stands on one of six sectors: the station clock", () => {
+    expect(stationSectors()).toEqual([0, 4, 8, 12, 16, 20]);
   });
 });
 
@@ -149,15 +153,63 @@ describe("docking: ending the turn on a station", () => {
     const result = executeTurnAs(approaching(ALPHA, LOADOUTS.twoShields), coast(1));
     expect(eventsOf(result.events, "docked")[0].missilesReloaded).toBe(false);
   });
+});
 
-  it("docking happens before the heat check", () => {
-    const state = withShip(approaching(ALPHA), "p1", { hitPoints: 5, heat: { currentHeat: 13 } });
+describe("docking: after the heat check", () => {
+  it.each([
+    // hull, heat: the check burns the hull first, the dock then refills it
+    [5, 13],
+    [2, 11],
+    [10, 15],
+  ])("a ship arriving with %i hull and %i heat docks at full hull", (hull, heat) => {
+    const state = withShip(approaching(ALPHA), "p1", {
+      hitPoints: hull,
+      heat: { currentHeat: heat },
+    });
     const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events).indexOf("docked")).toBeLessThan(
-      eventTypes(result.events).indexOf("heat_check")
+    const types = eventTypes(result.events);
+    expect(types.indexOf("heat_check")).toBeGreaterThanOrEqual(0);
+    expect(types.indexOf("heat_check")).toBeLessThan(types.indexOf("docked"));
+    const burned = heat - 10;
+    expect(eventsOf(result.events, "heat_check")[0].damage).toBe(burned);
+    // What the dock restores is what the arrival had left after the check.
+    expect(eventsOf(result.events, "docked")[0].hullRestored).toBe(10 - (hull - burned));
+    expect(getShip(result.gameState, "p1").hitPoints).toBe(10);
+  });
+
+  it.each<[string, number, boolean]>([
+    ["2 hull, which the check destroys", 2, true],
+    ["5 hull, which survives the check", 5, false],
+  ])("a ship arriving at 14 heat with %s", (_label, hull, destroyed) => {
+    const [deliver, crate] = deliverCard(BETA, ALPHA, true);
+    const before = withShip(visit(ALPHA, [[deliver, crate]]), "p1", {
+      hitPoints: hull,
+      heat: { currentHeat: 14 },
+    });
+    const berth = berthOf(before, ALPHA);
+    const result = arrive(before);
+    const types = eventTypes(result.events);
+    expect(types.includes("ship_destroyed")).toBe(destroyed);
+    expect(types.includes("docked")).toBe(!destroyed);
+    expect(eventsOf(result.events, "cargo_delivered")).toHaveLength(destroyed ? 0 : 1);
+    expect(eventsOf(result.events, "wreck_left").map((e) => e.at)).toEqual(
+      destroyed ? [berth] : []
     );
-    // A dock fills the hull, and only then does the track redline: 10, then -3.
-    expect(getShip(result.gameState, "p1").hitPoints).toBe(7);
+    expect(getPlayer(result.gameState, "p1").soldAt).toEqual(destroyed ? [] : [ALPHA]);
+    expect(getPlayer(result.gameState, "p1").points).toBe(destroyed ? 0 : 2);
+  });
+
+  it.each([
+    // fuel aboard, pumped: the Tanker reads the tank the check left alone
+    [5, true],
+    [4, false],
+  ])("a hot Tanker arriving with %i fuel (pumped: %s)", (fuel, pumped) => {
+    const state = withShip(visit(ALPHA, [TANKER], fuel), "p1", { heat: { currentHeat: 13 } });
+    const result = arrive(state);
+    expect(eventsOf(result.events, "heat_check")[0].damage).toBe(3);
+    expect(eventsOf(result.events, "fuel_pumped")).toHaveLength(pumped ? 1 : 0);
+    expect(getShip(result.gameState, "p1").reactionMass).toBe(pumped ? 0 : fuel);
+    expect(getPlayer(result.gameState, "p1").points).toBe(pumped ? 1 : 0);
   });
 });
 

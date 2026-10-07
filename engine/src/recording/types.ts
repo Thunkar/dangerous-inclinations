@@ -37,8 +37,10 @@ import type { GameEvent } from "../models/events.ts";
  * v16: a ship is moored from docking until it leaves the sector, so it fires
  *     after arriving and a recoil onto a station moors nothing; `rotated`
  *     carries `heat`.
+ * v17: the heat check comes before docking, and a ship its check destroys
+ *     on a station does not dock.
  */
-export const RECORDING_SCHEMA_VERSION = 16;
+export const RECORDING_SCHEMA_VERSION = 17;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

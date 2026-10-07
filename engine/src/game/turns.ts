@@ -12,10 +12,12 @@
  *     scan. Every action puts energy on the tile it uses, and it stays there
  *     until this player's next turn.
  *  4. The player's missiles move and resolve.
- *  5. Docking (if the ship arrived on a station): repairs, crates loaded, and one sale.
- *  6. Heat check: every cube on the loadout is a point of heat, heat over the
+ *  5. Heat check: every cube on the loadout is a point of heat, heat over the
  *     redline becomes hull damage, then the ship dissipates and carries what
- *     is left into its next turn.
+ *     is left into its next turn. It comes before the dock, so a hot approach
+ *     is paid from the hull the ship arrives with.
+ *  6. Docking (if the ship arrived on a station and survived its check):
+ *     repairs, full hull, a reload, and one thing: load the crates or one sale.
  *  7. Missions are updated from everything that happened, and any Escort
  *     marker the player chose to place goes on its carrier.
  *  8. Play passes on; at the end of every round stations move, carrying the
@@ -35,7 +37,6 @@ import { advanceStations, isMooredAt } from "./stations.ts";
 import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
 import { positionOf } from "./geometry.ts";
 import { clearLoadout, isDestroyed, resetSubsystemUsage } from "./ship.ts";
-import { escortPresent } from "./escort.ts";
 import { nextEntityId } from "../utils/rng.ts";
 
 export interface TurnResult {
@@ -95,14 +96,6 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   events.push(...missiles.events);
   state = applyDestructions(state, missiles.events, events);
 
-  // Arriving at a station, or holding a berth held since last turn? Only an
-  // arrival is a visit (RULES §Stations).
-  // The sale named for the visit, if any; without one the visit makes the default.
-  const dockSale = actions.find((a) => a.type === "dock_sale")?.data.sale;
-  const docking = processDocking(state, activeIndex, !wasMoored, dockSale);
-  state = docking.state;
-  events.push(...docking.events);
-
   // Heat check for the active player.
   {
     const player = state.players[activeIndex];
@@ -114,6 +107,8 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
       players[activeIndex] = { ...player, ship: heat.ship };
       state = { ...state, players };
       events.push(...heat.events);
+      // A ship its own check destroys on a station's sector leaves its wreck
+      // there and does not dock (processDocking skips a destroyed ship).
       if (isDestroyed(heat.ship)) {
         const destroyed: EventDraft = {
           type: "ship_destroyed",
@@ -125,6 +120,15 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
       }
     }
   }
+
+  // Arriving at a station, or holding a berth held since last turn? Only an
+  // arrival is a visit (RULES §Stations), and only by a ship that survived its
+  // heat check: the dock heals what the approach burned, not what killed it.
+  // The sale named for the visit, if any; without one the visit makes the default.
+  const dockSale = actions.find((a) => a.type === "dock_sale")?.data.sale;
+  const docking = processDocking(state, activeIndex, !wasMoored, dockSale);
+  state = docking.state;
+  events.push(...docking.events);
 
   // The carriers the player chose to put an Escort marker on, if any: each is
   // settled against where the turn ended (RULES §Missions, Escort).
@@ -204,33 +208,21 @@ function applyDestructions(state: GameState, source: EventDraft[], sink: EventDr
       at: positionOf(victim.ship),
     });
 
-    // Escort, in the order the destructions happened. Every marker on the dead
-    // ship comes back to its owner, unless the ship sold earlier this same turn
-    // (and then died at its heat check) with that escort in the sale's well:
-    // the sale came first, and the mission check pays it. The dead ship's own
-    // markers come off whatever they sit on and back to hand.
-    const sale = sink.find(
-      (d): d is Extract<EventDraft, { type: "cargo_delivered" | "fuel_pumped" }> =>
-        (d.type === "cargo_delivered" || d.type === "fuel_pumped") && d.playerId === victim.id
-    );
-    next = settleEscorts(next, victim.id, sale?.planetId ?? null, sink);
+    // Escort: every marker on the dead ship comes back to its owner, and the
+    // dead ship's own markers come off whatever they sit on and back to hand.
+    // Nothing after the dock can destroy the ship whose turn it is, so a
+    // destroyed carrier never sold this turn and no marker on it was paid.
+    next = settleEscorts(next, victim.id, sink);
   }
   return next;
 }
 
 /**
  * The Escort side of a destruction (RULES §Destruction and Respawn): every
- * undone Escort marking `victimId` comes back to its owner's hand, except one
- * whose escort was in the well of the sale `soldAt` the victim made first
- * this turn; and every Escort `victimId` holds that has a marker out comes
- * back too.
+ * undone Escort marking `victimId` comes back to its owner's hand, and every
+ * Escort `victimId` holds that has a marker out comes back too.
  */
-function settleEscorts(
-  state: GameState,
-  victimId: string,
-  soldAt: string | null,
-  sink: EventDraft[]
-): GameState {
+function settleEscorts(state: GameState, victimId: string, sink: EventDraft[]): GameState {
   let changed = false;
   const players = state.players.map((player) => {
     let touched = false;
@@ -248,7 +240,6 @@ function settleEscorts(
         return { ...m, markedPlayerId: null };
       }
       if (m.markedPlayerId !== victimId) return m;
-      if (soldAt !== null && escortPresent(player, soldAt)) return m;
       touched = true;
       sink.push({
         type: "escort_released",

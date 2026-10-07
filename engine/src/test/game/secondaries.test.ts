@@ -957,43 +957,46 @@ describe("escort: markers", () => {
     expect(JSON.stringify(viewFor(result.gameState, "p1"))).toContain("escort-1");
   });
 
-  it.each<[string, Mission, string, Where, { isCompleted: boolean; released: boolean }]>([
+  it.each<[string, Mission, string, Where]>([
     [
-      "delivers a crate and then dies at its heat check, with the escort in its well: the sale came first, done",
+      "a crate to deliver, with the escort in its well",
       deliverMission(ALPHA, BETA),
       "cargo_delivered",
       IN_BETA_WELL,
-      { isCompleted: true, released: false },
     ],
     [
-      "pumps fuel and then dies at its heat check, with the escort in its well: done",
+      "a Tanker's fuel, with the escort in its well",
       tankerMission("tanker-p2"),
       "fuel_pumped",
       IN_BETA_WELL,
-      { isCompleted: true, released: false },
     ],
     [
-      "delivers a crate and then dies at its heat check, with the escort elsewhere: nothing was paid, the marker comes back",
+      "a crate to deliver, with the escort elsewhere",
       deliverMission(ALPHA, BETA),
       "cargo_delivered",
       IN_ALPHA_WELL,
-      { isCompleted: false, released: true },
     ],
-  ])("a carrier that %s", (_label, card, sale, escortAt, expected) => {
-    const state = withShip(carrierArrives([card], 0, escortAt), "p2", {
-      heat: { currentHeat: 60 },
-    });
-    const result = executeTurnAs(state, coast(1));
-    expect(eventTypes(result.events)).toEqual(expect.arrayContaining([sale, "ship_destroyed"]));
-    expect(p1Escort(result.gameState)).toMatchObject({
-      isCompleted: expected.isCompleted,
-      markedPlayerId: expected.released ? null : "p2",
-    });
-    expect(eventsOf(result.events, "escort_released")).toEqual(
-      expected.released ? [expect.objectContaining({ cause: "carrier_destroyed" })] : []
-    );
-    expect(getPlayer(result.gameState, "p1").points).toBe(expected.isCompleted ? 1 : 0);
-  });
+  ])(
+    "a carrier its heat check destroys on arrival with %s sells nothing, and the marker comes back",
+    (_label, card, sale, escortAt) => {
+      const state = withShip(carrierArrives([card], 0, escortAt), "p2", {
+        heat: { currentHeat: 60 },
+      });
+      const result = executeTurnAs(state, coast(1));
+      const types = eventTypes(result.events);
+      expect(types).toContain("ship_destroyed");
+      expect(types).not.toContain(sale);
+      expect(types).not.toContain("docked");
+      expect(p1Escort(result.gameState)).toMatchObject({
+        isCompleted: false,
+        markedPlayerId: null,
+      });
+      expect(eventsOf(result.events, "escort_released")).toEqual([
+        expect.objectContaining({ cause: "carrier_destroyed" }),
+      ]);
+      expect(getPlayer(result.gameState, "p1").points).toBe(0);
+    }
+  );
 
   /**
    * p1, the escort, has 1 hull at BH R3 S2 with its marker on p2, which

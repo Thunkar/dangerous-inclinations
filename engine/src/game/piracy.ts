@@ -1,7 +1,7 @@
 /**
- * Piracy (RULES §Missions): what a pirate may take. "End a turn, not moored,
- * on an undocked ship carrying cargo: you may take one item of your choice
- * from it." The choice is declared with the turn as a `seize` action and
+ * Piracy (RULES §Missions): what a pirate may take. "End a turn in the same
+ * sector as an undocked ship carrying cargo: you may take one item of your
+ * choice from it." The choice is declared with the turn as a `seize` action and
  * settled at the end of it (missions/missionChecks.ts); this is the one
  * question the referee, the bots, the seat CLI and the table's plan all ask,
  * so the four agree. Nothing is taken unless it is named.
@@ -47,8 +47,9 @@ export function freePiracyCards(
 
 /**
  * Every item on a rival in `position`'s sector, in seat order from the next
- * seat after the pirate and then in the order each hold carries them. Neither
- * ship may be moored: a berth is not a place cargo changes hands.
+ * seat after the pirate and then in the order each hold carries them. The
+ * victim must be undocked, and it shares the pirate's sector, so one check
+ * covers both ships: a berth is not a place cargo changes hands.
  */
 function candidates(
   seats: readonly PiracySeat[],

@@ -71,7 +71,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Docking',
-      'on arrival only: full hull, repair all, reload missiles, and one thing: load the crates waiting for you, or sell one item (a crate, data, loot or the Tanker fuel). Each station buys from you once per game. You choose; by default the sale worth the most points, else the load. You stay moored until you burn away',
+      'on arrival only, after the heat check: full hull, repair all, reload missiles, and one thing: load the crates waiting for you, or sell one item (a crate, data, loot or the Tanker fuel). Each station buys from you once per game. You choose; by default the sale worth the most points, else the load. You stay moored until you burn away',
     ],
     [
       'Berth',
@@ -84,7 +84,7 @@ export const RULES_DIALOG = {
     ['Survey', 'end a turn on Black Hole Ring 1 (take the data) then dock at any station'],
     [
       'Piracy',
-      'end a turn, not moored, in the same sector as an undocked ship carrying cargo and you may take one item of your choice. Sell it at any station; their card goes back to undone',
+      'end a turn in the same sector as an undocked ship carrying cargo and you may take one item of your choice. Sell it at any station; their card goes back to undone',
     ],
     [
       'Tanker',

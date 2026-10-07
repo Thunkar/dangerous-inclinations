@@ -16,6 +16,11 @@
  * (not a sale, so it spends no station) or it sells one item. The hold has
  * no limit.
  *
+ * After the heat check. The check comes first (RULES §A Turn), so a hot
+ * approach is paid from the hull the ship arrives with and the dock heals
+ * what is left; a ship the check destroys never docks, and its wreck stays on
+ * the station's sector.
+ *
  * Arriving, not sitting. A docked ship stays moored until it burns away, and
  * for a while the whole dock re-resolved every turn it held the berth: a free
  * repair shop for anyone content to park in one. A visit is an event now: the

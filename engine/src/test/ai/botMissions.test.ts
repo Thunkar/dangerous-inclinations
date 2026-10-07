@@ -22,10 +22,11 @@ import {
   laneDepartureArc,
 } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
-import { ringVelocity } from "../../game/geometry.ts";
+import { ringVelocity, wrapSector } from "../../game/geometry.ts";
 import { viewFor } from "../../game/view.ts";
 import { isMooredAt } from "../../game/stations.ts";
 import { botDecideActions } from "../../ai/index.ts";
+import { moveOverheats } from "../../ai/planner.ts";
 import { planetLane } from "../../ai/behaviors/danger.ts";
 import { PATROL_GOAL_ID, REPAIR_GOAL_ID as REPAIR_GOAL } from "../../ai/behaviors/missions.ts";
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
@@ -758,6 +759,60 @@ describe("bot fuel in port", () => {
     const result = executeTurn(state, botDecideActions(viewFor(state, "p1")).actions);
     expect(result.errors).toBeUndefined();
     expect(getShip(result.gameState, "p1").ring).not.toBe(STATION_RING);
+  });
+});
+
+describe("bot heat on a station approach", () => {
+  // The heat check comes before the dock (RULES §A Turn): an arrival pays its
+  // heat from the hull it has and the dock refills it, so only a check that
+  // would destroy the ship rules the move out. Off a station the bot keeps three.
+  it.each<[string, number, number, number, boolean, boolean]>([
+    // label, hull, heat, engine cubes, arrives, too hot
+    ["an arrival left with 2 hull", 5, 12, 1, true, false],
+    ["the same burn going nowhere", 5, 12, 1, false, true],
+    ["an arrival left with 1 hull", 4, 12, 1, true, false],
+    ["an arrival the check destroys", 3, 12, 1, true, true],
+    ["a cool burn", 2, 5, 3, false, false],
+  ])("%s", (_label, hull, heat, engine, arrives, tooHot) => {
+    expect(moveOverheats(hull, heat, engine, arrives)).toBe(tooHot);
+  });
+
+  /**
+   * p1 on Alpha ring 3, facing retrograde, two sectors short of the station:
+   * a soft burn inward (one cube) lands on it. Its pickup is there.
+   */
+  const hotApproach = (hull: number, sectorsShort = 2): GameState => {
+    let state = makeGameState([
+      makePlayer("p1"),
+      makePlayer("p2", { wellId: GAMMA, ring: 3, sector: 12 }),
+    ]);
+    const berth = berthOf(state, ALPHA);
+    state = withShip(state, "p1", {
+      wellId: ALPHA,
+      ring: 3,
+      sector: wrapSector(berth.sector - sectorsShort),
+      facing: "retrograde",
+      hitPoints: hull,
+      heat: { currentHeat: 12 },
+    });
+    return withMissions(state, "p1", [deliverMission(ALPHA, BETA)]);
+  };
+
+  it.each<[string, number, number, boolean]>([
+    // label, hull, sectors short, docks
+    ["burns onto the station with 5 hull: the check leaves 2 and the dock refills it", 5, 2, true],
+    ["coasts with 3 hull rather than burn onto the station and die at the check", 3, 2, false],
+    ["coasts with 5 hull when the burn arrives nowhere", 5, 8, false],
+  ])("%s", (_label, hull, short, docks) => {
+    const state = hotApproach(hull, short);
+    const actions = botDecideActions(viewFor(state, "p1")).actions;
+    expect(actions.some((a) => a.type === "burn")).toBe(docks);
+    const result = executeTurn(state, actions);
+    expect(result.errors).toBeUndefined();
+    const types = result.events.map((e) => e.type);
+    expect(types).not.toContain("ship_destroyed");
+    expect(types.includes("docked")).toBe(docks);
+    if (docks) expect(getShip(result.gameState, "p1").hitPoints).toBe(10);
   });
 });
 

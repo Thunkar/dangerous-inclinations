@@ -29,6 +29,21 @@ function updateStationPositions(stations: Station[]): Station[] {
   }));
 }
 
+/**
+ * Every sector a station can stand on: from its starting sector, stepping its
+ * ring's drift once a round until the ring comes back round. All three
+ * stations step together, so this is the one clock they all read.
+ */
+export function stationSectors(): number[] {
+  const sectors: number[] = [];
+  let sector = STATION_INITIAL_SECTOR;
+  while (!sectors.includes(sector)) {
+    sectors.push(sector);
+    sector = driftPosition({ wellId: PLANETS[0].id, ring: STATION_RING, sector }).sector;
+  }
+  return sectors;
+}
+
 export function getStationForPlanet(stations: Station[], planetId: string): Station | undefined {
   return stations.find((s) => s.planetId === planetId);
 }

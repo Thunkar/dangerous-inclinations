@@ -116,7 +116,8 @@ turns is what its owner used or powered last turn. A `power` emits the public
 face-up: powering reveals nothing. Beside them a turn may carry one `repair`
 (`{ subsystemId }`, no sequence): the subsystem a cold ship fixes if its heat is 0
 at the check, and one `dock_sale` (`{ sale }`, no sequence): what the visit
-does if the turn arrives at a station. A visit does one thing: `sale` is an
+does if the turn arrives at a station (after the heat check: a ship its
+check destroys does not dock). A visit does one thing: `sale` is an
 item's cargo id, `"fuel"` for a Tanker's pump (`SELL_FUEL`), `"load"` to load
 the crates waiting there (`LOAD_CRATES`) or `"none"` to do nothing
 (`SELL_NOTHING`). A station buys one item from each player, once per game;

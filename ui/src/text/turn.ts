@@ -30,21 +30,21 @@ export const TURN = {
     missiles: {
       title: 'Missiles',
       blurb:
-        "Each of yours rides its orbit (not on the turn you launched it), flies {steps} steps and attacks if it reaches its target's sector.",
+        "Each of yours rides its orbit (except on the turn you launched it), flies {steps} steps and attacks if it reaches its target's sector.",
       terse: 'Ride the orbit (not on launch), fly {steps}, hit on its sector',
-    },
-    docking: {
-      title: 'Docking',
-      blurb:
-        'Arrived on a station? Repair everything, full hull, reload, and one thing: load your crates or sell one item. Each station buys from you once.',
-      terse: 'Arrived? Repair, rearm, load or sell',
     },
     heatCheck: {
       title: 'Heat check',
       blurb:
-        'Every point of energy on your loadout is 1 heat; at 0, repair one subsystem. Over {maxHeat} is hull damage and the track stops at {maxHeat}. Dissipate {dissipation} (+{radiator} a radiator), carry the rest.',
+        "Every point of energy on your loadout is 1 heat; at 0, repair one subsystem. Over {maxHeat} is hull damage and doesn't accumulate. Dissipate {dissipation} (+{radiator} a radiator), carry the rest.",
       terse:
         'Energy converts to heat. Over {maxHeat}, your ship takes damage. Dissipate {dissipation} (+{radiator} per radiator)',
+    },
+    docking: {
+      title: 'Dock',
+      blurb:
+        'Arrived on a station and survived the check? Repair everything, full hull, reload, and one thing: load your crates or sell one item. Each station buys from you once.',
+      terse: 'Arrived? Repair, rearm, load or sell',
     },
     missions: {
       title: 'Missions',

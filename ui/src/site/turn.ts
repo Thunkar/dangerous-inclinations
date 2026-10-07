@@ -48,12 +48,12 @@ export const TURN_STEPS: TurnStep[] = [
     blurb: fill(T.missiles.blurb, { steps: MISSILE_STEPS }),
     terse: fill(T.missiles.terse, { steps: MISSILE_STEPS }),
   },
-  T.docking,
   {
     title: T.heatCheck.title,
     blurb: fill(T.heatCheck.blurb, HEAT),
     terse: fill(T.heatCheck.terse, HEAT),
   },
+  T.docking,
   T.missions,
   {
     title: T.stations.title,

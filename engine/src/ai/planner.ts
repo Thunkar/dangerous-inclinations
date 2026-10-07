@@ -79,10 +79,39 @@ import { blackBoxAboard, surveyToDive } from "./behaviors/missions.ts";
 import { seizeChoices } from "./behaviors/piracy.ts";
 import type { SeizableItem } from "../game/piracy.ts";
 
-/** Hull the bot keeps when it accepts heat damage for a decisive volley. */
+/** Hull the bot keeps when it accepts heat damage, for a move or a decisive volley. */
 const MIN_HULL_AFTER_OVERHEAT = 3;
+/**
+ * Hull the bot keeps through the check of a turn that arrives at a station.
+ * The check comes before the dock (RULES §A Turn): the approach's burn is
+ * paid from the hull the ship has, and the dock then refills it, so all the
+ * check has to leave is a ship.
+ */
+const MIN_HULL_AT_ARRIVAL = 1;
+
 /** Hull damage from heat the bot will accept for a shot that is worth it. */
 const MAX_OVERHEAT = 2;
+
+/** The hull a turn's heat damage must leave, on a turn that does or does not arrive at a station. */
+function hullToKeep(arrivesAtStation: boolean): number {
+  return arrivesAtStation ? MIN_HULL_AT_ARRIVAL : MIN_HULL_AFTER_OVERHEAT;
+}
+
+/**
+ * Whether a move's own heat would gut the hull: heat over the redline is
+ * hull damage at the check (RULES §Energy and Heat), and the check is paid
+ * before any dock heals it.
+ */
+export function moveOverheats(
+  hull: number,
+  heat: number,
+  engineEnergy: number,
+  arrivesAtStation: boolean
+): boolean {
+  const damage = Math.max(0, heat + engineEnergy - MAX_HEAT);
+  return damage > 0 && hull - damage < hullToKeep(arrivesAtStation);
+}
+
 /** Planning horizon for closing on a target outside the current goal. */
 const ENGAGE_PLAN_TURNS = 6;
 /**
@@ -129,9 +158,17 @@ function buildCandidate(
   const moored = status.moored;
 
   // A movement whose heat alone would gut the hull is not worth it. Heat is
-  // hull damage only above the top of the track (RULES §Energy and Heat).
-  const movementHeatDamage = Math.max(0, status.heat + movement.engineEnergy - MAX_HEAT);
-  if (movementHeatDamage > 0 && status.hull - movementHeatDamage < MIN_HULL_AFTER_OVERHEAT) {
+  // hull damage only above the top of the track (RULES §Energy and Heat). On
+  // a move that arrives at a station the check is paid from the hull the ship
+  // has and the dock refills it afterwards, so it is out only if the check
+  // would destroy the ship. A coast from a berth arrives nowhere.
+  const arrives =
+    !moored &&
+    getStationAt(
+      view.stations,
+      projectPosition(ship, movement.requiredFacing ?? ship.facing, movement.preview)
+    ) !== undefined;
+  if (moveOverheats(status.hull, status.heat, movement.engineEnergy, arrives)) {
     movement = coastChoice(false);
   }
 
@@ -325,7 +362,7 @@ function buildCandidate(
             Math.min(
               MAX_OVERHEAT,
               status.hull -
-                MIN_HULL_AFTER_OVERHEAT -
+                hullToKeep(landsOnStation) -
                 Math.max(0, status.heat + heatUsed - MAX_HEAT)
             )
           )

@@ -102,9 +102,9 @@ that costs one subsystem's heat honest. Answering is a flat 2 heat on the
 defender's track, however many missiles, as a shield's absorbed points are.
 
 Turn: (respawn turn if destroyed) → clear the loadout → actions in chosen order (power,
-rotate, one move: coast/burn/jump, fire, scan) → own missiles move → docking (on
-arrival only) → heat
-check (over 10 is hull damage, then dissipate and carry the rest) → missions →
+rotate, one move: coast/burn/jump, fire, scan) → own missiles move → heat
+check (over 10 is hull damage, then dissipate and carry the rest) → docking (on
+arrival only, and not for a ship its check destroyed) → missions →
 pass. Once a round, after the last seat's turn, the stations advance (their own
 step, carrying moored ships). The first round reaches nobody (no weapon
 fires and nobody scans) because everyone deploys around one hole, so the opening
@@ -129,7 +129,9 @@ ui/src/                 context/ (game, animation, plan, boardMode, navigation),
                         components/table/, art/glyphs.tsx (the one drawn icon set)
 ui/src/site/            routes.ts (the four sections), Landing, Tools, Cheatsheet,
                         turn.ts (the turn, stated once), numbers.ts, poster.tsx,
-                        guide/ (the cheatsheet's sections), tools/, card/ (the printed card)
+                        guide/ (the cheatsheet's sections), card/ (the printed card),
+                        tools/ (RoutePlannerTool + OrbitalWindows, windows.ts,
+                        windowDiagrams.tsx; HeatTrackerTool, heatMat.ts; DiceTool)
 ui/src/design/          tokens.ts (the dark table), press.ts (paper, ink, red: all printed matter)
 ui/src/components/board/  model.ts (useBoardModel: all either renderer draws),
                         geometry.ts (board coordinates), GameBoard.tsx (the 2D/3D switch),
@@ -247,15 +249,15 @@ stack (docker compose, server, Vite) and creating a game over REST.
 
 The video game is one of them. `ui/src/site/routes.ts` is the whole router (a
 path, no dependency): `/` the landing page, `/play` everything the app was
-before, `/tools` the things a real table wants and `/card` the cheatsheet with
-the card it prints. The three query flags still decide the route **from any
+before, `/tools` the things a real table wants and `/card` the cheatsheet
+with the card it prints. The three query flags still decide the route **from any
 path**, so `?game=<id>` from a fork, from `yarn seat` and from
 `scripts/shot.mjs` keeps working. Every `/play` screen before a table exists
 (connecting, a failure, the name, the lobby list) keeps the site's bar, so
 nobody who arrives there is stranded; a table brings its own chrome.
 
-Only `/play` needs a player, a socket or a server. The tools and the cheatsheet
-call pure engine functions (`planMovementAlternatives`, `heatAfterCheck`,
+Only `/play` needs a player, a socket or a server. The tools and the
+cheatsheet call pure engine functions (`planMovementAlternatives`, `heatAfterCheck`,
 `rollToResult`, the subsystem and ring configs) and render from a browser with
 nothing else running, which is the point: they are used standing over a real
 table. Every number on them is read from the engine; `site/numbers.ts` works
@@ -265,7 +267,7 @@ in-game rules dialog.
 
 **The words live in text files that hold only strings**, in on-screen order:
 `engine/src/text/missionCards.ts` (every card's name, title and rule) and
-`ui/src/text/` (`cheatsheet.ts`, `printedCard.ts`, `turn.ts`,
+`ui/src/text/` (`cheatsheet.ts`, `printedCard.ts`, `turn.ts`, `windows.ts`,
 `rulesDialog.ts`, `missionProgress.ts`, `landing.ts`). A number is a `{name}`
 slot the caller fills from the engine (`fill` for one string, `rich` in
 `ui/src/utils/rich.tsx` for elements, which also sets `<b>` and the few tags a
@@ -303,17 +305,14 @@ Re-run the script after changing an icon. The site's nav is type, not icons;
 the rest of the app's chrome stays on MUI icons.
 
 **The cheatsheet** (`site/Cheatsheet.tsx`, `site/guide/`) teaches the game in
-the order a first table meets it, nine numbered sections: the goal (the six
+the order a first table meets it, eight numbered sections: the goal (the six
 mission cards drawn by the game's own `MissionCard`), setup with the loadout's
 slots, the turn (seven steps, then the stations once a round), moving (the
 three moves drawn, and phasing across two rings), heat (with a check worked by
 `heatAfterCheck`), fighting (the roll strip asks `rollToResult` about every
 face, and a missile's two turns drawn fired before and after the drift), what
-is hidden, destruction, and the orbital windows (`guide/WindowsSection.tsx`:
-when to reach a lane mouth, arrive with a Tanker's fuel or leave a pickup,
-read off the station clock every station shares; the tables are the route
-planner's answers, worked out in the browser after first paint). It
-compresses RULES.md and says so; the manual wins.
+is hidden and destruction, and ends on a link to the orbital windows in the
+route planner. It compresses RULES.md and says so; the manual wins.
 
 **The tools** call pure engine functions and nothing else, so they work with
 the server down. The route planner is not a second interface: it builds a
@@ -322,7 +321,16 @@ the server down. The route planner is not a second interface: it builds a
 sector on the board. Body, ring and sector can also be typed (a phone's number
 pad), and a station is a destination of its own: the route is planned against
 where it will be (`planMovementToTarget` with `orbitingTarget`), not where it
-is. The heat check is a mat of the player's loadout that follows the turn: a
+is; every route offers fastest, balanced and economical alternatives
+(`planMovementAlternatives` to a fixed sector, `planAlternativesToTarget` to a
+station or with fuel to arrive with). The route planner page ends with **the
+orbital windows** (`tools/OrbitalWindows.tsx`, words in `text/windows.ts`):
+the station clock every station shares, the same clock the planner's
+"Stations now at" sets, and three hints (when to reach a lane mouth, arrive
+with a Tanker's fuel, leave a pickup) that the planner itself works out in the
+browser after first paint (`tools/windows.ts`).
+
+The heat check is a mat of the player's loadout that follows the turn: a
 click powers a subsystem a step, a right click takes one off, the check bills
 the energy and leaves it on until "start my turn" clears it, and absorbing or
 breaking moves energy onto the track the way the engine does.
@@ -839,6 +847,22 @@ not an argument:
   under its bar (33.6 → 32.4 against 33). It moves nothing because racks
   shoot down 2–3 missiles a game: it is a rule for the table, not a lever.
   The bots do not price it when they decide to power a rack.
+- **Docking before the heat check.** Replaced 7 Oct 2026, the designer's
+  decision: the check comes first and the dock after it. With the dock
+  first, a ship low on hull could cook itself on the approach, be restored to
+  full hull by the dock and only then take the heat damage from full, so an
+  arrival was the one turn heat could not kill. The approach is now something
+  you fly carefully: a hot arrival pays its heat from the hull it has, and a
+  ship its own check destroys at the station does not dock (it leaves its
+  wreck on the station's sector and respawns). The cost, accepted: a ship
+  that survives its check and then docks is healed of the approach's burn,
+  and a broken radiator is no longer mended in time for the arrival's check.
+  It also removed the one way a carrier could sell and die in the same turn,
+  so a destroyed carrier always hands its Escort markers back. The bots'
+  overheat gate keeps one hull instead of three on a move that arrives at a
+  station. Bots almost never take heat damage (0% of turns), so it moves no
+  number: 300-game sim at three seats 27 rounds and 3 destructions a game,
+  `balance --quick` with no failing flag.
 - **The plasma cannon and the disruptor.** Adopted 1 Oct 2026 as the
   designer's two weapons. Plasma (side, 3 energy): 4 damage, ±1 ring ±1 sector,
   one side only; shields stop it a point per cube, so a full wall stops it

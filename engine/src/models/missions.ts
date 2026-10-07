@@ -46,7 +46,6 @@ import { DAMAGING_WEAPON_TYPES } from "./subsystems.ts";
  */
 export const DEFAULT_POINTS_TO_WIN = 3;
 
-
 /** Dealt from the primary deck, and kept from that deal. */
 export const PRIMARY_OFFERS_PER_PLAYER = 3;
 export const PRIMARIES_PER_PLAYER = 1;
@@ -60,8 +59,7 @@ export const SECONDARY_COPIES_PER_KIND = 4;
 export const SECONDARIES_PER_PLAYER = 2;
 
 export const MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
-export const MISSION_OFFERS_PER_PLAYER =
-  PRIMARY_OFFERS_PER_PLAYER + SECONDARY_OFFERS_PER_PLAYER;
+export const MISSION_OFFERS_PER_PLAYER = PRIMARY_OFFERS_PER_PLAYER + SECONDARY_OFFERS_PER_PLAYER;
 
 /** Black hole ring a ship must end its turn on to complete a Survey. */
 export const SURVEY_RING = 1;
@@ -256,12 +254,13 @@ export interface SurveyMission extends BaseMission {
 }
 
 /**
- * Piracy: end a turn, not moored, on an undocked ship carrying cargo and you
+ * Piracy: end a turn on an undocked ship carrying cargo and you
  * may take one item of your choice from it (a `seize` action); sell it at any
  * station.
  *
- * The only secondary card somebody else pays for. Neither ship may be moored:
- * a berth is not a place cargo changes hands. What the victim loses goes back
+ * The only secondary card somebody else pays for. The victim is undocked and
+ * shares the pirate's sector, so neither ship is moored: a berth is not a place
+ * cargo changes hands. What the victim loses goes back
  * to undone: a Deliver reloads at its station, a Survey dives again, an
  * Intercept scans again.
  *
