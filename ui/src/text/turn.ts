@@ -14,8 +14,8 @@ export const TURN = {
     respawn: {
       title: 'Respawn',
       blurb:
-        'Destroyed? This turn you come back: Home, full hull and fuel, repaired and reloaded, coasting. Nobody can touch you until your next turn ends, and on it you fire at nobody and scan nobody.',
-      terse: 'Destroyed? Home, full hull and fuel. Turn over',
+        'Destroyed? This turn you come back: At your home sector, full hull and fuel, repaired and reloaded, coasting. Nobody can touch you until your next turn ends. Likewise, you cannot fire or scan anyone.',
+      terse: 'Destroyed? Home, full hull and fuel. Turn over.',
     },
     clear: {
       title: 'Clear',
@@ -36,21 +36,21 @@ export const TURN = {
     heatCheck: {
       title: 'Heat check',
       blurb:
-        "Every point of energy on your loadout is 1 heat; at 0, repair one subsystem. Over {maxHeat} is hull damage and doesn't accumulate. Dissipate {dissipation} (+{radiator} a radiator), carry the rest.",
+        "Every point of energy on your loadout is 1 heat. At 0, repair one subsystem. Over {maxHeat} is hull damage and doesn't accumulate. Dissipate {dissipation} (+{radiator} a radiator), carry the rest.",
       terse:
         'Energy converts to heat. Over {maxHeat}, your ship takes damage. Dissipate {dissipation} (+{radiator} per radiator)',
     },
     docking: {
       title: 'Dock',
       blurb:
-        'Arrived on a station and survived the check? Repair everything, full hull, reload, and one thing: load your crates or sell one item. Each station buys from you once.',
+        'Arrived on a station? Repair everything, full hull, reload, and one action: load your crates or sell one item. Each station buys from you once.',
       terse: 'Repair, rearm, load or sell',
     },
     missions: {
       title: 'Missions',
       blurb:
-        "Take a wreck's black box. Seize an item or put down an Escort marker if you choose. Flip what you completed, then pass.",
-      terse: 'Black box, loot, Escort marker. Flip, pass',
+        "Take a wreck's black box. Seize an item or put down an escort marker if you choose. Flip what you completed, then pass.",
+      terse: 'Black box, loot, escort marker, reveal completed.',
     },
     /** Not part of anyone's turn: once a round, after the last seat has played. */
     stations: {
@@ -62,5 +62,5 @@ export const TURN = {
   },
 
   /** The one rule of the opening round, and of a ship's first turn back from Home. */
-  quiet: 'The first round reaches nobody: no weapon fires and nobody scans.',
+  quiet: 'During the first round you can only move: no weapon fires and nobody scans.',
 } as const

@@ -43,7 +43,7 @@ export const CHEATSHEET = {
   goal: {
     kicker: 'The goal',
     title: '{points} points end the round',
-    lede: 'Score your secret mission cards. When anyone reaches {points}, finish the round; the highest score wins, then the most hull, then the most fuel, then the earlier seat.',
+    lede: 'Score your secret mission cards. When anyone reaches {points}, finish the round. The highest score wins, then the most hull, then the most fuel, then the earlier seat.',
     /** How the sample cards name their rivals. */
     rivals: {
       'left-1': 'the 1st player to your left',
@@ -55,7 +55,7 @@ export const CHEATSHEET = {
     },
     secondaries: {
       title: 'Secondaries · {points} point',
-      detail: 'Dealt {dealt} from a shuffled pile, keep any {kept}',
+      detail: 'Dealt {dealt}, keep {kept}',
     },
   },
 
@@ -65,14 +65,14 @@ export const CHEATSHEET = {
   setup: {
     kicker: 'Before the first turn',
     title: 'Build the ship',
-    lede: 'Make it yours, keep your eye on the missions',
+    lede: 'Make it yours, keep an eye on the missions',
     forward: 'Forward · {slots}',
     /** Printed on the back of a face-down forward tile. */
     forwardBack: 'Fwd',
     side: 'Side · {slots}',
     /** Printed on the back of a face-down side tile. */
     sideBack: 'S{n}',
-    fixed: 'Mandatory on every ship',
+    fixed: 'Included on every ship',
   },
 
   // -------------------------------------------------------------------------
@@ -165,7 +165,7 @@ export const CHEATSHEET = {
       stays:
         'Energy <b>stays on the subsystem until your next turn</b>, so shields, a rack or a sensor you power work through everyone else’s turn.',
       absorbed:
-        'Damage your shields absorb is heat too at a 1:1 ratio, and a rack that rolls at missiles is {interceptHeat}: it goes on your track at once and is paid at your next check.',
+        'Damage your shields absorb is heat too at a 1:1 ratio. A ballistic rack that intercepts missiles is {interceptHeat}: it goes on your track and carried over to your next turn.',
       over: 'Over {maxHeat} heat at your check is hull damage. Dissipate {dissipation} (+{radiator} a radiator) and carry the rest.',
       cold: 'If you have 0 heat at your check, repair one broken subsystem.',
     },
@@ -215,16 +215,15 @@ export const CHEATSHEET = {
     reach: {
       railgun:
         'Same ring, 1–{sectors} sectors ahead. The recoil pushes you a ring against your facing, unless you spend 1 fuel to hold.',
-      laser:
-        '±{rings} rings, ±{sectors} sector, off one side, never along your own ring. <b>Ignores shields.</b>',
+      laser: '±{rings} rings, ±{sectors} sector, off one side. <b>Ignores shields.</b>',
       ballistic_rack:
         '±{rings} ring, ±{sectors} sector, either side. With energy on it, shoots down {intercepts} missiles a turn on {on}+, for {heat} heat however many.',
       missiles:
         'Any ship in your well. Launch any number at one ship: {aboard} aboard, {steps} steps a turn for {turns} turns.',
       plasma_cannon:
-        '±{rings} ring, ±{sectors} sector, off one side, never along your own ring. <b>Each shield energy stops {points} damage</b>',
+        '±{rings} ring, ±{sectors} sector, off one side. <b>Each shield energy stops {points} damage</b>',
       disruptor:
-        'An EMP burst: ±{rings} ring, ±{sectors} sector, either side, like the rack. <b>No damage</b>: a hit ({from}–{to}) breaks the slot you named, unless any shield has energy on it.',
+        'An EMP burst: ±{rings} ring, ±{sectors} sector, either side. <b>No damage</b>: a hit ({from}–{to}) breaks the slot you named, unless any shield has energy on it.',
     },
     /** A gun that fits either slot. */
     eitherSlot: 'forward or side',
@@ -252,12 +251,12 @@ export const CHEATSHEET = {
     },
     /** The two columns of points at the foot of the section. */
     hits: [
-      '<b>Shields absorb first</b>: each energy stops {shieldPoints} damage ({plasmaPoints} of plasma) and comes off. <b>Every point absorbed is heat</b> on the target’s track. Lasers ignore them.',
-      'The rest is hull. At 0 the ship is destroyed (see 08).',
+      '<b>Shields absorb first</b>: each energy stops {shieldPoints} damage ({plasmaPoints} of plasma). <b>Every point absorbed is heat</b> on the target’s track. Lasers ignore them.',
+      'At 0 the ship is destroyed (see 08).',
+      'In your own sector every weapon reaches. Nothing fires across wells.',
     ],
     rules: [
       '<b>A critical breaks the slot you named</b>, shields or not, and its energy goes onto its owner’s heat.',
-      'In your own sector every weapon reaches. Nothing fires across wells.',
       '<b>A berth is safe</b>: a moored ship neither fires nor is fired at, missiles included. Scans still reach it.',
     ],
   },
@@ -284,7 +283,6 @@ export const CHEATSHEET = {
     energyTitle: 'Read the energy',
     energy: [
       'Energy on every subsystem is <b>public</b>. On a face-down subsystem it means powered, not used.',
-      '{half} can only be a half shield; {full} is a full shield, a rack or a sensor.',
       'A gun is dark until it fires.',
     ],
     scanTitle: 'Scan to be sure',
@@ -305,17 +303,17 @@ export const CHEATSHEET = {
       {
         when: 'At 0 hull',
         title: 'Off the board',
-        text: 'Leave a wreck. Crates go back to their station, loot and data are lost, Escort markers on you and yours go back to their owners, and your missiles in flight are removed. Your Destroy holder scores {destroyPoints}.',
+        text: 'Leave a wreck. Crates go back to their station, loot and data are lost, Escort markers go back to their owners, and your missiles in flight are removed',
       },
       {
         when: 'Your next turn',
         title: 'Back at Home',
-        text: 'Full hull and fuel, repaired and reloaded, heat 0, drifting. That is the turn.',
+        text: 'Full hull and fuel, repaired and reloaded, heat 0, coasting. End the turn.',
       },
       {
         when: 'The turn after',
         title: 'A quiet turn',
-        text: 'Move as usual, fire at nobody, scan nobody. Nobody can touch you until it ends.',
+        text: 'Move as usual, but you cannot fire or scan. Nobody can touch you until it ends.',
       },
     ],
   },
@@ -328,7 +326,7 @@ export const CHEATSHEET = {
   // -------------------------------------------------------------------------
   card: {
     kicker: 'For the table',
-    title: 'One card for every seat',
+    title: 'Cheatsheet',
     lede: 'Two faces of a {width}×{height}mm card: your turn on the front, the fight on the back.',
     print: 'Print faces',
     printNote: 'One A4 sheet at true size.',
