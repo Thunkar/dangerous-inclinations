@@ -10,9 +10,12 @@
  * (`tools/OrbitalWindows.tsx`), linked from the foot of the last section.
  *
  * The card is drawn at its true size and previewed through a transform, so
- * what is on screen is the geometry that reaches the printer; printing lays
- * both faces on one A4 sheet to cut out, and nothing else on the page prints.
+ * what is on screen is the geometry that reaches the printer. Printing lays
+ * four faces on each A4 page with crop marks (`card/sheet.ts`): two cards on
+ * one side, or four fronts and then four backs for a duplex printer, and
+ * nothing else on the page prints.
  */
+import { useState } from 'react'
 import { Box } from '@mui/material'
 import PrintIcon from '@mui/icons-material/Print'
 import { FONT_MONO } from '../theme'
@@ -29,7 +32,17 @@ import { HeatSection } from './guide/HeatSection'
 import { FightSection } from './guide/FightSection'
 import { DeathSection, SecretsSection } from './guide/SecretsSection'
 import { CardBack, CardFront } from './card/CardFaces'
-import { CARD_CSS, CARD_HEIGHT_MM, CARD_PAGE_CSS, CARD_WIDTH_MM } from './card/cardStyles'
+import {
+  CARD_CSS,
+  CARD_HEIGHT_MM,
+  CARD_PAGE_CSS,
+  CARD_WIDTH_MM,
+  SHEET_HEIGHT_MM,
+  SHEET_WIDTH_MM,
+} from './card/cardStyles'
+import { cropMarks, sheetPages, type PrintMode } from './card/sheet'
+import { INK } from './diagram'
+import { Segments } from './tools/controls'
 import { CHEATSHEET } from '../text/cheatsheet'
 import { rich } from '../utils/rich'
 
@@ -133,7 +146,62 @@ function Contents() {
   )
 }
 
+type Sides = 'sheet' | 'duplex'
+type Flip = 'long' | 'short'
+
+/**
+ * The pages that print, hidden on screen: every face at scale 1 at the
+ * millimetre the sheet puts it, the crop marks drawn under them.
+ */
+function PrintSheets({ mode }: { mode: PrintMode }) {
+  return (
+    <div className="di-sheets">
+      {sheetPages(mode).map((faces, page) => (
+        <div key={page} className="di-page">
+          <svg
+            className="di-marks"
+            width={`${SHEET_WIDTH_MM}mm`}
+            height={`${SHEET_HEIGHT_MM}mm`}
+            viewBox={`0 0 ${SHEET_WIDTH_MM} ${SHEET_HEIGHT_MM}`}
+            aria-hidden
+          >
+            {cropMarks(faces).map((m, i) => (
+              <line
+                key={i}
+                x1={m.x1}
+                y1={m.y1}
+                x2={m.x2}
+                y2={m.y2}
+                stroke={INK}
+                strokeWidth={0.2}
+              />
+            ))}
+          </svg>
+          {faces.map((face, i) => (
+            <div
+              key={i}
+              className={face.rotated ? 'di-slot di-turned' : 'di-slot'}
+              data-face={face.face}
+              style={{ left: `${face.x}mm`, top: `${face.y}mm` }}
+            >
+              {face.face === 'front' ? <CardFront /> : <CardBack />}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** The bundled faces must be in before the sheet is laid out for the printer. */
+function print() {
+  void document.fonts.ready.then(() => window.print())
+}
+
 function PrintCard() {
+  const [sides, setSides] = useState<Sides>('sheet')
+  const [flip, setFlip] = useState<Flip>('long')
+  const mode: PrintMode = sides === 'sheet' ? 'sheet' : `duplex-${flip}`
   return (
     <Box
       component="section"
@@ -154,20 +222,39 @@ function PrintCard() {
             {rich(T.card.lede, { width: CARD_WIDTH_MM, height: CARD_HEIGHT_MM })}
           </Body>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mt: 3 }}>
-            <Slab tone="red" onClick={() => window.print()}>
+            <Segments
+              value={sides}
+              options={(['sheet', 'duplex'] as const).map(value => ({
+                value,
+                label: T.card.modes[value],
+              }))}
+              onChange={setSides}
+            />
+            {sides === 'duplex' && (
+              <Segments
+                value={flip}
+                options={(['long', 'short'] as const).map(value => ({
+                  value,
+                  label: T.card.flips[value],
+                }))}
+                onChange={setFlip}
+              />
+            )}
+            <Slab tone="red" onClick={print}>
               <PrintIcon sx={{ fontSize: 20 }} />
               {T.card.print}
             </Slab>
-            <Body size="0.92rem" color={PRESS.inkSoft} sx={{ maxWidth: '52ch' }}>
-              {T.card.printNote}
-            </Body>
           </Box>
+          <Body size="0.92rem" color={PRESS.inkSoft} sx={{ maxWidth: '62ch', mt: 1.5 }}>
+            {T.card.printNote[mode]}
+          </Body>
         </Box>
 
         <Box className="di-cards">
           <CardFront />
           <CardBack />
         </Box>
+        <PrintSheets mode={mode} />
       </Box>
     </Box>
   )

@@ -328,7 +328,16 @@ export const CHEATSHEET = {
     kicker: 'For the table',
     title: 'Cheatsheet',
     lede: 'Two faces of a {width}×{height}mm card: your turn on the front, the fight on the back.',
-    print: 'Print faces',
-    printNote: 'One A4 sheet at true size.',
+    print: 'Print',
+    modes: { sheet: 'Sheet', duplex: 'Double-sided' },
+    flips: { long: 'Long-edge flip', short: 'Short-edge flip' },
+    printNote: {
+      sheet:
+        'One A4 page with two cards, each front beside its back. Print at actual size and cut along the marks.',
+      'duplex-long':
+        'Two A4 pages with four cards, fronts then backs. Print both sides at actual size, flipping on the long edge.',
+      'duplex-short':
+        'Two A4 pages with four cards, fronts then backs. Print both sides at actual size, flipping on the short edge.',
+    },
   },
 } as const

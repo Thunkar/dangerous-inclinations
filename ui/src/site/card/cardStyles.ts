@@ -13,15 +13,18 @@
  *
  * The card is drawn at its true size and the preview scales it with a
  * transform, so what you see on screen is exactly the geometry that reaches
- * the printer. In print the scale goes back to 1 and two faces sit side by
- * side on one A4 sheet to cut along their edges.
+ * the printer. In print the preview is hidden and the sheets are shown
+ * instead: A4 pages with no margin of their own, every face at scale 1 at the
+ * millimetre `card/sheet.ts` gives it, and the crop marks between.
  */
 import { INK, RED } from '../diagram'
 
 /** Tarot / oversized: the smallest card the turn and the moves fit on. */
 export const CARD_WIDTH_MM = 70
 export const CARD_HEIGHT_MM = 120
-
+/** The paper it is printed on: A4 portrait. */
+export const SHEET_WIDTH_MM = 210
+export const SHEET_HEIGHT_MM = 297
 
 export const CARD_CSS = `
 .di-cards {
@@ -210,8 +213,23 @@ export const CARD_CSS = `
 .di-fork span::before { left: calc(-1.4mm - 0.3mm); }
 .di-fork span::after { right: calc(-1.4mm - 0.3mm); }
 
+/* The printed pages: hidden on screen, and drawn to the millimetre in print. */
+.di-sheets { display: none; --card-zoom: 1; }
+.di-page {
+  position: relative; width: ${SHEET_WIDTH_MM}mm; height: ${SHEET_HEIGHT_MM}mm;
+  overflow: hidden; background: #fff;
+}
+.di-page + .di-page { break-before: page; }
+.di-marks { position: absolute; left: 0; top: 0; }
+.di-slot { position: absolute; width: ${CARD_WIDTH_MM}mm; height: ${CARD_HEIGHT_MM}mm; }
+.di-slot.di-turned { transform: rotate(180deg); }
+
 @media print {
-  .di-cards { --card-zoom: 1; gap: 6mm; justify-content: center; }
+  .di-cards { display: none !important; }
+  .di-sheets { display: block; }
+  /* The app fills the window on screen; a printed document is as tall as its pages. */
+  html, body, #root { height: auto !important; }
+  .site-page { min-height: 0 !important; overflow: visible !important; }
   .site-only, .di-screen-only { display: none !important; }
   /* The page around the cards is paper-coloured on screen. The printed sheet
      is the stock, so it is told to be white. */
@@ -222,5 +240,5 @@ export const CARD_CSS = `
 `
 
 export const CARD_PAGE_CSS = `
-@page { size: A4 portrait; margin: 12mm; }
+@page { size: A4 portrait; margin: 0; }
 `

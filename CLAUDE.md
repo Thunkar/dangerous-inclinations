@@ -350,9 +350,13 @@ fight** (the roll, the guns, what a hit does, what is held up, the heat check,
 what gives a subsystem away). Black and one red on white stock, which survives a
 black-and-white printer as ink and a mid grey. It is drawn at true size with
 the preview scaled by a transform, so what is seen is the geometry that
-reaches the printer, and printing puts both faces on one A4 sheet with
-nothing else. It does not repeat the board or the missions: ring speeds, lane
-sectors and card text are printed in front of you. About 105mm of column per
+reaches the printer. Printing lays four faces at true size on each A4 page,
+centred with crop marks, at millimetres `card/sheet.ts` computes from the page:
+**Sheet** is one page of two cards (each front beside its back), and
+**Double-sided** is four fronts and then four backs, each back at the mirror of
+its front for the chosen flip (long edge: columns swapped; short edge: rows
+swapped and the face turned 180°). It does not repeat the board or the
+missions: ring speeds, lane sectors and card text are printed in front of you. About 105mm of column per
 face; content that does not fit is content to cut, and nothing in the card
 shrinks to hide that (`.di-card > *` never shrinks, so overflow shows).
 
