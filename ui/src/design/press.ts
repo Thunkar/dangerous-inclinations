@@ -52,6 +52,13 @@ export const FAMILY_INK: Record<MissionFamily, string> = {
  */
 export const FONT_DISPLAY =
   '"Oswald Variable", Oswald, "Arial Narrow", "Roboto Condensed", "Liberation Sans Narrow", sans-serif'
+/**
+ * The body face of printed matter. Bundled (`@fontsource-variable/noto-sans`)
+ * for the same reason as the display face, and one more: the card is cut at
+ * its true size, so a system font that runs a few percent wider on another
+ * machine wraps a line and pushes the last section off the card.
+ */
+export const FONT_BODY = '"Noto Sans Variable", "Noto Sans", sans-serif'
 
 /** The angle of the one diagonal every printed thing carries (the cards' band). */
 export const BAND_ANGLE = 32

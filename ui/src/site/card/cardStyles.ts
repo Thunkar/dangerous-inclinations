@@ -49,7 +49,7 @@ export const CARD_CSS = `
   padding: 0 3mm 0;
   display: flex;
   flex-direction: column;
-  gap: 1.1mm;
+  gap: 0.9mm;
   background: #fff;
   color: ${INK};
   border: 0.3mm solid ${INK};
@@ -114,14 +114,14 @@ export const CARD_CSS = `
 }
 
 /* Tables. Numbers in the poster face so columns line up; words in the sans. */
-.di-t { width: 100%; border-collapse: collapse; font-size: 5.2pt; }
+.di-t { width: 100%; border-collapse: collapse; font-size: 5.2pt; line-height: 1.15; }
 .di-t th {
   font-family: var(--di-display); font-weight: 600; font-size: 5pt; letter-spacing: 0.08em;
   text-transform: uppercase; text-align: right; padding: 0 0 0.35mm 0.9mm; white-space: nowrap;
 }
 .di-t th:first-child { text-align: left; padding-left: 0; }
 .di-t th.di-l { text-align: left; padding-left: 1.4mm; }
-.di-t td { padding: 0.35mm 0 0.35mm 0.9mm; vertical-align: top; }
+.di-t td { padding: 0.3mm 0 0.3mm 0.7mm; vertical-align: top; }
 .di-t td:first-child { padding-left: 0; }
 .di-t .n {
   width: 1%;
@@ -134,8 +134,8 @@ export const CARD_CSS = `
   font-family: var(--di-display); font-weight: 600; font-size: 6pt; text-transform: uppercase;
   letter-spacing: 0.02em; white-space: nowrap; line-height: 1.05;
 }
-.di-t .di-ic { width: 3.4mm; padding-top: 0.2mm; }
-.di-t td.di-w { padding-left: 1.4mm; }
+.di-t .di-ic { width: 3.2mm; padding-top: 0.2mm; }
+.di-t td.di-w { padding-left: 1.1mm; }
 .di-t tbody tr + tr td { border-top: 0.15mm solid #bbb; }
 .di-t .r { color: ${RED}; }
 

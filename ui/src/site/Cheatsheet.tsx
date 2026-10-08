@@ -15,8 +15,8 @@
  */
 import { Box } from '@mui/material'
 import PrintIcon from '@mui/icons-material/Print'
-import { FONT_MONO, FONT_SANS } from '../theme'
-import { FONT_DISPLAY, PRESS } from '../design/press'
+import { FONT_MONO } from '../theme'
+import { FONT_BODY, FONT_DISPLAY, PRESS } from '../design/press'
 import { SiteFooter, SiteHeader } from './SiteChrome'
 import { SiteLink } from './SiteLink'
 import { Body, Display, Kicker, Numeral, Slab } from './poster'
@@ -42,7 +42,7 @@ const T = CHEATSHEET
  * previewed on (see `card/cardStyles.ts`).
  */
 const STYLE = `
-:root { --di-sans: ${FONT_SANS}; --di-mono: ${FONT_MONO}; --di-display: ${FONT_DISPLAY}; }
+:root { --di-sans: ${FONT_BODY}; --di-mono: ${FONT_MONO}; --di-display: ${FONT_DISPLAY}; }
 ${CARD_PAGE_CSS}
 ${CARD_CSS}
 `
