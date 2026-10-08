@@ -19,7 +19,7 @@ export const PRINTED_CARD = {
     face: 'Turn/movement',
     goal: {
       title: '{points} points end the round',
-      text: 'Primary {primary} + either secondary {secondary} wins. Ties: hull, then fuel.',
+      text: 'Primary + either secondary completed. Ties: hull, then fuel.',
     },
     turn: {
       title: 'The turn',
@@ -46,16 +46,16 @@ export const PRINTED_CARD = {
         move: 'Coast',
         and: 'Scoop ({energy} energy): +fuel equal to ring speed',
       },
-      burn: { move: 'Burn', and: '1 of each a ring; prograde out' },
+      burn: { move: 'Burn', and: '1 of each a ring. Prograde out' },
       jump: {
         move: 'Jump',
         /** The fuel cell: the jump's fuel, then the compressor's in red. */
         fuel: '{fuel}<red>/{compressed}</red>',
-        and: 'No drift; <red>{compressed}</red> fuel with a compressor',
+        and: 'No drift. <red>{compressed}</red> fuel with a compressor',
       },
       rotate: { move: 'Rotate', and: 'Flip facing' },
       phase: 'phase',
-      phaseNote: 'fuel to land, from speed {speed}',
+      phaseNote: 'additional fuel',
     },
   },
 
@@ -74,37 +74,39 @@ export const PRINTED_CARD = {
           'Roll a d10',
           '{miss} miss · {hitFrom}–{hitTo} hit · {crit} crit · <red>{sensorFrom}–{sensorTo} crit with a powered sensor</red>',
         ],
-        hit: ['hit', 'Shields absorb first, into heat; the rest is hull damage'],
+        hit: ['hit', 'Shields absorb first and generate heat, the rest is hull damage'],
         critical: [
           'critical',
-          'Breaks the named slot face-up, through shields; its energy goes to heat',
+          'Breaks the named slot face-up, through shields. Its energy converts to heat',
         ],
-        moored: ['moored', 'Neither fires nor is fired at, missiles too; scans reach it'],
+        moored: ['moored', 'Neither fires nor is fired at, missiles too. Scans reach it'],
       },
     },
     weapons: {
       title: 'Weapons',
-      aside: 'each fires once a turn',
+      aside: 'once a turn',
       columns: { subsystem: 'subsystem', energy: 'energy', damage: 'dmg', reaches: 'reaches' },
-      /** The damage cell of a weapon that deals none. */
+      /** The cell of a figure that is nothing: a gun that deals no damage, a move that costs no fuel. */
       noDamage: '–',
       reach: {
-        railgun: 'same ring, 1–{sectors} ahead; recoils against facing',
-        laser: '±{rings} rings ±{sectors}, one side; <red>ignores shields</red>',
+        railgun: 'same ring, 1–{sectors} ahead. Recoils against facing',
+        laser: '±{rings} rings ±{sectors}, one side. <red>Ignores shields</red>',
         plasma_cannon:
-          '±{rings} ring ±{sectors}, one side; <red>a shield energy stops {points}</red>',
+          '±{rings} ring ±{sectors}, one side. <red>Every shield energy stops {points}</red>',
         ballistic_rack: '±{rings} ring ±{sectors} either side, or 1 along your ring',
-        disruptor: "rack's reach; breaks the named slot; <red>any powered shield stops it</red>",
+        disruptor:
+          '±{rings} ring ±{sectors} either side, or 1 along your ring. Breaks the named slot. <red>A powered shield stops it</red>',
         missiles:
-          'inside your well, a salvo is one action; {aboard} aboard, fly {steps} steps a turn for {turns} turns',
+          'inside your well, a salvo is one action. {aboard}\u00a0aboard, fly {steps} steps a turn for {turns} turns',
       },
     },
     powered: {
       title: 'Powered',
       aside: 'works until your next turn',
+      columns: { subsystem: 'subsystem', energy: 'energy', effect: 'effect' },
       shields: 'each energy stops {points} damage and comes off',
       ballistic_rack: 'shoots down {missiles} missiles a turn on {on}+, for {heat} heat',
-      sensor_array: "shots after it's enabled crit on {crit}+; scan: your ring, within {sectors}",
+      sensor_array: "shots after it's enabled crit on {crit}+. Scan: your ring, within {sectors}",
     },
     heat: {
       title: 'Heat check',
@@ -122,7 +124,7 @@ export const PRINTED_CARD = {
     faceDown: {
       title: 'Face-down',
       aside: 'energy is public',
-      text: 'Using a subsystem turns it face-up; powering it does not. A radiator shows above {heat} heat.',
+      text: 'Using a subsystem turns it face-up, powering it does not. A radiator shows above {heat} heat.',
     },
   },
 } as const

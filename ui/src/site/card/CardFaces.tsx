@@ -62,6 +62,9 @@ const B = PRINTED_CARD.back
 /** On the card, red words are bold. */
 const RED_WORDS: RichTags = { red: text => <b className="r">{text}</b> }
 
+/** A cost or a figure of nothing: a dash, as the weapons table prints a gun that deals none. */
+const NONE = B.weapons.noDamage
+
 const PRIMARY = MISSION_POINTS.destroy_ship
 const SECONDARY = MISSION_POINTS.survey
 
@@ -114,6 +117,71 @@ function Notes({ rows }: { rows: ReadonlyArray<readonly [string, ReactNode]> }) 
 
 const Icon = ({ type }: { type: SubsystemType }) => <TileIcon type={type} size={9} title={null} />
 
+/** A row of a card table: an icon, a name, its numbers and a line of text. */
+interface TableRow {
+  key: string
+  icon: SubsystemType
+  name: string
+  numbers: ReactNode[]
+  text: ReactNode
+}
+
+/**
+ * Every table on the card has one shape: icon, name, the numbers (energy
+ * first), then the text that says what it does. Same header, same column
+ * widths, same rules between rows, so a column read in one table is the same
+ * column in the next. `red` marks the number columns set in red.
+ */
+function CardTable({
+  head,
+  rows,
+  red = [],
+}: {
+  head: { name: string; numbers: string[]; text: string; hidden?: boolean }
+  rows: TableRow[]
+  red?: number[]
+}) {
+  return (
+    <table className="di-t">
+      <colgroup>
+        <col className="di-c-ic" />
+        <col className="di-c-k" />
+        {head.numbers.map(n => (
+          <col key={n} className="di-c-n" />
+        ))}
+        <col />
+      </colgroup>
+      <thead className={head.hidden ? 'di-quiet-head' : undefined}>
+        <tr>
+          <th colSpan={2}>{head.name}</th>
+          {head.numbers.map(n => (
+            <th key={n}>
+              <span>{n}</span>
+            </th>
+          ))}
+          <th className="di-l">{head.text}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(row => (
+          <tr key={row.key}>
+            <td className="di-ic">
+              <Icon type={row.icon} />
+            </td>
+            <td className="k">{row.name}</td>
+            {row.numbers.map((n, i) => (
+              <td key={i} className={red.includes(i) ? 'n r' : 'n'}>
+                {n}
+              </td>
+            ))}
+            <td className="di-w">{row.text}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Front: your turn
 // ---------------------------------------------------------------------------
@@ -148,64 +216,50 @@ export function CardFront() {
       </Section>
 
       <Section title={F.costs.title}>
-        <table className="di-t">
-          <thead>
-            <tr>
-              <th colSpan={2}>{F.costs.columns.move}</th>
-              <th>{F.costs.columns.fuel}</th>
-              <th>{F.costs.columns.energy}</th>
-              <th className="di-l">{F.costs.columns.and}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="di-ic">
-                <Icon type="scoop" />
-              </td>
-              <td className="k">{F.costs.coast.move}</td>
-              <td className="n">0</td>
-              <td className="n">0</td>
-              <td className="di-w">
-                {rich(F.costs.coast.and, { energy: SUBSYSTEM_CONFIGS.scoop.minEnergy })}
-              </td>
-            </tr>
-            <tr>
-              <td className="di-ic">
-                <Icon type="engines" />
-              </td>
-              <td className="k">{F.costs.burn.move}</td>
-              <td className="n">{span(soft.mass, hard.mass)}</td>
-              <td className="n">{span(soft.energy, hard.energy)}</td>
-              <td className="di-w">{F.costs.burn.and}</td>
-            </tr>
-            <tr>
-              <td className="di-ic">
-                <Icon type="engines" />
-              </td>
-              <td className="k">{F.costs.jump.move}</td>
-              <td className="n">
-                {rich(
+        <CardTable
+          head={{
+            name: F.costs.columns.move,
+            numbers: [F.costs.columns.energy, F.costs.columns.fuel],
+            text: F.costs.columns.and,
+          }}
+          rows={[
+            {
+              key: 'coast',
+              icon: 'scoop',
+              name: F.costs.coast.move,
+              numbers: [NONE, NONE],
+              text: rich(F.costs.coast.and, { energy: SUBSYSTEM_CONFIGS.scoop.minEnergy }),
+            },
+            {
+              key: 'burn',
+              icon: 'engines',
+              name: F.costs.burn.move,
+              numbers: [span(soft.energy, hard.energy), span(soft.mass, hard.mass)],
+              text: F.costs.burn.and,
+            },
+            {
+              key: 'jump',
+              icon: 'engines',
+              name: F.costs.jump.move,
+              numbers: [
+                WELL_TRANSFER_COSTS.energy,
+                rich(
                   F.costs.jump.fuel,
                   { fuel: WELL_TRANSFER_COSTS.mass, compressed: COMPRESSED_JUMP_MASS },
                   { red: text => <span className="r">{text}</span> }
-                )}
-              </td>
-              <td className="n">{WELL_TRANSFER_COSTS.energy}</td>
-              <td className="di-w">
-                {rich(F.costs.jump.and, { compressed: COMPRESSED_JUMP_MASS }, RED_WORDS)}
-              </td>
-            </tr>
-            <tr>
-              <td className="di-ic">
-                <Icon type="rotation" />
-              </td>
-              <td className="k">{F.costs.rotate.move}</td>
-              <td className="n">0</td>
-              <td className="n">{SUBSYSTEM_CONFIGS.rotation.minEnergy}</td>
-              <td className="di-w">{F.costs.rotate.and}</td>
-            </tr>
-          </tbody>
-        </table>
+                ),
+              ],
+              text: rich(F.costs.jump.and, { compressed: COMPRESSED_JUMP_MASS }, RED_WORDS),
+            },
+            {
+              key: 'rotate',
+              icon: 'rotation',
+              name: F.costs.rotate.move,
+              numbers: [SUBSYSTEM_CONFIGS.rotation.minEnergy, NONE],
+              text: F.costs.rotate.and,
+            },
+          ]}
+        />
         <Phasing />
       </Section>
     </Card>
@@ -263,7 +317,7 @@ function Phasing() {
         <path d={`M${mid(drift)} 42V30`} stroke={RED} strokeWidth={6} fill="none" />
         <path d={`M${mid(drift) - 7} 33L${mid(drift)} 26L${mid(drift) + 7} 33z`} fill={RED} />
       </svg>
-      <span className="di-phase-note">{rich(F.costs.phaseNote, { speed: drift })}</span>
+      <span className="di-phase-note">{rich(F.costs.phaseNote, {})}</span>
     </div>
   )
 }
@@ -334,7 +388,14 @@ const WEAPONS: Array<{ type: SubsystemType; reach: ReactNode }> = [
   },
   {
     type: 'disruptor',
-    reach: rich(B.weapons.reach.disruptor, {}, RED_WORDS),
+    reach: rich(
+      B.weapons.reach.disruptor,
+      {
+        rings: weaponStats('disruptor').ringRange!,
+        sectors: weaponStats('disruptor').sectorRange!,
+      },
+      RED_WORDS
+    ),
   },
   {
     type: 'missiles',
@@ -364,25 +425,6 @@ const POWERED: Array<{ type: SubsystemType; effect: ReactNode }> = [
     effect: fill(B.powered.sensor_array, { crit: SENSOR_CRIT, sectors: SCAN_SECTOR_RANGE }),
   },
 ]
-
-function TileRows({ rows }: { rows: Array<{ type: SubsystemType; effect: ReactNode }> }) {
-  return (
-    <table className="di-t">
-      <tbody>
-        {rows.map(({ type, effect }) => (
-          <tr key={type}>
-            <td className="di-ic">
-              <Icon type={type} />
-            </td>
-            <td className="k">{tileName(type)}</td>
-            <td className="n">{energyLabel(type)}</td>
-            <td className="di-w">{effect}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
 
 export function CardBack() {
   return (
@@ -421,33 +463,40 @@ export function CardBack() {
       </Section>
 
       <Section title={B.weapons.title} aside={B.weapons.aside}>
-        <table className="di-t">
-          <thead>
-            <tr>
-              <th colSpan={2}>{B.weapons.columns.subsystem}</th>
-              <th>{B.weapons.columns.energy}</th>
-              <th>{B.weapons.columns.damage}</th>
-              <th className="di-l">{B.weapons.columns.reaches}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {WEAPONS.map(({ type, reach }) => (
-              <tr key={type}>
-                <td className="di-ic">
-                  <Icon type={type} />
-                </td>
-                <td className="k">{tileName(type)}</td>
-                <td className="n">{energyLabel(type)}</td>
-                <td className="n r">{weaponStats(type).damage || B.weapons.noDamage}</td>
-                <td className="di-w">{reach}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <CardTable
+          head={{
+            name: B.weapons.columns.subsystem,
+            numbers: [B.weapons.columns.energy, B.weapons.columns.damage],
+            text: B.weapons.columns.reaches,
+          }}
+          red={[1]}
+          rows={WEAPONS.map(({ type, reach }) => ({
+            key: type,
+            icon: type,
+            name: tileName(type),
+            numbers: [energyLabel(type), weaponStats(type).damage || B.weapons.noDamage],
+            text: reach,
+          }))}
+        />
       </Section>
 
       <Section title={B.powered.title} aside={B.powered.aside}>
-        <TileRows rows={POWERED} />
+        <CardTable
+          head={{
+            name: B.powered.columns.subsystem,
+            numbers: [B.powered.columns.energy],
+            text: B.powered.columns.effect,
+            // The weapons table above names these columns already.
+            hidden: true,
+          }}
+          rows={POWERED.map(({ type, effect }) => ({
+            key: type,
+            icon: type,
+            name: tileName(type),
+            numbers: [energyLabel(type)],
+            text: effect,
+          }))}
+        />
       </Section>
 
       <Section title={B.heat.title} aside={B.heat.aside}>

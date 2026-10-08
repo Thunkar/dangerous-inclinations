@@ -14,7 +14,7 @@ export const TURN = {
     respawn: {
       title: 'Respawn',
       blurb:
-        'Destroyed? This turn you come back: Home, full hull and fuel, repaired and reloaded, drifting. Nobody can touch you until your next turn ends, and on it you fire at nobody and scan nobody.',
+        'Destroyed? This turn you come back: Home, full hull and fuel, repaired and reloaded, coasting. Nobody can touch you until your next turn ends, and on it you fire at nobody and scan nobody.',
       terse: 'Destroyed? Home, full hull and fuel. Turn over',
     },
     clear: {
@@ -44,13 +44,13 @@ export const TURN = {
       title: 'Dock',
       blurb:
         'Arrived on a station and survived the check? Repair everything, full hull, reload, and one thing: load your crates or sell one item. Each station buys from you once.',
-      terse: 'Arrived? Repair, rearm, load or sell',
+      terse: 'Repair, rearm, load or sell',
     },
     missions: {
       title: 'Missions',
       blurb:
         "Take a wreck's black box. Seize an item or put down an Escort marker if you choose. Flip what you completed, then pass.",
-      terse: 'Black box, loot, Escort marker; flip, pass',
+      terse: 'Black box, loot, Escort marker. Flip, pass',
     },
     /** Not part of anyone's turn: once a round, after the last seat has played. */
     stations: {

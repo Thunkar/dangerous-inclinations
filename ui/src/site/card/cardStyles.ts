@@ -91,7 +91,7 @@ export const CARD_CSS = `
   display: flex; align-items: baseline; gap: 1.5mm;
   font-family: var(--di-display); font-weight: 600; font-size: 6.6pt;
   letter-spacing: 0.08em; text-transform: uppercase;
-  border-bottom: 0.55mm solid ${INK}; padding-bottom: 0.35mm; margin-bottom: 0.9mm;
+  border-bottom: 0.55mm solid ${INK}; padding-bottom: 0.35mm; margin-bottom: 0.7mm;
 }
 .di-band em { margin-left: auto; font-style: normal; color: ${RED}; font-size: 5.6pt; letter-spacing: 0.06em; }
 .di-sec { display: flex; flex-direction: column; }
@@ -113,29 +113,38 @@ export const CARD_CSS = `
   letter-spacing: 0.04em; text-transform: uppercase; color: ${RED};
 }
 
-/* Tables. Numbers in the poster face so columns line up; words in the sans. */
-.di-t { width: 100%; border-collapse: collapse; font-size: 5.2pt; line-height: 1.15; }
+/* Tables. One shape for all of them (CardTable): icon, name, numbers with
+   energy first, then the text, at the same column widths on every face, so a
+   column read in one table is the same column in the next. Numbers in the
+   poster face so columns line up; words in the sans. */
+.di-t { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 5.2pt; line-height: 1.15; }
+.di-c-ic { width: 3.6mm; }
+.di-c-k { width: 13mm; }
+.di-c-n { width: 4.4mm; }
+/* A number column is as narrow as its figures; its header may run left into the name's. */
+.di-t th > span { display: inline-block; margin-left: -8mm; }
 .di-t th {
   font-family: var(--di-display); font-weight: 600; font-size: 5pt; letter-spacing: 0.08em;
-  text-transform: uppercase; text-align: right; padding: 0 0 0.35mm 0.9mm; white-space: nowrap;
+  text-transform: uppercase; text-align: right; white-space: nowrap;
+  padding: 0 0 0.35mm 0; border-bottom: 0.3mm solid ${INK};
 }
-.di-t th:first-child { text-align: left; padding-left: 0; }
+.di-t th:first-child { text-align: left; }
 .di-t th.di-l { text-align: left; padding-left: 1.4mm; }
-.di-t td { padding: 0.3mm 0 0.3mm 0.7mm; vertical-align: top; }
-.di-t td:first-child { padding-left: 0; }
+/* Under a table with the same columns the header is not repeated: it keeps the column
+   widths and its rule, and prints nothing. */
+.di-quiet-head th { font-size: 0; line-height: 0; padding: 0; border: 0; }
+.di-t td { padding: 0.35mm 0 0.3mm 0; vertical-align: top; }
 .di-t .n {
-  width: 1%;
   font-family: var(--di-display); font-weight: 700; font-size: 6pt; text-align: right; white-space: nowrap;
   line-height: 1.05;
 }
-/* Names and numbers take only their own width: the slack goes to the text column. */
+/* A long name takes two lines, as its text usually does. */
 .di-t .k {
-  width: 1%;
   font-family: var(--di-display); font-weight: 600; font-size: 6pt; text-transform: uppercase;
-  letter-spacing: 0.02em; white-space: nowrap; line-height: 1.05;
+  letter-spacing: 0.02em; line-height: 1.05;
 }
-.di-t .di-ic { width: 3.2mm; padding-top: 0.2mm; }
-.di-t td.di-w { padding-left: 1.1mm; }
+.di-t .di-ic { padding-top: 0.3mm; }
+.di-t td.di-w { padding-left: 1.4mm; }
 .di-t tbody tr + tr td { border-top: 0.15mm solid #bbb; }
 .di-t .r { color: ${RED}; }
 
@@ -187,12 +196,12 @@ export const CARD_CSS = `
 .di-tree i.a { font-family: var(--di-display); font-weight: 700; font-size: 6pt; padding: 0 0.6mm; }
 .di-fork { position: relative; display: flex; flex-direction: column; gap: 0.6mm; padding: 0 1.4mm; flex: none; }
 .di-fork::before, .di-fork::after {
-  content: ''; position: absolute; top: 1.55mm; bottom: 1.55mm; border-left: 0.3mm solid ${INK};
+  content: ''; position: absolute; top: 1.35mm; bottom: 1.35mm; border-left: 0.3mm solid ${INK};
 }
 .di-fork::before { left: 0; }
 .di-fork::after { right: 0; }
 .di-fork span {
-  position: relative; box-sizing: border-box; height: 3.4mm;
+  position: relative; box-sizing: border-box; height: 3mm;
   display: flex; align-items: center; white-space: nowrap;
 }
 .di-fork span::before, .di-fork span::after {
