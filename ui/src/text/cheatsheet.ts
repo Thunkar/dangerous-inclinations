@@ -232,7 +232,7 @@ export const CHEATSHEET = {
     missilesTitle: 'Missiles in flight',
     missile: {
       label:
-        'Launched, the missile flies at once from where it was dropped, with no ride, and the ship moves on. On its second turn it rides its ring then flies, and reaches the target on turn {hitTurn}',
+        'Launched, the missile flies at once from where it was dropped, and the ship moves on. On its second turn it rides its ring, then flies, and reaches the target on turn {hitTurn}',
       ring: 'RING {ring}',
       speed: 'SPEED {speed}',
       targetDrifts: 'target drifts',
@@ -247,7 +247,7 @@ export const CHEATSHEET = {
         flies: 'flies {steps}, rings first',
       },
       caption:
-        'A missile flies {steps} steps the moment you launch it, from the sector you dropped it on, and your move afterwards leaves it there. At the end of every turn after that it rides its orbit, then flies {steps}. On the target’s sector it attacks like a weapon ({damage} damage), unless a rack with energy on it shoots it down on {on}+. A hit on the launch flight lands before the rest of your turn. It lasts {turns} turns.',
+        'A missile flies {steps} steps the moment you launch it, from the sector you dropped it on, and hits before the rest of your turn. Your move afterwards leaves it there. At the end of every turn after that it rides its orbit, then flies {steps}. On the target’s sector it attacks like a weapon ({damage} damage), unless a rack with energy on it shoots it down on {on}+. It lasts {turns} turns.',
     },
     /** The two columns of points at the foot of the section. */
     hits: [
