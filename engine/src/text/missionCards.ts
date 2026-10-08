@@ -12,7 +12,7 @@ export const MISSION_CARDS = {
   destroy_ship: {
     name: "Destroy",
     title: "Destroy {target}",
-    rule: "Bring the hull of {target} to 0 with a shot or a missile.",
+    rule: "Bring the hull of {target} to 0.",
     /** Under the card on the cheatsheet: what it needs aboard. */
     needs: "Needs a weapon that deals damage.",
   },
@@ -24,7 +24,7 @@ export const MISSION_CARDS = {
   intercept_transmission: {
     name: "Intercept",
     title: "Intercept {target} → file at {filing}",
-    rule: "Scan {target} (same ring, within {scanRange} sectors), then dock at {filing} to file it.",
+    rule: "Scan {target}, then dock at {filing} to file it.",
     /** Under the card on the cheatsheet: what it needs aboard. */
     needs: "Needs a sensor array.",
   },
@@ -54,7 +54,7 @@ export const MISSION_CARDS = {
   salvage: {
     name: "Salvage",
     title: "Salvage a wreck's black box and file it",
-    rule: "Take a wreck's black box on its sector. File it at any station.",
+    rule: "Take a wreck's black box data on its sector. File it at any station.",
   },
 } as const satisfies Record<
   MissionType,
