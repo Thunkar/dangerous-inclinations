@@ -13,6 +13,8 @@ export * from "./scan.ts";
 export * from "./docking.ts";
 export * from "./escort.ts";
 export * from "./piracy.ts";
+export * from "./survey.ts";
+export * from "./salvage.ts";
 export * from "./stations.ts";
 export * from "./missions/missionDeck.ts";
 export * from "./missions/missionChecks.ts";

@@ -25,9 +25,18 @@ import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange } from "../gam
 import { inScanRange } from "../game/scan.ts";
 import { hasWorkingCompressor } from "../game/ship.ts";
 import { projectPosition, recoilRing, ringAfter, type MovementPreview } from "../game/movement.ts";
-import { driftPosition, positionOf, ringVelocity, wrapSector } from "../game/geometry.ts";
-import { isMooredMidTurn } from "../game/stations.ts";
-import { unplacedEscorts } from "../game/escort.ts";
+import {
+  driftPosition,
+  positionOf,
+  ringVelocity,
+  samePosition,
+  wrapSector,
+} from "../game/geometry.ts";
+import { isMooredAt, isMooredMidTurn } from "../game/stations.ts";
+import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
+import { freePiracyCards } from "../game/piracy.ts";
+import { onSurveyRing, surveyToTake } from "../game/survey.ts";
+import { salvageToTake } from "../game/salvage.ts";
 import { findJump, getJumpOptions, phasedJumpDestination } from "../models/gravityWells.ts";
 
 export interface FireIntent {
@@ -68,6 +77,11 @@ export interface TurnIntent {
     | { kind: "coast"; scoop?: boolean }
     | { kind: "burn"; intensity: BurnIntensity; adjustment?: number; facing?: Facing }
     | { kind: "jump"; destinationWellId: string; adjustment?: number };
+  /**
+   * Shots in the order given within each side of the move. Order matters: a
+   * salvo that lands flies and attacks as it is launched, so list it before
+   * a disruptor it should strip a wall for.
+   */
   fire?: FireIntent[];
   scan?: { target: string; slot?: SubsystemId };
   /**
@@ -87,15 +101,41 @@ export interface TurnIntent {
   /**
    * Rivals to put an Escort marker on, one per marker in hand, each a
    * different ship. A "you may": nothing is placed unless named here. Each is
-   * settled against where the turn ends; a ship that does not qualify then
-   * (not on your ring, carrying nothing, either of you moored) takes no
-   * marker and costs nothing.
+   * an action in the sequence: before the move when the rival can take it
+   * where you start, otherwise right after the move, and either way ahead of
+   * every shot and seizure on that side of the move. One that does not
+   * qualify at that point (not on your ring, carrying nothing, already
+   * marked, just back from Home, either of you moored) is refused.
    */
   escort?: string[];
   /**
+   * Survey: take the data. An action in the sequence: before the move when
+   * you start on Black Hole Ring 1, otherwise right after the move. One a
+   * turn, for the first undone Survey with no data aboard. Refused if you are
+   * not on the ring at that point.
+   */
+  survey?: boolean;
+  /**
+   * Salvage: take this wreck's black box (its id, from `view.wrecks`). An
+   * action in the sequence: before the move when the wreck is in your sector
+   * where you start, otherwise right after the move. One wreck a turn, moored
+   * or not. Refused if the wreck is not in your sector at that point.
+   *
+   * `true` names no wreck: the first one in your sector where the salvage
+   * comes. Before the move with a wreck where you start, right after it with
+   * one where the move ends, and otherwise last of all, after your shots, so
+   * a ship they destroy in that sector leaves its wreck for it (a ship is
+   * settled the moment it dies). Finding no wreck there, it is not taken.
+   */
+  salvage?: string | true;
+  /**
    * Items to seize, one per free Piracy card, each a different item. A "you
-   * may": nothing is taken unless named here. Settled where the turn ends; an
-   * item not there then is passed over.
+   * may": nothing is taken unless named here. Each is an action in the
+   * sequence: before the move when the victim shares your sector where you
+   * start, otherwise right after the move, and either way ahead of every shot
+   * on that side of the move, so a shot that destroys the victim cannot take
+   * the item down with it. An item that is not there to take at that point
+   * is refused.
    */
   seize?: { victim: string; cargoId: string }[];
 }
@@ -259,6 +299,97 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
         ]
       : [];
 
+  // Seizures: each named once, against a rival at the table. One the victim
+  // shares the start's sector for goes before the move, the rest right after
+  // it, and both ahead of the shots on their side of the move.
+  const seizes: { victim: string; cargoId: string; before: boolean }[] = [];
+  for (const { victim, cargoId } of intent.seize ?? []) {
+    const at = targetPosition(victim);
+    if (victim === me.id) notes.push("a seizure is made from a rival, not you; dropped");
+    else if (!view.players.some((p) => p.id === victim))
+      notes.push(`no player ${String(victim)} to seize from; dropped`);
+    else if (seizes.some((x) => x.victim === victim && x.cargoId === cargoId))
+      notes.push(`${cargoId} named twice for a seizure; once kept`);
+    else seizes.push({ victim, cargoId, before: !!at && samePosition(at, pre) });
+  }
+  const seizeActions = (before: boolean): PlayerAction[] =>
+    seizes
+      .filter((x) => x.before === before)
+      .map((x) => ({
+        type: "seize",
+        playerId: me.id,
+        sequence: seq(),
+        data: { victimId: x.victim, cargoId: x.cargoId },
+      }));
+
+  // Escort markers: each named once, against a rival at the table, one per
+  // marker in hand. One the rival can take where the ship starts goes before
+  // the move, the rest right after it, ahead of the seizures (a seizure could
+  // empty the carrier) and the shots on their side of the move.
+  const marks: { carrierId: string; before: boolean }[] = [];
+  if (intent.escort !== undefined) {
+    const inHand = unplacedEscorts(me.missions).length;
+    const atStart = new Set(escortCandidates(view, me.id, pre, pre));
+    for (const carrierId of intent.escort) {
+      if (carrierId === me.id) notes.push("an Escort marker goes on a rival, not you; dropped");
+      else if (!view.players.some((p) => p.id === carrierId))
+        notes.push(`no player ${String(carrierId)} to escort; dropped`);
+      else if (marks.some((m) => m.carrierId === carrierId))
+        notes.push(`${carrierId} named twice for Escort; once kept`);
+      else if (marks.length >= inHand)
+        notes.push(`only ${inHand} Escort marker(s) in hand; ${carrierId} dropped`);
+      else marks.push({ carrierId, before: atStart.has(carrierId) });
+    }
+  }
+  const markActions = (before: boolean): PlayerAction[] =>
+    marks
+      .filter((m) => m.before === before)
+      .map((m) => ({
+        type: "escort_mark",
+        playerId: me.id,
+        sequence: seq(),
+        data: { carrierId: m.carrierId },
+      }));
+  // The survey and the salvage: where the ship starts if it qualifies there,
+  // otherwise right after the move.
+  const surveyBefore = onSurveyRing(pre);
+  const surveyActions = (before: boolean): PlayerAction[] =>
+    intent.survey === true && surveyBefore === before
+      ? [{ type: "survey", playerId: me.id, sequence: seq(), data: {} }]
+      : [];
+  // A named wreck goes where the ship meets it; `true` names none, and goes
+  // where a wreck is (the start, then the move's end) or else after every
+  // shot, for the wreck a kill leaves.
+  const named =
+    typeof intent.salvage === "string"
+      ? view.wrecks.find((w) => w.id === intent.salvage)
+      : undefined;
+  if (typeof intent.salvage === "string" && !named)
+    notes.push(`no wreck ${String(intent.salvage)} on the board; salvage dropped`);
+  const unnamed = intent.salvage === true;
+  const salvagePlace: "before" | "after" | "last" | null = named
+    ? samePosition(named, pre)
+      ? "before"
+      : "after"
+    : unnamed
+      ? view.wrecks.some((w) => samePosition(w, pre))
+        ? "before"
+        : view.wrecks.some((w) => samePosition(w, post))
+          ? "after"
+          : "last"
+      : null;
+  const salvageActions = (place: "before" | "after" | "last"): PlayerAction[] =>
+    salvagePlace === place
+      ? [
+          {
+            type: "salvage",
+            playerId: me.id,
+            sequence: seq(),
+            data: named ? { wreckId: named.id } : {},
+          },
+        ]
+      : [];
+
   if (rotate)
     actions.push({
       type: "rotate",
@@ -266,6 +397,10 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       sequence: seq(),
       data: { targetFacing: facing },
     });
+  actions.push(...markActions(true));
+  actions.push(...seizeActions(true));
+  actions.push(...surveyActions(true));
+  actions.push(...salvageActions("before"));
   if (scanBefore) actions.push(...scanAction());
   for (const f of shots.filter((s) => s.when === "before")) actions.push(fireAction(f));
   if (move.kind === "coast")
@@ -292,8 +427,13 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
         sectorAdjustment: move.adjustment ?? 0,
       },
     });
+  actions.push(...markActions(false));
+  actions.push(...seizeActions(false));
+  actions.push(...surveyActions(false));
+  actions.push(...salvageActions("after"));
   if (!scanBefore) actions.push(...scanAction());
   for (const f of shots.filter((s) => s.when !== "before")) actions.push(fireAction(f));
+  actions.push(...salvageActions("last"));
   notes.push(...foreseenRefusals(view, me, actions));
   if (intent.repair !== undefined) {
     const sub = ship.subsystems.find((s) => s.id === intent.repair);
@@ -314,36 +454,6 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       );
     else actions.push({ type: "dock_sale", playerId: me.id, data: { sale } });
   }
-  if (intent.escort !== undefined) {
-    const inHand = unplacedEscorts(me.missions).length;
-    const named = new Set<string>();
-    for (const carrierId of intent.escort) {
-      if (carrierId === me.id) notes.push("an Escort marker goes on a rival, not you; dropped");
-      else if (!view.players.some((p) => p.id === carrierId))
-        notes.push(`no player ${String(carrierId)} to escort; dropped`);
-      else if (named.has(carrierId)) notes.push(`${carrierId} named twice for Escort; once kept`);
-      else if (named.size >= inHand)
-        notes.push(`only ${inHand} Escort marker(s) in hand; ${carrierId} dropped`);
-      else {
-        named.add(carrierId);
-        actions.push({ type: "escort_mark", playerId: me.id, data: { carrierId } });
-      }
-    }
-  }
-  if (intent.seize !== undefined) {
-    const named = new Set<string>();
-    for (const { victim, cargoId } of intent.seize) {
-      const key = `${victim}/${cargoId}`;
-      if (victim === me.id) notes.push("a seizure is made from a rival, not you; dropped");
-      else if (!view.players.some((p) => p.id === victim))
-        notes.push(`no player ${String(victim)} to seize from; dropped`);
-      else if (named.has(key)) notes.push(`${cargoId} named twice for a seizure; once kept`);
-      else {
-        named.add(key);
-        actions.push({ type: "seize", playerId: me.id, data: { victimId: victim, cargoId } });
-      }
-    }
-  }
   return { actions, notes };
 }
 
@@ -355,7 +465,10 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
  * spot, and the engines go once, for the move or for a compensation. The
  * builder places the actions but does not change what was asked (no
  * autopilot): this is the reason, in advance, for a refusal the agent would
- * otherwise only meet in the preview.
+ * otherwise only meet in the preview. Three notes are not refusals: a
+ * seizure or an Escort marker after a shot at the same ship, which finds
+ * nothing if the shot kills, and a salvage naming no wreck, which finds one
+ * only if a shot before it destroys a ship in its sector.
  */
 function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): string[] {
   const notes: string[] = [];
@@ -369,6 +482,16 @@ function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): 
   let fuel = ship.reactionMass;
   let engines: string | null = null;
   let moved = false;
+  // Piracy cards still free, and the ships shot at so far: a seizure after a
+  // shot at the same ship finds nothing if the shot destroyed it.
+  let cards = freePiracyCards(me.missions, me.cargo).length;
+  const shotAt = new Set<string>();
+  // Escort markers still in hand and the ships marked so far; one survey and
+  // one wreck a turn.
+  let markers = unplacedEscorts(me.missions).length;
+  const marked = new Set<string>();
+  let surveys = 0;
+  let salvages = 0;
   const where = () => (moved ? "after the move" : "before the move");
   const useEngines = (what: string) => {
     const sub = tile("engines");
@@ -439,6 +562,7 @@ function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): 
       case "fire_weapon": {
         const weapon = tile(a.data.subsystemId);
         if (!weapon) break;
+        shotAt.add(a.data.targetPlayerId);
         const target = seat(a.data.targetPlayerId);
         const shot = `${weapon.id}'s shot at ${a.data.targetPlayerId}`;
         if (quiet) notes.push(`${shot}: no weapon fires on a first round`);
@@ -459,6 +583,83 @@ function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): 
             else position = { ...position, ring };
           }
         }
+        break;
+      }
+      case "seize": {
+        const what = `the seizure of ${a.data.cargoId} from ${a.data.victimId}`;
+        const victim = seat(a.data.victimId);
+        if (quiet) notes.push(`${what}: nobody seizes on a first round`);
+        else if (cards <= 0) notes.push(`${what}: no Piracy card free to take it by then`);
+        else if (!victim?.ship || !canBeScanned(victim))
+          notes.push(`${what}: that ship cannot be touched now`);
+        else if (isMooredMidTurn(view.stations, start, position))
+          notes.push(`${what}: a moored ship seizes nothing; burn off the berth first`);
+        else if (!samePosition(positionOf(victim.ship), position))
+          notes.push(`${what}: not in its sector ${where()}`);
+        else if (isMooredAt(view.stations, positionOf(victim.ship)))
+          notes.push(`${what}: that ship is moored`);
+        else if (!victim.hold.some((i) => i.cargoId === a.data.cargoId))
+          notes.push(`${what}: it carries no such item`);
+        else if (shotAt.has(a.data.victimId))
+          notes.push(`${what}: if a shot before it destroys that ship, it finds nothing`);
+        cards--;
+        break;
+      }
+      case "escort_mark": {
+        const what = `the Escort marker on ${a.data.carrierId}`;
+        const carrier = seat(a.data.carrierId);
+        if (markers <= 0) notes.push(`${what}: no Escort marker in hand by then`);
+        else if (!carrier?.ship || carrier.ship.isDestroyed || !canBeScanned(carrier))
+          notes.push(`${what}: that ship cannot be touched now`);
+        else if (isMooredMidTurn(view.stations, start, position))
+          notes.push(`${what}: a moored ship marks nobody; burn off the berth first`);
+        else if (marked.has(a.data.carrierId) || carrier.escortedBy.length > 0)
+          notes.push(`${what}: that ship already carries an Escort marker`);
+        else if (
+          carrier.ship.wellId !== position.wellId ||
+          carrier.ship.ring !== position.ring
+        )
+          notes.push(`${what}: not on your ring ${where()}`);
+        else if (isMooredAt(view.stations, positionOf(carrier.ship)))
+          notes.push(`${what}: that ship is moored`);
+        else if (carrier.hold.length === 0) notes.push(`${what}: that ship carries nothing`);
+        else if (shotAt.has(a.data.carrierId))
+          notes.push(`${what}: if a shot before it destroys that ship, it is not placed`);
+        markers--;
+        marked.add(a.data.carrierId);
+        break;
+      }
+      case "survey": {
+        if (surveys > 0) notes.push("the survey: one a turn");
+        else if (!surveyToTake(me)) notes.push("the survey: no Survey card wants data");
+        else if (!onSurveyRing(position))
+          notes.push(`the survey: not on Black Hole Ring 1 ${where()}`);
+        surveys++;
+        break;
+      }
+      case "salvage": {
+        const wreckId = a.data.wreckId;
+        const what = wreckId === undefined ? "the salvage" : `the salvage of ${wreckId}`;
+        const wreck = view.wrecks.find((w) => w.id === wreckId);
+        if (salvages > 0) notes.push(`${what}: one wreck a turn`);
+        else if (!salvageToTake(me)) notes.push(`${what}: no Salvage card wants a black box`);
+        else if (wreckId === undefined) {
+          // Naming none, it takes what is in the sector when it comes: a
+          // wreck there now, or the one a kill before it leaves.
+          const prey = [...shotAt].filter((id) => {
+            const s = seat(id)?.ship;
+            return !!s && samePosition(positionOf(s), position);
+          });
+          if (!view.wrecks.some((w) => samePosition(w, position)))
+            notes.push(
+              prey.length > 0
+                ? `${what}: no wreck in your sector ${where()} yet; it takes one only if a shot before it destroys ${prey.join(" or ")}`
+                : `${what}: no wreck in your sector ${where()}, and no shot before it at a ship there; it takes nothing`
+            );
+        } else if (!wreck) notes.push(`${what}: no such wreck on the board`);
+        else if (!samePosition(wreck, position))
+          notes.push(`${what}: not in its sector ${where()}`);
+        salvages++;
         break;
       }
       case "scan": {

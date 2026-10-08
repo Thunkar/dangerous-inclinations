@@ -3,7 +3,7 @@
  * owner's next turn: the orbital drift first (a solid arc), then the flight
  * steps toward the target (dashed, rings closed first).
  *
- * A missile on its launch turn does not ride its orbit, so it has no drift
+ * A launch flight does not ride the orbit, so a planned launch has no drift
  * segment: the model asks the engine for the path, and this layer draws
  * exactly what comes back. Missiles sharing a sector stand abreast where the
  * model puts them.

@@ -172,8 +172,8 @@ const DockSaleActionSchema = z
   .strict();
 
 /**
- * Put an Escort marker on this carrier if the turn ends on its ring (RULES
- * §Missions, Escort). No sequence: it is settled at the end of the turn.
+ * Put an Escort marker on this carrier (RULES §Missions, Escort). A tactical
+ * action like a scan: it carries its `sequence` and is taken at that point of the turn.
  */
 const EscortMarkActionSchema = z
   .object({
@@ -184,14 +184,39 @@ const EscortMarkActionSchema = z
   .strict();
 
 /**
- * Take this item off this ship if the turn ends in its sector (RULES
- * §Missions, Piracy). No sequence: it is settled at the end of the turn.
+ * Take this item off this ship (RULES §Missions, Piracy). A tactical action
+ * like a scan: it carries its `sequence` and is taken at that point of the turn.
  */
 const SeizeActionSchema = z
   .object({
     ...base,
     type: z.literal("seize"),
     data: z.object({ victimId: id, cargoId: z.string() }).strict(),
+  })
+  .strict();
+
+/**
+ * Survey: take the data on Black Hole Ring 1 (RULES §Missions, Survey). A
+ * tactical action: it carries its `sequence`. Nothing to name.
+ */
+const SurveyActionSchema = z
+  .object({
+    ...base,
+    type: z.literal("survey"),
+    data: z.object({}).strict(),
+  })
+  .strict();
+
+/**
+ * Salvage: take this wreck's black box, or with no `wreckId` the first wreck
+ * in the sector at that point (RULES §Missions, Salvage). A tactical action:
+ * it carries its `sequence`.
+ */
+const SalvageActionSchema = z
+  .object({
+    ...base,
+    type: z.literal("salvage"),
+    data: z.object({ wreckId: id.optional() }).strict(),
   })
   .strict();
 
@@ -207,6 +232,8 @@ const PlayerActionSchema = z.discriminatedUnion("type", [
   DockSaleActionSchema,
   EscortMarkActionSchema,
   SeizeActionSchema,
+  SurveyActionSchema,
+  SalvageActionSchema,
 ]);
 
 export const SubmitTurnSchema = z

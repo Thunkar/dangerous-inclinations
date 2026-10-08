@@ -311,7 +311,7 @@ export function selectMissionsFromOffers(
  * route, and nothing else.
  *
  * A Piracy card owns a crate too, but it is somebody else's until it is taken:
- * the loot comes into being at the seizure (`missionChecks.ts`), not at the
+ * the loot comes into being at the seizure (`piracy.ts`), not at the
  * deal.
  */
 export function cratesForMissions(missions: Mission[]): Cargo[] {

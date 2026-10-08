@@ -21,6 +21,8 @@ import {
 import { isMooredAt } from "../game/stations.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
 import { freePiracyCards, seizableItems, type SeizableItem } from "../game/piracy.ts";
+import { onSurveyRing, surveyToTake } from "../game/survey.ts";
+import { salvageToTake, salvageableWrecks } from "../game/salvage.ts";
 
 export type BurnOption = LegalBurn;
 
@@ -69,19 +71,30 @@ export interface SeatOptions {
   weapons: WeaponOption[];
   scanTargets: string[];
   /**
-   * Escort markers still in hand, and the carriers one could go on if the
-   * turn ends after a plain coast. Placing one is a choice ("you may"),
-   * declared with the turn and settled against where it ends, so after any
-   * other move the question is asked again of that ring; null when no
-   * marker is in hand.
+   * Escort markers still in hand, and the carriers one could go on where the
+   * ship is now (before the move) and after a plain coast. Marking is a
+   * choice ("you may") and an action in the sequence, taken from where the
+   * ship is at that point; null when no marker is in hand.
    */
-  escort: { markersInHand: number; carriersAfterCoast: string[] } | null;
+  escort: { markersInHand: number; carriersNow: string[]; carriersAfterCoast: string[] } | null;
+  /**
+   * A Survey that wants data, and whether a `survey` takes it where the ship
+   * is now and after a plain coast (on Black Hole Ring 1); null when no card
+   * wants data.
+   */
+  survey: { now: boolean; afterCoast: boolean } | null;
+  /**
+   * A Salvage that wants a black box, and the wrecks a `salvage` could name
+   * where the ship is now and after a plain coast; null when no card wants one.
+   */
+  salvage: { wrecksNow: string[]; wrecksAfterCoast: string[] } | null;
   /**
    * Piracy cards free to seize (undone, no loot of their own aboard), and the
-   * items one could take if the turn ends after a plain coast. A seizure is
-   * named with the turn and settled where it ends; null with no card free.
+   * items one could take where the ship is now (before the move) and after a
+   * plain coast. A seizure is an action in the sequence, taken from where the
+   * ship is at that point; null with no card free.
    */
-  seize: { freeCards: number; itemsAfterCoast: SeizableItem[] } | null;
+  seize: { freeCards: number; itemsNow: SeizableItem[]; itemsAfterCoast: SeizableItem[] } | null;
   /**
    * Subsystems a `power` action may put energy on this turn (unbroken shields,
    * racks and sensors) and the amounts it may put. Each works until your next
@@ -172,12 +185,29 @@ export function seatOptions(view: GameView): SeatOptions {
   const markersInHand = unplacedEscorts(me.missions).length;
   const escort =
     markersInHand > 0
-      ? { markersInHand, carriersAfterCoast: escortCandidates(view, me.id, afterCoast) }
+      ? {
+          markersInHand,
+          carriersNow: escortCandidates(view, me.id, here, here),
+          carriersAfterCoast: escortCandidates(view, me.id, afterCoast, here),
+        }
       : null;
+  const survey = surveyToTake(me)
+    ? { now: onSurveyRing(here), afterCoast: onSurveyRing(afterCoast) }
+    : null;
+  const wrecksAt = (at: Position) => salvageableWrecks(me, view.wrecks, at).map((w) => w.id);
+  const salvage = salvageToTake(me)
+    ? { wrecksNow: wrecksAt(here), wrecksAfterCoast: wrecksAt(afterCoast) }
+    : null;
 
   const freeCards = freePiracyCards(me.missions, me.cargo).length;
   const seize =
-    freeCards > 0 ? { freeCards, itemsAfterCoast: seizableItems(view, me.id, afterCoast) } : null;
+    freeCards > 0
+      ? {
+          freeCards,
+          itemsNow: seizableItems(view, me.id, here),
+          itemsAfterCoast: seizableItems(view, me.id, afterCoast),
+        }
+      : null;
 
   const dissipation = view.myStats?.dissipationCapacity ?? DEFAULT_DISSIPATION_CAPACITY;
   const ceiling = view.myStats?.maxHeat ?? MAX_HEAT;
@@ -211,6 +241,8 @@ export function seatOptions(view: GameView): SeatOptions {
     scanTargets,
     escort,
     seize,
+    survey,
+    salvage,
     power,
   };
 }

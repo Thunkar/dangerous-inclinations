@@ -2,7 +2,9 @@
  * The turn being planned, previewed with no React in it.
  *
  * A plan is an ordered list of steps (rotate, one move, any number of
- * weapons, a scan) plus the tiles it powers. Everything here reads that plan
+ * weapons, a scan, a seizure per free Piracy card, a survey, a salvage, an
+ * Escort marker per marker in hand) plus the tiles it powers. Everything here
+ * reads that plan
  * against the engine's own functions: where the ship is at each step, what
  * energy the loadout ends up holding, who is in range, what the engine would
  * refuse, and the actions the turn is sent as. Pure, so a test can hold it
@@ -30,6 +32,7 @@ import type {
   Station,
   Subsystem,
   SubsystemId,
+  Wreck,
 } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
@@ -39,6 +42,7 @@ import {
   calculateBurnMassCost,
   calculateJumpMassCost,
   canBeFiredAt,
+  canSurvey,
   canBeScanned,
   canEngage,
   canFireFrom,
@@ -64,6 +68,7 @@ import {
   isQuietTurn,
   isWeaponType,
   lowestCriticalFace,
+  onSurveyRing,
   oppositeFacing,
   phasedJumpDestination,
   projectPosition,
@@ -71,7 +76,11 @@ import {
   ringAfter,
   ringVelocity,
   salesOnArrival,
+  salvageToTake,
+  salvageableWrecks,
+  samePosition,
   seizableItems,
+  surveyToTake,
   unplacedEscorts,
 } from '@dangerous-inclinations/engine'
 import { slotWithSubsystem } from '../utils/slots'
@@ -99,9 +108,26 @@ export type PlanStep =
       count: number
     }
   | { id: string; kind: 'scan'; targetId: string | null; peekSlot: SubsystemId | null }
+  /**
+   * Piracy: take this item off this ship where the step comes. It uses no
+   * tile and puts no energy anywhere.
+   */
+  | { id: string; kind: 'seize'; victimId: string; cargoId: string }
+  /** Survey: take the data where the step comes (Black Hole Ring 1). No tile, no energy. */
+  | { id: string; kind: 'survey' }
+  /**
+   * Salvage: take this wreck's black box where the step comes. No tile, no
+   * energy. A null `wreckId` names none: the first wreck in the sector there,
+   * which is the wreck of `victimId` if the shot before the step kills it (a
+   * ship is settled the moment it dies), and nothing taken if there is none.
+   */
+  | { id: string; kind: 'salvage'; wreckId: string | null; victimId: string | null }
+  /** Escort: put a marker on this carrier where the step comes. No tile, no energy. */
+  | { id: string; kind: 'mark'; carrierId: string }
 
 export type FireStep = Extract<PlanStep, { kind: 'fire' }>
 export type ScanStep = Extract<PlanStep, { kind: 'scan' }>
+export type SeizeStep = Extract<PlanStep, { kind: 'seize' }>
 export type MoveStep = Extract<PlanStep, { kind: 'move' }>
 
 export interface StepContext {
@@ -288,6 +314,10 @@ export function walkSteps(
         break
       }
       case 'scan':
+      case 'seize':
+      case 'survey':
+      case 'salvage':
+      case 'mark':
         break
     }
   }
@@ -500,6 +530,19 @@ export function planIssues(
   // is over, so a step still aimed at one is named rather than reported as
   // out of range.
   const untouchable = (id: string) => seat(id)?.recovering === true
+  const freeCards = freePiracyCards(me.missions, me.cargo).length
+  const seized = new Set<string>()
+  // Items the plan's seizures take off each ship before a later step: a
+  // carrier a pirate has emptied takes no Escort marker.
+  const seizedFrom = new Map<string, number>()
+  const start: Position = { wellId: me.ship.wellId, ring: me.ship.ring, sector: me.ship.sector }
+  const markers = unplacedEscorts(me.missions).length
+  const marked = new Set<string>()
+  let surveys = 0
+  let salvages = 0
+  // Ships a shot before a step aims to hurt: a salvage naming no wreck takes
+  // the one such a ship leaves if it dies in the salvage's sector.
+  const shotAt: string[] = []
 
   const spend = (amount: number, what: string) => {
     if (amount > fuel && !reportedShortFuel) {
@@ -587,6 +630,7 @@ export function planIssues(
           if (step.count < 1) problems.push(`${name}: a salvo launches at least one missile`)
         }
         const target = step.targetId ? seat(step.targetId) : undefined
+        if (step.targetId && !config.weaponStats?.disrupts) shotAt.push(step.targetId)
         if (!canFireFrom(me.ship, at.position, view.stations))
           problems.push('A moored ship fires at nobody: burn off the berth first')
         else if (!step.targetId) problems.push(`${name}: pick a target`)
@@ -631,6 +675,91 @@ export function planIssues(
         if (!step.peekSlot) problems.push('Scan: choose which subsystem to look at')
         break
       }
+      case 'seize': {
+        // One item per free Piracy card, each a different item, and the item
+        // is taken from where the ship is when the step comes.
+        const victim = nameOf(step.victimId)
+        const key = seizeKey(step)
+        if (seized.has(key)) problems.push(`Seize: that item from ${victim} is named twice`)
+        else if (seized.size >= freeCards)
+          problems.push(
+            freeCards === 0
+              ? 'Seize: no Piracy card is free to take an item'
+              : freeCards === 1
+                ? 'Seize: one Piracy card takes one item'
+                : `Seize: ${freeCards} Piracy cards take ${freeCards} items`
+          )
+        else if (quiet)
+          problems.push(
+            opening
+              ? 'Nobody seizes in the first round'
+              : 'Back from Home: you seize nothing this turn'
+          )
+        else if (untouchable(step.victimId))
+          problems.push(`${victim} cannot be touched until its turn back is over`)
+        else if (isMooredMidTurn(view.stations, me.ship, at.position))
+          problems.push('A moored ship seizes nothing: burn off the berth first')
+        else if (!seizableItems(view, me.id, at.position).some(i => seizeKey(i) === key))
+          problems.push(`Seize: ${victim} is not in your sector with that item at this point`)
+        if (!seized.has(key))
+          seizedFrom.set(step.victimId, (seizedFrom.get(step.victimId) ?? 0) + 1)
+        seized.add(key)
+        break
+      }
+      // Survey, salvage and a marker touch nobody, so a quiet turn takes them.
+      case 'survey': {
+        surveys++
+        if (surveys > 1) problems.push('One survey a turn')
+        else if (!surveyToTake(me)) problems.push('Survey: no Survey card wants data')
+        else if (!onSurveyRing(at.position))
+          problems.push('Survey: you are not on Black Hole Ring 1 at this point')
+        break
+      }
+      case 'salvage': {
+        salvages++
+        if (salvages > 1) problems.push('One wreck a turn')
+        else if (!salvageToTake(me)) problems.push('Salvage: no Salvage card wants a black box')
+        else if (step.wreckId === null) {
+          // Naming none, it holds with a wreck there now or a kill before it
+          // there: whether the shot kills is the dice's, not an issue.
+          const prey = shotAt.some(id => {
+            const ship = seat(id)?.ship
+            return !!ship && isOnBoard(seat(id)!) && samePosition(ship, at.position)
+          })
+          if (!prey && !view.wrecks.some(w => samePosition(w, at.position)))
+            problems.push(
+              'Salvage: no wreck in your sector at this point, and no shot before it at a ship there'
+            )
+        } else if (!view.wrecks.some(w => w.id === step.wreckId))
+          problems.push('Salvage: that wreck is not on the board')
+        else if (!salvageableWrecks(me, view.wrecks, at.position).some(w => w.id === step.wreckId))
+          problems.push('Salvage: the wreck is not in your sector at this point')
+        break
+      }
+      case 'mark': {
+        // One marker per undone Escort in hand, each on a different ship, put
+        // on from where the ship is when the step comes.
+        const carrier = nameOf(step.carrierId)
+        const left = (seat(step.carrierId)?.cargoCount ?? 0) - (seizedFrom.get(step.carrierId) ?? 0)
+        if (marked.has(step.carrierId)) problems.push(`Mark: ${carrier} is marked twice`)
+        else if (marked.size >= markers)
+          problems.push(
+            markers === 0
+              ? 'Mark: no Escort marker in hand'
+              : markers === 1
+                ? 'Mark: one Escort marker in hand'
+                : `Mark: ${markers} Escort markers in hand`
+          )
+        else if (untouchable(step.carrierId))
+          problems.push(`${carrier} cannot be touched until its turn back is over`)
+        else if (isMooredMidTurn(view.stations, me.ship, at.position))
+          problems.push('A moored ship marks nobody: burn off the berth first')
+        else if (left <= 0) problems.push(`Mark: ${carrier} carries nothing at this point`)
+        else if (!escortCandidates(view, me.id, at.position, start).includes(step.carrierId))
+          problems.push(`Mark: ${carrier} cannot take your marker from where you are at this point`)
+        marked.add(step.carrierId)
+        break
+      }
     }
   })
 
@@ -642,8 +771,9 @@ export function planIssues(
 /**
  * The lowest d10 face that is a critical for a fire step. A sensor with
  * energy on it widens the range: a powered one for every shot (power runs
- * first), a scan for the shots after it, and a missile rolls after all your
- * actions, so it gets whatever the turn left on the sensor.
+ * first) and a scan for the shots after it. A salvo is no different: it
+ * flies and attacks as it is launched, so it rolls with the sensor as the
+ * steps before it left it.
  */
 export function criticalFrom(
   me: Player,
@@ -652,9 +782,8 @@ export function criticalFrom(
   step: PlanStep
 ): number {
   if (step.kind !== 'fire') return lowestCriticalFace([])
-  const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
   const index = steps.findIndex(s => s.id === step.id)
-  const before = weapon?.type === 'missiles' || index < 0 ? steps : steps.slice(0, index)
+  const before = index < 0 ? steps : steps.slice(0, index)
   return lowestCriticalFace(loadoutFor(me, powers, drawsFor(me, before)))
 }
 
@@ -683,40 +812,183 @@ export function dockOfferFor(
   return offer.options.length > 0 || offer.soldHere ? { ...offer, planetId: station.planetId } : null
 }
 
+/** An item a seizure step may take, and whether the step goes before the move or after it. */
+export type SeizeOption = SeizableItem & { before: boolean }
+
 /**
- * Piracy is a "you may" (RULES §Missions): offered when the turn as planned
- * ends, not moored, in the sector of an undocked ship carrying cargo and a
- * Piracy card is free to take an item. The items and the count come from the
- * engine (`seizableItems`, `freePiracyCards`). Ships do not move during a
- * turn, so where they are now is where the plan meets them.
+ * Piracy is a "you may" (RULES §Missions), and an action in the sequence:
+ * offered when a Piracy card is free and an undocked ship carrying cargo
+ * shares the sector where the turn starts (taken before the move, ahead of
+ * every shot) or where the move ends (taken right after it). The items and
+ * the count come from the engine (`seizableItems`, `freePiracyCards`). Ships
+ * do not move during a turn, so where they are now is where the plan meets
+ * them.
  */
 export function seizeOfferFor(
   view: GameView,
   me: Player,
-  finalPosition: Position
-): { items: SeizableItem[]; cards: number } | null {
+  steps: readonly PlanStep[],
+  stepStart: readonly StepContext[],
+  finalPosition: StepContext
+): { items: SeizeOption[]; cards: number } | null {
   if (isDestroyed(me.ship)) return null
-  const items = seizableItems(view, me.id, finalPosition)
+  const { start, afterMove } = beforeAndAfterMove(me, steps, stepStart, finalPosition)
+  const before = seizableItems(view, me.id, start).map(i => ({ ...i, before: true }))
+  const after = seizableItems(view, me.id, afterMove)
+    .filter(i => !before.some(b => seizeKey(b) === seizeKey(i)))
+    .map(i => ({ ...i, before: false }))
+  const items = [...before, ...after]
   return items.length > 0 ? { items, cards: freePiracyCards(me.missions, me.cargo).length } : null
 }
 
-/** The key a seizure is picked by: the victim and the item. */
+/**
+ * Where a new seizure, survey, salvage or marker goes: first of all when it
+ * can be done where the turn starts, so no shot of the turn can take its
+ * ship down first; otherwise right after the move, ahead of the shots after
+ * it.
+ */
+export function placementIndex(steps: readonly PlanStep[], option: { before: boolean }): number {
+  if (option.before) return 0
+  return steps.findIndex(s => s.kind === 'move') + 1
+}
+
+/** Where the turn starts, and where the ship is right after the move. */
+function beforeAndAfterMove(
+  me: Player,
+  steps: readonly PlanStep[],
+  stepStart: readonly StepContext[],
+  finalPosition: StepContext
+): { start: Position; afterMove: Position } {
+  const start: Position = { wellId: me.ship.wellId, ring: me.ship.ring, sector: me.ship.sector }
+  const moveIndex = steps.findIndex(s => s.kind === 'move')
+  return { start, afterMove: stepStart[moveIndex + 1]?.position ?? finalPosition.position }
+}
+
+/** The key a seizure is known by: the victim and the item. */
 export const seizeKey = (item: Pick<SeizableItem, 'victimId' | 'cargoId'>) =>
   `${item.victimId}/${item.cargoId}`
 
+/** Whether a survey step goes before the move or after it. */
+export interface SurveyOption {
+  before: boolean
+}
+
 /**
- * An Escort marker is a "you may" (RULES §Missions, Escort): offered when the
- * turn as planned ends in the sector of a carrier the engine would let a
- * marker go on. Stations and ships do not move during a turn, so where they
- * are now is where the plan meets them.
+ * Survey is a "you may" (RULES §Missions), and an action in the sequence:
+ * offered when a Survey card wants data and the ship is on Black Hole Ring 1
+ * where the turn starts (taken before the move) or where the move ends (taken
+ * right after it). The engine's `canSurvey` answers both.
  */
-export function escortOfferFor(
+export function surveyOfferFor(
+  me: Player,
+  steps: readonly PlanStep[],
+  stepStart: readonly StepContext[],
+  finalPosition: StepContext
+): SurveyOption | null {
+  if (isDestroyed(me.ship)) return null
+  const { start, afterMove } = beforeAndAfterMove(me, steps, stepStart, finalPosition)
+  if (canSurvey(me, start)) return { before: true }
+  if (canSurvey(me, afterMove)) return { before: false }
+  return null
+}
+
+/** A wreck a salvage step may name, and whether the step goes before the move or after it. */
+export type SalvageOption = Wreck & { before: boolean }
+
+/**
+ * A salvage that counts on a kill: `victimId` stands in the sector the ship
+ * is in after the plan's last shot at it, so a salvage at `index` (right
+ * after that shot) takes its black box if the shot destroys it.
+ */
+export interface KillSalvageOption {
+  victimId: string
+  index: number
+}
+
+/** What a salvage offer is known by: its wreck, or the ship it counts on dying. */
+export const salvageOptionKey = (option: SalvageOption | KillSalvageOption): string =>
+  'victimId' in option ? `if-dies:${option.victimId}` : `wreck:${option.id}`
+
+/** The key of the offer a salvage step was made from. */
+export const salvageStepKey = (step: Extract<PlanStep, { kind: 'salvage' }>): string =>
+  step.wreckId === null ? `if-dies:${step.victimId}` : `wreck:${step.wreckId}`
+
+/**
+ * Salvage is a "you may" (RULES §Missions), and an action in the sequence:
+ * offered when a Salvage card wants a black box and a wreck is on the sector
+ * where the turn starts or where the move ends, moored or not
+ * (`salvageableWrecks`). Wrecks drift only when the stations do, so where
+ * they are now is where the plan meets them. A ship is settled the moment it
+ * dies, so a ship a shot of the plan aims at, standing in the sector the ship
+ * is in after that shot, is offered too (`kills`): a salvage right after the
+ * shot takes its black box if the shot destroys it. Not where a wreck is
+ * there already: one wreck a turn, and that one is taken first.
+ */
+export function salvageOfferFor(
   view: GameView,
   me: Player,
-  finalPosition: Position
-): { carriers: string[]; markers: number } | null {
+  steps: readonly PlanStep[],
+  stepStart: readonly StepContext[],
+  finalPosition: StepContext
+): { wrecks: SalvageOption[]; kills: KillSalvageOption[] } | null {
+  if (isDestroyed(me.ship) || !salvageToTake(me)) return null
+  const { start, afterMove } = beforeAndAfterMove(me, steps, stepStart, finalPosition)
+  const before = salvageableWrecks(me, view.wrecks, start).map(w => ({ ...w, before: true }))
+  const after = salvageableWrecks(me, view.wrecks, afterMove)
+    .filter(w => !before.some(b => b.id === w.id))
+    .map(w => ({ ...w, before: false }))
+  const wrecks = [...before, ...after]
+  // The last shot at each ship that can hurt it (a disruptor takes no hull).
+  const lastShot = new Map<string, number>()
+  steps.forEach((step, index) => {
+    if (step.kind !== 'fire' || !step.targetId) return
+    const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
+    if (!weapon || !isWeaponType(weapon.type)) return
+    if (getSubsystemConfig(weapon.type).weaponStats?.disrupts) return
+    lastShot.set(step.targetId, index)
+  })
+  const kills: KillSalvageOption[] = []
+  for (const [victimId, last] of lastShot) {
+    const victim = view.players.find(p => p.id === victimId)
+    if (!victim?.ship || !isOnBoard(victim)) continue
+    const there = stepStart[last + 1]?.position ?? finalPosition.position
+    if (!samePosition(victim.ship, there)) continue
+    if (view.wrecks.some(w => samePosition(w, there))) continue
+    kills.push({ victimId, index: last + 1 })
+  }
+  return wrecks.length > 0 || kills.length > 0 ? { wrecks, kills } : null
+}
+
+/** A carrier a marker step may go on, and whether the step goes before the move or after it. */
+export interface MarkOption {
+  carrierId: string
+  before: boolean
+}
+
+/**
+ * An Escort marker is a "you may" (RULES §Missions, Escort), and an action in
+ * the sequence: offered when a marker is in hand and a carrier the engine
+ * would let it go on (`escortCandidates`) shares the ring where the turn
+ * starts (marked before the move) or where the move ends (right after it).
+ * Mooring is judged against the berth the turn began on, as for a shot.
+ */
+export function markOfferFor(
+  view: GameView,
+  me: Player,
+  steps: readonly PlanStep[],
+  stepStart: readonly StepContext[],
+  finalPosition: StepContext
+): { carriers: MarkOption[]; markers: number } | null {
   if (isDestroyed(me.ship)) return null
-  const carriers = escortCandidates(view, me.id, finalPosition)
+  const { start, afterMove } = beforeAndAfterMove(me, steps, stepStart, finalPosition)
+  const before = escortCandidates(view, me.id, start, start).map(carrierId => ({
+    carrierId,
+    before: true,
+  }))
+  const after = escortCandidates(view, me.id, afterMove, start)
+    .filter(id => !before.some(b => b.carrierId === id))
+    .map(carrierId => ({ carrierId, before: false }))
+  const carriers = [...before, ...after]
   return carriers.length > 0 ? { carriers, markers: unplacedEscorts(me.missions).length } : null
 }
 
@@ -745,8 +1017,10 @@ export interface PlanPreview {
   projectedFuel: number
   issues: string[]
   dockOffer: (SaleOffer & { planetId: string }) | null
-  escortOffer: { carriers: string[]; markers: number } | null
-  seizeOffer: { items: SeizableItem[]; cards: number } | null
+  seizeOffer: { items: SeizeOption[]; cards: number } | null
+  surveyOffer: SurveyOption | null
+  salvageOffer: { wrecks: SalvageOption[]; kills: KillSalvageOption[] } | null
+  markOffer: { carriers: MarkOption[]; markers: number } | null
   repairable: SubsystemId[]
 }
 
@@ -781,8 +1055,10 @@ export function previewPlan(
     projectedFuel,
     issues,
     dockOffer: dockOfferFor(view, me, finalPosition.position, projectedFuel),
-    escortOffer: escortOfferFor(view, me, finalPosition.position),
-    seizeOffer: seizeOfferFor(view, me, finalPosition.position),
+    seizeOffer: seizeOfferFor(view, me, steps, stepStart, finalPosition),
+    surveyOffer: surveyOfferFor(me, steps, stepStart, finalPosition),
+    salvageOffer: salvageOfferFor(view, me, steps, stepStart, finalPosition),
+    markOffer: markOfferFor(view, me, steps, stepStart, finalPosition),
     repairable: repairableFor(me, loadout),
   }
 }
@@ -792,25 +1068,18 @@ export interface PlanExtras {
   repair: SubsystemId | null
   /** The sale picked: an option's `sale`, or `SELL_NOTHING`; null for the default. */
   dockSale: string | null
-  escorts: readonly string[]
-  /** Seizures picked, by {@link seizeKey}. */
-  seizes: readonly string[]
 }
 
 /**
  * The actions the plan is sent as. Power comes first, in loadout order: a
  * sensor powered now widens every shot the turn takes, and a wall or a rack
  * is up whatever else happens. A step still missing its target is not sent,
- * and neither is a repair, a sale, a marker or a seizure the preview no longer
- * offers.
+ * and neither is a repair or a sale the preview no longer offers.
  */
 export function planActions(
   me: Player,
   steps: readonly PlanStep[],
-  preview: Pick<
-    PlanPreview,
-    'powers' | 'stepStart' | 'repairable' | 'dockOffer' | 'escortOffer' | 'seizeOffer'
-  >,
+  preview: Pick<PlanPreview, 'powers' | 'stepStart' | 'repairable' | 'dockOffer'>,
   extras: PlanExtras
 ): PlayerAction[] {
   const list: PlayerAction[] = []
@@ -891,6 +1160,33 @@ export function planActions(
           data: { targetPlayerId: step.targetId, peekSlot: step.peekSlot },
         })
         break
+      case 'seize':
+        list.push({
+          playerId: me.id,
+          type: 'seize',
+          sequence: ++sequence,
+          data: { victimId: step.victimId, cargoId: step.cargoId },
+        })
+        break
+      case 'survey':
+        list.push({ playerId: me.id, type: 'survey', sequence: ++sequence, data: {} })
+        break
+      case 'salvage':
+        list.push({
+          playerId: me.id,
+          type: 'salvage',
+          sequence: ++sequence,
+          data: step.wreckId === null ? {} : { wreckId: step.wreckId },
+        })
+        break
+      case 'mark':
+        list.push({
+          playerId: me.id,
+          type: 'escort_mark',
+          sequence: ++sequence,
+          data: { carrierId: step.carrierId },
+        })
+        break
     }
   })
   if (extras.repair !== null && preview.repairable.includes(extras.repair))
@@ -903,15 +1199,5 @@ export function planActions(
       : preview.dockOffer?.options.some(o => o.sale === sale)
   if (sale !== null && offered)
     list.push({ playerId: me.id, type: 'dock_sale', data: { sale } })
-  for (const carrierId of extras.escorts)
-    if (preview.escortOffer?.carriers.includes(carrierId))
-      list.push({ playerId: me.id, type: 'escort_mark', data: { carrierId } })
-  for (const item of preview.seizeOffer?.items ?? [])
-    if (extras.seizes.includes(seizeKey(item)))
-      list.push({
-        playerId: me.id,
-        type: 'seize',
-        data: { victimId: item.victimId, cargoId: item.cargoId },
-      })
   return list
 }

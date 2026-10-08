@@ -16,6 +16,7 @@ import {
 import { BURN_COSTS } from "../../models/rings.ts";
 import { ringVelocity } from "../../game/geometry.ts";
 import { canBeFiredAt, canEngage, canFireFrom } from "../../game/targeting.ts";
+import { landsOnLaunch } from "../../game/missiles.ts";
 import { markedBy } from "../../game/escort.ts";
 import { recoilRing } from "../../game/movement.ts";
 import type { BotParameters, KnownWeapon, Opponent, TacticalSituation } from "../types.ts";
@@ -105,6 +106,11 @@ export interface ShotOption {
   count: number;
   /** Railgun only. */
   compensateRecoil?: boolean;
+  /**
+   * Missiles only: the salvo lands on its launch flight, so its hits resolve
+   * before the shots sequenced after it (RULES §Weapons, Missiles).
+   */
+  landsOnLaunch?: boolean;
 }
 
 /**
@@ -333,7 +339,8 @@ function biggestGun(working: KnownWeapon[]): KnownWeapon | undefined {
 
 /**
  * Chance that a disruptor fired at `target` finds a powered shield, after
- * `before`: the direct-fire shots sequenced ahead of it at the same ship.
+ * `before`: the shots sequenced ahead of it at the same ship that land before
+ * it fires (direct fire, and a salvo that lands on its launch flight).
  *
  * Any working shield with a cube on it blocks the shot whole, so this is read
  * slot by slot, never off the fractional {@link Opponent.shieldAbsorption}. A
@@ -385,6 +392,22 @@ export function disruptBlockChance(
   let open = 1;
   for (const g of guesses) if (g.cubes > 0) open *= g.certain ? 0 : 1 - SUSPECTED_SHIELD_WEIGHT;
   return 1 - open;
+}
+
+/**
+ * Could a rack of `target`'s be up to shoot a salvo down before it strips
+ * anything? A face-up rack with its cubes on it is, and so may be a
+ * face-down side slot holding the rack's cubes.
+ */
+export function rackMayAnswer(target: Opponent): boolean {
+  const rack = getSubsystemConfig("ballistic_rack");
+  return target.player.slots.some(
+    (slot) =>
+      slot.isBroken !== true &&
+      slot.allocatedEnergy >= rack.minEnergy &&
+      slot.allocatedEnergy <= rack.maxEnergy &&
+      (slot.type === "ballistic_rack" || (slot.type === null && slot.group === "side"))
+  );
 }
 
 /** The highest {@link disruptBlockChance} a bot fires its disruptor into. */
@@ -521,6 +544,7 @@ export function firingOptions(
         shieldPerCube,
         heat: cubes,
         count: ammo,
+        landsOnLaunch: landsOnLaunch(phase === "post" ? ctx.post : ctx.pre, targetPos),
       });
       continue;
     }

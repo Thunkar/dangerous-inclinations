@@ -283,20 +283,23 @@ describe("order: an uncompensated railgun moves the ship on the spot", () => {
   });
 });
 
-describe("order: a missile reads the sensor when it attacks", () => {
+describe("order: a missile reads the sensor when it is launched", () => {
   // forcedRollValue is 8: a hit, or a critical once a sensor has energy on it.
-  it.each<[string, Draft[]]>([
-    // A missile attacks at the end of the turn (RULES §A Turn, step 3), after
-    // every action: the engine reads the sensor then, so a scan sequenced
-    // after the launch still widens the missile's critical range.
-    ["salvo, then scan", [fire(1, "side-3", "p2", "engines", undefined, 1), scan(2, "p2")]],
-    ["scan, then salvo", [scan(1, "p2"), fire(2, "side-3", "p2", "engines", undefined, 1)]],
-  ])("%s: a missile on the target's sector rolls its 8 as a critical", (_label, actions) => {
-    // p2 two sectors astern on p1's ring: the missile flies onto it this turn.
+  it.each<[string, Draft[], "hit" | "critical"]>([
+    // A missile flies and attacks the moment it is launched (RULES §Weapons,
+    // Missiles), so a scan sequenced after the launch comes too late for it.
+    ["salvo, then scan", [fire(1, "side-3", "p2", "engines", undefined, 1), scan(2, "p2")], "hit"],
+    [
+      "scan, then salvo",
+      [scan(1, "p2"), fire(2, "side-3", "p2", "engines", undefined, 1)],
+      "critical",
+    ],
+  ])("%s: a missile on the target's sector rolls its 8 as a %s", (_label, actions, result) => {
+    // p2 two sectors astern on p1's ring: the missile flies onto it at launch.
     const turn = executeTurnAs(sensorState(), ...actions);
     expect(turn.errors).toBeUndefined();
     const [hit] = eventsOf(turn.events, "attack_resolved").filter((e) => e.missileId);
-    expect(hit.result).toBe("critical");
+    expect(hit.result).toBe(result);
   });
 });
 

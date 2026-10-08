@@ -21,11 +21,16 @@ import {
   makePlayer,
   makeTwoPlayerGame,
   mustExecute,
+  power,
+  scan,
   withPlayer,
   withPower,
   withShip,
   withSub,
 } from "../testUtils.ts";
+
+/** One action as the test helpers draft it, before `executeTurnAs` stamps the player. */
+type Draft = Parameters<typeof executeTurnAs>[1];
 
 /** p1 at R3 S0 with a launcher aboard; p2 at the given spot. The launch powers it. */
 function launcher(target = { ring: 5, sector: 0 }, targetLoadout?: ShipLoadout) {
@@ -74,7 +79,6 @@ describe("missiles: pathing", () => {
   > = [
     ["a target it reaches", { ring: 5, sector: 0, movesMade: 1 }, { ring: 5, sector: 4 }],
     ["a target it falls short of", { ring: 1, sector: 0, movesMade: 1 }, { ring: 5, sector: 12 }],
-    ["a missile on its launch turn", { ring: 3, sector: 6, movesMade: 0 }, { ring: 4, sector: 20 }],
   ];
 
   it.each(pathCases)(
@@ -97,6 +101,22 @@ describe("missiles: pathing", () => {
       expect(path[path.length - 1]).toEqual(landed);
     }
   );
+
+  it.each([
+    ["a target it falls short of", { ring: 4, sector: 20 }],
+    ["a target it reaches", { ring: 5, sector: 1 }],
+  ])("projectMissilePath agrees with the launch flight for %s", (_label, target) => {
+    const from = { wellId: BH, ring: 3, sector: 0 };
+    const path = projectMissilePath({ ...from, movesMade: 0 }, { wellId: BH, ...target });
+    const result = executeTurnAs(launcher(target), fire(1, "side-3", "p2"));
+    expect(result.errors).toBeUndefined();
+    const [missile] = result.gameState.missiles;
+    const landed = missile
+      ? { wellId: missile.wellId, ring: missile.ring, sector: missile.sector }
+      : { wellId: BH, ...target };
+    expect(path[path.length - 1]).toEqual(landed);
+    expect(eventsOf(result.events, "attack_resolved")).toHaveLength(missile ? 0 : 1);
+  });
 });
 
 describe("missiles: launch", () => {
@@ -137,7 +157,8 @@ describe("missiles: launch", () => {
   });
 
   it("a salvo puts one token per missile in the air and is one use of the tile", () => {
-    const state = launcher();
+    // p2 is out of reach of the launch flight, so every token is still flying.
+    const state = launcher({ ring: 5, sector: 8 });
     const processed = processActions(
       state,
       [{ ...fire(1, "side-3", "p2", "side-1", undefined, 3), playerId: "p1" } as PlayerAction],
@@ -149,7 +170,13 @@ describe("missiles: launch", () => {
     expect(new Set(launched.map((e) => e.missileId)).size).toBe(3);
     expect(processed.state.missiles).toHaveLength(3);
     for (const missile of processed.state.missiles) {
-      expect(missile).toMatchObject({ targetId: "p2", criticalTarget: "side-1" });
+      // Flown once already, and marked so the end of the turn leaves it be.
+      expect(missile).toMatchObject({
+        targetId: "p2",
+        criticalTarget: "side-1",
+        movesMade: 1,
+        launchedThisTurn: true,
+      });
     }
     expect(getSub(processed.state, "p1", "side-3").ammo).toBe(1);
     // Three rounds off the rail, and the tile is carrying its two cubes once:
@@ -225,24 +252,17 @@ describe("missiles: launch", () => {
 });
 
 describe("missiles: movement at the end of the owner's turn", () => {
-  it.each([
-    ["starts where it was dropped on its launch turn", 0, 0],
-    ["rides its orbit first on every turn after that", 1, 1],
-  ])("a missile %s", (_label, movesMade, driftedSectors) => {
+  it("a missile rides its orbit first on every turn after its launch", () => {
     // The target sits in another well, so the missile can only ride its orbit.
     const state = withMissile(
       withShip(makeTwoPlayerGame(), "p2", { wellId: ALPHA, ring: 3, sector: 0 }),
-      { ring: 5, sector: 0, movesMade }
+      { ring: 5, sector: 0, movesMade: 1 }
     );
     const result = processOwnerMissiles(state, "p1");
-    expect(result.state.missiles[0]).toMatchObject({
-      ring: 5,
-      sector: driftedSectors,
-      movesMade: movesMade + 1,
-    });
+    expect(result.state.missiles[0]).toMatchObject({ ring: 5, sector: 1, movesMade: 2 });
   });
 
-  it("on its launch turn flies up to 3 steps from where it was dropped (rings first)", () => {
+  it("on its launch flight flies up to 3 steps from where it was dropped (rings first)", () => {
     const result = executeTurnAs(launcher({ ring: 5, sector: 4 }), fire(1, "side-3", "p2"));
     // Launched R3 S0, no ride -> R4, R5 -> one sector toward S4 -> R5 S1.
     expect(eventsOf(result.events, "missile_moved")).toEqual([
@@ -542,5 +562,129 @@ describe("missiles: lost with their ship", () => {
       expect.arrayContaining(["missile_moved", "ship_destroyed", "missile_expired"])
     );
     expect(result.gameState.missiles).toEqual([]);
+  });
+});
+
+describe("missiles: the launch flight resolves at its place in the turn", () => {
+  /**
+   * The designer's table: p1 (sensor bow, a launcher on side-0, a disruptor on
+   * side-1) one sector astern of p2, whose wall holds one cube. A missile
+   * from there lands on its launch flight, and so does the EMP's box.
+   */
+  const wallState = () =>
+    withPower(
+      makeTwoPlayerGame(
+        { ring: 3, sector: 0, loadout: LOADOUTS.sensorMissilesDisruptor },
+        { ring: 3, sector: 1 }
+      ),
+      "p2",
+      "side-2",
+      1
+    );
+
+  it.each<[string, Draft[], boolean]>([
+    // The missile's 2 damage takes the cube, so the wall is down when the EMP comes.
+    [
+      "salvo, then disruptor: the wall is down when the EMP comes",
+      [fire(1, "side-0", "p2"), fire(2, "side-1", "p2", "side-1")],
+      false,
+    ],
+    [
+      "disruptor, then salvo: the wall still holds its cube",
+      [fire(1, "side-1", "p2", "side-1"), fire(2, "side-0", "p2")],
+      true,
+    ],
+  ])("%s", (_label, actions, blocked) => {
+    const result = executeTurnAs(wallState(), ...actions);
+    expect(result.errors).toBeUndefined();
+    const attacks = eventsOf(result.events, "attack_resolved");
+    const emp = attacks.find((e) => e.weaponType === "disruptor")!;
+    expect(emp.blocked === true).toBe(blocked);
+    expect(getSub(result.gameState, "p2", "side-1").isBroken).toBe(!blocked);
+    // The missile landed either way, its one point soaked by the wall.
+    expect(attacks.find((e) => e.weaponType === "missiles")).toMatchObject({
+      absorbed: 1,
+      toHull: 1,
+    });
+  });
+
+  it.each<[string, Draft, "fire_weapon" | "scan"]>([
+    ["a disruptor", fire(2, "side-1", "p2", "side-1"), "fire_weapon"],
+    ["a scan", scan(2, "p2"), "scan"],
+  ])(
+    "a salvo that kills on its launch flight leaves %s after it nothing to aim at",
+    (_label, later, skipped) => {
+      const state = withShip(wallState(), "p2", { hitPoints: 2 });
+      const result = executeTurnAs(
+        withPower(state, "p2", "side-2", 0),
+        fire(1, "side-0", "p2"),
+        later
+      );
+      expect(result.errors).toBeUndefined();
+      const types = eventTypes(result.events);
+      // The kill comes before the later action is reached, and is the launcher's.
+      expect(eventsOf(result.events, "ship_destroyed")).toEqual([
+        expect.objectContaining({ victimId: "p2", killerId: "p1", cause: "missile" }),
+      ]);
+      expect(eventsOf(result.events, "action_skipped")).toEqual([
+        expect.objectContaining({ action: skipped, targetId: "p2", reason: "target_destroyed" }),
+      ]);
+      expect(types.indexOf("ship_destroyed")).toBeLessThan(types.indexOf("action_skipped"));
+      // Settled like any kill: the wreck is left where the ship died.
+      expect(eventsOf(result.events, "wreck_left")).toEqual([
+        expect.objectContaining({ victimId: "p2", at: { wellId: BH, ring: 3, sector: 1 } }),
+      ]);
+    }
+  );
+
+  it.each([
+    // [label, actions, the sector the launch flight leaves it on, and the next turn's flight]
+    ["launched before a coast", [fire(1, "side-3", "p2"), coast(2)], 1, 5],
+    ["launched after a coast", [coast(1), fire(2, "side-3", "p2")], 5, 9],
+  ])(
+    "a missile that misses on its launch flight (%s) flies once that turn and once the next",
+    (_label, actions, launchSector, flewTo) => {
+      // p2 on ring 5, out of reach: the flight spends two steps on the rings.
+      const state = launcher({ ring: 5, sector: 10 });
+      const first = executeTurnAs(state, ...actions);
+      expect(first.errors).toBeUndefined();
+      expect(eventsOf(first.events, "missile_moved")).toEqual([
+        expect.objectContaining({
+          to: { wellId: BH, ring: 5, sector: launchSector },
+          movesLeft: 2,
+        }),
+      ]);
+      // Nothing more moved it at the end of the turn, nor did its ship's move.
+      const [flying] = first.gameState.missiles;
+      expect(flying).toMatchObject({ ring: 5, sector: launchSector, movesMade: 1 });
+      expect(flying.launchedThisTurn).toBeUndefined();
+
+      const next = executeTurnAs(mustExecute(first.gameState, coast(1)), coast(1));
+      expect(next.errors).toBeUndefined();
+      // Ring 5 rides one sector, then three steps toward p2 (now on S11).
+      expect(eventsOf(next.events, "missile_moved")).toEqual([
+        expect.objectContaining({ to: { wellId: BH, ring: 5, sector: flewTo }, movesLeft: 1 }),
+      ]);
+    }
+  );
+
+  it.each([
+    [
+      "the sensor powered before the launch",
+      [power(1, "forward-0"), fire(2, "side-0", "p2")],
+      "critical",
+    ],
+    [
+      "the sensor powered after the launch",
+      [fire(1, "side-0", "p2"), power(2, "forward-0")],
+      "hit",
+    ],
+    ["no sensor at all", [fire(1, "side-0", "p2")], "hit"],
+  ])("a launch flight with %s rolls its 8 as a %s", (_label, actions, expected) => {
+    const state = { ...wallState(), forcedRollValue: 8 };
+    const result = executeTurnAs(withPower(state, "p2", "side-2", 0), ...actions);
+    expect(result.errors).toBeUndefined();
+    const [attack] = eventsOf(result.events, "attack_resolved");
+    expect(attack).toMatchObject({ weaponType: "missiles", result: expected });
   });
 });

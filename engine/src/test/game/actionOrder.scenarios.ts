@@ -13,6 +13,7 @@ import type { BurnIntensity, GameState, GravityWellId, Position } from "../../mo
 import { oppositeFacing } from "../../models/game.ts";
 import type { SubsystemId } from "../../models/subsystems.ts";
 import { findJump, phasedJumpDestination } from "../../models/gravityWells.ts";
+import { positionOf } from "../../game/geometry.ts";
 import type { executeTurnAs } from "../testUtils.ts";
 import {
   ALPHA,
@@ -27,7 +28,23 @@ import {
   power,
   rotate,
   scan,
+  seize,
+  survey,
+  salvage,
+  escortMark,
+  escortMission,
+  makeTwoPlayerGame,
+  salvageMission,
+  surveyMission,
+  withMissions,
   withShip,
+  alongside,
+  BETA,
+  deliverMission,
+  getPlayer,
+  piracyMission,
+  withPlayer,
+  LANDING,
 } from "../testUtils.ts";
 
 export type Draft = Parameters<typeof executeTurnAs>[1];
@@ -40,7 +57,12 @@ export type Item =
   | { kind: "burn"; intensity: BurnIntensity }
   | { kind: "jump"; to: GravityWellId }
   | { kind: "fire"; tile: SubsystemId; target: string; compensate?: boolean; count?: number }
-  | { kind: "scan"; target: string };
+  | { kind: "scan"; target: string }
+  | { kind: "seize"; victim: string; cargoId: string }
+  | { kind: "survey" }
+  /** No `wreckId`: the first wreck in the sector there, a kill's included. */
+  | { kind: "salvage"; wreckId?: string }
+  | { kind: "mark"; carrier: string };
 
 export function draftOf(item: Item, sequence: number): Draft {
   switch (item.kind) {
@@ -59,6 +81,14 @@ export function draftOf(item: Item, sequence: number): Draft {
       return fire(sequence, item.tile, item.target, "engines", item.compensate, item.count);
     case "scan":
       return scan(sequence, item.target);
+    case "seize":
+      return seize(sequence, item.victim, item.cargoId);
+    case "survey":
+      return survey(sequence);
+    case "salvage":
+      return salvage(sequence, item.wreckId);
+    case "mark":
+      return escortMark(sequence, item.carrier);
   }
 }
 
@@ -98,6 +128,12 @@ export const label = (ordering: readonly Item[]): string =>
           return `fire ${i.tile}@${i.target}${i.compensate ? " comp" : ""}`;
         case "scan":
           return `scan @${i.target}`;
+        case "seize":
+          return `seize @${i.victim}`;
+        case "salvage":
+          return i.wreckId === undefined ? "salvage" : `salvage ${i.wreckId}`;
+        case "mark":
+          return `mark @${i.carrier}`;
         default:
           return i.kind;
       }
@@ -256,6 +292,75 @@ export function berthState(): GameState {
     ],
     PINNED_EIGHT
   );
+}
+
+/** The Deliver crate p2 carries in the piracy tables. */
+const PIRACY_VICTIM_CARD = deliverMission(ALPHA, BETA, "deliver-p2");
+export const PIRACY_CRATE = PIRACY_VICTIM_CARD.cargoId;
+
+/**
+ * p1 a pirate (a free Piracy card) flying the brawler, and p2 carrying a
+ * Deliver crate on black hole ring 3 at sector 4.
+ *  - `together`: p1 in p2's sector from the start, so the side-0 laser is
+ *    point blank and a coast takes p1 out of the sector; p2 is on its last
+ *    two hull points, so the laser kills it.
+ *  - otherwise p1 is one coast short of p2, out of the laser's box (never
+ *    along its own ring), and p2 has a full hull.
+ */
+export function piracyState(together: boolean): GameState {
+  const state = alongside([piracyMission()], [PIRACY_VICTIM_CARD]);
+  const from = positionOf(getPlayer(state, "p1").ship);
+  const armed = withPlayer(state, "p1", {
+    ship: makePlayer("p1", together ? LANDING : from, LOADOUTS.brawler).ship,
+  });
+  const pinned = { ...armed, ...PINNED_EIGHT };
+  return together ? withShip(pinned, "p2", { hitPoints: 2 }) : pinned;
+}
+
+/**
+ * p1 the brawler holding a Survey on black hole ring 1, facing prograde: a
+ * soft burn takes it out to ring 2, a coast keeps it on ring 1.
+ */
+export function surveyState(): GameState {
+  const state = makeTwoPlayerGame(
+    { wellId: BH, ring: 1, sector: 0, loadout: LOADOUTS.brawler },
+    { wellId: BH, ring: 4, sector: 12 }
+  );
+  return withMissions(state, "p1", [surveyMission()]);
+}
+
+/** p1 the brawler holding a Salvage on ring 3 at sector 0, on a wreck: a coast takes it off. */
+export const SALVAGE_WRECK = "wreck-order";
+export function salvageState(): GameState {
+  const state = makeTwoPlayerGame(
+    { wellId: BH, ring: 3, sector: 0, loadout: LOADOUTS.brawler },
+    { wellId: BH, ring: 4, sector: 12 }
+  );
+  return {
+    ...withMissions(state, "p1", [salvageMission()]),
+    wrecks: [{ id: SALVAGE_WRECK, wellId: BH, ring: 3, sector: 0 }],
+  };
+}
+
+/**
+ * p1 the brawler holding a Salvage in p2's sector (ring 3, sector 4), p2 on
+ * its last two hull points: the side-0 laser kills it point blank, and a
+ * coast takes p1 out of the sector. No wreck anywhere until the kill.
+ */
+export function killSalvageState(): GameState {
+  const state = withMissions(piracyState(true), "p1", [salvageMission()]);
+  return withPlayer(state, "p2", { cargo: [] });
+}
+
+/**
+ * p1 the brawler holding an Escort in p2's sector (ring 3, sector 4), p2
+ * carrying a Deliver crate on its last two hull points: the side-0 laser is
+ * point blank and kills it, and a coast takes p1 along the same ring, out of
+ * the laser's box.
+ */
+export function escortState(): GameState {
+  const state = piracyState(true);
+  return withMissions(state, "p1", [escortMission()]);
 }
 
 // ---------------------------------------------------------------------------
@@ -428,6 +533,50 @@ export const ORDER_TABLES: OrderTable[] = [
       outcome: move.length ? "mixed" : "accepted",
     })
   ),
+  // Piracy: a seizure takes its item where it comes, and a kill before it
+  // leaves nothing to take (skipped, not refused).
+  {
+    name: "piracy: seize, a killing laser at the same ship, a coast",
+    build: () => piracyState(true),
+    items: [{ kind: "seize", victim: "p2", cargoId: PIRACY_CRATE }, gun("side-0", "p2"), COAST],
+    outcome: "mixed",
+  },
+  {
+    name: "piracy: a coast onto the carrier, seize, a laser at it",
+    build: () => piracyState(false),
+    items: [{ kind: "seize", victim: "p2", cargoId: PIRACY_CRATE }, gun("side-0", "p2"), COAST],
+    outcome: "mixed",
+  },
+  // Survey: the data is taken on ring 1 wherever the turn then goes.
+  {
+    name: "survey: survey, a burn off ring 1",
+    build: surveyState,
+    items: [{ kind: "survey" }, SOFT],
+    outcome: "mixed",
+  },
+  // Salvage: the black box is taken on the wreck's sector, before the coast takes the ship off it.
+  {
+    name: "salvage: salvage, a coast off the wreck",
+    build: salvageState,
+    items: [{ kind: "salvage", wreckId: SALVAGE_WRECK }, COAST],
+    outcome: "mixed",
+  },
+  // A kill is settled at once: a salvage naming no wreck after the killing
+  // shot takes its black box, one before it finds none (skipped, not refused).
+  {
+    name: "salvage: a killing laser, a salvage naming no wreck, a coast",
+    build: killSalvageState,
+    items: [gun("side-0", "p2"), { kind: "salvage" }, COAST],
+    outcome: "mixed",
+  },
+  // Escort: a marker goes on where it comes; a kill before it skips it, a
+  // kill after it hands the marker back.
+  {
+    name: "escort: mark, a killing laser at the carrier, a coast",
+    build: escortState,
+    items: [{ kind: "mark", carrier: "p2" }, gun("side-0", "p2"), COAST],
+    outcome: "mixed",
+  },
   ...[SOFT, COAST].map(
     (move): OrderTable => ({
       name: `berth: salvo, ${label([move])}`,

@@ -2,7 +2,7 @@
  * PlanContext: the turn you are putting together.
  *
  * It holds what the player chose (the steps, the powers, a repair, the dock
- * sale, Escort markers, seizures, what a click is currently picking) and the verbs that
+ * sale, what a click is currently picking) and the verbs that
  * edit them. Every number shown for the plan is `plan/preview.ts`, which reads
  * the choices against the engine's pure functions; the server is the referee
  * and nothing here advances state. The route planner keeps its own state in
@@ -24,7 +24,6 @@ import type {
   Player,
   PlayerAction,
   SaleOffer,
-  SeizableItem,
   SlotView,
   Subsystem,
   SubsystemId,
@@ -46,8 +45,16 @@ import {
   moveReadiness,
   planActions,
   powerableTile,
+  placementIndex,
+  salvageOptionKey,
+  salvageStepKey,
   previewPlan,
   seizeKey,
+  type MarkOption,
+  type KillSalvageOption,
+  type SalvageOption,
+  type SeizeOption,
+  type SurveyOption,
   targetsInRange as targetsInRangeOf,
   reachesOnlyBeforeMove,
   shotIndex,
@@ -178,23 +185,44 @@ interface PlanContextValue {
   dockSale: string | null
   setDockSale: (sale: string | null) => void
   /**
-   * The rivals an Escort marker could go on if the turn ends where the plan
-   * ends it (the engine's `escortCandidates`), and how many markers are in
-   * hand; null when there is nobody, which is when there is nothing to choose.
+   * The items a free Piracy card could take from a ship in the sector where
+   * the turn starts or where the move ends (the engine's `seizableItems`),
+   * and how many cards are free; null when there is nothing to take.
    */
-  escortOffer: { carriers: string[]; markers: number } | null
-  /** Carriers the player chose to mark: a "you may", so none until picked. */
-  escortChoices: string[]
-  toggleEscort: (carrierId: string) => void
-  /**
-   * The items a free Piracy card could take if the turn ends where the plan
-   * ends it (the engine's `seizableItems`), and how many cards are free; null
-   * when there is nothing to take.
-   */
-  seizeOffer: { items: SeizableItem[]; cards: number } | null
-  /** Items the player chose to take, by `seizeKey`: a "you may", so none until picked. */
+  seizeOffer: { items: SeizeOption[]; cards: number } | null
+  /** The items the plan's seize steps take, by `seizeKey`: a "you may", so none until picked. */
   seizeChoices: string[]
-  toggleSeize: (item: SeizableItem) => void
+  /**
+   * Add a seize step for the item, or take it out: first in the sequence when
+   * its ship shares the start's sector, right after the move otherwise.
+   */
+  toggleSeize: (item: SeizeOption) => void
+  /**
+   * A survey the plan could take: on Black Hole Ring 1 where the turn starts
+   * or where the move ends, with a Survey card wanting data; null otherwise.
+   */
+  surveyOffer: SurveyOption | null
+  /** Add the survey step (first, or right after the move), or take it out. */
+  toggleSurvey: () => void
+  /**
+   * The wrecks a Salvage card could take a black box from, on the sector
+   * where the turn starts or where the move ends, and the ships a shot of the
+   * plan could leave a wreck from in the sector the ship is in after it
+   * (`kills`); null when there are none.
+   */
+  salvageOffer: { wrecks: SalvageOption[]; kills: KillSalvageOption[] } | null
+  /** The key (`salvageOptionKey`) of the offer the plan's salvage step was made from: one a turn. */
+  salvageChoice: string | null
+  toggleSalvage: (option: SalvageOption | KillSalvageOption) => void
+  /**
+   * The carriers an Escort marker could go on from the ring where the turn
+   * starts or where the move ends (the engine's `escortCandidates`), and how
+   * many markers are in hand; null when there is nobody.
+   */
+  markOffer: { carriers: MarkOption[]; markers: number } | null
+  /** The carriers the plan's mark steps name: a "you may", so none until picked. */
+  markChoices: string[]
+  toggleMark: (option: MarkOption) => void
 }
 
 const PlanContext = createContext<PlanContextValue | undefined>(undefined)
@@ -241,8 +269,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
   const [focusWeaponId, setFocusWeaponId] = useState<SubsystemId | null>(null)
   const [repairChoice, setRepairChoiceState] = useState<SubsystemId | null>(null)
   const [dockChoice, setDockChoice] = useState<string | null>(null)
-  const [escortChoices, setEscortChoices] = useState<string[]>([])
-  const [seizeChoices, setSeizeChoices] = useState<string[]>([])
 
   const isMyTurn = !readOnly && view.activePlayerId === me.id && view.phase === 'active'
   const disabled = !isMyTurn || isAnimating
@@ -253,8 +279,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     setPicking(null)
     setFocusWeaponId(null)
     setDockChoice(null)
-    setEscortChoices([])
-    setSeizeChoices([])
   }, [])
 
   // A new turn (or a fresh state after our own turn) starts a fresh plan.
@@ -330,7 +354,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     return ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
   }, [pendingSubsystems, moveFrom])
 
-  const { dockOffer, escortOffer, seizeOffer, repairable } = preview
+  const { dockOffer, seizeOffer, surveyOffer, salvageOffer, markOffer, repairable } = preview
   const dockSale = !dockOffer
     ? null
     : dockChoice === SELL_NOTHING && dockOffer.options.length > 0
@@ -346,40 +370,100 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
         : dockOffer?.options.some(o => o.sale === dockChoice)
     if (!offered) setDockChoice(null)
   }, [dockChoice, dockOffer])
-  // Seizures the plan still offers: a pick the move has walked away from is
-  // left out rather than sent.
-  const liveSeizes = useMemo(() => {
-    const offered = new Set(seizeOffer?.items.map(seizeKey) ?? [])
-    return seizeChoices.filter(key => offered.has(key))
-  }, [seizeChoices, seizeOffer])
-  useEffect(() => {
-    if (escortChoices.some(id => !escortOffer?.carriers.includes(id)))
-      setEscortChoices(chosen => chosen.filter(id => escortOffer?.carriers.includes(id)))
-  }, [escortChoices, escortOffer])
+  // A seize, salvage or mark step stays where it was put when the move
+  // changes: if it no longer holds there, the sequence says so (`planIssues`).
+  const seizeChoices = useMemo(
+    () => steps.flatMap(s => (s.kind === 'seize' ? [seizeKey(s)] : [])),
+    [steps]
+  )
+  const salvageChoice = useMemo(
+    () =>
+      steps
+        .filter((s): s is Extract<PlanStep, { kind: 'salvage' }> => s.kind === 'salvage')
+        .map(salvageStepKey)[0] ?? null,
+    [steps]
+  )
+  const markChoices = useMemo(
+    () => steps.flatMap(s => (s.kind === 'mark' ? [s.carrierId] : [])),
+    [steps]
+  )
   useEffect(() => {
     if (repairChoice !== null && !repairable.includes(repairChoice)) setRepairChoiceState(null)
   }, [repairChoice, repairable])
 
-  const toggleEscort = useCallback(
-    (carrierId: string) =>
-      setEscortChoices(chosen =>
-        chosen.includes(carrierId)
-          ? chosen.filter(id => id !== carrierId)
-          : // One marker per ship and one ship per marker: at the cap, a new pick is refused.
-            chosen.length < (escortOffer?.markers ?? 0)
-            ? [...chosen, carrierId]
-            : chosen
-      ),
-    [escortOffer]
-  )
   const toggleSeize = useCallback(
-    (item: SeizableItem) => {
+    (item: SeizeOption) => {
       const key = seizeKey(item)
-      if (liveSeizes.includes(key)) setSeizeChoices(liveSeizes.filter(k => k !== key))
-      // One item per free Piracy card: at the cap, a new pick is refused.
-      else if (liveSeizes.length < (seizeOffer?.cards ?? 0)) setSeizeChoices([...liveSeizes, key])
+      setSteps(prev => {
+        if (prev.some(s => s.kind === 'seize' && seizeKey(s) === key))
+          return prev.filter(s => !(s.kind === 'seize' && seizeKey(s) === key))
+        // One item per free Piracy card: at the cap, a new pick is refused.
+        if (prev.filter(s => s.kind === 'seize').length >= (seizeOffer?.cards ?? 0)) return prev
+        const step: PlanStep = {
+          id: stepId(),
+          kind: 'seize',
+          victimId: item.victimId,
+          cargoId: item.cargoId,
+        }
+        const next = [...prev]
+        next.splice(placementIndex(prev, item), 0, step)
+        return next
+      })
     },
-    [liveSeizes, seizeOffer]
+    [seizeOffer]
+  )
+  const toggleSurvey = useCallback(() => {
+    setSteps(prev => {
+      if (prev.some(s => s.kind === 'survey')) return prev.filter(s => s.kind !== 'survey')
+      if (!surveyOffer) return prev
+      const next = [...prev]
+      next.splice(placementIndex(prev, surveyOffer), 0, { id: stepId(), kind: 'survey' })
+      return next
+    })
+  }, [surveyOffer])
+  const toggleSalvage = useCallback((option: SalvageOption | KillSalvageOption) => {
+    const key = salvageOptionKey(option)
+    setSteps(prev => {
+      const mine = (s: PlanStep) => s.kind === 'salvage' && salvageStepKey(s) === key
+      if (prev.some(mine)) return prev.filter(s => !mine(s))
+      // One wreck a turn: while one is picked, another is refused.
+      if (prev.some(s => s.kind === 'salvage')) return prev
+      const next = [...prev]
+      // A wreck is taken where the ship meets it; a kill's, right after the shot.
+      if ('victimId' in option)
+        next.splice(option.index, 0, {
+          id: stepId(),
+          kind: 'salvage',
+          wreckId: null,
+          victimId: option.victimId,
+        })
+      else
+        next.splice(placementIndex(prev, option), 0, {
+          id: stepId(),
+          kind: 'salvage',
+          wreckId: option.id,
+          victimId: null,
+        })
+      return next
+    })
+  }, [])
+  const toggleMark = useCallback(
+    (option: MarkOption) => {
+      setSteps(prev => {
+        const mine = (s: PlanStep) => s.kind === 'mark' && s.carrierId === option.carrierId
+        if (prev.some(mine)) return prev.filter(s => !mine(s))
+        // One marker per ship and one ship per marker: at the cap, a new pick is refused.
+        if (prev.filter(s => s.kind === 'mark').length >= (markOffer?.markers ?? 0)) return prev
+        const next = [...prev]
+        next.splice(placementIndex(prev, option), 0, {
+          id: stepId(),
+          kind: 'mark',
+          carrierId: option.carrierId,
+        })
+        return next
+      })
+    },
+    [markOffer]
   )
   const setRepairChoice = useCallback((id: SubsystemId | null) => setRepairChoiceState(id), [])
 
@@ -388,10 +472,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       planActions(me, steps, preview, {
         repair: repairChoice,
         dockSale: dockChoice,
-        escorts: escortChoices,
-        seizes: liveSeizes,
       }),
-    [me, steps, preview, repairChoice, dockChoice, escortChoices, liveSeizes]
+    [me, steps, preview, repairChoice, dockChoice]
   )
 
   // --- mutators ------------------------------------------------------------
@@ -629,12 +711,17 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       dockOffer,
       dockSale,
       setDockSale: setDockChoice,
-      escortOffer,
-      escortChoices,
-      toggleEscort,
       seizeOffer,
-      seizeChoices: liveSeizes,
+      seizeChoices,
       toggleSeize,
+      surveyOffer,
+      toggleSurvey,
+      salvageOffer,
+      salvageChoice,
+      toggleSalvage,
+      markOffer,
+      markChoices,
+      toggleMark,
     }),
     [
       me,
@@ -683,12 +770,17 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       repairable,
       dockOffer,
       dockSale,
-      escortOffer,
-      escortChoices,
-      toggleEscort,
       seizeOffer,
-      liveSeizes,
+      seizeChoices,
       toggleSeize,
+      surveyOffer,
+      toggleSurvey,
+      salvageOffer,
+      salvageChoice,
+      toggleSalvage,
+      markOffer,
+      markChoices,
+      toggleMark,
     ]
   )
 

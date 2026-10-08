@@ -210,6 +210,12 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
     case "mission_completed":
       return `${name(e.playerId)} completes ${describeMission(e.mission, name)} (${e.points} points)`;
     case "action_skipped":
+      if (e.action === "salvage")
+        return `${name(e.playerId)} salvages nothing: there is no wreck in the sector`;
+      if (e.action === "seize")
+        return `${name(e.playerId)} seizes nothing from ${name(e.targetId)}: the ship is already gone`;
+      if (e.action === "escort_mark")
+        return `${name(e.playerId)} marks nobody: ${name(e.targetId)} is already gone`;
       return `${name(e.playerId)}'s ${e.action === "scan" ? "scan" : "shot"} at ${name(e.targetId)} is not taken: the ship is already gone`;
     case "stations_moved": {
       const carrying = e.riders.length > 0 ? `, carrying ${e.riders.map(name).join(", ")}` : "";

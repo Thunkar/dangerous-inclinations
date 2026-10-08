@@ -53,7 +53,7 @@ import {
   phasedJumpDestination,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
-import { seizeKey } from '../../plan/preview'
+import { salvageOptionKey, seizeKey } from '../../plan/preview'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { SubsystemIcon } from '../common/SubsystemIcon'
@@ -206,8 +206,10 @@ export function ActionPanel() {
 
         <RepairControl />
         <DockSaleControl />
-        <EscortControl />
         <SeizeControl />
+        <SurveyControl />
+        <SalvageControl />
+        <MarkControl />
 
         <Divider />
         <Step n={4} label="Sequence">
@@ -423,57 +425,14 @@ function DockSaleControl() {
   )
 }
 
-/**
- * An Escort marker is a "you may" (RULES §Missions, Escort). The choice
- * appears only when the turn as built ends in the sector of a carrier the
- * engine would let a marker go on; nothing is lit until picked, and at one
- * pick per marker in hand the rest wait until one is taken back.
- */
-function EscortControl() {
-  const plan = usePlan()
-  const disabled = plan.disabled
-  const { nameOf } = useGame()
-  const offer = plan.escortOffer
-  if (!offer) return null
-  const full = plan.escortChoices.length >= offer.markers
-  return (
-    <>
-      <Divider />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-        <SectionLabel>
-          Escort · you may place {offer.markers === 1 ? 'your marker' : `${offer.markers} markers`}
-        </SectionLabel>
-        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-          {offer.carriers.map(carrierId => {
-            const on = plan.escortChoices.includes(carrierId)
-            const name = nameOf(carrierId)
-            const off = disabled || (!on && full)
-            return (
-              <ChoiceChip
-                key={carrierId}
-                title={`Put your marker on ${name}: done the next time they deliver, sell or file anything, or pump fuel; back to you if they are destroyed first`}
-                selected={on}
-                disabled={off}
-                opacity={!on && full ? 0.5 : 1}
-                onClick={() => plan.toggleEscort(carrierId)}
-              >
-                Escort {name}
-              </ChoiceChip>
-            )
-          })}
-        </Box>
-      </Box>
-    </>
-  )
-}
-
 const ITEM_WORD: Record<SeizableItem['kind'], string> = { crate: 'crate', loot: 'loot', data: 'data' }
 
 /**
- * Piracy is a "you may" (RULES §Missions). The choice appears only when the
- * turn as built ends, not moored, in the sector of an undocked ship carrying
- * cargo and a Piracy card is free; nothing is lit until picked, and at one
- * pick per free card the rest wait until one is taken back.
+ * Piracy is a "you may" (RULES §Missions), and a step in the sequence. The
+ * choice appears only when a Piracy card is free and an undocked ship
+ * carrying cargo shares the sector where the turn starts or where the move
+ * ends; a pick puts a seize step in the sequence (first, or right after the
+ * move), and at one pick per free card the rest wait until one is taken back.
  */
 function SeizeControl() {
   const plan = usePlan()
@@ -498,13 +457,108 @@ function SeizeControl() {
             return (
               <ChoiceChip
                 key={key}
-                title={`Sell it at any station. ${name}'s card goes back to undone.`}
+                title={`A step in your sequence, ${
+                  item.before ? 'before your move and your shots' : 'right after your move'
+                }. Sell it at any station. ${name}'s card goes back to undone.`}
                 selected={on}
                 disabled={off}
                 opacity={!on && full ? 0.5 : 1}
                 onClick={() => plan.toggleSeize(item)}
               >
-                Take {ITEM_WORD[item.kind]} from {name}
+                Take {ITEM_WORD[item.kind]} from {name} · {item.before ? 'now' : 'after the move'}
+              </ChoiceChip>
+            )
+          })}
+        </Box>
+      </Box>
+    </>
+  )
+}
+
+/** Where a step offered before or after the move goes, said on its chip. */
+const when = (before: boolean) => (before ? 'now' : 'after the move')
+const whenTitle = (before: boolean) =>
+  `A step in your sequence, ${before ? 'before your move and your shots' : 'right after your move'}.`
+
+/**
+ * Survey is a "you may" (RULES §Missions) and a step in the sequence: offered
+ * when a Survey card wants data and the ship is on Black Hole Ring 1 where
+ * the turn starts or where the move ends.
+ */
+function SurveyControl() {
+  const plan = usePlan()
+  const offer = plan.surveyOffer
+  if (!offer) return null
+  return (
+    <>
+      <Divider />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
+        <SectionLabel>Survey · you may take the data</SectionLabel>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
+          <ChoiceChip
+            title={`${whenTitle(offer.before)} File it at any station.`}
+            selected={plan.steps.some(s => s.kind === 'survey')}
+            disabled={plan.disabled}
+            onClick={plan.toggleSurvey}
+          >
+            Take the data · {when(offer.before)}
+          </ChoiceChip>
+        </Box>
+      </Box>
+    </>
+  )
+}
+
+/**
+ * Salvage is a "you may" (RULES §Missions) and a step in the sequence:
+ * offered when a Salvage card wants a black box and a wreck is on the sector
+ * where the turn starts or where the move ends, or when a shot of the plan
+ * could destroy a ship in the sector the ship is in after it (the wreck is
+ * there at once, so the step goes right after the shot). One wreck a turn.
+ */
+function SalvageControl() {
+  const plan = usePlan()
+  const { nameOf } = useGame()
+  const offer = plan.salvageOffer
+  if (!offer) return null
+  const chosen = plan.salvageChoice
+  return (
+    <>
+      <Divider />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
+        <SectionLabel>Salvage · you may take a black box</SectionLabel>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
+          {offer.kills.map(kill => {
+            const key = salvageOptionKey(kill)
+            const on = chosen === key
+            const full = chosen !== null && !on
+            return (
+              <ChoiceChip
+                key={key}
+                title={`Right after your shot. Nothing is taken if ${nameOf(kill.victimId)} survives. File it at any station.`}
+                selected={on}
+                disabled={plan.disabled || full}
+                opacity={full ? 0.5 : 1}
+                onClick={() => plan.toggleSalvage(kill)}
+              >
+                Salvage {nameOf(kill.victimId)} · if it dies
+              </ChoiceChip>
+            )
+          })}
+          {offer.wrecks.map((wreck, index) => {
+            const on = chosen === salvageOptionKey(wreck)
+            const full = chosen !== null && !on
+            return (
+              <ChoiceChip
+                key={wreck.id}
+                title={`${whenTitle(wreck.before)} File it at any station.`}
+                selected={on}
+                disabled={plan.disabled || full}
+                opacity={full ? 0.5 : 1}
+                onClick={() => plan.toggleSalvage(wreck)}
+              >
+                {offer.wrecks.length > 1 ? `Salvage wreck ${index + 1}` : 'Salvage the wreck'} ·{' '}
+                {when(wreck.before)}
               </ChoiceChip>
             )
           })}
@@ -515,8 +569,50 @@ function SeizeControl() {
 }
 
 /**
- * One pick among a few (a subsystem to repair, a sale, a carrier to escort,
- * an item to take): a cream block when chosen, an outlined one when not.
+ * An Escort marker is a "you may" (RULES §Missions, Escort) and a step in the
+ * sequence: offered when a carrier the engine would let a marker go on shares
+ * the ring where the turn starts or where the move ends. At one pick per
+ * marker in hand the rest wait until one is taken back.
+ */
+function MarkControl() {
+  const plan = usePlan()
+  const { nameOf } = useGame()
+  const offer = plan.markOffer
+  if (!offer) return null
+  const full = plan.markChoices.length >= offer.markers
+  return (
+    <>
+      <Divider />
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
+        <SectionLabel>
+          Escort · you may place {offer.markers === 1 ? 'your marker' : `${offer.markers} markers`}
+        </SectionLabel>
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
+          {offer.carriers.map(option => {
+            const on = plan.markChoices.includes(option.carrierId)
+            const name = nameOf(option.carrierId)
+            return (
+              <ChoiceChip
+                key={option.carrierId}
+                title={`${whenTitle(option.before)} Done the next time ${name} sells or pumps fuel with you in its well; back to you if either ship is destroyed first.`}
+                selected={on}
+                disabled={plan.disabled || (!on && full)}
+                opacity={!on && full ? 0.5 : 1}
+                onClick={() => plan.toggleMark(option)}
+              >
+                Mark {name} · {when(option.before)}
+              </ChoiceChip>
+            )
+          })}
+        </Box>
+      </Box>
+    </>
+  )
+}
+
+/**
+ * One pick among a few (a subsystem to repair, a sale, a carrier to mark,
+ * an item to take, a wreck): a cream block when chosen, an outlined one when not.
  */
 function ChoiceChip({
   title,

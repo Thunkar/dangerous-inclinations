@@ -232,7 +232,7 @@ export const CHEATSHEET = {
     missilesTitle: 'Missiles in flight',
     missile: {
       label:
-        'Launched, then the ship moves on: the missile flies from where it was dropped with no ride on its first turn, rides its ring then flies on its second, and reaches the target on turn {hitTurn}',
+        'Launched, the missile flies at once from where it was dropped, with no ride, and the ship moves on. On its second turn it rides its ring then flies, and reaches the target on turn {hitTurn}',
       ring: 'RING {ring}',
       speed: 'SPEED {speed}',
       targetDrifts: 'target drifts',
@@ -247,7 +247,7 @@ export const CHEATSHEET = {
         flies: 'flies {steps}, rings first',
       },
       caption:
-        'The turn you launch it, a missile flies {steps} steps from the sector you dropped it on, whether you fired before your move or after it. At the end of every turn after that it rides its orbit, then flies {steps}. On the target’s sector it attacks like a weapon ({damage} damage), unless a rack with energy on it shoots it down on {on}+. It lasts {turns} turns.',
+        'A missile flies {steps} steps the moment you launch it, from the sector you dropped it on, and your move afterwards leaves it there. At the end of every turn after that it rides its orbit, then flies {steps}. On the target’s sector it attacks like a weapon ({damage} damage), unless a rack with energy on it shoots it down on {on}+. A hit on the launch flight lands before the rest of your turn. It lasts {turns} turns.',
     },
     /** The two columns of points at the foot of the section. */
     hits: [
@@ -313,7 +313,7 @@ export const CHEATSHEET = {
       {
         when: 'The turn after',
         title: 'A quiet turn',
-        text: 'Move as usual, but you cannot fire or scan. Nobody can touch you until it ends.',
+        text: 'Move as usual, but you cannot fire, scan or seize. Nobody can touch you until it ends.',
       },
     ],
   },

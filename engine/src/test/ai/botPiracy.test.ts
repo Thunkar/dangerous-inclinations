@@ -2,7 +2,8 @@
  * The bots and Piracy: a pirate names the item that costs its victim most.
  */
 import { describe, it, expect } from "vitest";
-import type { GameState } from "../../models/game.ts";
+import type { GameState, PlayerAction } from "../../models/game.ts";
+import { MOVE_ACTION_TYPES } from "../../models/game.ts";
 import type { Cargo, Mission } from "../../models/missions.ts";
 import { viewFor } from "../../game/view.ts";
 import { executeTurn } from "../../game/turns.ts";
@@ -12,12 +13,14 @@ import {
   ALPHA,
   BETA,
   deliverMission,
+  destroyMission,
   getPlayer,
   lootCargo,
   piracyMission,
   surveyMission,
   takenData,
   withPlayer,
+  withShip,
   LANDING,
   alongside,
   crateOf,
@@ -79,5 +82,39 @@ describe("bots and Piracy", () => {
       expected
     );
     expect(executeTurn(state, decision.actions).errors).toBeUndefined();
+  });
+
+  /** p1 the pirate already in p2's sector when its turn begins. */
+  const together = (pirate: Mission[], hull = 10): GameState =>
+    withShip(withShip(table(pirate, [CRATE_ABOARD], []), "p1", LANDING), "p2", { hitPoints: hull });
+  const sequenceOf = (actions: PlayerAction[], match: (a: PlayerAction) => boolean) =>
+    actions.filter(match).map((a) => a.sequence ?? 0);
+
+  it.each<[string, Mission[], number, boolean]>([
+    ["a carrier it already shares a sector with", [PIRACY], 10, false],
+    [
+      "its Destroy target on one hull point: seized, then shot",
+      [PIRACY, destroyMission("p2")],
+      1,
+      true,
+    ],
+  ])("a bot seizes from %s before it moves or fires", (_label, pirate, hull, killed) => {
+    const state = together(pirate, hull);
+    const { actions } = botDecideActions(viewFor(state, "p1"));
+    const [seized] = sequenceOf(actions, (a) => a.type === "seize");
+    const later = sequenceOf(
+      actions,
+      (a) =>
+        MOVE_ACTION_TYPES.has(a.type) ||
+        (a.type === "fire_weapon" && a.data.targetPlayerId === "p2")
+    );
+    expect(seized).toBeDefined();
+    expect(later.every((n) => n > seized)).toBe(true);
+    const result = executeTurn(state, actions);
+    expect(result.errors).toBeUndefined();
+    expect(result.events.filter((e) => e.type === "cargo_seized")).toHaveLength(1);
+    expect(result.events.some((e) => e.type === "ship_destroyed" && e.victimId === "p2")).toBe(
+      killed
+    );
   });
 });

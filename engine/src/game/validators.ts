@@ -16,7 +16,9 @@ import type {
   RepairAction,
   DockSaleAction,
   EscortMarkAction,
+  SalvageAction,
   SeizeAction,
+  SurveyAction,
   ScanAction,
   WellTransferAction,
   Position,
@@ -43,11 +45,16 @@ import {
 } from "../models/rings.ts";
 import { findJump, getJumpAdjustmentRange } from "../models/gravityWells.ts";
 import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
-import { positionOf, ringVelocity } from "./geometry.ts";
+import { positionOf, ringVelocity, samePosition } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, isOnBoard, requestedDraw } from "./ship.ts";
 import { recoilRing, ringAfter } from "./movement.ts";
 import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange } from "./targeting.ts";
 import { findReadySensor, inScanRange } from "./scan.ts";
+import { isMooredAt, isMooredMidTurn } from "./stations.ts";
+import { freePiracyCards, seizableItemsNow } from "./piracy.ts";
+import { escortCandidatesNow, markedBy, unplacedEscorts } from "./escort.ts";
+import { onSurveyRing, surveyToTake } from "./survey.ts";
+import { salvageToTake } from "./salvage.ts";
 
 export function validateActionSequence(actions: PlayerAction[]): string[] {
   const errors: string[] = [];
@@ -218,13 +225,27 @@ function validateTarget(
  * differently because a player who cannot fire deserves to know which one it
  * is (RULES §A Turn, §Destruction and Respawn).
  */
-function quietTurnRefusal(state: GameState, player: Player, what: "fire" | "scan"): string | null {
+function quietTurnRefusal(
+  state: GameState,
+  player: Player,
+  what: "fire" | "scan" | "seize"
+): string | null {
   if (!isQuietTurn(state.turn, player)) return null;
-  if (isOpeningRound(state.turn))
-    return what === "fire" ? "No weapon fires in the first round" : "Nobody scans in the first round";
-  return what === "fire"
-    ? "Back from Home: this turn is a first round of your own, so no weapon of yours fires"
-    : "Back from Home: this turn is a first round of your own, so you scan nobody";
+  const opening = isOpeningRound(state.turn);
+  switch (what) {
+    case "fire":
+      return opening
+        ? "No weapon fires in the first round"
+        : "Back from Home: this turn is a first round of your own, so no weapon of yours fires";
+    case "scan":
+      return opening
+        ? "Nobody scans in the first round"
+        : "Back from Home: this turn is a first round of your own, so you scan nobody";
+    case "seize":
+      return opening
+        ? "Nobody seizes in the first round"
+        : "Back from Home: this turn is a first round of your own, so you seize from nobody";
+  }
 }
 
 /** What an action of the turn needs to know about the turn itself. */
@@ -342,31 +363,130 @@ export function validateDockSaleAction(_state: GameState, action: DockSaleAction
 }
 
 /**
- * An Escort marker named for the turn: only malformed input is refused. Where
- * the ships are, what they carry and whether either is moored are read at the
- * end of the turn, after the move; a ship that does not qualify then takes no
- * marker and the turn stands (RULES §Missions, Escort).
+ * An Escort marker at its point in the sequence (RULES §Missions, Escort): a
+ * marker is in hand, the carrier is a rival on the escort's ring there with
+ * cargo aboard and no marker on it, it is not just back from Home, and
+ * neither ship is moored (the escort by the berth it began the turn on, as
+ * for firing). Allowed on a quiet turn: a marker is neither a shot, a scan
+ * nor a seizure. A carrier destroyed earlier in the turn is skipped before
+ * this is asked (actionProcessors.ts).
  */
-export function validateEscortMarkAction(state: GameState, action: EscortMarkAction): string[] {
+export function validateEscortMarkAction(
+  state: GameState,
+  action: EscortMarkAction,
+  turn: TurnContext
+): string[] {
   const carrierId = action.data.carrierId;
   if (typeof carrierId !== "string" || !findPlayer(state, carrierId))
     return [`An Escort marker goes on a player at the table, not ${String(carrierId)}`];
   if (carrierId === action.playerId) return ["An Escort marker goes on a rival, not your own ship"];
+  const escort = requirePlayer(state, action.playerId);
+  const carrier = requirePlayer(state, carrierId);
+  if (unplacedEscorts(escort.missions).length === 0)
+    return ["No Escort marker in hand: one marker per undone Escort"];
+  if (!isOnBoard(carrier)) return [`${carrier.name} is not on the board`];
+  if (!canBeScanned(carrier))
+    return [`${carrier.name} cannot be touched until their next turn is over`];
+  if (isMooredMidTurn(state.stations, turn.start, positionOf(escort.ship)))
+    return ["A moored ship marks nobody: burn off the berth first"];
+  if (state.players.some((p) => markedBy(p).has(carrierId)))
+    return [`${carrier.name} already carries an Escort marker: a ship takes one`];
+  if (
+    carrier.ship.wellId !== escort.ship.wellId ||
+    carrier.ship.ring !== escort.ship.ring
+  )
+    return [`${carrier.name} is not on your ring at this point in the turn`];
+  if (isMooredAt(state.stations, positionOf(carrier.ship)))
+    return [`${carrier.name} is moored: a berth takes no marker`];
+  if (!carrier.cargo.some((c) => c.isPickedUp)) return [`${carrier.name} carries nothing`];
+  // Every check above is the referee list's, said item by item; this is the
+  // list itself, so the two cannot drift.
+  if (!escortCandidatesNow(state, escort.id, turn.start).includes(carrierId))
+    return [`${carrier.name} cannot take your marker here`];
   return [];
 }
 
 /**
- * An item named for a seizure: only malformed input is refused. Where the ships are and what they carry are
- * read at the end of the turn, after the move; an item that is not there to
- * take then is passed over and the turn stands.
+ * A dive at its point in the sequence (RULES §Missions, Survey): the ship is
+ * on Black Hole Ring 1 there and an undone Survey has no data aboard. Allowed
+ * on a quiet turn: it touches nobody. One dive a turn is checked over the
+ * whole turn (actionProcessors.ts).
  */
-export function validateSeizeAction(state: GameState, action: SeizeAction): string[] {
+export function validateSurveyAction(state: GameState, action: SurveyAction): string[] {
+  const player = requirePlayer(state, action.playerId);
+  if (!surveyToTake(player))
+    return ["No Survey card wants data: each takes one, and its data must be filed first"];
+  if (!onSurveyRing(positionOf(player.ship)))
+    return ["A survey is taken on Black Hole Ring 1: you are not on it at this point in the turn"];
+  return [];
+}
+
+/**
+ * A salvage at its point in the sequence (RULES §Missions, Salvage): an
+ * undone Salvage has no black box aboard, and a wreck it names is on the
+ * ship's sector there, moored or not. One that names none takes the first
+ * wreck there, and finding none is skipped rather than refused
+ * (actionProcessors.ts): whether the shot before it killed is the dice's.
+ * Allowed on a quiet turn: a wreck is nobody. One wreck a turn is checked
+ * over the whole turn (actionProcessors.ts).
+ */
+export function validateSalvageAction(state: GameState, action: SalvageAction): string[] {
+  const wreckId = action.data?.wreckId;
+  if (wreckId !== undefined && typeof wreckId !== "string")
+    return [`A salvage names a wreck by its id, not ${String(wreckId)}`];
+  const player = requirePlayer(state, action.playerId);
+  if (!salvageToTake(player))
+    return ["No Salvage card wants a black box: each takes one, and it must be filed first"];
+  if (wreckId === undefined) return [];
+  const wreck = state.wrecks.find((w) => w.id === wreckId);
+  if (!wreck) return [`No wreck ${wreckId} on the board`];
+  if (!samePosition(wreck, positionOf(player.ship)))
+    return [`Wreck ${wreckId} is not in your sector at this point in the turn`];
+  return [];
+}
+
+/**
+ * A seizure at its point in the sequence (RULES §Missions, Piracy): the item
+ * is aboard a rival in the pirate's sector there, neither ship is moored (the
+ * pirate by the berth it began the turn on, as for firing), the rival is not
+ * just back from Home, and a Piracy card is free to take it. Refused on a
+ * quiet turn, as a shot and a scan are: the opening round and a ship's first
+ * turn back from Home reach nobody. A ship destroyed earlier in the turn is
+ * skipped before this is asked (actionProcessors.ts).
+ */
+export function validateSeizeAction(
+  state: GameState,
+  action: SeizeAction,
+  turn: TurnContext
+): string[] {
   const { victimId, cargoId } = action.data;
   if (typeof victimId !== "string" || !findPlayer(state, victimId))
     return [`A seizure is made from a player at the table, not ${String(victimId)}`];
   if (victimId === action.playerId) return ["A seizure is made from a rival, not your own ship"];
   if (typeof cargoId !== "string")
     return [`The item seized is named by its cargo id, not ${String(cargoId)}`];
+  const pirate = requirePlayer(state, action.playerId);
+  const victim = requirePlayer(state, victimId);
+  const quiet = quietTurnRefusal(state, pirate, "seize");
+  if (quiet) return [quiet];
+  if (freePiracyCards(pirate.missions, pirate.cargo).length === 0)
+    return ["No Piracy card free to take an item: each takes one, and its loot must be sold first"];
+  if (!isOnBoard(victim)) return [`${victim.name} is not on the board`];
+  if (!canBeScanned(victim))
+    return [`${victim.name} cannot be touched until their next turn is over`];
+  if (isMooredMidTurn(state.stations, turn.start, positionOf(pirate.ship)))
+    return ["A moored ship seizes nothing: burn off the berth first"];
+  if (!samePosition(positionOf(victim.ship), positionOf(pirate.ship)))
+    return [`${victim.name} is not in your sector at this point in the turn`];
+  if (isMooredAt(state.stations, positionOf(victim.ship)))
+    return [`${victim.name} is moored: nothing changes hands at a berth`];
+  if (!victim.cargo.some((c) => c.id === cargoId && c.isPickedUp))
+    return [`${victim.name} carries no item ${cargoId}`];
+  // Every check above is the referee list's, said item by item; this is the
+  // list itself, so the two cannot drift.
+  const listed = seizableItemsNow(state, pirate.id, turn.start);
+  if (!listed.some((i) => i.victimId === victimId && i.cargoId === cargoId))
+    return [`${cargoId} cannot be seized from ${victim.name} here`];
   return [];
 }
 

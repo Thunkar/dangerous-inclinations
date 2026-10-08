@@ -11,7 +11,7 @@
  *                                on the lane arc they arrive through), then dock to sell
  *   tanker                     → no trip of its own: the fuel held back on every dock
  *                                plan, and the fast rings once the primary is in
- *   salvage                    → end a turn on a wreck (planned where it will have
+ *   salvage                    → reach a wreck (planned where it will have
  *                                drifted to) for its black box, then dock anywhere to file it
  *   escort                     → match orbits with a carrier in this well, as the
  *                                pirate does, and mark it; once marked, ride along:

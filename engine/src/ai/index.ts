@@ -145,9 +145,15 @@ function summarizeAction(action: PlayerAction): string {
     case "dock_sale":
       return `At the dock: sell ${action.data.sale}`;
     case "escort_mark":
-      return `Escort marker on ${action.data.carrierId}`;
+      return `Mark ${action.data.carrierId} with an Escort marker`;
     case "seize":
       return `Seize ${action.data.cargoId} from ${action.data.victimId}`;
+    case "survey":
+      return "Survey: take the data";
+    case "salvage":
+      return action.data.wreckId === undefined
+        ? "Salvage the wreck in the sector, if there is one"
+        : `Salvage ${action.data.wreckId}`;
   }
 }
 

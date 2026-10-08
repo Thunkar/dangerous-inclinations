@@ -46,7 +46,7 @@ Data flow: `UI → WebSocket → server → engine → new state → viewFor →
 each); every ring has 24 sectors. Everyone deploys on black hole ring 2, 3 or 4, at least three
 sectors from every placed ship; that position is their Home (destroyed ships respawn there, drift one turn, and
 their next turn is a first round of their own: untouchable until it is over, and
-firing at and scanning nobody on it). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
+firing at, scanning and seizing from nobody on it). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
 from black hole ring 5 to its ring 4 and an inbound lane back. Stations orbit planet ring 2, with a faster ring 1 inside them, and are where cargo is
 loaded, ships are repaired and data is delivered. A moored ship can neither fire nor be
 fired at, missiles included (scans still reach it).
@@ -64,16 +64,20 @@ subsystem privately. Completed missions are face-up. Reaching
 the table's points (3; the value rides on `GameState.pointsToWin` and the
 view, and only the simulator's `--rules=missionsToWin=4` plays to four) triggers the final round: the round is
 played out, then highest score wins (hull, then fuel, break ties). Eight card types in two kinds: primaries
-worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey, piracy
-(end a turn on an undocked rival carrying cargo and take one item of your
-choice, named with a `seize`; loot that sells anywhere, their card back to
-undone), tanker (arrive at a station
-with five fuel and pump it in), escort (you may put your marker, face-up, on
-an undocked rival carrying cargo on your ring; it pays when that ship next
+worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey
+(`survey` is an action in the sequence: while on black hole ring 1, take the
+data, filed anywhere), piracy
+(`seize` is an action in the sequence: sharing a sector with an undocked
+rival carrying cargo, not moored, take one item of your choice; loot that
+sells anywhere, their card back to undone), tanker (arrive at a station
+with five fuel and pump it in), escort (`escort_mark` is an action in the
+sequence: while on the ring of an undocked rival carrying cargo, not moored,
+you may put your marker on it, face-up; it pays when that ship next
 sells or pumps fuel with the escort in its well, and comes back if either
 ship dies) and salvage (a destroyed ship leaves a
-wreck that drifts with the stations; end a turn on it and take its black box,
-data filed anywhere)). A visit does one thing: load the crates waiting
+wreck that drifts with the stations; `salvage` is an action in the sequence:
+while on its sector, take its black box, data filed anywhere; a wreck goes
+down once the turn's actions are over, so a kill is salvaged on a later turn)). A visit does one thing: load the crates waiting
 there, or sell one item; and each station buys from each player once per
 game: a Deliver crate, one piece of data, one loot item or a Tanker's fuel
 (`dock_sale` names it, "load" or "none"; the default is the sale that scores
@@ -102,12 +106,16 @@ that costs one subsystem's heat honest. Answering is a flat 2 heat on the
 defender's track, however many missiles, as a shield's absorbed points are.
 
 Turn: (respawn turn if destroyed) → clear the loadout → actions in chosen order (power,
-rotate, one move: coast/burn/jump, fire, scan) → own missiles move → heat
+rotate, one move: coast/burn/jump, fire, scan, seize, survey, salvage, mark; a
+missile flies its 3 steps and may attack the moment it is launched, and a
+seizure, a survey, a salvage and a mark take effect where they come) → own
+missiles from earlier turns ride and fly → heat
 check (over 10 is hull damage, then dissipate and carry the rest) → docking (on
-arrival only, and not for a ship its check destroyed) → missions →
+arrival only, and not for a ship its check destroyed) → missions (completed
+cards face-up, Escorts paid) →
 pass. Once a round, after the last seat's turn, the stations advance (their own
 step, carrying moored ships). The first round reaches nobody (no weapon
-fires and nobody scans) because everyone deploys around one hole, so the opening
+fires, nobody scans, nobody seizes) because everyone deploys around one hole, so the opening
 round is for getting off the line.
 
 ## Key files
@@ -118,7 +126,8 @@ engine/src/models/      game.ts (state, actions), subsystems.ts (tiles, ids), mi
 engine/src/game/        turns.ts (pipeline), actionProcessors.ts, validators.ts,
                         ship.ts (subsystem helpers, useSubsystem/reveal/break),
                         geometry.ts, movement.ts, targeting.ts, damage.ts, heat.ts,
-                        missiles.ts, scan.ts, docking.ts, piracy.ts, stations.ts, respawn.ts,
+                        missiles.ts, scan.ts, docking.ts, piracy.ts, escort.ts, survey.ts,
+                        salvage.ts, stations.ts, respawn.ts,
                         deployment.ts, setup.ts (createGame/submitLoadout),
                         missions/ (deck, checks), view.ts, describe.ts
 engine/src/ai/          botDecideActions(view), botChooseLoadout, botChooseDeployment

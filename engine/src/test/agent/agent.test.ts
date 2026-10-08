@@ -24,6 +24,11 @@ import {
   withPower,
   withShip,
   cratesAboard,
+  alongside,
+  piracyMission,
+  salvageMission,
+  surveyMission,
+  LANDING,
 } from "../testUtils.ts";
 import { brawlerState, laneState, sensorState } from "../game/actionOrder.scenarios.ts";
 
@@ -114,7 +119,11 @@ describe("agent seat tooling", () => {
   };
 
   it.each([
-    ["with an Escort in hand", true, { markersInHand: 1, carriersAfterCoast: ["p2"] }],
+    [
+      "with an Escort in hand",
+      true,
+      { markersInHand: 1, carriersNow: ["p2"], carriersAfterCoast: ["p2"] },
+    ],
     ["without one", false, null],
   ])("offers the Escort choice after a coast %s", (_label, withCard, expected) => {
     expect(seatOptions(viewFor(escortTable(withCard), "p1")).escort).toEqual(expected);
@@ -133,6 +142,196 @@ describe("agent seat tooling", () => {
     ).toEqual(expected);
     expect(built.notes).toHaveLength(notes);
     expect(executeTurn(state, built.actions).errors).toBeUndefined();
+  });
+
+  it.each<[string, (s: GameState) => GameState, string[]]>([
+    ["a carrier on the ring where the ship starts: mark, then coast", (s) => s, ["escort_mark", "coast"]],
+    [
+      "a carrier on the ring the move ends on: burn, then mark",
+      (s) => withShip(s, "p2", { ring: 4, sector: 12 }),
+      ["burn", "escort_mark"],
+    ],
+  ])("places an Escort marker for %s", (_label, patch, order) => {
+    const state = patch(escortTable());
+    const move = order.includes("burn") ? { kind: "burn" as const, intensity: "soft" as const } : undefined;
+    const built = buildTurn(viewFor(state, "p1"), { escort: ["p2"], move });
+    expect(
+      [...built.actions].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)).map((a) => a.type)
+    ).toEqual(order);
+    expect(built.notes).toEqual([]);
+    expect(executeTurn(state, built.actions).errors).toBeUndefined();
+  });
+
+  it.each<[string, (s: GameState) => GameState]>([
+    ["a carrier just back from Home", (s) => withPlayer(s, "p2", { recovering: true })],
+    ["a carrier on no ring the turn reaches", (s) => withShip(s, "p2", { ring: 2 })],
+    ["a carrier with nothing aboard", (s) => withPlayer(s, "p2", { cargo: [] })],
+  ])("notes an Escort marker the engine will refuse: %s", (_label, patch) => {
+    const state = patch(escortTable());
+    const built = buildTurn(viewFor(state, "p1"), { escort: ["p2"] });
+    expect(built.notes).toHaveLength(1);
+    expect(executeTurn(state, built.actions).errors?.length).toBeGreaterThan(0);
+  });
+
+  /** p1 holds a Survey and a Salvage, at `ring` of the black hole facing `facing`. */
+  const diveTable = (ring: number, facing: "prograde" | "retrograde" = "prograde") =>
+    withMissions(
+      makeTwoPlayerGame({ wellId: BH, ring, sector: 0, facing }, { wellId: BH, ring: 4, sector: 12 }),
+      "p1",
+      [surveyMission(), salvageMission()]
+    );
+  it.each<[string, () => GameState, Parameters<typeof buildTurn>[1], string[], number]>([
+    ["a survey on ring 1 where the ship starts", () => diveTable(1), { survey: true }, ["survey", "coast"], 0],
+    [
+      "a survey on ring 1 where the move ends",
+      () => diveTable(2, "retrograde"),
+      { survey: true, move: { kind: "burn", intensity: "soft" } },
+      ["burn", "survey"],
+      0,
+    ],
+    ["a survey off ring 1", () => diveTable(3), { survey: true }, ["coast", "survey"], 1],
+    [
+      "a salvage of the wreck where the ship starts",
+      () => ({ ...diveTable(3), wrecks: [{ id: "w", wellId: BH, ring: 3, sector: 0 }] }),
+      { salvage: "w" },
+      ["salvage", "coast"],
+      0,
+    ],
+    [
+      "a salvage of the wreck the coast ends on",
+      () => ({ ...diveTable(3), wrecks: [{ id: "w", ...LANDING }] }),
+      { salvage: "w" },
+      ["coast", "salvage"],
+      0,
+    ],
+    [
+      "a salvage of a wreck elsewhere",
+      () => ({ ...diveTable(3), wrecks: [{ id: "w", wellId: BH, ring: 3, sector: 12 }] }),
+      { salvage: "w" },
+      ["coast", "salvage"],
+      1,
+    ],
+    ["a salvage of no wreck on the board", () => diveTable(3), { salvage: "w" }, ["coast"], 1],
+  ])("places %s", (_label, build, intent, order, notes) => {
+    const state = build();
+    const built = buildTurn(viewFor(state, "p1"), intent);
+    expect(
+      [...built.actions].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)).map((a) => a.type)
+    ).toEqual(order);
+    expect(built.notes).toHaveLength(notes);
+    // A turn the builder notes nothing on is legal; one it notes is refused,
+    // except a dropped salvage, which leaves a plain coast.
+    const refused = (executeTurn(state, built.actions).errors?.length ?? 0) > 0;
+    expect(refused).toBe(notes > 0 && order.length > 1);
+  });
+
+  // `salvage: true` names no wreck: where a wreck is, or after the shots for
+  // the wreck a kill leaves (a ship is settled the moment it dies).
+  it.each<[string, () => GameState, TurnIntent, string[], number, string]>([
+    [
+      "after a killing shot in the sector the move ends on",
+      () => withShip(diveTable(3), "p2", { ...LANDING, hitPoints: 1 }),
+      { salvage: true, fire: [{ weapon: "side-0", target: "p2" }] },
+      ["coast", "fire_weapon", "salvage"],
+      1,
+      "wreck_salvaged",
+    ],
+    [
+      "on the wreck where the ship starts",
+      () => ({ ...diveTable(3), wrecks: [{ id: "w", wellId: BH, ring: 3, sector: 0 }] }),
+      { salvage: true },
+      ["salvage", "coast"],
+      0,
+      "wreck_salvaged",
+    ],
+    [
+      "with no wreck and no shot",
+      () => diveTable(3),
+      { salvage: true },
+      ["coast", "salvage"],
+      1,
+      "action_skipped",
+    ],
+  ])("places a salvage naming no wreck %s", (_label, build, intent, order, notes, event) => {
+    const state = build();
+    const built = buildTurn(viewFor(state, "p1"), intent);
+    expect(
+      [...built.actions].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)).map((a) => a.type)
+    ).toEqual(order);
+    expect(built.notes).toHaveLength(notes);
+    // Never refused: a salvage that finds no wreck is simply not taken.
+    const result = executeTurn(state, built.actions);
+    expect(result.errors).toBeUndefined();
+    expect(result.events.map((e) => e.type)).toContain(event);
+  });
+
+  it.each<[string, () => GameState, { survey: object | null; salvage: object | null }]>([
+    [
+      "on ring 1 beside a wreck",
+      () => ({ ...diveTable(1), wrecks: [{ id: "w", wellId: BH, ring: 1, sector: 0 }] }),
+      { survey: { now: true, afterCoast: true }, salvage: { wrecksNow: ["w"], wrecksAfterCoast: [] } },
+    ],
+    [
+      "on ring 3 with nothing near",
+      () => diveTable(3),
+      { survey: { now: false, afterCoast: false }, salvage: { wrecksNow: [], wrecksAfterCoast: [] } },
+    ],
+    ["holding neither card", () => withMissions(diveTable(1), "p1", []), { survey: null, salvage: null }],
+  ])("offers the survey and the salvage %s", (_label, build, expected) => {
+    const o = seatOptions(viewFor(build(), "p1"));
+    expect({ survey: o.survey, salvage: o.salvage }).toEqual(expected);
+  });
+
+  // Piracy: p1 one coast short of p2 (`alongside`), or in p2's sector from the start.
+  const pirateTable = (together: boolean): GameState => {
+    const state = alongside([piracyMission()], [deliverMission(ALPHA, BETA, "deliver-p2")]);
+    return together ? withShip(state, "p1", LANDING) : state;
+  };
+  it.each<[string, boolean, TurnIntent["fire"], string[]]>([
+    [
+      "a victim in the start's sector, shot at too: seize, shot, coast",
+      true,
+      [{ weapon: "side-0", target: "p2" }],
+      ["seize", "fire_weapon", "coast"],
+    ],
+    ["a victim in the start's sector: seize, then coast", true, [], ["seize", "coast"]],
+    ["a victim the coast ends on: coast, then seize", false, [], ["coast", "seize"]],
+  ])("places a seizure from %s", (_label, together, fire, order) => {
+    const state = pirateTable(together);
+    const cargoId = getPlayer(state, "p2").cargo[0].id;
+    const built = buildTurn(viewFor(state, "p1"), {
+      fire,
+      seize: [{ victim: "p2", cargoId }],
+    });
+    expect(
+      [...built.actions].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0)).map((a) => a.type)
+    ).toEqual(order);
+    expect(built.notes).toEqual([]);
+    const result = executeTurn(state, built.actions);
+    expect(result.errors).toBeUndefined();
+    expect(result.events.filter((e) => e.type === "cargo_seized")).toHaveLength(1);
+  });
+
+  it.each<[string, (s: GameState) => GameState]>([
+    ["a victim nobody's move reaches", (s) => withShip(s, "p2", { sector: 12 })],
+    ["a victim just back from Home", (s) => withPlayer(s, "p2", { recovering: true })],
+    ["an item not aboard", (s) => withPlayer(s, "p2", { cargo: [] })],
+  ])("notes a seizure the engine will refuse: %s", (_label, patch) => {
+    const state = patch(pirateTable(false));
+    const built = buildTurn(viewFor(state, "p1"), {
+      seize: [{ victim: "p2", cargoId: getPlayer(pirateTable(false), "p2").cargo[0].id }],
+    });
+    expect(built.notes).toHaveLength(1);
+    expect(executeTurn(state, built.actions).errors?.length).toBeGreaterThan(0);
+  });
+
+  it.each<[string, boolean, number]>([
+    ["sharing the sector now", true, 1],
+    ["one coast short", false, 0],
+  ])("offers the items to seize %s", (_label, together, now) => {
+    const options = seatOptions(viewFor(pirateTable(together), "p1")).seize;
+    expect(options?.itemsNow).toHaveLength(now);
+    expect(options?.itemsAfterCoast).toHaveLength(1 - now);
   });
 
   it("builds a burn off the rings as asked and leaves the refusal to the engine", () => {

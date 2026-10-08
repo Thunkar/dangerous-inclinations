@@ -168,6 +168,37 @@ describe("plasma strips a wall and the disruptor follows it in", () => {
   );
 });
 
+describe("a salvo that lands on its launch flight strips a wall for the disruptor", () => {
+  /**
+   * p1 grounded on ring 3, four sectors astern of p2: its coast (ring 3
+   * drifts four) puts it on p2's sector, where its launcher and its
+   * disruptor both bear after the move. p2's face-up wall holds one cube.
+   */
+  const pointBlank = (rackUp: boolean) => {
+    let state = grounded(
+      makeTwoPlayerGame(
+        { wellId: BH, ring: 3, sector: 0, loadout: LOADOUTS.sensorMissilesDisruptor },
+        { wellId: BH, ring: 3, sector: 4, loadout: LOADOUTS.rack }
+      ),
+      "p1"
+    );
+    state = withPower(withSub(state, "p2", "side-2", { isRevealed: true }), "p2", "side-2", 1);
+    if (rackUp)
+      state = withPower(withSub(state, "p2", "side-0", { isRevealed: true }), "p2", "side-0", 2);
+    return state;
+  };
+
+  it.each<[string, boolean, SubsystemId[]]>([
+    ["no rack to answer it: the salvo, then the disruptor", false, ["side-0", "side-1"]],
+    ["a rack up to shoot it down: the disruptor holds", true, ["side-0"]],
+  ])("%s", (_label, rackUp, fired) => {
+    const state = pointBlank(rackUp);
+    expectBotTurnAccepted(state, "p1");
+    const shots = shotsOf(state, "p1");
+    expect(shots.map((s) => s.data.subsystemId)).toEqual(fired);
+  });
+});
+
 /** The opponent p1 sees, after `setup` on a plain duel. */
 function opponent(setup: (s: GameState) => GameState): Opponent {
   const state = setup(

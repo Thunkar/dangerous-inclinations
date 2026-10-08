@@ -240,8 +240,8 @@ export interface InterceptTransmissionMission extends BaseMission {
 }
 
 /**
- * Survey: end a turn on the black hole's innermost ring, take the data, then
- * file it at any station.
+ * Survey: while on the black hole's innermost ring, take the data (a
+ * `survey` action in your sequence), then file it at any station.
  *
  * It asks for no tile and cannot be blocked, which is why it is worth a point
  * rather than two: the two secondaries a hand keeps are two points, one short
@@ -254,9 +254,9 @@ export interface SurveyMission extends BaseMission {
 }
 
 /**
- * Piracy: end a turn on an undocked ship carrying cargo and you
- * may take one item of your choice from it (a `seize` action); sell it at any
- * station.
+ * Piracy: while you share a sector with an undocked ship carrying cargo, and
+ * you are not moored, you may take one item of your choice from it (a `seize`
+ * action in your sequence); sell it at any station.
  *
  * The only secondary card somebody else pays for. The victim is undocked and
  * shares the pirate's sector, so neither ship is moored: a berth is not a place
@@ -288,10 +288,10 @@ export interface TankerMission extends BaseMission {
 }
 
 /**
- * Escort: end a turn, not moored, on the same ring (any sector) as an
- * undocked rival carrying cargo (a crate or data, loot included) with the marker in hand,
- * and you may put it on that ship, face-up for the table (the `escort_mark`
- * action). The next time that ship delivers, sells or files anything, or
+ * Escort: while on the same ring (any sector) as an undocked rival carrying
+ * cargo (a crate or data, loot included), not moored, with the marker in
+ * hand, you may put it on that ship, face-up for the table (an `escort_mark`
+ * action in your sequence). The next time that ship delivers, sells or files anything, or
  * pumps a Tanker's fuel, at a station while the escort's ship is in that
  * planet's well, the card is done. If either ship is destroyed first, the
  * marker comes back to hand and may be placed again. A second Escort marks a
@@ -304,8 +304,8 @@ export interface EscortMission extends BaseMission {
 }
 
 /**
- * Salvage: end a turn on a wreck's sector holding an undone Salvage: take its
- * black box. It is data, and a pirate can seize it. File it at any station
+ * Salvage: while on a wreck's sector holding an undone Salvage, take its
+ * black box (a `salvage` action in your sequence). It is data, and a pirate can seize it. File it at any station
  * and the card is done. One wreck a turn. Rides as {@link cargoId}, data
  * filed at "any" station.
  */

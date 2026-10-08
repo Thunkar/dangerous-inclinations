@@ -311,9 +311,16 @@ export type GameEvent =
   | (Base & {
       type: "action_skipped";
       playerId: string;
-      action: "fire_weapon" | "scan";
+      action: "fire_weapon" | "scan" | "seize" | "escort_mark";
       targetId: string;
       reason: "target_destroyed";
+    })
+  | (Base & {
+      /** A salvage naming no wreck found none in the sector at its point in the turn. */
+      type: "action_skipped";
+      playerId: string;
+      action: "salvage";
+      reason: "no_wreck";
     })
   | (Base & { type: "deployed"; playerId: string; position: Position })
   /** Someone reached the points needed; the round is played out (turnsLeft more seats act). */

@@ -8,10 +8,13 @@
  * engine at the moment it executes:
  *
  *   1. power the shields, racks and sensor the plan wants up
- *   2. rotate (if the movement or the railgun needs a facing)
- *   3. shots and scans that are in range from the current position
- *   4. the movement (coast / burn / jump)
- *   5. shots and scans that are in range from the projected position
+ *   2. what the ship takes where it starts: an Escort marker, a seizure,
+ *      a survey's data, a black box
+ *   3. rotate (if the movement or the railgun needs a facing)
+ *   4. shots and scans that are in range from the current position
+ *   5. the movement (coast / burn / jump)
+ *   6. what the ship takes where the move ends, the same four
+ *   7. shots and scans that are in range from the projected position
  *
  * The power actions come first because a sensor widens only the shots after
  * it. The loadout is cleared at the start of the turn, so anything the bot
@@ -29,8 +32,7 @@ import type {
   TacticalAction,
 } from "../models/game.ts";
 import { MAX_HEAT, isQuietTurn, oppositeFacing } from "../models/game.ts";
-import { SELL_NOTHING, SURVEY_RING } from "../models/missions.ts";
-import { BLACK_HOLE_ID } from "../models/gravityWells.ts";
+import { SELL_NOTHING } from "../models/missions.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import {
   getMissileStats,
@@ -54,6 +56,7 @@ import {
   chooseDisruptTarget,
   denialTokens,
   disruptBlockChance,
+  rackMayAnswer,
   escortsOnMe,
   isDisruptor,
   destroyTargetIds,
@@ -75,9 +78,10 @@ import type { EnergyTargets } from "./behaviors/survival.ts";
 import { castOffChoice, coastChoice, movementFromPlan } from "./behaviors/positioning.ts";
 import type { MovementChoice } from "./behaviors/positioning.ts";
 import { planShipToTarget } from "./movementPlanner/index.ts";
-import { blackBoxAboard, surveyToDive } from "./behaviors/missions.ts";
-import { seizeChoices } from "./behaviors/piracy.ts";
+import { turnSeizures } from "./behaviors/piracy.ts";
 import type { SeizableItem } from "../game/piracy.ts";
+import { canSurvey } from "../game/survey.ts";
+import { salvageToTake, salvageableWrecks } from "../game/salvage.ts";
 
 /** Hull the bot keeps when it accepts heat damage, for a move or a decisive volley. */
 const MIN_HULL_AFTER_OVERHEAT = 3;
@@ -178,14 +182,13 @@ function buildCandidate(
   // depends on it for where the ship ends up, so this is known before the
   // facing is chosen.
   const landing = projectPosition(ship, movement.requiredFacing ?? ship.facing, preview);
-  // A marker is a choice ("you may"): the bot puts one on every carrier it
-  // ends the turn with, one per marker in hand, except the ship its Destroy
-  // card names (a kill is worth two to the marker's one).
-  const escortMarks = escortMarksAt(situation, landing);
+  // What the turn takes where it starts and where the move ends: Escort
+  // markers, seizures, a survey's data and a black box, each an action in
+  // the sequence (RULES §Missions).
+  const takings = turnTakings(situation, status.position, landing);
+  const escortMarks = [...takings.before.marks, ...takings.after.marks];
   const marking = escortMarks.length > 0;
-  // The items a pirate names where the move ends (Piracy, "you may").
-  const seizes = seizeChoices(view, me, landing);
-  const seizing = seizes.length > 0;
+  const seizing = takings.after.seizes.length > 0;
   // Ships not to fire on: those `holdFireIds` names, and the ones this turn
   // marks or seizes from (a kill empties the hold, and an empty ship takes no
   // marker and gives up nothing). A Destroy target stays fair game: the kill
@@ -194,7 +197,9 @@ function buildCandidate(
   const holdFire = new Set([
     ...holdFireIds(situation),
     ...escortMarks,
-    ...seizes.map((i) => i.victimId).filter((id) => !prey.has(id)),
+    ...[...takings.before.seizes, ...takings.after.seizes]
+      .map((i) => i.victimId)
+      .filter((id) => !prey.has(id)),
   ]);
   /** Whether this turn may fire at `o` from `at` at all, whatever the weapon. */
   const mayFireAt = (o: Opponent, at: Position) =>
@@ -235,21 +240,21 @@ function buildCandidate(
    * progress; holding a berth already docked at last turn is not.
    */
   const landsOnStation = endsOnStation && !moored;
-  const surveying =
-    post.wellId === BLACK_HOLE_ID && post.ring === SURVEY_RING && me.missions.some((m) => surveyToDive(me, m));
-  // Salvage and Escort are read off the same place: a wreck's black box taken
-  // by ending a turn on its sector (a berth included, and whatever is in the
-  // hold), a marker put on an undocked carrier by ending a turn in its sector
-  // (never from a berth, `escortCandidates`). Nothing moves between the move
-  // and the end of the turn (wrecks drift with the stations, at the end of
-  // the round).
-  const salvaging =
-    me.missions.some((m) => m.type === "salvage" && !m.isCompleted && !blackBoxAboard(me, m)) &&
-    view.wrecks.some((w) => samePosition(w, post));
-  // Docking, the survey, a salvage, a mark and a seizure are all resolved
-  // from where the ship ends its turn, so an uncompensated railgun recoil
-  // must not move it, and a moored ship pushed off its berth loses the berth.
-  const postPositionMatters = endsOnStation || surveying || salvaging || marking || seizing;
+  // A survey, a salvage and a mark after the move are taken from where the
+  // move ends, before any shot, as a seizure is. One before the move is
+  // taken where the ship starts.
+  const surveying = takings.before.survey || takings.after.survey;
+  const salvaging = takings.before.salvage !== null || takings.after.salvage !== null;
+  // Docking is resolved from where the ship ends its turn, and what is taken
+  // after the move from where the move ends, so an uncompensated railgun
+  // recoil must not move it, and a moored ship pushed off its berth loses
+  // the berth.
+  const postPositionMatters =
+    endsOnStation ||
+    takings.after.survey ||
+    takings.after.salvage !== null ||
+    takings.after.marks.length > 0 ||
+    seizing;
 
   // Budgets.
   const targets: EnergyTargets = new Map();
@@ -405,20 +410,20 @@ function buildCandidate(
   // The disruptor, once the damage shots are queued: a hit breaks the slot it
   // names unless any powered shield is up, so it fires only at a ship whose
   // shields look down by the time it shoots. It goes last in its phase, so
-  // the direct-fire shots at the same ship before it (the pre phase's, and
-  // the post phase's too when it fires after the move) have stripped what
-  // cubes they can; missiles resolve at the end of the turn and strip
-  // nothing in time. A railgun goes after it (its recoil would move the
-  // ship out of the range the disruptor was checked from), so it strips
-  // nothing in time either.
+  // the shots at the same ship before it (the pre phase's, and the post
+  // phase's too when it fires after the move) have stripped what cubes they
+  // can. A salvo counts when it lands on its launch flight and no rack of
+  // theirs may be up to shoot it down; one still flying strips nothing in
+  // time. A railgun goes after it (its recoil would move the ship out of the
+  // range the disruptor was checked from), so it strips nothing in time either.
+  const strips = (s: { opponent: Opponent; intent: ShotOption }) =>
+    s.intent.weapon.type === "missiles"
+      ? s.intent.landsOnLaunch === true && !rackMayAnswer(s.opponent)
+      : s.intent.weapon.type !== "railgun";
   const ahead = (o: Opponent, phase: "pre" | "post") =>
     shots
       .filter(
-        (s) =>
-          s.opponent === o &&
-          s.intent.weapon.type !== "missiles" &&
-          s.intent.weapon.type !== "railgun" &&
-          (s.intent.phase === "pre" || phase === "post")
+        (s) => s.opponent === o && strips(s) && (s.intent.phase === "pre" || phase === "post")
       )
       .map((s) => s.intent);
   const disruption = disruptOptions
@@ -498,7 +503,7 @@ function buildCandidate(
       interceptsPerRack()
   );
   // A powered sensor makes every shot sequenced after it critical on an 8
-  // (missiles resolving at the end of the turn included), which is worth its
+  // (a salvo's launch flight included: power goes first), which is worth its
   // two heat on a turn that means to shoot and nothing at all on a turn that
   // does not: the bot only shoots on its own turn.
   const wantSensor = shots.length > 0 && status.sensors.some((s) => !s.isBroken);
@@ -531,6 +536,7 @@ function buildCandidate(
   // Assemble. Power first: a sensor widens only the shots after it.
   const tactical: TacticalAction[] = powerActions(me, powered);
   let sequence = tactical.length + 1;
+  const next = () => sequence++;
   const fire = (shot: { opponent: Opponent; intent: ShotOption }): FireWeaponAction => ({
     type: "fire_weapon",
     playerId: me.id,
@@ -565,6 +571,8 @@ function buildCandidate(
   const inPhase = (phase: "pre" | "post") =>
     shots.filter((s) => s.intent.phase === phase).sort((a, b) => lastInPhase(a) - lastInPhase(b));
 
+  // What is taken goes before every shot: an item taken is kept whatever the shot does.
+  tactical.push(...takingActions(me.id, takings.before, next));
   if (rotate)
     tactical.push({
       type: "rotate",
@@ -609,9 +617,24 @@ function buildCandidate(
       break;
   }
 
+  tactical.push(...takingActions(me.id, takings.after, next));
   if (scanChosen && (scanChosen as ScanIntent).phase === "post")
     tactical.push(scanAction(scanChosen));
   for (const s of inPhase("post")) tactical.push(fire(s));
+  // A kill the volley expects on a ship in the sector the move ends on leaves
+  // its wreck there at once (RULES §Destruction and Respawn), so a Salvage
+  // that wants a black box takes it last, naming no wreck: if the dice spare
+  // the ship there is none and the salvage is simply not taken. Not after an
+  // uncompensated railgun, whose recoil moves the ship off the sector.
+  if (
+    !salvaging &&
+    salvageToTake(me) &&
+    !shots.some((s) => s.intent.weapon.type === "railgun" && !s.intent.compensateRecoil) &&
+    options.some(
+      (o) => hullOn(o.opponent) >= o.opponent.hull && samePosition(o.opponent.position, post)
+    )
+  )
+    tactical.push({ type: "salvage", playerId: me.id, sequence: sequence++, data: {} });
 
   const massSpent =
     movement.massCost + (shots.some((s) => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0);
@@ -626,10 +649,6 @@ function buildCandidate(
 
   const actions: PlayerAction[] = [
     ...tactical,
-    ...escortMarks.map(
-      (carrierId): PlayerAction => ({ type: "escort_mark", playerId: me.id, data: { carrierId } })
-    ),
-    ...seizeActions(me.id, seizes),
     ...(visit?.sale ? [{ type: "dock_sale", playerId: me.id, data: { sale: visit.sale } } as const] : []),
   ];
   const killsTarget = target !== null && hullOn(target) >= target.hull;
@@ -688,25 +707,108 @@ function arrivalVisit(
 }
 
 /**
- * The carriers this seat puts an Escort marker on if its turn ends at `post`:
- * every one the engine would accept there, one per marker in hand, never its
- * own Destroy target.
+ * What a turn takes at one place in its sequence (RULES §Missions): the
+ * carriers marked, the items seized, whether a survey takes its data, and
+ * the wreck salvaged.
  */
-function escortMarksAt(situation: TacticalSituation, post: Position): string[] {
-  const { me, view } = situation;
-  const prey = destroyTargetIds(me);
-  return escortCandidates(view, me.id, post)
-    .filter((id) => !prey.has(id))
-    .slice(0, unplacedEscorts(me.missions).length);
+interface Takings {
+  marks: string[];
+  seizes: SeizableItem[];
+  survey: boolean;
+  salvage: string | null;
 }
 
-/** The `seize` actions naming `items`. */
-function seizeActions(playerId: string, items: readonly SeizableItem[]): PlayerAction[] {
-  return items.map((i) => ({
-    type: "seize",
-    playerId,
-    data: { victimId: i.victimId, cargoId: i.cargoId },
-  }));
+/**
+ * Everything the turn takes where the ship starts (`before`, at the head of
+ * the sequence) and where the move ends (`after`, right after the move), each
+ * where the engine would accept it there. A marker is a choice ("you may"):
+ * the bot puts one on every carrier it can, one per marker in hand, except
+ * the ship its Destroy card names (a kill is worth two to the marker's one),
+ * and never after the move on a ship a seizure before it has emptied. A
+ * survey and a salvage are taken where they first can be, one each a turn.
+ * Nothing here sends the ship anywhere: the goal's own route does that.
+ */
+function turnTakings(
+  situation: TacticalSituation,
+  start: Position,
+  landing: Position
+): { before: Takings; after: Takings } {
+  const { me, view } = situation;
+  const prey = destroyTargetIds(me);
+  const seizes = turnSeizures(view, me, start, landing);
+  const markers = unplacedEscorts(me.missions).length;
+  const marksAt = (at: Position, skip: ReadonlySet<string>, room: number) =>
+    escortCandidates(view, me.id, at, start)
+      .filter((id) => !prey.has(id) && !skip.has(id))
+      .slice(0, Math.max(0, room));
+  const marksBefore = marksAt(start, new Set(), markers);
+  // A ship whose every item a seizure before the move took carries nothing after it.
+  const emptied = new Set(
+    view.players
+      .filter(
+        (p) =>
+          p.hold.length > 0 &&
+          p.hold.every((i) =>
+            seizes.before.some((s) => s.victimId === p.id && s.cargoId === i.cargoId)
+          )
+      )
+      .map((p) => p.id)
+  );
+  const marksAfter = marksAt(
+    landing,
+    new Set([...marksBefore, ...emptied]),
+    markers - marksBefore.length
+  );
+  const surveyBefore = canSurvey(me, start);
+  const wreckBefore = salvageableWrecks(me, view.wrecks, start)[0]?.id ?? null;
+  return {
+    before: { marks: marksBefore, seizes: seizes.before, survey: surveyBefore, salvage: wreckBefore },
+    after: {
+      marks: marksAfter,
+      seizes: seizes.after,
+      survey: !surveyBefore && canSurvey(me, landing),
+      salvage:
+        wreckBefore === null ? (salvageableWrecks(me, view.wrecks, landing)[0]?.id ?? null) : null,
+    },
+  };
+}
+
+/**
+ * The actions for what is taken at one place: markers first (a seizure could
+ * empty the carrier), then seizures, the survey and the salvage.
+ */
+function takingActions(playerId: string, t: Takings, next: () => number): TacticalAction[] {
+  return [
+    ...t.marks.map(
+      (carrierId): TacticalAction => ({
+        type: "escort_mark",
+        playerId,
+        sequence: next(),
+        data: { carrierId },
+      })
+    ),
+    ...t.seizes.map(
+      (item): TacticalAction => ({
+        type: "seize",
+        playerId,
+        sequence: next(),
+        data: { victimId: item.victimId, cargoId: item.cargoId },
+      })
+    ),
+    ...(t.survey
+      ? [{ type: "survey", playerId, sequence: next(), data: {} } as TacticalAction]
+      : []),
+    ...(t.salvage !== null
+      ? [
+          {
+            type: "salvage",
+            playerId,
+            sequence: next(),
+            data: { wreckId: t.salvage },
+          } as TacticalAction,
+        ]
+      : []),
+  ];
 }
 
 /**
@@ -729,19 +831,21 @@ function coldRepairCandidate(situation: TacticalSituation): ActionPlan | null {
     broken[0].id;
 
   // Nothing powered: the loadout was cleared at the start of the turn, and a
-  // plain coast and the repair put nothing back on it. A marker makes no heat,
-  // so a carrier the coast ends beside is marked as on any other turn.
+  // plain coast and the repair put nothing back on it. A marker, a seizure,
+  // a survey and a salvage put no energy anywhere, so they are taken as on
+  // any other turn.
   const post = projectPosition(ship, ship.facing, {
     kind: "coast",
     moored: status.moored,
   });
+  const takings = turnTakings(situation, status.position, post);
+  let sequence = 1;
+  const next = () => sequence++;
   const actions: PlayerAction[] = [
-    { type: "coast", playerId: me.id, sequence: 1, data: { activateScoop: false } },
+    ...takingActions(me.id, takings.before, next),
+    { type: "coast", playerId: me.id, sequence: next(), data: { activateScoop: false } },
+    ...takingActions(me.id, takings.after, next),
     { type: "repair", playerId: me.id, data: { subsystemId: target } },
-    ...escortMarksAt(situation, post).map(
-      (carrierId): PlayerAction => ({ type: "escort_mark", playerId: me.id, data: { carrierId } })
-    ),
-    ...seizeActions(me.id, seizeChoices(situation.view, me, post)),
   ];
   return {
     actions,

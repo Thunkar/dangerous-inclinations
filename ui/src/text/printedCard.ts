@@ -24,7 +24,7 @@ export const PRINTED_CARD = {
     turn: {
       title: 'The turn',
       aside: 'in order',
-      quiet: 'Round 1, and your first turn back: nobody fires or scans',
+      quiet: 'Round 1, and your first turn back: nobody fires, scans or seizes',
     },
     movement: {
       title: 'Movement',
@@ -97,7 +97,7 @@ export const PRINTED_CARD = {
         disruptor:
           '±{rings} ring ±{sectors} either side, or 1 along your ring. Breaks the named slot. <red>A powered shield stops it</red>',
         missiles:
-          'inside your well, a salvo is one action. {aboard}\u00a0aboard, fly {steps} steps a turn for {turns} turns',
+          'inside your well, a salvo is one action. {aboard}\u00a0aboard, fly {steps} a turn from launch, {turns} turns',
       },
     },
     powered: {

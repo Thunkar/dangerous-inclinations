@@ -178,7 +178,7 @@ const MISSILE_SPREAD = 9
 const MISSILE = getMissileStats()
 const MISSILE_TOOLTIP =
   `Rides its orbit, then flies up to ${MISSILE.stepsPerMove} steps toward the target (rings first). ` +
-  `On its launch turn it only flies, from where it was launched. ${MISSILE.maxMoves} flights max.`
+  `The turn it is launched it flies at once, from where it was launched, with no ride. ${MISSILE.maxMoves} flights max.`
 
 /** The label a planned launch carries. */
 export function missilePreviewLabel(targetName: string, count: number): string {
@@ -187,7 +187,7 @@ export function missilePreviewLabel(targetName: string, count: number): string {
     : `Planned missile at ${targetName} · flies up to ${MISSILE.stepsPerMove} steps this turn`
 }
 
-/** A planned launch's flight: on its launch turn a missile flies from where it is fired, with no ride. */
+/** A planned launch's flight: a missile flies as it is fired, from where it is fired, with no ride. */
 export function previewPath(from: Position, target: Position): Position[] {
   return projectMissilePath({ ...from, movesMade: 0 }, target)
 }

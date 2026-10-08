@@ -14,7 +14,7 @@ export const TURN = {
     respawn: {
       title: 'Respawn',
       blurb:
-        'Destroyed? This turn you come back: At your home sector, full hull and fuel, repaired and reloaded, coasting. Nobody can touch you until your next turn ends. Likewise, you cannot fire or scan anyone.',
+        'Destroyed? This turn you come back: At your home sector, full hull and fuel, repaired and reloaded, coasting. Nobody can touch you until your next turn ends. Likewise, you cannot fire at, scan or seize from anyone.',
       terse: 'Destroyed? Home, full hull and fuel. Turn over.',
     },
     clear: {
@@ -24,14 +24,15 @@ export const TURN = {
     },
     actions: {
       title: 'Actions',
-      blurb: 'Any order: power shields, a rack or a sensor, rotate, move, fire, scan.',
-      terse: 'Power · Rotate · Move · Fire · Scan',
+      blurb:
+        'Any order: power shields, a rack or a sensor, rotate, move, fire, scan, seize, survey, salvage, mark.',
+      terse: 'Power · Rotate · Move · Fire · Scan · Take · Mark',
     },
     missiles: {
       title: 'Missiles',
       blurb:
-        "Each of yours rides its orbit (except on the turn you launched it), flies {steps} steps and attacks if it reaches its target's sector.",
-      terse: 'Ride the orbit (not on launch), fly {steps}, hit on its sector',
+        "Each of yours launched on an earlier turn rides its orbit, flies {steps} steps and attacks if it reaches its target's sector. A new one flew when you launched it.",
+      terse: 'Older ones ride the orbit, fly {steps}, hit on its sector',
     },
     heatCheck: {
       title: 'Heat check',
@@ -48,9 +49,8 @@ export const TURN = {
     },
     missions: {
       title: 'Missions',
-      blurb:
-        "Take a wreck's black box. Seize an item or put down an escort marker if you choose. Flip what you completed, then pass.",
-      terse: 'Black box, loot, escort marker, reveal completed.',
+      blurb: 'Flip what you completed, then pass.',
+      terse: 'Reveal completed.',
     },
     /** Not part of anyone's turn: once a round, after the last seat has played. */
     stations: {
@@ -62,5 +62,5 @@ export const TURN = {
   },
 
   /** The one rule of the opening round, and of a ship's first turn back from Home. */
-  quiet: 'During the first round you can only move: no weapon fires and nobody scans.',
+  quiet: 'During the first round you can only move: no weapon fires, nobody scans and nobody seizes.',
 } as const

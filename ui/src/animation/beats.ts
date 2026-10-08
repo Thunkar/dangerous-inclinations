@@ -290,6 +290,15 @@ export const BEAT = {
  */
 const FLOAT = { short: 2200, normal: 2800, long: 3600 } as const
 
+/** What floats over a ship whose action found its target already destroyed. */
+const SKIPPED: Record<Extract<GameEvent, { type: 'action_skipped' }>['action'], string> = {
+  fire_weapon: 'NO SHOT',
+  scan: 'NO SCAN',
+  seize: 'NOTHING TO TAKE',
+  escort_mark: 'NO MARK',
+  salvage: 'NO WRECK',
+}
+
 /**
  * The one ink the table has only for an effect: plasma's green. It is not the
  * table's `success` green, which means a good thing happened to you; this is
@@ -853,6 +862,7 @@ export function eventToBeat(
       case 'cargo_delivered':
         return BEAT.small
       case 'cargo_seized':
+        // At its place in the pirate's sequence: `at` is where the pirate was then.
         mark(event.victimId, event.kind === 'data' ? 'DATA SEIZED' : 'CRATE SEIZED', 'heat', {
           at: event.at,
         })
@@ -866,11 +876,19 @@ export function eventToBeat(
         // where the ship died.
         board.wrecks = [...board.wrecks, { id: event.wreckId, position: event.at }]
         return BEAT.small
+      case 'data_acquired':
+        // Private to the ship that took it. A scan's data is the `scanned`
+        // beat's; a survey is a step of its own, marked where the ship is then.
+        if (event.kind === 'scan') return 0
+        mark(event.playerId, 'DATA · SURVEY', 'good')
+        return BEAT.resolve
       case 'wreck_salvaged':
+        // At its place in the sequence: `at` is where the salvager was then.
         board.wrecks = board.wrecks.filter(w => w.id !== event.wreckId)
         mark(event.playerId, 'SALVAGED · BLACK BOX', 'good', { at: event.at })
         return BEAT.resolve
       case 'escort_marked': {
+        // At its place in the sequence, over the escort where the board has it then.
         setEscort(event.carrierId, event.escortId, true)
         const carrier = next.players.find(p => p.id === event.carrierId)?.name ?? 'carrier'
         mark(event.escortId, `ESCORTING ${carrier.toUpperCase()}`, 'good')
@@ -889,8 +907,10 @@ export function eventToBeat(
         float(event.playerId, 'MISSION', 'good', FLOAT.long)
         return BEAT.resolve
       case 'action_skipped':
-        // The target was already destroyed: the shot is simply not taken.
-        float(event.playerId, event.action === 'scan' ? 'NO SCAN' : 'NO SHOT', 'miss', FLOAT.short)
+        // The target was already destroyed: the shot is simply not taken, and
+        // a seizure finds the cargo gone down with the ship. A salvage naming
+        // no wreck found none (the shot before it did not kill).
+        float(event.playerId, SKIPPED[event.action], 'miss', FLOAT.short)
         return BEAT.small
       case 'stations_moved': {
         board.stations = next.stations
@@ -981,6 +1001,8 @@ export function shotFor(state: BeatState, next: GameView, event: GameEvent): Sho
       return duel(event.ownerId, event.targetId)
     case 'cargo_seized':
       return duel(event.pirateId, event.victimId)
+    case 'escort_marked':
+      return duel(event.escortId, event.carrierId)
     case 'missile_moved': {
       const missile = state.board.missiles.find(m => m.id === event.missileId)
       return missile

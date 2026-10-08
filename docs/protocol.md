@@ -108,7 +108,8 @@ Client → server:
 A turn's `PlayerAction[]` is tactical actions numbered from 1 in the order
 they run: `power` (`{ subsystemId, amount? }`: shields 1 or 2, a ballistic
 rack 2, a sensor array 2; absent is the subsystem's minimum), `rotate`, one of
-`coast` / `burn` / `well_transfer`, `fire_weapon` and `scan`. Every action
+`coast` / `burn` / `well_transfer`, `fire_weapon`, `scan`, and `seize`,
+`survey`, `salvage` and `escort_mark` (below). Every action but the last four
 puts energy on the subsystem it uses and it stays there until its owner's next
 turn, when the loadout is cleared, so `allocatedEnergy` on a slot between
 turns is what its owner used or powered last turn. A `power` emits the public
@@ -133,23 +134,52 @@ carries what was `sold` (`"crate" | "loot" | "data" | "fuel"`, null for
 nothing), and `PlayerView.soldAt` lists the planets whose station has bought
 from that player (public: a marker on the station).
 
-A turn may also carry `escort_mark` actions (`{ carrierId }`, no sequence),
-one per Escort card whose marker is in hand, each naming a different rival:
-the marker goes on that ship at the end of the turn if the player is then on
-its ring (same well, any sector), neither ship is moored and it carries a
-crate or data; a name
-that does not qualify by then is passed over, not refused. Without one, no
-marker is placed. The engine's `escortCandidates(view, playerId, position)`
-lists who qualifies. A moored ship can neither fire nor be fired at, so a
-`fire_weapon` from a berth or at a moored target is refused.
+A moored ship can neither fire nor be fired at, so a `fire_weapon` from a
+berth or at a moored target is refused.
 
-A turn may also carry `seize` actions (`{ victimId, cargoId }`, no
-sequence), one per Piracy card free to take an item (undone, with no loot of
-its own aboard), each naming a different item: the item comes off that ship
-at the end of the turn if the pirate then shares its sector, neither ship is
-moored and the item is still aboard; one that is not there by then is passed
-over, not refused. Without one, nothing is seized. The engine's
-`seizableItems(view, playerId, position)` lists what qualifies.
+Three secondary cards are taken with a tactical action of their own, each
+with a `sequence` and judged at that point of the turn, like a scan; one that
+does not hold there is refused. A quiet turn (the opening round, a ship's
+first turn back from Home) allows all three: they touch nobody's ship.
+
+- `survey` (`{}`): Survey's data comes aboard if the ship is on Black Hole
+  Ring 1 there and an undone Survey has no data aboard (the first such card in
+  hand). One a turn. Emits the private `data_acquired` (`kind: "survey"`).
+  The engine's `canSurvey(hand, position)` says whether it would.
+- `salvage` (`{ wreckId? }`): the wreck's black box comes aboard if the wreck
+  is on the ship's sector there (moored or not) and an undone Salvage has no
+  black box aboard. One a turn. Emits `wreck_salvaged`. A ship destroyed by
+  an action is settled right after that action (its `wreck_left`,
+  `cargo_dropped` and `escort_released` come before the next action's
+  events), so a salvage after the kill finds the fresh wreck. Without a
+  `wreckId` it takes the first wreck on the ship's sector at that point, and
+  finding none (the shot before it did not kill) is skipped with an
+  `action_skipped` (`action: "salvage"`, `reason: "no_wreck"`, no
+  `targetId`) rather than refused. The engine's `salvageableWrecks(hand,
+  wrecks, position)` lists what qualifies.
+- `escort_mark` (`{ carrierId }`), one per Escort card whose marker is in
+  hand, each naming a different rival: the marker goes on that ship if the
+  player is on its ring there (same well, any sector), the player is not
+  moored (the berth it began the turn on, as for firing), the carrier is on
+  no station's sector, carries a crate or data, carries no Escort marker yet
+  and is not just back from Home. A carrier destroyed earlier in the turn is
+  skipped with an `action_skipped` (`action: "escort_mark"`), like a shot at
+  it. Without one, no marker is placed. The engine's
+  `escortCandidates(view, playerId, position, start?)` lists who qualifies.
+
+A turn may also carry `seize` actions (`{ victimId, cargoId }`), one per
+Piracy card free to take an item (undone, with no loot of its own aboard),
+each naming a different item. A seizure is a tactical action with a
+`sequence`, like a scan: the item comes off that ship at that point of the
+turn if the pirate shares its sector there, the pirate is not moored (the
+berth it began the turn on, as for firing), the victim is on no station's
+sector and not just back from Home, the item is aboard, and the turn is not
+a quiet one (the opening round, a ship's first turn back from Home). A seizure that
+does not hold is refused, with one exception: a victim destroyed earlier in
+the turn (its cargo went down with it) is skipped with an `action_skipped`
+(`action: "seize"`), like a shot at it. Without one, nothing is seized. The
+engine's `seizableItems(view, playerId, position, start?)` lists what
+qualifies with the ship at `position`, having begun the turn at `start`.
 `PlayerView.hold` is every item aboard a ship as `{ cargoId, kind }`, kind
 `"crate" | "loot" | "data"`. The `cargoId` is an opaque `item-<n>` token dealt
 with the card from a shuffled range: it names the item and says nothing about

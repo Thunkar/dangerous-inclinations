@@ -587,9 +587,9 @@ check(
 check(
   accepts([
     { playerId: HUMAN, type: "coast", sequence: 1, data: { activateScoop: false } },
-    { playerId: HUMAN, type: "escort_mark", data: { carrierId: "bot-1" } },
+    { playerId: HUMAN, type: "escort_mark", sequence: 2, data: { carrierId: "bot-1" } },
   ]),
-  "an Escort marker is accepted beside the turn",
+  "an Escort marker is accepted in the sequence",
 );
 check(
   !accepts([{ playerId: HUMAN, type: "escort_mark", data: {} }]),
@@ -605,6 +605,26 @@ check(
 check(
   !accepts([{ playerId: HUMAN, type: "seize", data: { victimId: "bot-1" } }]),
   "a seizure that names no item is rejected",
+);
+check(
+  accepts([
+    { playerId: HUMAN, type: "survey", sequence: 1, data: {} },
+    { playerId: HUMAN, type: "coast", sequence: 2, data: { activateScoop: false } },
+    { playerId: HUMAN, type: "salvage", sequence: 3, data: { wreckId: "wreck-1" } },
+  ]),
+  "a survey and a salvage are accepted in the sequence",
+);
+check(
+  accepts([{ playerId: HUMAN, type: "salvage", sequence: 1, data: {} }]),
+  "a salvage that names no wreck is accepted (the first wreck in the sector)",
+);
+check(
+  !accepts([{ playerId: HUMAN, type: "salvage", sequence: 1, data: { wreckId: "" } }]),
+  "a salvage that names an empty wreck id is rejected",
+);
+check(
+  !accepts([{ playerId: HUMAN, type: "survey", sequence: 1, data: { ring: 1 } }]),
+  "a survey with a payload is rejected",
 );
 check(
   !accepts([{ ...goodBurn, data: { burnIntensity: "soft", sectorAdjustment: "0" } }]),
@@ -962,7 +982,7 @@ async function freshGame(archive: RecordingArchive | null = null) {
     { type: "coast", sequence: 3, data: { activateScoop: false } },
     { type: "scan", sequence: 4, data: { targetPlayerId: BOT_A, peekSlot: "forward-0" } },
     { type: "dock_sale", data: { sale: "none" } },
-    { type: "escort_mark", data: { carrierId: BOT_A } },
+    { type: "escort_mark", sequence: 5, data: { carrierId: BOT_A } },
   ] as Array<Omit<PlayerAction, "playerId">>);
 
   const preview = await cannedGames.previewTurn(CANNED, HUMAN, fullTurn as PlayerAction[]);

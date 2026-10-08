@@ -1,9 +1,10 @@
 /**
  * How a missile flies, drawn: the one weapon whose shot takes turns to land.
  *
- * One missile followed for two turns. On the launch turn it only flies, from
- * the sector it was dropped on, whatever its ship does next; from the second
- * turn on it rides its ring first, then flies. Between the two turns the
+ * One missile followed for two turns. It flies the moment it is launched,
+ * with no ride, from the sector it was dropped on, and its ship's move after
+ * the launch leaves it there; from the second turn on it rides its ring
+ * first, then flies. Between the two turns the
  * target drifts on its own turn, and the second flight goes where the target
  * is then.
  *

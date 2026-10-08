@@ -26,6 +26,8 @@ import type {
   RepairAction,
   DockSaleAction,
   EscortMarkAction,
+  SalvageAction,
+  SurveyAction,
   SeizeAction,
 } from "../models/game.ts";
 import { OPENING_ROUNDS, DEFAULT_LOADOUT, FIRST_TURN } from "../models/game.ts";
@@ -151,6 +153,8 @@ export const LOADOUTS = {
   sensorRackWall: hull("sensor_array", "ballistic_rack", "laser", "shields", "radiator"),
   /** Sensor; radiator, missiles, shields, rack: a launcher and a rack. */
   sensorMissilesRack: hull("sensor_array", "radiator", "missiles", "shields", "ballistic_rack"),
+  /** Sensor; missiles, disruptor, shields, radiator: a salvo to strip a wall, then the EMP. */
+  sensorMissilesDisruptor: hull("sensor_array", "missiles", "disruptor", "shields", "radiator"),
   /** Sensor; radiator, radiator, shields, shields: walls and nothing that shoots. */
   sensorWalls: hull("sensor_array", "radiator", "radiator", "shields", "shields"),
   /** Sensor; shields, shields, radiator, radiator: no weapon aboard. */
@@ -615,14 +619,35 @@ export const dockSale = (sale: string): Draft<DockSaleAction> => ({
   type: "dock_sale",
   data: { sale },
 });
-/** Put an Escort marker on a carrier if the turn ends in its sector (no sequence either). */
-export const escortMark = (carrierId: string): Draft<EscortMarkAction> => ({
+/** Put an Escort marker on a carrier on your ring, at this point in the sequence. */
+export const escortMark = (sequence: number, carrierId: string): Draft<EscortMarkAction> => ({
   type: "escort_mark",
+  sequence,
   data: { carrierId },
 });
-/** Name an item to seize if the turn ends beside it (no sequence). */
-export const seize = (victimId: string, cargoId: string): Draft<SeizeAction> => ({
+/** Take a Survey's data on Black Hole Ring 1, at this point in the sequence. */
+export const survey = (sequence: number): Draft<SurveyAction> => ({
+  type: "survey",
+  sequence,
+  data: {},
+});
+/**
+ * Take a wreck's black box in your sector, at this point in the sequence:
+ * the one named, or with no id the first wreck there at that point.
+ */
+export const salvage = (sequence: number, wreckId?: string): Draft<SalvageAction> => ({
+  type: "salvage",
+  sequence,
+  data: wreckId === undefined ? {} : { wreckId },
+});
+/** Take an item off a ship in your sector, at this point in the sequence. */
+export const seize = (
+  sequence: number,
+  victimId: string,
+  cargoId: string
+): Draft<SeizeAction> => ({
   type: "seize",
+  sequence,
   data: { victimId, cargoId },
 });
 export const scan = (

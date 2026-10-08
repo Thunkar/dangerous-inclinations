@@ -67,10 +67,17 @@ function PowerRow({ sub, n }: { sub: Subsystem; n: number }) {
 
 function StepRow({ step, index, offset }: { step: PlanStep; index: number; offset: number }) {
   const plan = usePlan()
-  const { nameOf } = useGame()
+  const { nameOf, view } = useGame()
   const at = plan.stepStart[index]
   const weapon =
     step.kind === 'fire' ? plan.pendingSubsystems.find(s => s.id === step.subsystemId) : undefined
+  // What a seizure takes, by kind: the hold is public that far.
+  const item =
+    step.kind === 'seize'
+      ? view.players
+          .find(p => p.id === step.victimId)
+          ?.hold.find(i => i.cargoId === step.cargoId)?.kind
+      : undefined
 
   return (
     <Box sx={ROW_SX}>
@@ -90,7 +97,7 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
 
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: '0.85rem', color: TABLE.ink, lineHeight: 1.3 }}>
-          {offset + index + 1}. {stepTitle(step, nameOf, weapon)}
+          {offset + index + 1}. {stepTitle(step, nameOf, weapon, item)}
         </Typography>
         <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.78rem', color: TABLE.inkFaint, lineHeight: 1.3 }}>
           from {placeLabel(at.position)} · {at.facing}
@@ -98,6 +105,8 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
 
         {step.kind === 'fire' && <FireControls step={step} />}
         {step.kind === 'scan' && <ScanControls step={step} />}
+        {step.kind === 'seize' && <SeizeControls step={step} index={index} />}
+        {step.kind === 'mark' && <MarkControls step={step} index={index} />}
       </Box>
 
       {step.kind !== 'move' && (
@@ -109,7 +118,12 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
   )
 }
 
-function stepTitle(step: PlanStep, nameOf: (id: string) => string, weapon?: Subsystem): string {
+function stepTitle(
+  step: PlanStep,
+  nameOf: (id: string) => string,
+  weapon?: Subsystem,
+  item?: string
+): string {
   switch (step.kind) {
     case 'rotate':
       return 'Rotate'
@@ -126,6 +140,16 @@ function stepTitle(step: PlanStep, nameOf: (id: string) => string, weapon?: Subs
       }`
     case 'scan':
       return `Scan${step.targetId ? ` ${nameOf(step.targetId)}` : ''}`
+    case 'seize':
+      return `Seize ${item ?? 'cargo'} from ${nameOf(step.victimId)}`
+    case 'survey':
+      return 'Survey: take the data'
+    case 'salvage':
+      return step.victimId !== null
+        ? `Salvage ${nameOf(step.victimId)}'s wreck, if it dies`
+        : 'Salvage the wreck'
+    case 'mark':
+      return `Mark ${nameOf(step.carrierId)}`
   }
 }
 
@@ -156,16 +180,17 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
   /**
    * The critical range this shot rolls with, from the engine: wider once the
    * sensor has energy on it, which is a power (first) or a scan before the
-   * shot. A missile rolls when it arrives, after all your actions.
+   * shot. A missile that lands as it is launched rolls then too; one still
+   * flying rolls on a later turn, with the sensor its owner has up then.
    */
   const critFrom = plan.criticalFrom(step)
   const sensor = plan.me.ship.subsystems.find(s => s.type === 'sensor_array' && !s.isBroken)
   const critTip =
     weapon?.type === 'missiles'
       ? critFrom < 10
-        ? `A missile rolls when it arrives, after all your actions, and your sensor has energy on it by then: criticals on ${critFrom}–10.`
+        ? `Your sensor has energy on it by this launch: a missile that lands now criticals on ${critFrom}–10. One still flying rolls on a later turn, with the sensor you have up then.`
         : sensor
-          ? 'A missile rolls when it arrives, after all your actions. Power the sensor or scan this turn and it criticals on 8–10.'
+          ? 'Criticals on 10. Power the sensor, or scan before this launch, and a missile that lands now is 8–10.'
           : 'Criticals on 10.'
       : critFrom < 10
         ? `Your sensor has energy on it by this shot (powered, or it scanned earlier in the turn): criticals on ${critFrom}–10.`
@@ -334,5 +359,51 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
         </Typography>
       )}
     </Box>
+  )
+}
+
+/**
+ * A seizure after a shot at the same ship takes nothing if the shot destroys
+ * it: the cargo goes down with the ship. The dice decide that, so it is said
+ * here rather than refused.
+ */
+function SeizeControls({
+  step,
+  index,
+}: {
+  step: Extract<PlanStep, { kind: 'seize' }>
+  index: number
+}) {
+  const plan = usePlan()
+  const shotFirst = plan.steps
+    .slice(0, index)
+    .some((s) => s.kind === 'fire' && s.targetId === step.victimId)
+  if (!shotFirst) return null
+  return (
+    <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.3, mt: 0.5 }}>
+      A shot before this one is at the same ship: if it destroys them, there is nothing left to
+      take. Move this step up to take the item first.
+    </Typography>
+  )
+}
+
+/** As for a seizure: a marker after a shot that destroys its carrier is not placed. */
+function MarkControls({
+  step,
+  index,
+}: {
+  step: Extract<PlanStep, { kind: 'mark' }>
+  index: number
+}) {
+  const plan = usePlan()
+  const shotFirst = plan.steps
+    .slice(0, index)
+    .some(s => s.kind === 'fire' && s.targetId === step.carrierId)
+  if (!shotFirst) return null
+  return (
+    <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.3, mt: 0.5 }}>
+      A shot before this one is at the same ship: if it destroys them, the marker stays in your
+      hand. Move this step up to mark them first.
+    </Typography>
   )
 }

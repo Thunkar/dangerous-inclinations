@@ -174,8 +174,16 @@ export interface Missile {
   wellId: GravityWellId;
   ring: number;
   sector: number;
-  /** Times this missile has moved at the end of its owner's turn. Expires at maxMoves. */
+  /**
+   * Times this missile has moved: its launch flight, then once at the end of
+   * each of its owner's turns. Expires at maxMoves.
+   */
   movesMade: number;
+  /**
+   * Flown already, on its launch flight, this very turn: the end-of-turn
+   * move skips it and clears the mark, so no missile carries it between turns.
+   */
+  launchedThisTurn?: true;
   /** Slot the warhead breaks on a critical hit. */
   criticalTarget: SubsystemId;
 }
@@ -201,7 +209,7 @@ export interface ShipState {
 
 interface BaseAction {
   playerId: string;
-  /** Tactical actions (power/rotate/move/fire/scan/jump) execute in sequence order. */
+  /** Tactical actions (power/rotate/move/fire/scan/jump/seize/survey/salvage/escort_mark) execute in sequence order. */
   sequence?: number;
 }
 
@@ -295,11 +303,14 @@ export interface DockSaleAction extends BaseAction {
 }
 
 /**
- * A standing order for the turn, like a dock sale: put an Escort marker on
- * this carrier if the turn ends on its ring (RULES §Missions, Escort: "you
- * may"). No sequence, because it is settled at the end of the turn, after the
- * move. A ship that does not qualify then is not refused: nothing is placed.
- * One per marker in hand, each naming a different ship.
+ * Escort (RULES §Missions, Escort): put a marker on this carrier, at this
+ * point in the sequence. The escort is on the carrier's ring there, neither
+ * ship is moored (the escort by the berth it began the turn on, as for
+ * firing), the carrier carries cargo, takes no marker yet and is not just
+ * back from Home, and an undone Escort's marker is in hand. A carrier
+ * destroyed earlier in the turn is skipped, like a shot at it; anything else
+ * that does not hold is refused. One per marker in hand, each naming a
+ * different ship. Not a use of any subsystem: it puts no energy anywhere.
  */
 export interface EscortMarkAction extends BaseAction {
   type: "escort_mark";
@@ -307,12 +318,37 @@ export interface EscortMarkAction extends BaseAction {
 }
 
 /**
- * A standing order for the turn (RULES §Missions, Piracy: "you may"): with an
- * undone Piracy, take this item off this ship if the turn ends, not moored,
- * in its sector and it is still aboard. No sequence: it is settled at the end
- * of the turn, after the move. An item gone by then is passed over, not
- * refused. One per undone Piracy card, each a different item; nothing is
- * seized without one.
+ * Survey (RULES §Missions, Survey): take the data, at this point in the
+ * sequence. The ship is on Black Hole Ring 1 there and an undone Survey has
+ * no data aboard; the first such card in hand takes it. One dive a turn, and
+ * no subsystem used.
+ */
+export interface SurveyAction extends BaseAction {
+  type: "survey";
+  data: Record<string, never>;
+}
+
+/**
+ * Salvage (RULES §Missions, Salvage): take a wreck's black box, at this
+ * point in the sequence. The ship is on the wreck's sector there, moored or
+ * not, and an undone Salvage has no black box aboard; the first such card in
+ * hand takes it. One wreck a turn, and no subsystem used. With no `wreckId`
+ * it takes the first wreck in the sector at that point (a kill earlier in the
+ * turn leaves one there), and is skipped if there is none.
+ */
+export interface SalvageAction extends BaseAction {
+  type: "salvage";
+  data: { wreckId?: string };
+}
+
+/**
+ * Piracy (RULES §Missions, Piracy): take this item off this ship, at this
+ * point in the sequence. The pirate shares the ship's sector there, neither
+ * ship is moored, the ship is not just back from Home, the item is aboard and
+ * a Piracy card is free to take it (undone, no loot of its own aboard). A
+ * ship destroyed earlier in the turn is skipped, like a shot at it; anything
+ * else that does not hold is refused. Not a use of any subsystem: it puts no
+ * energy anywhere.
  */
 export interface SeizeAction extends BaseAction {
   type: "seize";
@@ -326,14 +362,13 @@ export type TacticalAction =
   | WellTransferAction
   | FireWeaponAction
   | ScanAction
-  | PowerAction;
+  | PowerAction
+  | SeizeAction
+  | SurveyAction
+  | SalvageAction
+  | EscortMarkAction;
 
-export type PlayerAction =
-  | TacticalAction
-  | RepairAction
-  | DockSaleAction
-  | EscortMarkAction
-  | SeizeAction;
+export type PlayerAction = TacticalAction | RepairAction | DockSaleAction;
 
 const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "rotate",
@@ -343,6 +378,10 @@ const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "fire_weapon",
   "scan",
   "power",
+  "seize",
+  "survey",
+  "salvage",
+  "escort_mark",
 ]);
 
 /** The three moves; a turn takes at most one. */
@@ -356,8 +395,6 @@ export const MOVE_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
 const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
   "repair",
   "dock_sale",
-  "escort_mark",
-  "seize",
 ]);
 
 /** Every action a turn may submit. */

@@ -138,10 +138,10 @@ export type BotGoalType =
   | "interdict" // no card needed: stop the player who is about to win
   | "shadow" // intercept: get within scan range of the target
   | "dock" // deliver, deliver data, repair: end a turn on a station
-  | "survey" // end a turn on black hole ring SURVEY_RING
+  | "survey" // reach black hole ring SURVEY_RING and survey there
   | "pirate" // piracy: end a turn in a loaded ship's exact sector
   | "tanker" // tanker, short of fuel: scoop it up on a fast black hole ring
-  | "salvage" // salvage: end a turn on a wreck's sector (it drifts like a station)
+  | "salvage" // salvage: reach a wreck's sector and salvage it (it drifts like a station)
   | "escort" // escort: reach an undocked carrier to mark it; marker out, be in its well
   | "patrol"; // nothing else to do: coast on the black hole ring the rivals are on
 
@@ -166,7 +166,7 @@ export interface BotGoal {
   dockSale?: string;
   /** For dock goals: the visit is also the repair stop (every dock repairs). */
   repairs?: boolean;
-  /** For salvage goals: the wreck to end a turn on (looked up in `view.wrecks`). */
+  /** For salvage goals: the wreck to reach and salvage (looked up in `view.wrecks`). */
   wreckId?: string;
   /** Cheap estimate used for ranking; the chosen goal gets a real plan. */
   estimatedTurns: number;

@@ -9,23 +9,28 @@
  *  2. The player clears their loadout: every cube they used or powered last
  *     turn comes off, having worked on everyone else's turns since.
  *  3. Actions in the order the player chose: power, rotate, one move, fire,
- *     scan. Every action puts energy on the tile it uses, and it stays there
- *     until this player's next turn.
- *  4. The player's missiles move and resolve.
+ *     scan, seize, survey, salvage, mark. Every action but the last four puts
+ *     energy on the tile it uses, and it stays there until this player's next
+ *     turn. A salvo flies the moment it is launched and resolves there, among
+ *     the actions, and a seizure, a survey's data, a black box and an Escort
+ *     marker are taken where they come in the sequence. A ship an action
+ *     destroys is settled at once (destruction.ts): its wreck, its dropped
+ *     cargo and its markers back in hand are there for every later action.
+ *  4. The player's missiles launched on earlier turns ride, fly and resolve.
  *  5. Heat check: every cube on the loadout is a point of heat, heat over the
  *     redline becomes hull damage, then the ship dissipates and carries what
  *     is left into its next turn. It comes before the dock, so a hot approach
  *     is paid from the hull the ship arrives with.
  *  6. Docking (if the ship arrived on a station and survived its check):
  *     repairs, full hull, a reload, and one thing: load the crates or one sale.
- *  7. Missions are updated from everything that happened, and any Escort
- *     marker the player chose to place goes on its carrier.
+ *  7. Missions are updated from everything that happened: completed cards
+ *     turn face-up, and an Escort on a ship that sold is paid.
  *  8. Play passes on; at the end of every round stations move, carrying the
  *     ships moored to them, and wrecks drift with them.
  *
  * The returned state carries no log; the turn's events are returned alongside.
  */
-import type { GameState, Player, PlayerAction, Wreck } from "../models/game.ts";
+import type { GameState, Player, PlayerAction } from "../models/game.ts";
 import type { GameEvent, EventDraft } from "../models/events.ts";
 import { stampEvents } from "../models/events.ts";
 import { processActions } from "./actionProcessors.ts";
@@ -34,10 +39,10 @@ import { processDocking } from "./docking.ts";
 import { resolveEndOfTurnHeat } from "./heat.ts";
 import { processMissionEvents, checkForWinner, rankPlayers } from "./missions/missionChecks.ts";
 import { advanceStations, isMooredAt } from "./stations.ts";
-import { needsRespawn, respawnPlayer, dropCargo } from "./respawn.ts";
+import { needsRespawn, respawnPlayer } from "./respawn.ts";
+import { applyDestructions } from "./destruction.ts";
 import { positionOf } from "./geometry.ts";
 import { clearLoadout, isDestroyed, resetSubsystemUsage } from "./ship.ts";
-import { nextEntityId } from "../utils/rng.ts";
 
 export interface TurnResult {
   gameState: GameState;
@@ -87,9 +92,11 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   if (!processed.success) {
     return { gameState, events: [], errors: processed.errors ?? ["Failed to process actions"] };
   }
+  // A kill among the actions was settled where it came in the sequence
+  // (actionProcessors.ts): its wreck, its cargo and its markers are already
+  // in `processed`.
   state = processed.state;
   events.push(...processed.events);
-  state = applyDestructions(state, processed.events, events);
 
   const missiles = processOwnerMissiles(state, active.id);
   state = missiles.state;
@@ -130,12 +137,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   state = docking.state;
   events.push(...docking.events);
 
-  // The carriers the player chose to put an Escort marker on, if any: each is
-  // settled against where the turn ended (RULES §Missions, Escort).
-  const escortMarks = actions.flatMap((a) => (a.type === "escort_mark" ? [a.data.carrierId] : []));
-  // The items the player chose to seize (Piracy, "you may"): settled the same way.
-  const seizes = actions.flatMap((a) => (a.type === "seize" ? [a.data] : []));
-  const missions = processMissionEvents(state, active.id, events, escortMarks, seizes);
+  const missions = processMissionEvents(state, active.id, events);
   state = missions.state;
   events.push(...missions.events);
 
@@ -160,101 +162,6 @@ function clearRecovering(state: GameState, index: number): GameState {
   const players = [...state.players];
   players[index] = { ...players[index], recovering: false };
   return { ...state, players };
-}
-
-/**
- * The one place a destruction is settled, whatever did it (a weapon, a
- * missile, the heat check): for every ship destroyed in `source` events it
- * drops its cargo, removes its missiles in flight, leaves a wreck where it
- * died, and hands back every Escort marker on it and every one of its own
- * (RULES §Destruction and Respawn). `sink` is the turn's events so far, which
- * the new ones are appended to.
- */
-function applyDestructions(state: GameState, source: EventDraft[], sink: EventDraft[]): GameState {
-  let next = state;
-  for (const e of source) {
-    if (e.type !== "ship_destroyed") continue;
-    const index = next.players.findIndex((p) => p.id === e.victimId);
-    if (index === -1) continue;
-    const victim = next.players[index];
-    const dropped = dropCargo(victim);
-    const players = [...next.players];
-    players[index] = dropped.player;
-    sink.push(...dropped.events);
-    next = { ...next, players };
-
-    // Its missiles in flight go with it.
-    const lost = next.missiles.filter((m) => m.ownerId === victim.id);
-    if (lost.length > 0) {
-      next = { ...next, missiles: next.missiles.filter((m) => m.ownerId !== victim.id) };
-      for (const missile of lost) {
-        sink.push({
-          type: "missile_expired",
-          missileId: missile.id,
-          ownerId: victim.id,
-          at: positionOf(missile),
-        });
-      }
-    }
-
-    // The wreck: where the ship was when it died. A destroyed ship stays on
-    // its sector until it respawns, so its position is the place.
-    const wreck: Wreck = { id: nextEntityId(next, "wreck"), ...positionOf(victim.ship) };
-    next = { ...next, wrecks: [...next.wrecks, wreck] };
-    sink.push({
-      type: "wreck_left",
-      wreckId: wreck.id,
-      victimId: victim.id,
-      at: positionOf(victim.ship),
-    });
-
-    // Escort: every marker on the dead ship comes back to its owner, and the
-    // dead ship's own markers come off whatever they sit on and back to hand.
-    // Nothing after the dock can destroy the ship whose turn it is, so a
-    // destroyed carrier never sold this turn and no marker on it was paid.
-    next = settleEscorts(next, victim.id, sink);
-  }
-  return next;
-}
-
-/**
- * The Escort side of a destruction (RULES §Destruction and Respawn): every
- * undone Escort marking `victimId` comes back to its owner's hand, and every
- * Escort `victimId` holds that has a marker out comes back too.
- */
-function settleEscorts(state: GameState, victimId: string, sink: EventDraft[]): GameState {
-  let changed = false;
-  const players = state.players.map((player) => {
-    let touched = false;
-    const missions = player.missions.map((m) => {
-      if (m.type !== "escort" || m.isCompleted || m.markedPlayerId === null) return m;
-      if (player.id === victimId) {
-        touched = true;
-        sink.push({
-          type: "escort_released",
-          escortId: player.id,
-          carrierId: m.markedPlayerId,
-          missionId: m.id,
-          cause: "escort_destroyed",
-        });
-        return { ...m, markedPlayerId: null };
-      }
-      if (m.markedPlayerId !== victimId) return m;
-      touched = true;
-      sink.push({
-        type: "escort_released",
-        escortId: player.id,
-        carrierId: victimId,
-        missionId: m.id,
-        cause: "carrier_destroyed",
-      });
-      return { ...m, markedPlayerId: null };
-    });
-    if (!touched) return player;
-    changed = true;
-    return { ...player, missions };
-  });
-  return changed ? { ...state, players } : state;
 }
 
 /** Pass play to the next player, move stations at round end, check for a winner. */

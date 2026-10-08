@@ -1,9 +1,12 @@
 /**
  * Action processing for one turn.
  *
- * Order: the tactical actions (power, rotate, one move, fire, scan) in the
- * sequence the player chose. Each action is validated against the state as it
- * stands when its turn comes, then applied. Any failure aborts the whole turn.
+ * Order: the tactical actions (power, rotate, one move, fire, scan, seize,
+ * survey, salvage, mark) in the sequence the player chose. Each action is validated against the state as it
+ * stands when its turn comes, then applied. A missile salvo flies as it is
+ * launched, so its hits land before the actions after it, and a ship destroyed
+ * by an action is settled right after it (destruction.ts): a salvage after the
+ * kill finds the wreck. Any failure aborts the whole turn.
  */
 import type {
   GameState,
@@ -20,6 +23,8 @@ import type {
   DockSaleAction,
   EscortMarkAction,
   SeizeAction,
+  SurveyAction,
+  SalvageAction,
   Missile,
 } from "../models/game.ts";
 import { MAX_REACTION_MASS, MOVE_ACTION_TYPES, isTacticalAction } from "../models/game.ts";
@@ -31,11 +36,14 @@ import { rollD10 } from "../utils/rng.ts";
 import { positionOf, ringVelocity } from "./geometry.ts";
 import { applyOrbitalMovement, applyBurn, applyRotation, recoilRing } from "./movement.ts";
 import { resolveAttack } from "./damage.ts";
-import { createMissile } from "./missiles.ts";
+import { createMissile, flyLaunchedMissiles } from "./missiles.ts";
 import { processScan } from "./scan.ts";
 import { isMooredMidTurn } from "./stations.ts";
-import { unplacedEscorts } from "./escort.ts";
-import { freePiracyCards } from "./piracy.ts";
+import { markCarrier } from "./escort.ts";
+import { seizeItem } from "./piracy.ts";
+import { takeSurveyData } from "./survey.ts";
+import { salvageWreck, wreckToSalvage } from "./salvage.ts";
+import { applyDestructions } from "./destruction.ts";
 import {
   findSubsystem,
   hasWorkingCompressor,
@@ -57,6 +65,8 @@ import {
   validateDockSaleAction,
   validateEscortMarkAction,
   validateSeizeAction,
+  validateSurveyAction,
+  validateSalvageAction,
   validateScanAction,
   validateWellTransferAction,
   type TurnContext,
@@ -72,9 +82,10 @@ interface ProcessResult {
 type Step = { state: GameState; events: EventDraft[] };
 
 /**
- * A shot or scan declared at a ship that was destroyed earlier in the same
- * turn is simply not taken (nobody fires at debris). Targets that were never
- * valid still fail validation.
+ * A shot, scan, seizure or Escort marker declared at a ship that was
+ * destroyed earlier in the same turn is simply not taken (nobody fires at
+ * debris, and its cargo went down with it). Targets that were never valid
+ * still fail validation.
  */
 function targetGone(state: GameState, targetId: string): boolean {
   const target = state.players.find((p) => p.id === targetId);
@@ -112,6 +123,10 @@ export function processActions(
     const step = process(current, action);
     current = step.state;
     events.push(...step.events);
+    // A ship this action destroyed is settled here, before the next action
+    // (RULES §Destruction and Respawn): its wreck is on the board, its cargo
+    // dropped and its Escort markers back in hand for everything after it.
+    current = applyDestructions(current, step.events, events);
     return null;
   };
 
@@ -148,43 +163,27 @@ export function processActions(
     if (errors.length > 0) return { success: false, state, events: [], errors };
   }
 
-  // One marker per name and one name per marker still in hand: each is
-  // settled at the end of the turn (missions/missionChecks.ts).
-  const escortMarks = actions.filter((a): a is EscortMarkAction => a.type === "escort_mark");
-  if (escortMarks.length > 0) {
-    const actor = state.players.find((p) => p.id === escortMarks[0].playerId);
-    const inHand = actor ? unplacedEscorts(actor.missions).length : 0;
-    const errors: string[] = [];
-    if (escortMarks.length > inHand)
-      errors.push(
-        `${escortMarks.length} Escort marker(s) named, but only ${inHand} undone Escort marker(s) in hand`
-      );
-    const named = escortMarks.map((a) => a.data.carrierId);
-    if (new Set(named).size !== named.length)
-      errors.push("Each Escort marker goes on a different ship");
-    for (const a of escortMarks) errors.push(...validateEscortMarkAction(current, a));
-    if (errors.length > 0) return { success: false, state, events: [], errors };
-  }
-
-  // One seizure per Piracy card free to take one (undone, no loot of its own
-  // aboard), each a different item, settled at the end of the turn
-  // (missions/missionChecks.ts).
-  const seizes = actions.filter((a): a is SeizeAction => a.type === "seize");
-  if (seizes.length > 0) {
-    const errors: string[] = [];
-    for (const a of seizes) errors.push(...validateSeizeAction(current, a));
-    if (errors.length === 0) {
-      const actor = state.players.find((p) => p.id === seizes[0].playerId);
-      const cards = actor ? freePiracyCards(actor.missions, actor.cargo).length : 0;
-      if (seizes.length > cards)
-        errors.push(
-          `${seizes.length} seizure(s) named, but only ${cards} Piracy card(s) free to take one`
-        );
-      const named = seizes.map((a) => `${a.data.victimId}/${a.data.cargoId}`);
-      if (new Set(named).size !== named.length) errors.push("Each seizure names a different item");
-    }
-    if (errors.length > 0) return { success: false, state, events: [], errors };
-  }
+  // Each marker names a different ship, and each seizure a different item.
+  // Whether each one holds is asked at its place in the sequence, below.
+  const named = actions.flatMap((a) => (a.type === "escort_mark" ? [a.data.carrierId] : []));
+  if (new Set(named).size !== named.length)
+    return {
+      success: false,
+      state,
+      events: [],
+      errors: ["Each Escort marker goes on a different ship"],
+    };
+  const seized = actions.flatMap((a) =>
+    a.type === "seize" ? [`${a.data.victimId}/${a.data.cargoId}`] : []
+  );
+  if (new Set(seized).size !== seized.length)
+    return { success: false, state, events: [], errors: ["Each seizure names a different item"] };
+  // One dive a turn and one wreck a turn (RULES §Missions): two of a kind
+  // are two jobs, so a second card needs a second turn.
+  if (actions.filter((a) => a.type === "survey").length > 1)
+    return { success: false, state, events: [], errors: ["One survey a turn"] };
+  if (actions.filter((a) => a.type === "salvage").length > 1)
+    return { success: false, state, events: [], errors: ["One wreck a turn"] };
 
   // Ships alive when the turn began: shots at one of these that dies mid-turn are skipped, not errors.
   const aliveAtStart = new Set(state.players.filter(isOnBoard).map((p) => p.id));
@@ -231,6 +230,42 @@ export function processActions(
           break;
         }
         err = run(a, validateScanAction, (s, sa: ScanAction) => processScan(s, sa));
+        break;
+      case "seize":
+        // A ship a shot destroyed earlier in the turn drops what it carried:
+        // there is nothing left to take (RULES §Missions, Piracy).
+        if (aliveAtStart.has(a.data.victimId) && targetGone(current, a.data.victimId)) {
+          events.push({
+            type: "action_skipped",
+            playerId: a.playerId,
+            action: "seize",
+            targetId: a.data.victimId,
+            reason: "target_destroyed",
+          });
+          break;
+        }
+        err = run(a, (s, sz) => validateSeizeAction(s, sz, turn), processSeize);
+        break;
+      case "escort_mark":
+        // A carrier a shot destroyed earlier in the turn is off the board:
+        // there is nothing to put a marker on (RULES §Missions, Escort).
+        if (aliveAtStart.has(a.data.carrierId) && targetGone(current, a.data.carrierId)) {
+          events.push({
+            type: "action_skipped",
+            playerId: a.playerId,
+            action: "escort_mark",
+            targetId: a.data.carrierId,
+            reason: "target_destroyed",
+          });
+          break;
+        }
+        err = run(a, (s, m) => validateEscortMarkAction(s, m, turn), processEscortMark);
+        break;
+      case "survey":
+        err = run(a, validateSurveyAction, processSurvey);
+        break;
+      case "salvage":
+        err = run(a, validateSalvageAction, processSalvage);
         break;
     }
     if (err) return { success: false, state, events: [], errors: err };
@@ -431,6 +466,60 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
 }
 
 // ---------------------------------------------------------------------------
+// Piracy
+// ---------------------------------------------------------------------------
+
+/** Take the named item (validated): no tile is used, so no energy goes anywhere. */
+function processSeize(state: GameState, action: SeizeAction): Step {
+  const { state: next, event } = seizeItem(
+    state,
+    action.playerId,
+    action.data.victimId,
+    action.data.cargoId
+  );
+  return { state: next, events: [event] };
+}
+
+// ---------------------------------------------------------------------------
+// Survey, Salvage, Escort
+// ---------------------------------------------------------------------------
+
+/** Take the dive's data (validated): no tile is used. */
+function processSurvey(state: GameState, action: SurveyAction): Step {
+  const { state: next, event } = takeSurveyData(state, action.playerId);
+  return { state: next, events: [event] };
+}
+
+/**
+ * Take the wreck's black box (validated): no tile is used. A salvage that
+ * names no wreck takes the first one in the ship's sector at this point, and
+ * finding none (the shot before it did not kill) is simply not taken.
+ */
+function processSalvage(state: GameState, action: SalvageAction): Step {
+  const wreck = wreckToSalvage(state, action.playerId, action.data.wreckId);
+  if (!wreck)
+    return {
+      state,
+      events: [
+        {
+          type: "action_skipped",
+          playerId: action.playerId,
+          action: "salvage",
+          reason: "no_wreck",
+        },
+      ],
+    };
+  const { state: next, event } = salvageWreck(state, action.playerId, wreck.id);
+  return { state: next, events: [event] };
+}
+
+/** Put the first marker in hand on the carrier (validated): no tile is used. */
+function processEscortMark(state: GameState, action: EscortMarkAction): Step {
+  const { state: next, event } = markCarrier(state, action.playerId, action.data.carrierId);
+  return { state: next, events: [event] };
+}
+
+// ---------------------------------------------------------------------------
 // Weapons
 // ---------------------------------------------------------------------------
 
@@ -484,7 +573,7 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
       ship: updateSubsystem(attacker.ship, weapon.id, (s) => ({ ammo: s.ammo! - salvo })),
     };
     players[attackerIndex] = attacker;
-    working = { ...working, players, missiles: [...working.missiles, ...launched] };
+    working = { ...working, players };
     for (const missile of launched) {
       events.push({
         type: "missile_launched",
@@ -495,6 +584,13 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
         criticalTarget: action.data.criticalTarget,
       });
     }
+    // The salvo flies now, at its place in the turn (RULES §Weapons,
+    // Missiles): a hit lands before the actions sequenced after it, and
+    // rolls with the critical range the sensor gives the attacker as it
+    // stands. A kill is settled as soon as this action is (processActions).
+    const flight = flyLaunchedMissiles(working, launched);
+    working = flight.state;
+    events.push(...flight.events);
   } else {
     players[attackerIndex] = attacker;
     const target = players[targetIndex];
@@ -540,8 +636,9 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
     working = { ...working, players };
   }
 
-  // Recoil.
+  // Recoil. The attacker is read back off the board: a salvo's flight may have changed it.
   if (config.weaponStats?.hasRecoil) {
+    attacker = working.players[attackerIndex];
     if (action.data.compensateRecoil) {
       const compensated = useSubsystem(
         attacker.ship,
@@ -576,8 +673,9 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
         heat: 0,
       });
     }
-    players[attackerIndex] = attacker;
-    working = { ...working, players };
+    const after = [...working.players];
+    after[attackerIndex] = attacker;
+    working = { ...working, players: after };
   }
 
   return { state: working, events };

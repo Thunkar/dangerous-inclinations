@@ -32,6 +32,7 @@ import { PATROL_GOAL_ID, REPAIR_GOAL_ID as REPAIR_GOAL } from "../../ai/behavior
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
 import {
   LOADOUTS,
+  LANDING,
   ALPHA,
   BETA,
   BH,
@@ -460,6 +461,29 @@ describe("bot goals: salvage and escort", () => {
       expect(goalFor(state, card.id)).toMatchObject({ type: "salvage", wreckId: "wreck-berth" });
     });
 
+    // A ship is settled the moment it dies: a kill planned on a ship in the
+    // sector the move ends on leaves its wreck there for a salvage after it.
+    it.each([
+      ["holding a Salvage that wants a black box", [salvageMission(), PRIMARY_DONE], true],
+      ["holding no Salvage", [PRIMARY_DONE], false],
+    ] as const)(
+      "finishing a ship where it lands, %s, salvages after the shot",
+      (_label, missions, salvages) => {
+        // p2 on its last hull point where p1's coast ends.
+        const base = withShip(salvageTable([...missions], []), "p2", { ...LANDING, hitPoints: 1 });
+        const actions = botDecideActions(viewFor(base, "p1")).actions;
+        const shot = actions.findIndex(
+          (a) => a.type === "fire_weapon" && a.data.targetPlayerId === "p2"
+        );
+        expect(shot).toBeGreaterThanOrEqual(0);
+        const salvage = actions.filter((a) => a.type === "salvage");
+        expect(salvage).toEqual(salvages ? [expect.objectContaining({ data: {} })] : []);
+        const result = executeTurn(base, actions);
+        expect(result.errors).toBeUndefined();
+        expect(result.events.some((e) => e.type === "wreck_salvaged")).toBe(salvages);
+      }
+    );
+
     it("is no pirate's prey: a wreck is not a carrier", () => {
       const card = piracyMission();
       expect(goalFor(salvageTable([card, PRIMARY_DONE]), card.id)).toBeUndefined();
@@ -622,6 +646,39 @@ describe("bot goals: salvage and escort", () => {
       );
       const result = executeTurn(state, actions);
       expect(result.errors).toBeUndefined();
+    });
+
+    /**
+     * p1 can only coast (engines broken) along BH ring 3 from S0 to S4. What
+     * it takes goes in the sequence where it first can: before the coast at
+     * the start, right after it where the coast ends.
+     */
+    const coasting = (missions: Mission[], wreckSector: number | null, ring = 3): GameState => {
+      let state = makeGameState([
+        makePlayer("p1", { wellId: BH, ring, sector: 0 }),
+        makePlayer("p2", { wellId: BH, ring: 4, sector: 12 }),
+      ]);
+      state = withMissions(state, "p1", missions);
+      state = withSub(state, "p1", "engines", { isBroken: true });
+      return wreckSector === null
+        ? state
+        : { ...state, wrecks: [{ id: "w", wellId: BH, ring, sector: wreckSector }] };
+    };
+    it.each<[string, () => GameState, string[]]>([
+      ["a salvage of the wreck it starts on", () => coasting([salvageMission()], 0), ["salvage", "coast"]],
+      ["a salvage of the wreck it coasts onto", () => coasting([salvageMission()], 4), ["coast", "salvage"]],
+      ["a survey on ring 1", () => coasting([surveyMission()], null, 1), ["survey", "coast"]],
+      ["a marker on a carrier on its ring", () => besideCarriers([escortMission()], ["p2"]), ["escort_mark", "coast"]],
+    ])("places %s where it first can", (_label, build, order) => {
+      const state = build();
+      const actions = botDecideActions(viewFor(state, "p1")).actions;
+      expect(
+        actions
+          .filter((a) => ["survey", "salvage", "escort_mark", "coast"].includes(a.type))
+          .sort((x, y) => x.sequence! - y.sequence!)
+          .map((a) => a.type)
+      ).toEqual(order);
+      expect(executeTurn(state, actions).errors).toBeUndefined();
     });
   });
 });

@@ -63,7 +63,7 @@ export const RULES_DIALOG = {
     ['Hit roll', '{miss} miss, {hitFrom}–{hitTo} hit, {crit} crit ({sensorCrit}–10 with sensors)'],
     [
       'Salvo',
-      "one action launches any number of a subsystem's missiles at one ship, all naming the same slot, for the subsystem's {salvoEnergy} energy once; a rack with energy on it rolls at {intercepts} of them a turn, so it takes a second rack to answer a second launcher",
+      "one action launches any number of a subsystem's missiles at one ship, all naming the same slot, for the subsystem's {salvoEnergy} energy once, and they fly at once; a rack with energy on it rolls at {intercepts} of them a turn, so it takes a second rack to answer a second launcher",
     ],
     [
       'Scan',
@@ -79,12 +79,15 @@ export const RULES_DIALOG = {
     ],
     [
       'Wrecks',
-      'left where a ship dies, drift with the stations; a Salvage takes the black box (data)',
+      'left where a ship dies, drift with the stations; salvage is an action: on a wreck\'s sector, take its black box (data)',
     ],
-    ['Survey', 'end a turn on Black Hole Ring 1 (take the data) then dock at any station'],
+    [
+      'Survey',
+      'survey is an action in your sequence: while on Black Hole Ring 1, take the data. File it at any station',
+    ],
     [
       'Piracy',
-      'end a turn in the same sector as an undocked ship carrying cargo and you may take one item of your choice. Sell it at any station; their card goes back to undone',
+      'seize is an action in your sequence: while you share a sector with an undocked ship carrying cargo, and you are not moored, you may take one item of your choice. Seize before you fire at it. Sell it at any station. Their card goes back to undone',
     ],
     [
       'Tanker',
@@ -92,11 +95,11 @@ export const RULES_DIALOG = {
     ],
     [
       'Escort',
-      'end a turn, not moored, on the same ring as an undocked rival carrying cargo, and you may put your marker on it (a ship carries one marker). Done the next time that ship delivers, sells or files anything, or pumps fuel, with you in its well; your marker comes back if either ship is destroyed first',
+      'mark is an action in your sequence: while on the same ring as an undocked rival carrying cargo, and not moored, you may put your marker on it (a ship carries one marker). Mark before you fire at it. Done the next time that ship delivers, sells or files anything, or pumps fuel, with you in its well; your marker comes back if either ship is destroyed first',
     ],
     [
       'Salvage',
-      'end a turn on a wreck (moored or not) and take its black box: data, filed at any station',
+      'salvage is an action in your sequence: while on a wreck\'s sector (moored or not), take its black box, one wreck a turn. A ship destroyed earlier in your turn has already left its wreck. It is data, filed at any station',
     ],
     [
       'Deployment',

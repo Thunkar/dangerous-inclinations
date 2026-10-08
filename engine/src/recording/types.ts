@@ -39,8 +39,15 @@ import type { GameEvent } from "../models/events.ts";
  *     carries `heat`.
  * v17: the heat check comes before docking, and a ship its check destroys
  *     on a station does not dock.
+ * v18: a missile flies its launch flight, and attacks, as it is launched.
+ * v19: `seize` is a tactical action with a sequence, taken at its place in
+ *     the turn; `action_skipped.action` may be `seize`.
+ * v20: `survey`, `salvage` and `escort_mark` are tactical actions with a
+ *     sequence, taken at their place in the turn, not at its end.
+ * v21: a destruction is settled the moment it happens, mid-sequence; a
+ *     `salvage` may name no wreck, and `action_skipped` may be a `salvage`.
  */
-export const RECORDING_SCHEMA_VERSION = 17;
+export const RECORDING_SCHEMA_VERSION = 21;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made
