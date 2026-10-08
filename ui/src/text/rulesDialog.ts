@@ -29,28 +29,28 @@ export const RULES_DIALOG = {
   quick: [
     [
       'Energy',
-      'every action puts energy on the subsystem it uses; it stays there until your next turn, when you clear your loadout',
+      'every action puts energy on the subsystem it uses. It stays there until your next turn, when you clear your loadout',
     ],
     [
       'Power',
       'an action too: shields ({halfShield} or {fullShield}), a ballistic rack ({rackEnergy}) or a sensor array ({sensorEnergy}) work until your next turn. Each subsystem does one thing a turn: power it or use it',
     ],
     ['Heat', 'every point of energy on your loadout is 1 heat at your check'],
-    ['Heat track', '{maxHeat} · above it is hull damage; heat does not reset'],
+    ['Heat track', '{maxHeat} · above it is hull damage. Heat does not reset'],
     ['Dissipation', 'dissipate {dissipation} (+{radiator} per radiator) at every check'],
     [
       'Shields',
-      'power at {halfShield} or {fullShield}; each energy absorbs {shieldPoints} damage ({plasmaPoints} of plasma) and comes off; every point absorbed is heat on your track, paid at your next check; power them every turn you want them up; lasers ignore them; any powered shield stops a disruptor whole',
+      'power at {halfShield} or {fullShield}. Each energy absorbs {shieldPoints} damage ({plasmaPoints} of plasma) and comes off. Every point absorbed is heat on your track, paid at your next check. Power them every turn you want them up. Lasers ignore them. Any powered shield stops a disruptor whole',
     ],
     [
       'Ballistic rack',
-      'with energy on it (powered, or it fired) it rolls at {intercepts} missiles a turn, the same number its energy could have thrown; answering puts {interceptHeat} heat on your track, however many it rolls at',
+      'with energy on it (powered, or it fired) it rolls at {intercepts} missiles a turn, the same number its energy could have thrown. Answering puts {interceptHeat} heat on your track, however many it rolls at',
     ],
     [
       'Critical',
-      "names any slot; breaks it through shields, and dumps its energy as heat (a subsystem holds its energy until its owner's next turn)",
+      "names any slot. Breaks it through shields, and dumps its energy as heat (a subsystem holds its energy until its owner's next turn)",
     ],
-    ['Repair', 'a station, on arrival, fixes everything; or one subsystem a turn at 0 heat'],
+    ['Repair', 'a station, on arrival, fixes everything. Or one subsystem a turn at 0 heat'],
     ['Hull', '{hull}'],
     ['Fuel', '{fuel}'],
     ['Sectors per ring', '{sectors}'],
@@ -67,15 +67,15 @@ export const RULES_DIALOG = {
     ],
     [
       'Scan',
-      'same ring, within {scanRange} sectors, sensor aboard and unbroken; the scan puts {sensorEnergy} energy on it, so every shot after it has the wider range',
+      'same ring, within {scanRange} sectors, sensor aboard and unbroken. The scan puts {sensorEnergy} energy on it, so every shot after it has the wider range',
     ],
     [
       'Docking',
-      'on arrival only, after the heat check: full hull, repair all, reload missiles, and one thing: load the crates waiting for you, or sell one item (a crate, data, loot or the Tanker fuel). Each station buys from you once per game. You choose; by default the sale worth the most points, else the load. You stay moored until you burn away',
+      'on arrival only, after the heat check: full hull, repair all, reload missiles, and one thing: load the crates waiting for you, or sell one item (a crate, data, loot or the Tanker fuel). Each station buys from you once per game. You choose, by default the sale worth the most points, else the load. You stay moored until you burn away',
     ],
     [
       'Berth',
-      'moored from the moment you dock until you leave the sector, so on the turn you arrive you may still fire after the move; a moored ship neither fires nor is fired at, missiles included; scans still reach it',
+      'moored from the moment you dock until you leave the sector, so on the turn you arrive you may still fire after the move. A moored ship neither fires nor is fired at, missiles included. Scans still reach it',
     ],
     [
       'Wrecks',
@@ -103,7 +103,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Deployment',
-      'Black Hole Ring {homeRings}, at least {deploymentGap} sectors from every ship already placed (if no sector qualifies, the farthest one); that position is your Home',
+      'Black Hole Ring {homeRings}, at least {deploymentGap} sectors from every ship already placed (if no sector qualifies, the farthest one). That position is your Home',
     ],
     [
       'Missions',
@@ -111,7 +111,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Keeping cards',
-      '{primaryOffers} primaries keep {primaries}, {secondaryOffers} secondaries keep any {secondaries}, rest to a shared discard; Intercept needs a sensor array, Destroy needs a weapon that deals damage (not a disruptor alone)',
+      '{primaryOffers} primaries keep {primaries}, {secondaryOffers} secondaries keep any {secondaries}, rest to a shared discard. Intercept needs a sensor array, Destroy needs a weapon that deals damage (not a disruptor alone)',
     ],
     [
       'Hand',
@@ -119,7 +119,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Win',
-      '{pointsToWin} points trigger the final round; when it ends, highest score wins (hull, then fuel, then the earlier seat, break ties). Your primary and either secondary is a win; two secondaries are not',
+      '{pointsToWin} points trigger the final round. When it ends, highest score wins (hull, then fuel, then the earlier seat, break ties). Your primary and either secondary is a win, two secondaries are not',
     ],
   ],
 
@@ -149,6 +149,6 @@ export const RULES_DIALOG = {
 
   reveals: {
     title: 'Reveals',
-    text: 'A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack rolls at a missile), and a missiles subsystem then shows what is left; shields absorb damage or stop a disruptor; a sensor array scans; a radiator when your heat goes above {dissipation} at a heat check; a compressor when a jump costs {compressedFuel} fuel instead of {jumpFuel}; any subsystem when a critical breaks it. Powering a subsystem does not turn it over: a wall you never needed, a rack nothing came at and a sensor you never scanned with are still secrets at the end of the game.',
+    text: 'A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack rolls at a missile), and a missiles subsystem then shows what is left. Shields absorb damage or stop a disruptor. A sensor array scans. A radiator when your heat goes above {dissipation} at a heat check. A compressor when a jump costs {compressedFuel} fuel instead of {jumpFuel}. Any subsystem when a critical breaks it. Powering a subsystem does not turn it over: a wall you never needed, a rack nothing came at and a sensor you never scanned with are still secrets at the end of the game.',
   },
 } as const
