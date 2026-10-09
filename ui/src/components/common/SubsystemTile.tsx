@@ -15,7 +15,12 @@
  * and nothing else is ever written under a tile.
  */
 import { Box, Tooltip, Typography } from '@mui/material'
-import type { SlotKnowledge, SubsystemId, SubsystemType } from '@dangerous-inclinations/engine'
+import type {
+  Hull,
+  SlotKnowledge,
+  SubsystemId,
+  SubsystemType,
+} from '@dangerous-inclinations/engine'
 import { POWERABLE_TYPES, getSubsystemConfig } from '@dangerous-inclinations/engine'
 import { subsystemGroupColor } from '../../utils/subsystemGroups'
 import { SubsystemIcon } from './SubsystemIcon'
@@ -26,6 +31,8 @@ import { EnergyCubes } from './Tokens'
 export interface SubsystemTileProps {
   id: SubsystemId
   type: SubsystemType | null
+  /** The hull of the ship the tile sits in, which names its slot. */
+  hull: Hull
   knownVia?: SlotKnowledge
   isBroken?: boolean | null
   allocatedEnergy: number
@@ -55,6 +62,7 @@ const FACE_DOWN_CELLS = Math.max(...POWERABLE_TYPES.map(type => getSubsystemConf
 export function SubsystemTile({
   id,
   type,
+  hull,
   knownVia = null,
   isBroken,
   allocatedEnergy,
@@ -77,11 +85,11 @@ export function SubsystemTile({
   const wells = faceDown ? Math.max(allocatedEnergy, FACE_DOWN_CELLS) : cubeCapacity
   const live = allocatedEnergy > 0 && !isBroken
 
-  const name = type ? slotWithSubsystem(id, type) : `${slotLabel(id)} · face down`
+  const name = type ? slotWithSubsystem(id, type, hull) : `${slotLabel(id, hull)} · face down`
   const tip =
     tooltip ??
     (faceDown
-      ? `${slotLabel(id)}: face down. ${allocatedEnergy} energy on it.`
+      ? `${slotLabel(id, hull)}: face down. ${allocatedEnergy} energy on it.`
       : `${name}${knownVia === 'scanned' ? ' (seen by your scan)' : ''}${
           ammo === null || ammo === undefined ? '' : ` · ${ammo} left`
         }${isBroken ? ' · BROKEN' : ''}`)

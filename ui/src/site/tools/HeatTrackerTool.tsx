@@ -38,7 +38,7 @@ import {
 import { TileIcon } from '../../art/glyphs'
 import { FONT_SANS } from '../../theme'
 import { BAND_ANGLE, FONT_DISPLAY, PRESS } from '../../design/press'
-import { MOUNTS } from '../../ships/mounts'
+import { MOUNTS, mountLabel } from '../../ships/mounts'
 import type { MountId } from '../../ships/mounts'
 import { Body, Numeral, Slab } from '../poster'
 import {
@@ -166,9 +166,10 @@ function passiveNote(type: SubsystemType): string {
   return ''
 }
 
+/** The printed card's ship is the corvette, so the mat names its slots the corvette's way. */
 function slotTitle(slot: SlotId): string {
   if (slot === 'engines' || slot === 'rotation' || slot === 'scoop') return 'Fixed'
-  return MOUNTS.find(mount => mount.id === slot)?.label ?? slot
+  return mountLabel(slot, 'corvette')
 }
 
 type TapMode = 'power' | 'break'

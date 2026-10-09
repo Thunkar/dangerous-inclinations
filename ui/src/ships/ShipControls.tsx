@@ -7,6 +7,7 @@ import {
   PRESET_NAMES,
   DEFAULT_SHIP_APPEARANCE,
   INSTALLABLE_SUBSYSTEMS,
+  HULLS,
   LIVERIES,
   canInstallInSlot,
   getSubsystemConfig,
@@ -20,6 +21,9 @@ import {
 import { SubsystemIcon } from '../components/common/SubsystemIcon'
 import { TABLE, FONT_MONO } from '../theme'
 import { MODULE_NOTES, MOUNTS, moduleAt, setModule, type MountId, type ShipConfig } from './config'
+import { mountLabel } from './mounts'
+import { HULL_INFO } from './hulls'
+import { ShipMark } from './ShipMark'
 
 const DEFAULT_ROLE: BotRole = 'hauler'
 
@@ -209,7 +213,7 @@ export function SystemControls({
               key={m.id}
               onClick={() => onSelect(m.id)}
               aria-pressed={selected === m.id}
-              aria-label={`${m.label}: ${type ? getSubsystemConfig(type).name : 'Empty mount'}`}
+              aria-label={`${mountLabel(m.id, config.appearance?.hull ?? 'corvette')}: ${type ? getSubsystemConfig(type).name : 'Empty mount'}`}
               variant="outlined"
               sx={{
                 justifyContent: 'flex-start',
@@ -240,7 +244,7 @@ export function SystemControls({
                   variant="caption"
                   sx={{ color: selected === m.id ? 'inherit' : 'text.secondary', opacity: 0.8 }}
                 >
-                  {m.label}
+                  {mountLabel(m.id, config.appearance?.hull ?? 'corvette')}
                 </Typography>
                 <Typography component="span" variant="body2">
                   {type ? getSubsystemConfig(type).name : 'Empty mount'}
@@ -464,7 +468,52 @@ export function AppearanceControls({
   return (
     <Box component="fieldset" disabled={disabled} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
       <Typography variant="overline" color="text.secondary">
-        01 / Paint
+        01 / Hull
+      </Typography>
+      <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
+        Every hull carries the same five mounts and flies the same.
+      </Typography>
+      <Box
+        role="radiogroup"
+        aria-label="Hull"
+        sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0.75, mt: 1 }}
+      >
+        {HULLS.map(hull => {
+          const on = value.hull === hull
+          return (
+            <Button
+              key={hull}
+              role="radio"
+              aria-checked={on}
+              disabled={disabled}
+              onClick={() => patch({ hull })}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'stretch',
+                gap: 0.5,
+                p: 1,
+                border: `1px solid ${on ? TABLE.selected : TABLE.plateEdge}`,
+                bgcolor: on ? TABLE.selected : TABLE.felt,
+                color: on ? TABLE.onSelected : TABLE.ink,
+                '&:hover': { bgcolor: on ? TABLE.selected : TABLE.plateHi },
+              }}
+            >
+              <Box sx={{ width: '100%', height: 40 }}>
+                <ShipMark appearance={{ ...value, hull }} accent={seatColor} />
+              </Box>
+              <Box
+                component="span"
+                sx={{ fontSize: '0.85rem', color: on ? TABLE.onSelected : TABLE.ink }}
+              >
+                {HULL_INFO[hull].name}
+              </Box>
+            </Button>
+          )
+        })}
+      </Box>
+      <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
+        02 / Paint
       </Typography>
       <PaintRow
         label="Hull"
@@ -479,7 +528,7 @@ export function AppearanceControls({
         onChange={secondaryPaint => patch({ secondaryPaint })}
       />
       <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-        02 / Livery
+        03 / Livery
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
         Sprayed in your seat's colour, the same as your token on the board.

@@ -21,7 +21,7 @@ import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { EscortedBy } from './EscortedBy'
 import { SoldAt } from './SoldAt'
-import { slotShortLabel, slotWithSubsystem } from '../../utils/slots'
+import { hullOf, slotShortLabel, slotWithSubsystem } from '../../utils/slots'
 import { placeLabel } from '../../utils/route'
 
 /**
@@ -320,7 +320,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
           return (
             <Tooltip
               key={tile.id}
-              title={`${slotWithSubsystem(tile.id, tile.type)}: ${left} of ${perTubeMax} missiles. Private until you fire.`}
+              title={`${slotWithSubsystem(tile.id, tile.type, hullOf(me))}: ${left} of ${perTubeMax} missiles. Private until you fire.`}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
                 <Typography

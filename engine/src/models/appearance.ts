@@ -12,8 +12,20 @@ const paint = z.string().regex(/^#[0-9a-f]{6}$/i);
 export const LIVERIES = ["band", "split", "chevron", "stern", "spine"] as const;
 export type Livery = (typeof LIVERIES)[number];
 
+/**
+ * The hull: the shape built around the same five mounts and the same drive.
+ * The corvette is the reference; the shrike stands its side mounts in one
+ * column on a tall chassis over a swept blade; the mantis is a U open forward,
+ * the bow mount in the gap between two side hulls that carry the flank
+ * mounts. Every hull carries the same slots, so the choice is cosmetic and
+ * nothing else.
+ */
+export const HULLS = ["corvette", "shrike", "mantis"] as const;
+export type Hull = (typeof HULLS)[number];
+
 export const ShipAppearanceSchema = z
   .object({
+    hull: z.enum(HULLS),
     paint,
     secondaryPaint: paint,
     livery: z.enum(LIVERIES),
@@ -22,6 +34,7 @@ export const ShipAppearanceSchema = z
 
 export type ShipAppearance = z.infer<typeof ShipAppearanceSchema>;
 export const DEFAULT_SHIP_APPEARANCE: Readonly<ShipAppearance> = Object.freeze({
+  hull: "corvette",
   paint: "#d6cfbd",
   secondaryPaint: "#6b6a66",
   livery: "band",

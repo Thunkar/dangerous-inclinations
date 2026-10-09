@@ -19,6 +19,8 @@ export interface Kv {
   ltrim(key: string, count: number): Promise<void>;
   expire(key: string, seconds: number): Promise<void>;
   persist(key: string): Promise<void>;
+  /** Every key starting with `prefix` (a SCAN, never a blocking KEYS). */
+  keys(prefix: string): Promise<string[]>;
 }
 
 export function redisKv(getRedis: () => Redis): Kv {
@@ -42,6 +44,16 @@ export function redisKv(getRedis: () => Redis): Kv {
     },
     persist: async (key) => {
       await getRedis().persist(key);
+    },
+    keys: async (prefix) => {
+      const found: string[] = [];
+      let cursor = "0";
+      do {
+        const [next, batch] = await getRedis().scan(cursor, "MATCH", `${prefix}*`, "COUNT", 200);
+        cursor = next;
+        found.push(...batch);
+      } while (cursor !== "0");
+      return [...new Set(found)];
     },
   };
 }
@@ -76,5 +88,7 @@ export function memoryKv(): Kv {
     },
     expire: async () => {},
     persist: async () => {},
+    keys: async (prefix) =>
+      [...strings.keys(), ...lists.keys()].filter((key) => key.startsWith(prefix)),
   };
 }

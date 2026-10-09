@@ -65,7 +65,31 @@ function scheduleAbandonCheck(gameId: string): void {
   );
 }
 
+/**
+ * The teardown timers live in memory, so a game whose timer was lost (the
+ * server restarted inside the grace) or never started (no human ever opened
+ * its socket) would sit "in play" for ever. The sweep finds every game with no
+ * human connected and no teardown pending and gives it the same grace a
+ * closing socket would: at startup, when nobody can be connected yet, and once
+ * a minute after that.
+ */
+const SWEEP_INTERVAL_MS = 60_000;
+
+async function sweepAbandonedGames(): Promise<void> {
+  for (const gameId of await gameService.listGameIds()) {
+    if (abandonTimers.has(gameId)) continue;
+    try {
+      if (!(await humansStillConnected(gameId))) scheduleAbandonCheck(gameId);
+    } catch {
+      // A game that cannot be read is left for the next sweep.
+    }
+  }
+}
+
 export async function setupWebSocketRooms(fastify: FastifyInstance) {
+  void sweepAbandonedGames();
+  setInterval(() => void sweepAbandonedGames(), SWEEP_INTERVAL_MS).unref();
+
   /**
    * Global room - lobby list updates. URL: /ws/global?playerId=xxx
    */

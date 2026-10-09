@@ -296,6 +296,10 @@ function fail(message: string): never {
 
 console.log("smoke: creating the game (1 human, 2 bots)");
 await games.createGame(GAME_ID, SPECS, [HUMAN], SEED);
+check(
+  JSON.stringify(await games.listGameIds()) === JSON.stringify([GAME_ID]),
+  "the store lists the game, and only the game (not its humans or chat keys)"
+);
 
 // --- Loadout -----------------------------------------------------------------
 const loadoutView = await games.getView(GAME_ID, HUMAN);
@@ -316,7 +320,12 @@ check(
   `the human is offered ${MISSION_OFFERS_PER_PLAYER} missions (got ${offers.length})`
 );
 
-const cosmetic = { ...DEFAULT_SHIP_APPEARANCE, paint: "#344149", secondaryPaint: "#b6a27b" };
+const cosmetic = {
+  ...DEFAULT_SHIP_APPEARANCE,
+  hull: "shrike" as const,
+  paint: "#344149",
+  secondaryPaint: "#b6a27b",
+};
 check(
   LoadoutSubmissionSchema.safeParse({
     loadout: SMOKE_LOADOUT,
@@ -354,6 +363,10 @@ check(
 check(
   afterLoadout.players.find((p) => p.id === HUMAN)?.appearance?.paint === cosmetic.paint,
   "public views include submitted paint"
+);
+check(
+  afterLoadout.players.find((p) => p.id === HUMAN)?.appearance?.hull === "shrike",
+  "public views include the chosen hull"
 );
 check(afterLoadout.me?.missions.length === MISSIONS_PER_PLAYER, "the human keeps its own 3 missions in its view");
 check(afterLoadout.phase === "deployment", `bots submit their loadouts too (phase ${afterLoadout.phase})`);

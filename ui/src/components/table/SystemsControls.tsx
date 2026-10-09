@@ -33,7 +33,7 @@ import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
 import { SubsystemIcon } from '../common/SubsystemIcon'
 import { FONT_MONO, TABLE } from '../../theme'
-import { slotWithSubsystem } from '../../utils/slots'
+import { hullOf, slotWithSubsystem } from '../../utils/slots'
 import { subsystemGroup } from '../../utils/subsystemGroups'
 import { PLASMA_SHIELD_POINTS, SENSOR_CRIT, poweredEffect } from '../../site/numbers'
 
@@ -209,7 +209,7 @@ function SystemRow({ sub, caption, children }: { sub: Subsystem; caption: string
           noWrap
           sx={{ fontSize: '0.875rem', fontWeight: 600, color: TABLE.ink, lineHeight: 1.3, minWidth: 0 }}
         >
-          {slotWithSubsystem(sub.id, sub.type)}
+          {slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))}
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
@@ -365,7 +365,11 @@ function PowerControl({ sub, disabled }: { sub: Subsystem; disabled: boolean }) 
         : `Power it at ${n}: ${poweredEffect(sub.type)}, until your next turn. ${n} heat at your check, and powering does not turn it face-up.`
 
   return (
-    <Box role="group" aria-label={`Power ${slotWithSubsystem(sub.id, sub.type)}`} sx={{ display: 'flex' }}>
+    <Box
+      role="group"
+      aria-label={`Power ${slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))}`}
+      sx={{ display: 'flex' }}
+    >
       {levels.map((n, i) => (
         <Tip key={n} title={tip(n)}>
           <ToggleButton

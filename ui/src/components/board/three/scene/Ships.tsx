@@ -23,6 +23,7 @@ import { forwardDistance } from '@dangerous-inclinations/engine'
 import { createShip } from '../../../../ships/model'
 import { boardConfig, type ShipVisual } from '../../../../ships/visual'
 import { MOUNTS } from '../../../../ships/config'
+import { HULL_INFO } from '../../../../ships/hulls'
 import { TABLE } from '../../../../theme'
 import type { ShipToken } from '../../model'
 import {
@@ -166,17 +167,16 @@ interface HullParts {
 
 function Hull({
   color,
-  isMe,
   partsRef,
   visual,
 }: {
   color: string
-  isMe: boolean
   visual?: ShipVisual
   partsRef: { current: HullParts }
 }) {
   // JSON captures only the filtered visual spec, not positions or per-frame motion.
   const key = JSON.stringify({ visual, color })
+  const fit = HULL_INFO[visual?.appearance.hull ?? 'corvette'].board
   const model = useMemo(() => {
     const { visual: spec, color: accent } = JSON.parse(key) as {
       visual?: ShipVisual
@@ -195,14 +195,16 @@ function Hull({
   useLayoutEffect(() => {
     const current = partsRef.current
     current.nozzle = model.engineGlow
-    current.exhaustX = Math.min(...model.nozzles.map(n => n.x)) * 4
+    current.exhaustX = Math.min(...model.nozzles.map(n => n.x)) * fit.scale
+    const exhaustY = model.nozzles.reduce((sum, n) => sum + n.y, 0) / model.nozzles.length
+    current.plume?.position.setY(exhaustY * fit.scale)
     return () => {
       current.nozzle = null
     }
-  }, [model, partsRef])
+  }, [model, partsRef, fit])
   return (
-    <group position={[0, HOVER, 0]}>
-      <primitive object={model.root} scale={4} dispose={null} />
+    <group position={[0, HOVER + fit.lift, 0]}>
+      <primitive object={model.root} scale={fit.scale} dispose={null} />
       <mesh
         ref={node => {
           partsRef.current.plume = node
@@ -239,12 +241,6 @@ function Hull({
           toneMapped={false}
         />
       </mesh>
-      {isMe && (
-        <mesh position={[0, HEIGHT * 0.65, 0]}>
-          <sphereGeometry args={[HEIGHT * 0.16, 10, 8]} />
-          <meshBasicMaterial color={TABLE.ink} toneMapped={false} />
-        </mesh>
-      )}
     </group>
   )
 }
@@ -581,7 +577,7 @@ function ShipMesh({
           }}
         >
           <group ref={bank}>
-            <Hull color={ship.color} isMe={ship.isMe} partsRef={parts} visual={ship.visual} />
+            <Hull color={ship.color} partsRef={parts} visual={ship.visual} />
           </group>
         </group>
 
@@ -589,9 +585,7 @@ function ShipMesh({
         <EscortBadges escorts={ship.escorts} />
 
         {hovered && (
-          <BoardTooltip position={[0, HOVER + HEIGHT + 26, 0]}>
-            {shipLabel(ship)}
-          </BoardTooltip>
+          <BoardTooltip position={[0, HOVER + HEIGHT + 26, 0]}>{shipLabel(ship)}</BoardTooltip>
         )}
       </group>
 

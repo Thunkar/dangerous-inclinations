@@ -1,11 +1,19 @@
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
-import { PMREMGenerator, Vector3, type Group, type PerspectiveCamera, type WebGLRenderer } from 'three'
+import {
+  PMREMGenerator,
+  Vector3,
+  type Group,
+  type PerspectiveCamera,
+  type WebGLRenderer,
+} from 'three'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import { TABLE } from '../design/tokens'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { MOUNTS, mountTransform, type MountId, type ShipConfig } from './config'
+import { HULL_INFO } from './hulls'
+import { mountLabel } from './mounts'
 import { poseShip } from './model'
 import { useShipModel } from './useShipModel'
 
@@ -79,7 +87,11 @@ function Scene(props: ViewerProps) {
   const model = useShipModel(config, concealed)
   const { gl, camera, size, invalidate } = useThree()
   const controls = useRef<OrbitControlsImpl>(null)
-  const framingRadius = exploded > 0 ? 8.8 : 6.9
+  const { stage } = HULL_INFO[config.appearance?.hull ?? 'corvette']
+  // Separated modules need more room, and the camera looks a little further forward.
+  const framingRadius = stage.radius + (exploded > 0 ? 1.9 : 0)
+  const [cx, cy, cz] = stage.center
+  const floor = stage.floor
 
   useLayoutEffect(() => {
     poseShip(model, exploded, selected)
@@ -114,14 +126,26 @@ function Scene(props: ViewerProps) {
       2 * Math.atan((Math.tan(verticalFov / 2) * size.width) / size.height)
     )
     const distance = framingRadius / Math.sin(limitingFov / 2)
-    const target = new Vector3(framingRadius > 7 ? 1 : 0.2, 0, 0)
+    const target = new Vector3(cx + (exploded > 0 ? 0.8 : 0), cy, cz)
     camera.position.copy(target).addScaledVector(direction, distance)
     camera.up.set(view === 'Top' ? 1 : 0, view === 'Top' ? 0 : 1, 0)
     camera.lookAt(target)
     controls.current?.target.copy(target)
     controls.current?.update()
     invalidate()
-  }, [camera, view, reset, size.width, size.height, invalidate, framingRadius])
+  }, [
+    camera,
+    view,
+    reset,
+    size.width,
+    size.height,
+    invalidate,
+    framingRadius,
+    cx,
+    cy,
+    cz,
+    exploded,
+  ])
 
   function select(event: ThreeEvent<MouseEvent>) {
     if (event.delta > 5) return
@@ -169,8 +193,8 @@ function Scene(props: ViewerProps) {
               <Html position={[0, 0.32 + exploded * 2.2, 0.99]} center zIndexRange={[20, 0]}>
                 <button
                   className={`mount-tag ${selected === mount.id ? 'active' : ''}`}
-                  title={mount.label}
-                  aria-label={`Select ${mount.label}`}
+                  title={mountLabel(mount.id, config.appearance?.hull ?? 'corvette')}
+                  aria-label={`Select ${mountLabel(mount.id, config.appearance?.hull ?? 'corvette')}`}
                   onClick={() => onSelect(mount.id)}
                 >
                   {mount.short}
@@ -179,12 +203,12 @@ function Scene(props: ViewerProps) {
             </group>
           )
         })}
-      <mesh position={[0, -3.3, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh position={[0, floor, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[200, 200]} />
         <meshStandardMaterial color="#141619" roughness={0.9} metalness={0.15} />
       </mesh>
       {[4.6, 6.88, 9.2].map(radius => (
-        <mesh key={radius} position={[0, -3.28, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh key={radius} position={[0, floor + 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[radius - 0.015, radius + 0.015, 160]} />
           <meshBasicMaterial color={TABLE.ink} transparent opacity={0.16} />
         </mesh>
@@ -192,7 +216,7 @@ function Scene(props: ViewerProps) {
       {SLIP_TICKS.map((angle, i) => (
         <mesh
           key={angle}
-          position={[Math.cos(angle) * 6.88, -3.278, Math.sin(angle) * 6.88]}
+          position={[Math.cos(angle) * 6.88, floor + 0.022, Math.sin(angle) * 6.88]}
           rotation={[-Math.PI / 2, 0, -angle]}
         >
           <planeGeometry args={[i % 6 === 0 ? 0.7 : 0.4, i === 0 ? 0.07 : 0.04]} />

@@ -211,14 +211,26 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
                   {lobby.currentPlayers}/{lobby.maxPlayers} seats
                 </Typography>
                 <Box sx={{ flex: 1 }} />
-                <Button
-                  size="small"
-                  variant="outlined"
-                  disabled={busy || lobby.gameStarted || lobby.currentPlayers >= lobby.maxPlayers}
-                  onClick={() => (lobby.hasPassword ? setJoinTarget(lobby) : doJoin(lobby))}
-                >
-                  {lobby.gameStarted ? 'in play' : 'Sit down'}
-                </Button>
+                {lobby.seated ? (
+                  // Your own table: back to your seat, game or no game.
+                  <Button
+                    size="small"
+                    variant="contained"
+                    disabled={busy}
+                    onClick={() => onLobbyJoined(lobby.lobbyId)}
+                  >
+                    Rejoin
+                  </Button>
+                ) : (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={busy || lobby.gameStarted || lobby.currentPlayers >= lobby.maxPlayers}
+                    onClick={() => (lobby.hasPassword ? setJoinTarget(lobby) : doJoin(lobby))}
+                  >
+                    {lobby.gameStarted ? 'in play' : 'Sit down'}
+                  </Button>
+                )}
               </Box>
             ))}
           </Box>

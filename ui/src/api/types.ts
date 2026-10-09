@@ -65,6 +65,8 @@ export interface LobbyListItem {
   maxPlayers: number
   currentPlayers: number
   gameStarted: boolean
+  /** The caller has a seat at this table: it can go back to it. */
+  seated: boolean
   createdAt: number
 }
 

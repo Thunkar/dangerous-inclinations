@@ -18,6 +18,7 @@ import {
   createSubsystemsFromLoadout,
   BOT_PRESET_LOADOUTS,
   DEFAULT_SHIP_APPEARANCE,
+  HULLS,
   samePosition,
   viewFor,
 } from '@dangerous-inclinations/engine'
@@ -132,6 +133,8 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     player.ship.subsystems = createSubsystemsFromLoadout(templates[index])
     player.appearance = {
       ...DEFAULT_SHIP_APPEARANCE,
+      // The seats take the hulls in turn, so every hull is on the fixture board.
+      hull: HULLS[index % HULLS.length],
       paint: ['#aab4b2', '#344149', '#926b51', '#6d7f8c', '#8a7a4f', '#5c4b63'][index],
     }
   })

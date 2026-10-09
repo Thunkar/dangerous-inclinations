@@ -16,7 +16,7 @@
  * heat readout is where that lands.
  */
 import { Box, Typography } from '@mui/material'
-import type { Subsystem, SubsystemId } from '@dangerous-inclinations/engine'
+import type { Hull, Subsystem, SubsystemId } from '@dangerous-inclinations/engine'
 import { SLOT_IDS, getSubsystemConfig, isPowerableType } from '@dangerous-inclinations/engine'
 import { FONT_MONO, TABLE } from '../../theme'
 import { SubsystemTile } from '../common/SubsystemTile'
@@ -25,7 +25,7 @@ import { useGame } from '../../context/GameContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { usePlan } from '../../context/PlanContext'
 import { usePulses } from '../../context/AnimationContext'
-import { slotWithSubsystem } from '../../utils/slots'
+import { hullOf, slotWithSubsystem } from '../../utils/slots'
 import { poweredEffect } from '../../site/numbers'
 
 const MAT_METRICS = { width: 252, height: 196, band: 44 }
@@ -40,6 +40,7 @@ export function ShipEnergyLoadout() {
   const { view } = useGame()
   const pulses = usePulses()
   const me = plan.me
+  const hull = hullOf(me)
 
   const subsystem = (id: SubsystemId): Subsystem | undefined =>
     plan.pendingSubsystems.find(s => s.id === id)
@@ -59,6 +60,7 @@ export function ShipEnergyLoadout() {
         <SubsystemTile
           id={sub.id}
           type={sub.type}
+          hull={hull}
           knownVia="own"
           isBroken={sub.isBroken}
           allocatedEnergy={sub.allocatedEnergy}
@@ -68,7 +70,7 @@ export function ShipEnergyLoadout() {
           cubeSize={CUBE}
           pulse={Boolean(pulses[`${me.id}:${sub.id}`])}
           selected={plan.focusWeaponId === sub.id}
-          tooltip={<TileTip sub={sub} usedBy={plan.usedBy(sub.id)} />}
+          tooltip={<TileTip sub={sub} hull={hull} usedBy={plan.usedBy(sub.id)} />}
         />
       </Box>
     )
@@ -120,14 +122,22 @@ export function ShipEnergyLoadout() {
 }
 
 /** Name, what the tile holds, and where it is powered from. */
-function TileTip({ sub, usedBy }: { sub: Subsystem; usedBy: 'fire' | 'scan' | null }) {
+function TileTip({
+  sub,
+  hull,
+  usedBy,
+}: {
+  sub: Subsystem
+  hull: Hull
+  usedBy: 'fire' | 'scan' | null
+}) {
   const config = getSubsystemConfig(sub.type)
   const passive = config.maxEnergy === 0
   const powerable = isPowerableType(sub.type)
   return (
     <Box>
       <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 700, fontSize: '0.82rem' }}>
-        {slotWithSubsystem(sub.id, sub.type)}
+        {slotWithSubsystem(sub.id, sub.type, hull)}
       </Typography>
       {passive ? (
         <Typography variant="caption" sx={{ display: 'block' }}>

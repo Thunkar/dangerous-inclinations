@@ -10,7 +10,6 @@ import {
   Color,
   CylinderGeometry,
   ExtrudeGeometry,
-  Float32BufferAttribute,
   Group,
   LatheGeometry,
   Matrix4,
@@ -21,6 +20,7 @@ import {
   TorusGeometry,
   Vector2,
   Vector3,
+  Vector4,
 } from 'three'
 import type { Livery, SubsystemType } from '@dangerous-inclinations/engine'
 import { MOUNTS, mountTransform, type MountId, type Vec3, type ShipConfig } from './config'
@@ -29,6 +29,11 @@ import { HULL_INK } from './palette'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { visibleSlots, type VisibleSlots } from './visual'
+import { armoredSection } from './loft'
+import { HULL_INFO } from './hulls'
+import { buildShrike } from './shrike'
+import { buildMantis } from './mantis'
+import { delavalBells } from './parts'
 
 type Material = MeshStandardMaterial
 
@@ -51,6 +56,12 @@ const LIVERY_GLSL = `
 varying vec3 vShip;
 uniform vec3 uLiveryInk;
 uniform int uLivery;
+// Where each pattern sits on this hull: the band's (x, y) shift, the
+// chevron's and the stern band's x shifts; the split line's and the spine's
+// y shifts, how much of the beam the chevron counts, and how far off the
+// centreline the spine runs (a hull with two arms gives each its own).
+uniform vec4 uLiveryAt;
+uniform vec4 uLiveryAt2;
 float liveryBand(float v, float a, float b) {
   float w = fwidth(v) * 0.75;
   return smoothstep(a - w, a + w, v) * (1.0 - smoothstep(b - w, b + w, v));
@@ -60,19 +71,23 @@ vec3 livery(vec3 base) {
   float t = 0.0;
   if (uLivery == 1) {
     // The poster's diagonal, at the cards' 32 degrees, with a pinstripe behind it.
-    float u = p.x * 0.848 + p.y * 0.530;
+    float u = (p.x + uLiveryAt.x) * 0.848 + (p.y + uLiveryAt.y) * 0.530;
     t = liveryBand(u, 2.05, 2.55) + liveryBand(u, 2.66, 2.76);
   } else if (uLivery == 2) {
-    t = 1.0 - smoothstep(-0.12 - fwidth(p.y), -0.12 + fwidth(p.y), p.y);
-    t = max(t, liveryBand(p.y, -0.05, 0.01));
+    float y = p.y + uLiveryAt2.x;
+    t = 1.0 - smoothstep(-0.12 - fwidth(y), -0.12 + fwidth(y), y);
+    t = max(t, liveryBand(y, -0.05, 0.01));
   } else if (uLivery == 3) {
-    float v = p.x - abs(p.z) * 1.1;
+    float v = p.x + uLiveryAt.z - abs(p.z) * uLiveryAt2.z * 1.1;
     t = liveryBand(v, 2.15, 2.75) + liveryBand(v, 1.8, 1.94);
   } else if (uLivery == 4) {
-    t = liveryBand(p.x, -3.45, -3.05) + liveryBand(p.x, -2.95, -2.84);
+    float x = p.x + uLiveryAt.w;
+    t = liveryBand(x, -3.45, -3.05) + liveryBand(x, -2.95, -2.84);
   } else if (uLivery == 5) {
-    t = (1.0 - step(0.36, abs(p.z))) * step(0.72, p.y);
-    t = max(t, liveryBand(abs(p.z), 0.44, 0.5) * step(0.72, p.y));
+    float y = p.y + uLiveryAt2.y;
+    float z = abs(abs(p.z) - uLiveryAt2.w);
+    t = (1.0 - step(0.36, z)) * step(0.72, y);
+    t = max(t, liveryBand(z, 0.44, 0.5) * step(0.72, y));
   }
   return mix(base, uLiveryInk, clamp(t, 0.0, 1.0));
 }
@@ -85,48 +100,6 @@ export interface ShipModel {
   /** Incremental editor updates; board batches are rebuilt from their visual spec. */
   update: (config: ShipConfig, slots?: VisibleSlots) => void
   dispose: () => void
-}
-
-/**
- * A cross section with clipped corners, lofted along the thrust axis. An
- * optional fourth number lifts a station's centre, so a loft can taper on one
- * side and keep the other flat.
- */
-function armoredSection(
-  sections: ([number, number, number] | [number, number, number, number])[]
-): BufferGeometry {
-  const rings = sections.map(([x, h, w, lift = 0]) => {
-    const c = Math.min(h, w) * 0.35
-    return [
-      [h, w - c],
-      [h - c, w],
-      [-h + c, w],
-      [-h, w - c],
-      [-h, -w + c],
-      [-h + c, -w],
-      [h - c, -w],
-      [h, -w + c],
-    ].map(([y, z]) => [x, y + lift, z])
-  })
-  const vertices: number[] = []
-  const tri = (a: number[], b: number[], c: number[]) => vertices.push(...a, ...b, ...c)
-  for (let r = 0; r < rings.length - 1; r++) {
-    for (let i = 0; i < 8; i++) {
-      const j = (i + 1) % 8
-      tri(rings[r][i], rings[r + 1][j], rings[r + 1][i])
-      tri(rings[r][i], rings[r][j], rings[r + 1][j])
-    }
-  }
-  for (let i = 0; i < 8; i++) {
-    const j = (i + 1) % 8
-    const [first, last] = [sections[0], sections.at(-1)!]
-    tri([first[0], first[3] ?? 0, 0], rings[0][j], rings[0][i])
-    tri([last[0], last[3] ?? 0, 0], rings.at(-1)![i], rings.at(-1)![j])
-  }
-  const geometry = new BufferGeometry()
-  geometry.setAttribute('position', new Float32BufferAttribute(vertices, 3))
-  geometry.computeVertexNormals()
-  return geometry
 }
 
 /** Swap two corners of every triangle, so a mirrored part still faces outward. */
@@ -176,7 +149,15 @@ export function createShip(
     uLiveryInk: { value: new Color(config.accent) },
     uLivery: { value: LIVERY_CODE[config.appearance?.livery ?? 'band'] },
     uShip: { value: new Matrix4() },
+    uLiveryAt: { value: new Vector4() },
+    uLiveryAt2: { value: new Vector4() },
   }
+  // The livery is laid out in corvette units; each hull says where on it each
+  // pattern lands.
+  const hullKind = config.appearance?.hull ?? 'corvette'
+  const at = HULL_INFO[hullKind].livery
+  livery.uLiveryAt.value.set(at.band[0], at.band[1], at.chevron, at.stern)
+  livery.uLiveryAt2.value.set(at.split, at.spine, at.beam, at.spineZ)
   const syncLivery = () => livery.uShip.value.copy(root.matrixWorld).invert()
   function takesLivery(m: Material) {
     if (resin) return
@@ -400,427 +381,404 @@ export function createShip(
 
   const body = new Group()
   body.name = 'hull_fixed_systems'
-  body.scale.set(config.length, config.armor, config.beam)
   root.add(body)
-  add(
-    body,
-    armoredSection([
-      [-3.25, 0.71, 1.04],
-      [-2.6, 0.84, 1.14],
-      [1.95, 0.84, 1.14],
-      [2.55, 0.76, 1.0],
-      [3.04, 0.56, 0.8],
-    ]),
-    dark
-  )
-  // The armor: slab plating standing proud of the core, with seams between
-  // the tiles. Everything painted on the deck (markings and spine)
-  // rides on top of the plate; the bow tile stands lowest, to keep the
-  // citadel clear.
-  const relief = 0.8
-  const deck = 0.05 + relief * 0.33
-  const keel = 0.05 + relief * 0.3
-  const chine = 0.07 + relief * 0.19
-  const deckTop = 0.8 + deck
-  // Flat armour laid in rectangles with tight seams, a port and a starboard
-  // plate to each tile, rather than one moulded slab: plating that was bolted
-  // on, not cast.
-  const plateSeam = 0.035
-  for (const [x, l, share] of [
-    [-2.12, 0.93, 1],
-    [-0.98, 1.25, 1],
-    [0.43, 1.43, 1],
-    [1.68, 0.91, 0.42],
-  ] as [number, number, number][]) {
-    const step = deck * share
-    const length = l - plateSeam
+  if (hullKind === 'shrike')
+    buildShrike(
+      body,
+      (geometry, mat, pos, rot, parent = body) => add(parent as Group, geometry, mat, pos, rot),
+      {
+        hull,
+        pale,
+        dark,
+        steel,
+        copper,
+        cyan,
+        red,
+      }
+    )
+  else if (hullKind === 'mantis')
+    buildMantis(
+      body,
+      (geometry, mat, pos, rot, parent = body) => add(parent as Group, geometry, mat, pos, rot),
+      { hull, pale, dark, steel, rubber, copper, cyan, red }
+    )
+  else {
+    body.scale.set(config.length, config.armor, config.beam)
+    add(
+      body,
+      armoredSection([
+        [-3.25, 0.71, 1.04],
+        [-2.6, 0.84, 1.14],
+        [1.95, 0.84, 1.14],
+        [2.55, 0.76, 1.0],
+        [3.04, 0.56, 0.8],
+      ]),
+      dark
+    )
+    // The armor: slab plating standing proud of the core, with seams between
+    // the tiles. Everything painted on the deck (markings and spine)
+    // rides on top of the plate; the bow tile stands lowest, to keep the
+    // citadel clear.
+    const relief = 0.8
+    const deck = 0.05 + relief * 0.33
+    const keel = 0.05 + relief * 0.3
+    const chine = 0.07 + relief * 0.19
+    const deckTop = 0.8 + deck
+    // Flat armour laid in rectangles with tight seams, a port and a starboard
+    // plate to each tile, rather than one moulded slab: plating that was bolted
+    // on, not cast.
+    const plateSeam = 0.035
+    for (const [x, l, share] of [
+      [-2.12, 0.93, 1],
+      [-0.98, 1.25, 1],
+      [0.43, 1.43, 1],
+      [1.68, 0.91, 0.42],
+    ] as [number, number, number][]) {
+      const step = deck * share
+      const length = l - plateSeam
+      for (const side of [-1, 1]) {
+        const deckWidth = (1.64 - plateSeam * 3) / 2
+        slab(
+          [length, step, deckWidth],
+          [x, 0.8 + step / 2, (side * (deckWidth + plateSeam)) / 2],
+          hull
+        )
+        const keelWidth = (1.6 - plateSeam * 3) / 2
+        slab(
+          [length, keel, keelWidth],
+          [x, -0.79 - keel / 2, (side * (keelWidth + plateSeam)) / 2],
+          hull
+        )
+        slab([length, chine, 0.5], [x, 0.61, side * 0.98], pale, [side * 0.68, 0, 0])
+        slab([length, chine * 0.85, 0.42], [x, -0.62, side * 0.98], pale, [-side * 0.65, 0, 0])
+      }
+    }
+    // Command citadel: a recessed slit, armored eyebrow, and forward cheek plates.
+    add(
+      body,
+      armoredSection([
+        [1.25, 0.08, 0.58],
+        [1.55, 0.3, 0.62],
+        [2.6, 0.3, 0.49],
+        [3.1, 0.08, 0.42],
+      ]),
+      pale,
+      [0, 0.93, 0]
+    )
+    box(body, [0.045, 0.14, 0.65], [2.73, 1.14, 0], rubber, [0, 0, 0.36])
+    for (const z of [-0.22, 0, 0.22])
+      box(body, [0.05, 0.052, 0.14], [2.76, 1.15, z], cyan, [0, 0, 0.36])
     for (const side of [-1, 1]) {
-      const deckWidth = (1.64 - plateSeam * 3) / 2
-      slab(
-        [length, step, deckWidth],
-        [x, 0.8 + step / 2, (side * (deckWidth + plateSeam)) / 2],
-        hull
-      )
-      const keelWidth = (1.6 - plateSeam * 3) / 2
-      slab(
-        [length, keel, keelWidth],
-        [x, -0.79 - keel / 2, (side * (keelWidth + plateSeam)) / 2],
-        hull
-      )
-      slab([length, chine, 0.5], [x, 0.61, side * 0.98], pale, [side * 0.68, 0, 0])
-      slab([length, chine * 0.85, 0.42], [x, -0.62, side * 0.98], pale, [-side * 0.65, 0, 0])
-    }
-  }
-  // Command citadel: a recessed slit, armored eyebrow, and forward cheek plates.
-  add(
-    body,
-    armoredSection([
-      [1.25, 0.08, 0.58],
-      [1.55, 0.3, 0.62],
-      [2.6, 0.3, 0.49],
-      [3.1, 0.08, 0.42],
-    ]),
-    pale,
-    [0, 0.93, 0]
-  )
-  box(body, [0.045, 0.14, 0.65], [2.73, 1.14, 0], rubber, [0, 0, 0.36])
-  for (const z of [-0.22, 0, 0.22])
-    box(body, [0.05, 0.052, 0.14], [2.76, 1.15, z], cyan, [0, 0, 0.36])
-  for (const side of [-1, 1]) {
-    // Bow armour: two flat blocks stacked on each shoulder, stepping down to
-    // the prow, the heaviest plate on the ship where it points at the enemy.
-    slab([1.1, 0.26, 0.34], [2.5, 0.72, side * 0.7], pale)
-    slab([0.62, 0.2, 0.3], [2.72, 0.95, side * 0.62], hull)
-    slab([0.9, 0.3, 0.12], [2.55, 0.1, side * 0.99], pale)
-    // The service conduit: it comes forward off the afterbody's run (below)
-    // and stops at a junction box short of the aft flank mount, clear of the
-    // skin by its own radius, so nothing it passes cuts it.
-    pipe(body, [-2.62, 0.3, side * 1.215], [-1.74, 0.3, side * 1.215], 0.055, copper)
-    for (const x of [-2.62, -1.74]) box(body, [0.16, 0.2, 0.16], [x, 0.3, side * 1.2], steel)
-    box(body, [0.08, 0.14, 0.12], [-2.18, 0.3, side * 1.2], dark)
-    // Frames: the hull's ribs stand proud of the skin between the flank mounts,
-    // where the loads come in, the way a working hull shows its structure.
-    for (const x of [-1.52, 0.47]) {
-      box(body, [0.2, 1.0, 0.1], [x, 0, side * 1.19], steel)
-      for (const y of [-0.34, 0, 0.34]) box(body, [0.24, 0.06, 0.06], [x, y, side * 1.26], dark)
-    }
-    // Maneuvering thrusters remain with the hull, regardless of loadout.
-    for (const x of [2.7]) {
-      plate(body, [0.48, 0.22, 0.38], [x, -0.35, side * (x > 0 ? 0.91 : 1.16)], dark, [
-        (side * Math.PI) / 2,
-        0,
-        0,
-      ])
-      for (const dx of [-0.12, 0.12])
-        cylinder(body, 0.075, 0.09, 0.1, [x + dx, -0.35, side * (x > 0 ? 1.05 : 1.3)], rubber, [
+      // Bow armour: two flat blocks stacked on each shoulder, stepping down to
+      // the prow, the heaviest plate on the ship where it points at the enemy.
+      slab([1.1, 0.26, 0.34], [2.5, 0.72, side * 0.7], pale)
+      slab([0.62, 0.2, 0.3], [2.72, 0.95, side * 0.62], hull)
+      slab([0.9, 0.3, 0.12], [2.55, 0.1, side * 0.99], pale)
+      // The service conduit: it comes forward off the afterbody's run (below)
+      // and stops at a junction box short of the aft flank mount, clear of the
+      // skin by its own radius, so nothing it passes cuts it.
+      pipe(body, [-2.62, 0.3, side * 1.215], [-1.74, 0.3, side * 1.215], 0.055, copper)
+      for (const x of [-2.62, -1.74]) box(body, [0.16, 0.2, 0.16], [x, 0.3, side * 1.2], steel)
+      box(body, [0.08, 0.14, 0.12], [-2.18, 0.3, side * 1.2], dark)
+      // Frames: the hull's ribs stand proud of the skin between the flank mounts,
+      // where the loads come in, the way a working hull shows its structure.
+      for (const x of [-1.52, 0.47]) {
+        box(body, [0.2, 1.0, 0.1], [x, 0, side * 1.19], steel)
+        for (const y of [-0.34, 0, 0.34]) box(body, [0.24, 0.06, 0.06], [x, y, side * 1.26], dark)
+      }
+      // Maneuvering thrusters remain with the hull, regardless of loadout.
+      for (const x of [2.7]) {
+        plate(body, [0.48, 0.22, 0.38], [x, -0.35, side * (x > 0 ? 0.91 : 1.16)], dark, [
           (side * Math.PI) / 2,
           0,
           0,
         ])
+        for (const dx of [-0.12, 0.12])
+          cylinder(body, 0.075, 0.09, 0.1, [x + dx, -0.35, side * (x > 0 ? 1.05 : 1.3)], rubber, [
+            (side * Math.PI) / 2,
+            0,
+            0,
+          ])
+      }
+      box(body, [0.17, 0.08, 0.14], [2.11, 0.78, side * 0.88], side < 0 ? red : cyan)
     }
-    box(body, [0.17, 0.08, 0.14], [2.11, 0.78, side * 0.88], side < 0 ? red : cyan)
-  }
-  // The dorsal hardback: a stepped armoured block over the crew spaces, the
-  // way a working hull puts its pressure volume under the heaviest plate, with
-  // the dorsal airlock on its top step. Nothing up here is ornament: trays for
-  // the cable runs, and a grab rail for whoever is out on the hull.
-  const hardback = deckTop + 0.2
-  plate(body, [2.3, 0.2, 1.06], [-1.28, deckTop + 0.1, 0], pale)
-  plate(body, [1.25, 0.14, 0.72], [-1.62, hardback + 0.07, 0], hull)
-  const hatchTop = hardback + 0.14
-  plate(body, [0.46, 0.03, 0.46], [-1.62, hatchTop + 0.005, 0], dark)
-  cylinder(body, 0.16, 0.16, 0.04, [-1.62, hatchTop + 0.02, 0], steel, [0, 0, 0], 20)
-  for (const z of [-0.1, 0.1]) box(body, [0.2, 0.03, 0.025], [-1.62, hatchTop + 0.05, z], rubber)
-  // Vents along the hardback's forward face.
-  for (let i = 0; i < 5; i++)
-    box(body, [0.03, 0.12, 0.16], [-0.12, deckTop + 0.1, -0.36 + i * 0.18], rubber)
-  for (const side of [-1, 1]) {
-    // Cable trays from the hardback to the citadel.
-    plate(body, [1.35, 0.05, 0.12], [0.55, deckTop + 0.025, side * 0.2], dark)
-    // The forward frame carried over the deck as a hoop, standing clear of
-    // the cable trays that run under it.
-    box(body, [0.2, 0.14, 0.07], [0.47, deckTop + 0.07, side * 0.8], steel)
-  }
-  box(body, [0.2, 0.07, 1.67], [0.47, deckTop + 0.175, 0], steel)
-  for (const side of [-1, 1]) {
-    // A grab rail on stand-offs down each deck edge.
-    pipe(
-      body,
-      [-2.45, deckTop + 0.07, side * 0.72],
-      [1.2, deckTop + 0.07, side * 0.72],
-      0.018,
-      steel
-    )
-    for (let x = -2.4; x <= 1.2; x += 0.45)
-      box(body, [0.03, 0.07, 0.03], [x, deckTop + 0.035, side * 0.72], steel)
-    for (let i = 0; i < 6; i++)
-      box(body, [0.055, 0.035, 0.3], [0.05 + i * 0.13, deckTop, side * 0.52], rubber)
-  }
-  // Fixed scoop on the ventral bow.
-  plate(body, [1.2, 0.26, 0.92], [2.58, -0.69, 0], steel)
-  box(body, [0.11, 0.18, 0.67], [3.16, -0.68, 0], rubber)
-  for (const z of [-0.24, -0.08, 0.08, 0.24]) box(body, [0.12, 0.15, 0.03], [3.22, -0.68, z], pale)
+    // The dorsal hardback: a stepped armoured block over the crew spaces, the
+    // way a working hull puts its pressure volume under the heaviest plate, with
+    // the dorsal airlock on its top step. Nothing up here is ornament: trays for
+    // the cable runs, and a grab rail for whoever is out on the hull.
+    const hardback = deckTop + 0.2
+    plate(body, [2.3, 0.2, 1.06], [-1.28, deckTop + 0.1, 0], pale)
+    plate(body, [1.25, 0.14, 0.72], [-1.62, hardback + 0.07, 0], hull)
+    const hatchTop = hardback + 0.14
+    plate(body, [0.46, 0.03, 0.46], [-1.62, hatchTop + 0.005, 0], dark)
+    cylinder(body, 0.16, 0.16, 0.04, [-1.62, hatchTop + 0.02, 0], steel, [0, 0, 0], 20)
+    for (const z of [-0.1, 0.1]) box(body, [0.2, 0.03, 0.025], [-1.62, hatchTop + 0.05, z], rubber)
+    // Vents along the hardback's forward face.
+    for (let i = 0; i < 5; i++)
+      box(body, [0.03, 0.12, 0.16], [-0.12, deckTop + 0.1, -0.36 + i * 0.18], rubber)
+    for (const side of [-1, 1]) {
+      // Cable trays from the hardback to the citadel.
+      plate(body, [1.35, 0.05, 0.12], [0.55, deckTop + 0.025, side * 0.2], dark)
+      // The forward frame carried over the deck as a hoop, standing clear of
+      // the cable trays that run under it.
+      box(body, [0.2, 0.14, 0.07], [0.47, deckTop + 0.07, side * 0.8], steel)
+    }
+    box(body, [0.2, 0.07, 1.67], [0.47, deckTop + 0.175, 0], steel)
+    for (const side of [-1, 1]) {
+      // A grab rail on stand-offs down each deck edge.
+      pipe(
+        body,
+        [-2.45, deckTop + 0.07, side * 0.72],
+        [1.2, deckTop + 0.07, side * 0.72],
+        0.018,
+        steel
+      )
+      for (let x = -2.4; x <= 1.2; x += 0.45)
+        box(body, [0.03, 0.07, 0.03], [x, deckTop + 0.035, side * 0.72], steel)
+      for (let i = 0; i < 6; i++)
+        box(body, [0.055, 0.035, 0.3], [0.05 + i * 0.13, deckTop, side * 0.52], rubber)
+    }
+    // Fixed scoop on the ventral bow.
+    plate(body, [1.2, 0.26, 0.92], [2.58, -0.69, 0], steel)
+    box(body, [0.11, 0.18, 0.67], [3.16, -0.68, 0], rubber)
+    for (const z of [-0.24, -0.08, 0.08, 0.24])
+      box(body, [0.12, 0.15, 0.03], [3.22, -0.68, z], pale)
 
-  // The afterbody is lofted in world space so it joins both the independently
-  // scaled hull and the engine cluster without a step or a floating adapter.
-  const driveOrigin = -3.13 * config.length
-  const engineScale = config.engineSize
-  // The engine block stands taller than the hull it pushes, above the deck line
-  // and below the keel, so the drive is the first thing the silhouette says.
-  const sternHeight =
-    (config.engines === 5 ? 1.28 : config.engines === 1 ? 1.16 : 1.1) * engineScale
-  const sternWidth = (config.engines === 1 ? 1.12 : 1.5) * engineScale
-  // The block's full section, held from where the flare ends to the thrust
-  // plate so the shroud behind it carries on at the same size, not smaller.
-  const blockHeight = sternHeight + 0.08 * engineScale
-  const blockWidth = sternWidth + 0.03 * engineScale
-  const aftSections: [number, number, number][] = [
-    [driveOrigin - 0.78 * engineScale, blockHeight, blockWidth],
-    [driveOrigin - 0.22 * engineScale, blockHeight, blockWidth],
-    [-2.8 * config.length, 0.91 * config.armor, 1.16 * config.beam],
-    [-2.35 * config.length, 0.84 * config.armor, 1.14 * config.beam],
-  ]
-  const afterbody = new Group()
-  afterbody.name = 'integrated_aft_hull'
-  root.add(afterbody)
-  add(afterbody, armoredSection(aftSections), hull)
-  const aftProfile = (x: number) => {
-    for (let i = 1; i < aftSections.length; i++) {
-      if (x <= aftSections[i][0]) {
-        const a = aftSections[i - 1],
-          b = aftSections[i]
-        const t = Math.max(0, (x - a[0]) / (b[0] - a[0]))
-        return { height: a[1] + (b[1] - a[1]) * t, width: a[2] + (b[2] - a[2]) * t }
+    // The afterbody is lofted in world space so it joins both the independently
+    // scaled hull and the engine cluster without a step or a floating adapter.
+    const driveOrigin = -3.13 * config.length
+    const engineScale = config.engineSize
+    // The engine block stands taller than the hull it pushes, above the deck line
+    // and below the keel, so the drive is the first thing the silhouette says.
+    const sternHeight =
+      (config.engines === 5 ? 1.28 : config.engines === 1 ? 1.16 : 1.1) * engineScale
+    const sternWidth = (config.engines === 1 ? 1.12 : 1.5) * engineScale
+    // The block's full section, held from where the flare ends to the thrust
+    // plate so the shroud behind it carries on at the same size, not smaller.
+    const blockHeight = sternHeight + 0.08 * engineScale
+    const blockWidth = sternWidth + 0.03 * engineScale
+    const aftSections: [number, number, number][] = [
+      [driveOrigin - 0.78 * engineScale, blockHeight, blockWidth],
+      [driveOrigin - 0.22 * engineScale, blockHeight, blockWidth],
+      [-2.8 * config.length, 0.91 * config.armor, 1.16 * config.beam],
+      [-2.35 * config.length, 0.84 * config.armor, 1.14 * config.beam],
+    ]
+    const afterbody = new Group()
+    afterbody.name = 'integrated_aft_hull'
+    root.add(afterbody)
+    add(afterbody, armoredSection(aftSections), hull)
+    const aftProfile = (x: number) => {
+      for (let i = 1; i < aftSections.length; i++) {
+        if (x <= aftSections[i][0]) {
+          const a = aftSections[i - 1],
+            b = aftSections[i]
+          const t = Math.max(0, (x - a[0]) / (b[0] - a[0]))
+          return { height: a[1] + (b[1] - a[1]) * t, width: a[2] + (b[2] - a[2]) * t }
+        }
+      }
+      return { height: aftSections.at(-1)![1], width: aftSections.at(-1)![2] }
+    }
+    const strake = (from: Vec3, to: Vec3, width: number, thickness: number, mat: Material) => {
+      const a = new Vector3(...from),
+        b = new Vector3(...to)
+      const mesh = plate(
+        afterbody,
+        [a.distanceTo(b), thickness, width],
+        a.clone().add(b).multiplyScalar(0.5).toArray() as Vec3,
+        mat
+      )
+      mesh.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), b.sub(a).normalize())
+      return mesh
+    }
+    const seamX = -2.74 * config.length
+    const seam = aftProfile(seamX)
+    add(
+      afterbody,
+      armoredSection([
+        [seamX - 0.035, seam.height + 0.027, seam.width + 0.027],
+        [seamX + 0.035, seam.height + 0.027, seam.width + 0.027],
+      ]),
+      dark
+    )
+    // Everything laid on the afterbody follows its loft station by station,
+    // standing off the skin by its own half-thickness: a straight piece across
+    // the flare would dip into it between the kinks. A clamp covers each bend.
+    const aftStations = [
+      -2.62 * config.length,
+      -2.8 * config.length,
+      driveOrigin - 0.22 * engineScale,
+      driveOrigin - 0.76 * engineScale,
+    ]
+    const run = (at: (x: number) => Vec3, lay: (from: Vec3, to: Vec3) => void) =>
+      aftStations.slice(1).forEach((x, i) => lay(at(aftStations[i]), at(x)))
+    for (const vertical of [-1, 1]) {
+      // Structural armor along the dorsal and ventral centreline onto the thrust bulkhead.
+      run(
+        x => [x, vertical * (aftProfile(x).height + 0.074), 0],
+        (from, to) => strake(from, to, 0.48 * config.beam, 0.14, pale)
+      )
+      for (const side of [-1, 1]) {
+        run(
+          x => [x, vertical * 0.46, side * (aftProfile(x).width + 0.099)],
+          (from, to) => strake(from, to, 0.19, 0.12, pale)
+        )
+        run(
+          x => [x, vertical * 0.3, side * (aftProfile(x).width + 0.075)],
+          (from, to) => pipe(afterbody, from, to, 0.055, copper)
+        )
+        for (const x of aftStations.slice(1, -1))
+          box(
+            afterbody,
+            [0.12, 0.16, 0.16],
+            [x, vertical * 0.3, side * (aftProfile(x).width + 0.06)],
+            steel
+          )
       }
     }
-    return { height: aftSections.at(-1)![1], width: aftSections.at(-1)![2] }
-  }
-  const strake = (from: Vec3, to: Vec3, width: number, thickness: number, mat: Material) => {
-    const a = new Vector3(...from),
-      b = new Vector3(...to)
-    const mesh = plate(
-      afterbody,
-      [a.distanceTo(b), thickness, width],
-      a.clone().add(b).multiplyScalar(0.5).toArray() as Vec3,
-      mat
-    )
-    mesh.quaternion.setFromUnitVectors(new Vector3(1, 0, 0), b.sub(a).normalize())
-    return mesh
-  }
-  const seamX = -2.74 * config.length
-  const seam = aftProfile(seamX)
-  add(
-    afterbody,
-    armoredSection([
-      [seamX - 0.035, seam.height + 0.027, seam.width + 0.027],
-      [seamX + 0.035, seam.height + 0.027, seam.width + 0.027],
-    ]),
-    dark
-  )
-  // Everything laid on the afterbody follows its loft station by station,
-  // standing off the skin by its own half-thickness: a straight piece across
-  // the flare would dip into it between the kinks. A clamp covers each bend.
-  const aftStations = [
-    -2.62 * config.length,
-    -2.8 * config.length,
-    driveOrigin - 0.22 * engineScale,
-    driveOrigin - 0.76 * engineScale,
-  ]
-  const run = (at: (x: number) => Vec3, lay: (from: Vec3, to: Vec3) => void) =>
-    aftStations.slice(1).forEach((x, i) => lay(at(aftStations[i]), at(x)))
-  for (const vertical of [-1, 1]) {
-    // Structural armor along the dorsal and ventral centreline onto the thrust bulkhead.
-    run(
-      x => [x, vertical * (aftProfile(x).height + 0.074), 0],
-      (from, to) => strake(from, to, 0.48 * config.beam, 0.14, pale)
-    )
     for (const side of [-1, 1]) {
-      run(
-        x => [x, vertical * 0.46, side * (aftProfile(x).width + 0.099)],
-        (from, to) => strake(from, to, 0.19, 0.12, pale)
-      )
-      run(
-        x => [x, vertical * 0.3, side * (aftProfile(x).width + 0.075)],
-        (from, to) => pipe(afterbody, from, to, 0.055, copper)
-      )
-      for (const x of aftStations.slice(1, -1))
-        box(
-          afterbody,
-          [0.12, 0.16, 0.16],
-          [x, vertical * 0.3, side * (aftProfile(x).width + 0.06)],
-          steel
-        )
+      for (let i = 0; i < 5; i++) {
+        const x = driveOrigin + (-0.44 + i * 0.17) * engineScale
+        const { height, width } = aftProfile(x)
+        box(afterbody, [0.075, height * 0.43, 0.035], [x, 0, side * (width + 0.014)], dark)
+      }
     }
-  }
-  for (const side of [-1, 1]) {
-    for (let i = 0; i < 5; i++) {
-      const x = driveOrigin + (-0.44 + i * 0.17) * engineScale
-      const { height, width } = aftProfile(x)
-      box(afterbody, [0.075, height * 0.43, 0.035], [x, 0, side * (width + 0.014)], dark)
-    }
-  }
 
-  const drive = new Group()
-  drive.name = 'fixed_engines'
-  drive.position.x = driveOrigin
-  drive.scale.setScalar(engineScale)
-  root.add(drive)
-  // Recessed dark thrust plate and a painted perimeter lip carry the bells.
-  add(
-    drive,
-    armoredSection([
-      [-0.825, (sternHeight / engineScale) * 0.92, (sternWidth / engineScale) * 0.94],
-      [-0.755, (sternHeight / engineScale) * 0.92, (sternWidth / engineScale) * 0.94],
-    ]),
-    dark
-  )
-  for (const y of [-1, 1]) {
-    for (const z of [-1, 1]) {
-      cylinder(
-        drive,
-        0.065,
-        0.065,
-        0.045,
-        [-0.85, ((y * sternHeight) / engineScale) * 0.73, ((z * sternWidth) / engineScale) * 0.77],
-        steel,
-        [0, 0, Math.PI / 2],
-        6
-      )
-    }
-  }
-  const bell = (y: number, z: number, scale: number) => {
-    const g = new Group()
-    g.name = `drive_bell_${y}_${z}`
-    g.position.set(-0.72, y, z)
-    g.scale.setScalar(scale)
-    g.rotation.z = Math.PI / 2 // bell +Y points toward the stern (-X).
-    drive.add(g)
+    const drive = new Group()
+    drive.name = 'fixed_engines'
+    drive.position.x = driveOrigin
+    drive.scale.setScalar(engineScale)
+    root.add(drive)
+    // Recessed dark thrust plate and a painted perimeter lip carry the bells.
     add(
-      g,
-      new LatheGeometry(
-        [
-          new Vector2(0.39, -0.11),
-          new Vector2(0.5, -0.11),
-          new Vector2(0.53, 0.09),
-          new Vector2(0.48, 0.24),
-          new Vector2(0.38, 0.24),
-          new Vector2(0.39, -0.11),
-        ],
-        16
-      ),
-      steel
+      drive,
+      armoredSection([
+        [-0.825, (sternHeight / engineScale) * 0.92, (sternWidth / engineScale) * 0.94],
+        [-0.755, (sternHeight / engineScale) * 0.92, (sternWidth / engineScale) * 0.94],
+      ]),
+      dark
     )
-    cylinder(g, 0.38, 0.4, 0.7, [0, 0, 0], dark)
-    for (const yy of [0.1, 0.3]) ring(g, 0.4, 0.065, [0, yy, 0], steel)
-    const points = [
-      [0.31, 0.25],
-      [0.34, 0.48],
-      [0.43, 0.7],
-      [0.64, 1.02],
-      [0.66, 1.1],
-      [0.55, 1.1],
-      [0.52, 0.97],
-      [0.32, 0.67],
-      [0.24, 0.46],
-    ]
-    const nozzle = new LatheGeometry(
-      points.map(([x, y]) => new Vector2(x, y)),
-      24
-    )
-    add(g, nozzle, dark)
-    ring(g, 0.615, 0.065, [0, 1.08, 0], steel)
-    cylinder(g, 0.26, 0.26, 0.03, [0, 0.55, 0], engineGlow)
-    ring(g, 0.4, 0.033, [0, 0.83, 0], cyan)
-    for (let i = 0; i < 8; i++) {
-      const a = (i * Math.PI) / 4
-      pipe(
-        g,
-        [Math.cos(a) * 0.4, 0.3, Math.sin(a) * 0.4],
-        [Math.cos(a) * 0.57, 0.95, Math.sin(a) * 0.57],
-        0.028,
-        steel
-      )
+    for (const y of [-1, 1]) {
+      for (const z of [-1, 1]) {
+        cylinder(
+          drive,
+          0.065,
+          0.065,
+          0.045,
+          [
+            -0.85,
+            ((y * sternHeight) / engineScale) * 0.73,
+            ((z * sternWidth) / engineScale) * 0.77,
+          ],
+          steel,
+          [0, 0, Math.PI / 2],
+          6
+        )
+      }
     }
-  }
-  if (config.engines === 1) bell(0, 0, 1.28)
-  else {
-    bell(0, 0, 0.92)
-    for (const side of [-1, 1]) bell(0, side * 0.99, 0.63)
-    if (config.engines === 5) for (const side of [-1, 1]) bell(side * 0.83, 0, 0.51)
-  }
+    // The bells: the yard's de Laval nozzles (`parts.ts`), as on every hull,
+    // each with its gimbal pair off the thrust plate.
+    delavalBells(
+      (geometry, mat, pos, rot, parent = drive) => add(parent as Group, geometry, mat, pos, rot),
+      { dark, steel, cyan },
+      drive,
+      -0.825,
+      config.engines === 1
+        ? [[0, 0, 1.6]]
+        : [
+            [0, 0, 1.15],
+            [0, -0.99, 0.79],
+            [0, 0.99, 0.79],
+            ...(config.engines === 5
+              ? ([
+                  [-0.83, 0, 0.6],
+                  [0.83, 0, 0.6],
+                ] as [number, number, number][])
+              : []),
+          ]
+    )
 
-  // The engine room. A shroud carries the hull's own section on past the
-  // thrust plate, so the bells sit back inside armour instead of hanging off
-  // the stern. Everything that feeds a
-  // bell is out where it can be serviced: turbopumps on the roof, their feed
-  // lines running forward and down into the block, the flank conduits carried
-  // aft into the block, and gimbal rams on every bell.
-  const H = blockHeight / engineScale
-  const W = blockWidth / engineScale
-  const chamfer = Math.min(H, W) * 0.35
-  const skin = 0.14
-  const shroudFore = -0.8
-  const shroudAft = -1.52
-  const shroudLength = shroudFore - shroudAft
-  const shroudX = (shroudFore + shroudAft) / 2
-  for (const s of [-1, 1]) {
-    // Roof and floor, the flanks, and a plate across each chamfer.
-    slab(
-      [shroudLength, skin, (W - chamfer) * 2],
-      [shroudX, s * (H - skin / 2), 0],
-      hull,
-      [0, 0, 0],
-      drive
-    )
-    slab(
-      [shroudLength, (H - chamfer) * 2, skin],
-      [shroudX, 0, s * (W - skin / 2)],
-      pale,
-      [0, 0, 0],
-      drive
-    )
-    for (const t of [-1, 1]) {
-      const inset = chamfer / 2 + skin * 0.35
+    // The engine room. A shroud carries the hull's own section on past the
+    // thrust plate, so the bells sit back inside armour instead of hanging off
+    // the stern. Everything that feeds a
+    // bell is out where it can be serviced: turbopumps on the roof, their feed
+    // lines running forward and down into the block, and the flank conduits
+    // carried aft into the block.
+    const H = blockHeight / engineScale
+    const W = blockWidth / engineScale
+    const chamfer = Math.min(H, W) * 0.35
+    const skin = 0.14
+    const shroudFore = -0.8
+    const shroudAft = -1.52
+    const shroudLength = shroudFore - shroudAft
+    const shroudX = (shroudFore + shroudAft) / 2
+    for (const s of [-1, 1]) {
+      // Roof and floor, the flanks, and a plate across each chamfer.
       slab(
-        [shroudLength, skin, chamfer * Math.SQRT2 + skin * 0.4],
-        [shroudX, s * (H - inset), t * (W - inset)],
-        dark,
-        [s * t * (Math.PI / 4), 0, 0],
+        [shroudLength, skin, (W - chamfer) * 2],
+        [shroudX, s * (H - skin / 2), 0],
+        hull,
+        [0, 0, 0],
         drive
       )
-    }
-  }
-  // Frames round the shroud, where it takes the thrust into the hull.
-  for (const x of [shroudFore - 0.08, shroudAft + 0.16]) {
-    for (const s of [-1, 1]) {
-      box(drive, [0.1, 0.06, (W - chamfer) * 2 + 0.1], [x, s * (H + 0.03), 0], steel)
-      box(drive, [0.1, (H - chamfer) * 2 + 0.1, 0.06], [x, 0, s * (W + 0.03)], steel)
-    }
-  }
-  // Gimbal rams: two per bell, from the shroud wall to the bell's collar.
-  const rams = (y: number, z: number, scale: number) => {
-    const collarX = -0.72 - 0.3 * scale
-    for (const s of [-1, 1]) {
-      const wall = z === 0 ? H - skin : Math.min(H - skin, 0.6)
-      pipe(
-        drive,
-        [shroudFore - 0.05, s * wall, z],
-        [collarX, y + s * 0.38 * scale, z],
-        0.035,
-        steel
+      slab(
+        [shroudLength, (H - chamfer) * 2, skin],
+        [shroudX, 0, s * (W - skin / 2)],
+        pale,
+        [0, 0, 0],
+        drive
       )
-      box(drive, [0.1, 0.06, 0.1], [shroudFore - 0.05, s * (wall - 0.02), z], dark)
+      for (const t of [-1, 1]) {
+        const inset = chamfer / 2 + skin * 0.35
+        slab(
+          [shroudLength, skin, chamfer * Math.SQRT2 + skin * 0.4],
+          [shroudX, s * (H - inset), t * (W - inset)],
+          dark,
+          [s * t * (Math.PI / 4), 0, 0],
+          drive
+        )
+      }
     }
-  }
-  if (config.engines === 1) rams(0, 0, 1.28)
-  else {
-    rams(0, 0, 0.92)
-    for (const side of [-1, 1]) rams(0, side * 0.99, 0.63)
-  }
-  // Turbopumps on the roof, each with a feed line forward into the block.
-  const roof = H + 0.02
-  for (const z of [-0.55, 0.55]) {
-    const pumpX = -1.05
-    cylinder(drive, 0.17, 0.17, 0.52, [pumpX, roof + 0.19, z], dark, [0, 0, Math.PI / 2], 16)
-    for (const dx of [-0.2, 0, 0.2])
-      ring(drive, 0.175, 0.03, [pumpX + dx, roof + 0.19, z], steel, [0, Math.PI / 2, 0])
-    box(drive, [0.3, 0.06, 0.3], [pumpX, roof + 0.03, z], steel)
-    cylinder(drive, 0.1, 0.12, 0.14, [pumpX - 0.34, roof + 0.19, z], steel, [0, 0, Math.PI / 2], 16)
-    // The feed line runs forward along the roof and turns down into the
-    // block through a flange, never out over the lower hull ahead of it.
-    const feedX = -0.32
-    pipe(drive, [pumpX + 0.26, roof + 0.19, z], [feedX, roof + 0.19, z], 0.05, copper)
-    box(drive, [0.13, 0.13, 0.13], [feedX, roof + 0.19, z], steel)
-    pipe(drive, [feedX, roof + 0.19, z], [feedX, roof, z], 0.05, copper)
-    box(drive, [0.2, 0.04, 0.2], [feedX, roof + 0.01, z], steel)
-  }
-  // The flank conduits, carried aft along the shroud to a junction on the block.
-  for (const y of [-0.3, 0.3])
-    for (const z of [-1, 1]) {
-      const reach = z * (W + 0.075)
-      pipe(drive, [-0.76, y, reach], [shroudAft + 0.3, y, reach], 0.055, copper)
-      box(drive, [0.16, 0.18, 0.16], [shroudAft + 0.3, y, z * (W + 0.06)], steel)
+    // Frames round the shroud, where it takes the thrust into the hull.
+    for (const x of [shroudFore - 0.08, shroudAft + 0.16]) {
+      for (const s of [-1, 1]) {
+        box(drive, [0.1, 0.06, (W - chamfer) * 2 + 0.1], [x, s * (H + 0.03), 0], steel)
+        box(drive, [0.1, (H - chamfer) * 2 + 0.1, 0.06], [x, 0, s * (W + 0.03)], steel)
+      }
     }
+    // Turbopumps on the roof, each with a feed line forward into the block.
+    const roof = H + 0.02
+    for (const z of [-0.55, 0.55]) {
+      const pumpX = -1.05
+      cylinder(drive, 0.17, 0.17, 0.52, [pumpX, roof + 0.19, z], dark, [0, 0, Math.PI / 2], 16)
+      for (const dx of [-0.2, 0, 0.2])
+        ring(drive, 0.175, 0.03, [pumpX + dx, roof + 0.19, z], steel, [0, Math.PI / 2, 0])
+      box(drive, [0.3, 0.06, 0.3], [pumpX, roof + 0.03, z], steel)
+      cylinder(
+        drive,
+        0.1,
+        0.12,
+        0.14,
+        [pumpX - 0.34, roof + 0.19, z],
+        steel,
+        [0, 0, Math.PI / 2],
+        16
+      )
+      // The feed line runs forward along the roof and turns down into the
+      // block through a flange, never out over the lower hull ahead of it.
+      const feedX = -0.32
+      pipe(drive, [pumpX + 0.26, roof + 0.19, z], [feedX, roof + 0.19, z], 0.05, copper)
+      box(drive, [0.13, 0.13, 0.13], [feedX, roof + 0.19, z], steel)
+      pipe(drive, [feedX, roof + 0.19, z], [feedX, roof, z], 0.05, copper)
+      box(drive, [0.2, 0.04, 0.2], [feedX, roof + 0.01, z], steel)
+    }
+    // The flank conduits, carried aft along the shroud to a junction on the block.
+    for (const y of [-0.3, 0.3])
+      for (const z of [-1, 1]) {
+        const reach = z * (W + 0.075)
+        pipe(drive, [-0.76, y, reach], [shroudAft + 0.3, y, reach], 0.055, copper)
+        box(drive, [0.16, 0.18, 0.16], [shroudAft + 0.3, y, z * (W + 0.06)], steel)
+      }
+  }
 
   // Same paired magnet spacing and keyed interface on every mount.
   const magnetRadius =

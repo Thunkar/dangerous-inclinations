@@ -145,6 +145,10 @@ ui/src/design/          tokens.ts (the dark table), press.ts (paper, ink, red: a
 ui/src/components/board/  model.ts (useBoardModel: all either renderer draws),
                         geometry.ts (board coordinates), GameBoard.tsx (the 2D/3D switch),
                         svg/ (the flat board), three/ (the WebGL board)
+ui/src/ships/           model.ts (createShip: the 3D ship, shipyard and board alike),
+                        hulls.ts (the hulls a player picks: mounts, framing, board fit),
+                        shrike.ts, mantis.ts, loft.ts (the clipped-section lofts), parts.ts (the
+                        de Laval bells), mounts.ts (slot names per hull), ShipMark (the flat mark)
 ```
 
 ## Conventions

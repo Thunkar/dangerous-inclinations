@@ -83,7 +83,7 @@ import {
   surveyToTake,
   unplacedEscorts,
 } from '@dangerous-inclinations/engine'
-import { slotWithSubsystem } from '../utils/slots'
+import { hullOf, slotWithSubsystem } from '../utils/slots'
 
 export type MoveChoice =
   | { kind: 'coast'; scoop: boolean }
@@ -612,7 +612,7 @@ export function planIssues(
         const weapon = loadout.find(s => s.id === step.subsystemId)
         if (!weapon || !isWeaponType(weapon.type)) break
         const config = getSubsystemConfig(weapon.type)
-        const name = slotWithSubsystem(weapon.id, weapon.type)
+        const name = slotWithSubsystem(weapon.id, weapon.type, hullOf(me))
         if (quiet)
           problems.push(
             opening
@@ -666,7 +666,7 @@ export function planIssues(
           )
         if (!sensor) problems.push('No sensor array aboard')
         else if (sensor.isBroken)
-          problems.push(`${slotWithSubsystem(sensor.id, sensor.type)} is broken`)
+          problems.push(`${slotWithSubsystem(sensor.id, sensor.type, hullOf(me))} is broken`)
         if (!step.targetId) problems.push('Scan: pick a target on your ring within 3 sectors')
         else if (untouchable(step.targetId))
           problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)

@@ -642,6 +642,12 @@ export function createGameService(deps: GameServiceDeps) {
      * Under the same lock as turn processing: a turn in flight finishes first
      * and no later write can recreate the game (every step re-checks it).
      */
+    /** Every game in the store, started or not, live or abandoned. */
+    async listGameIds(): Promise<string[]> {
+      const prefix = gameKey("");
+      return (await kv.keys(prefix)).map((key) => key.slice(prefix.length));
+    },
+
     deleteGame(gameId: string): Promise<void> {
       return withGameLock(gameId, async () => {
         await kv.del(gameKey(gameId), humansKey(gameId), chatKey(gameId));

@@ -58,7 +58,7 @@ import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { SubsystemIcon } from '../common/SubsystemIcon'
 import { FONT_MONO, TABLE } from '../../theme'
-import { slotWithSubsystem } from '../../utils/slots'
+import { hullOf, slotWithSubsystem } from '../../utils/slots'
 import { RoutePlanner } from './RoutePlanner'
 import { SequenceList } from './SequenceList'
 import { ShipEnergyLoadout } from './ShipEnergyLoadout'
@@ -331,13 +331,13 @@ function RepairControl() {
               return (
                 <ChoiceChip
                   key={sub.id}
-                  title={`${slotWithSubsystem(sub.id, sub.type)} · repaired at your heat check`}
+                  title={`${slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))} · repaired at your heat check`}
                   selected={on}
                   disabled={disabled || !can}
                   opacity={can ? 1 : 0.45}
                   onClick={() => plan.setRepairChoice(on ? null : sub.id)}
                 >
-                  {slotWithSubsystem(sub.id, sub.type)}
+                  {slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))}
                 </ChoiceChip>
               )
             })}

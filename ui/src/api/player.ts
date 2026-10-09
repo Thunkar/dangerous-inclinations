@@ -20,6 +20,13 @@ export function isStaleGame(error: unknown): boolean {
   return error instanceof APIClientError && error.statusCode === 410
 }
 
+/** No answer at all (offline, a server restarting) or a server error: worth asking again. */
+export function isTransient(error: unknown): boolean {
+  return (
+    error instanceof APIClientError && (error.statusCode === undefined || error.statusCode >= 500)
+  )
+}
+
 export async function createPlayer(playerName: string): Promise<CreatePlayerResponse> {
   return api.post<CreatePlayerResponse>('/api/players', { playerName } as CreatePlayerRequest)
 }

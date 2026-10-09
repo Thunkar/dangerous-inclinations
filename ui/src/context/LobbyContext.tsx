@@ -13,7 +13,7 @@ import {
   removeBot as removeBotAPI,
 } from '../api/lobby'
 import { MIN_PLAYERS } from '@dangerous-inclinations/engine'
-import { getPlayerStatus, isStaleGame } from '../api/player'
+import { getPlayerStatus, isStaleGame, isTransient } from '../api/player'
 import { usePlayer } from './PlayerContext'
 import { useWebSocket } from './WebSocketContext'
 
@@ -40,6 +40,9 @@ interface LobbyContextType {
 
 const LobbyContext = createContext<LobbyContextType | undefined>(undefined)
 
+/** How many times the seat is asked for before the lobby list is shown: about 20 s of backoff. */
+const RESTORE_ATTEMPTS = 8
+
 function isLobbyMessage(data: unknown): data is LobbySocketMessage {
   return typeof data === 'object' && data !== null && typeof (data as { type?: unknown }).type === 'string'
 }
@@ -62,26 +65,38 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
     sessionRestoredRef.current = true
 
     const restore = async () => {
-      try {
-        const status = await getPlayerStatus(playerId)
-        if (status?.lobby) {
-          setCurrentLobbyId(status.lobby.lobbyId)
-          setLobbyState(status.lobby)
-          if (status.lobby.gameId) {
-            setGameId(status.lobby.gameId)
-            setPhase('game')
-          } else {
-            setPhase('lobby')
+      // A reload can land while the server is restarting (a dev server under
+      // --watch, a deploy). A request that never reached it says nothing about
+      // the seat, so it is asked again before the player is shown the lobby
+      // list; only an answer (or a stale game) ends the wait.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const status = await getPlayerStatus(playerId)
+          if (status?.lobby) {
+            setCurrentLobbyId(status.lobby.lobbyId)
+            setLobbyState(status.lobby)
+            if (status.lobby.gameId) {
+              setGameId(status.lobby.gameId)
+              setPhase('game')
+            } else {
+              setPhase('lobby')
+            }
           }
+          break
+        } catch (err) {
+          // A game saved under older rules is gone: say so and stay on the lobby list.
+          if (isStaleGame(err)) {
+            setNotice('That game was saved under older rules and cannot be resumed.')
+            break
+          }
+          if (!isTransient(err) || attempt === RESTORE_ATTEMPTS - 1) {
+            setError(err instanceof Error ? err.message : 'Failed to restore session')
+            break
+          }
+          await new Promise(resolve => setTimeout(resolve, Math.min(500 * 2 ** attempt, 4000)))
         }
-      } catch (err) {
-        // A game saved under older rules is gone: say so and stay on the lobby list.
-        if (isStaleGame(err))
-          setNotice('That game was saved under older rules and cannot be resumed.')
-        else setError(err instanceof Error ? err.message : 'Failed to restore session')
-      } finally {
-        setIsRestoringSession(false)
       }
+      setIsRestoringSession(false)
     }
     restore()
   }, [isPlayerLoading, playerId, client])

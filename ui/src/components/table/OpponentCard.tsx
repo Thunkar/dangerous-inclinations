@@ -32,7 +32,7 @@ import { Panel } from '../common/Panel'
 import { SubsystemTile } from '../common/SubsystemTile'
 import { CargoTokens, PipTrack } from '../common/Tokens'
 import { missionFamilyColor, missionFamilyLabel } from '../../utils/missions'
-import { slotLabel } from '../../utils/slots'
+import { hullOf, slotLabel } from '../../utils/slots'
 import { agentLabel } from '../../utils/agents'
 import { useGame } from '../../context/GameContext'
 import { useAnimationControls } from '../../context/AnimationContext'
@@ -72,6 +72,8 @@ export function OpponentCard({
   const agent = agentLabel(seats.find(s => s.playerId === player.id)?.agent)
   /** Back at Home with a full hull, untouchable until its own next turn ends. */
   const recovering = !destroyed && player.recovering
+  // The rival's slots are named for the rival's hull, not yours.
+  const hull = hullOf(player)
   const slots = [...player.slots].sort((a, b) =>
     a.group === b.group ? a.index - b.index : a.group === 'forward' ? -1 : 1
   )
@@ -280,6 +282,7 @@ export function OpponentCard({
               key={slot.id}
               id={slot.id}
               type={slot.type}
+              hull={hull}
               knownVia={slot.knownVia}
               isBroken={slot.isBroken}
               allocatedEnergy={slot.allocatedEnergy}
@@ -303,12 +306,13 @@ export function OpponentCard({
           {player.fixed.map(fixed => (
             <Tooltip
               key={fixed.id}
-              title={`${slotLabel(fixed.id)}${fixed.isBroken ? ' · broken' : ''}`}
+              title={`${slotLabel(fixed.id, hull)}${fixed.isBroken ? ' · broken' : ''}`}
             >
               <Box>
                 <SubsystemTile
                   id={fixed.id}
                   type={fixed.type}
+                  hull={hull}
                   knownVia="revealed"
                   isBroken={fixed.isBroken}
                   allocatedEnergy={fixed.allocatedEnergy}

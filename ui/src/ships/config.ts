@@ -9,6 +9,7 @@ import {
 
 import { HULL_INK } from './palette'
 import { MOUNTS, type MountId } from './mounts'
+import { SHRIKE_MOUNTS, MANTIS_MOUNTS } from './hulls'
 export { MOUNTS, type MountId } from './mounts'
 export type Vec3 = [number, number, number]
 export type Finish = 'paint' | 'resin'
@@ -79,8 +80,9 @@ export function setModule(config: ShipConfig, id: MountId, type: SubsystemType |
 }
 
 /**
- * Every mount shares one local frame: +Y is outboard, +X is forward and +Z is
- * dorsal. Starboard is the port mount *reflected* across the centreline, so the
+ * Where a mount sits on the hull the ship flies: `hulls.ts` for any but the
+ * corvette, whose mounts follow its proportions below. Every mount shares one
+ * local frame: +Y is outboard, +X is forward and +Z is dorsal. Starboard is the port mount *reflected* across the centreline, so the
  * two flanks are mirror images of each other rather than the same part rolled
  * upside down; the reflection is the negative Z scale.
  */
@@ -88,6 +90,8 @@ export function mountTransform(
   config: ShipConfig,
   id: MountId
 ): { position: Vec3; rotation: Vec3; scale: Vec3; normal: Vec3 } {
+  if (config.appearance?.hull === 'shrike') return SHRIKE_MOUNTS[id]
+  if (config.appearance?.hull === 'mantis') return MANTIS_MOUNTS[id]
   if (id === 'forward-0') {
     return {
       position: [3.05 * config.length, 0, 0],

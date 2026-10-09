@@ -36,11 +36,12 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // List lobbies
-  fastify.get("/api/lobbies", async (_request, reply) => {
+  // List lobbies. No passwords and no player ids (an id is a credential); the
+  // caller only learns which tables it is seated at, so it can go back to one.
+  fastify.get<{ Headers: { "x-player-id"?: string } }>("/api/lobbies", async (request, reply) => {
     const lobbies = await listLobbies();
+    const caller = request.headers["x-player-id"];
 
-    // Don't expose passwords in list
     const sanitized = lobbies.map((l) => ({
       lobbyId: l.lobbyId,
       lobbyName: l.lobbyName,
@@ -48,6 +49,7 @@ export async function lobbyRoutes(fastify: FastifyInstance) {
       maxPlayers: l.maxPlayers,
       currentPlayers: l.players.length,
       gameStarted: !!l.gameId,
+      seated: !!caller && l.players.some((p) => p.playerId === caller),
       createdAt: l.createdAt,
     }));
 

@@ -30,7 +30,7 @@ and resolves a seat from these routes.
 | PUT | `/api/players/:playerId` | `{ playerName }` | the renamed player; `x-player-id` must be that player (`401` without it, `403` for anyone else) |
 | GET | `/api/players/:playerId/status` | none | `{ player, lobby, view }`: the caller's lobby (if any) and its game view (once started); own id only, as for PUT. A game saved under other rules is `410` once: the player leaves its lobby on the way out |
 | POST | `/api/lobbies` | `{ lobbyName, password?, maxPlayers? }` | the lobby, with the caller as host; `maxPlayers` is `MIN_PLAYERS`..`MAX_PLAYERS` (default `MAX_PLAYERS`) |
-| GET | `/api/lobbies` | none | `{ lobbyId, lobbyName, hasPassword, maxPlayers, currentPlayers, gameStarted, createdAt }[]` |
+| GET | `/api/lobbies` | none | `{ lobbyId, lobbyName, hasPassword, maxPlayers, currentPlayers, gameStarted, seated, createdAt }[]`; `seated` is whether the caller (`x-player-id`) has a seat there, so it can rejoin. No player ids are listed |
 | GET | `/api/lobbies/:lobbyId` | none | the lobby: seats, `hostPlayerId`, `hasPassword` and, once started, `gameId` (never the password) |
 | POST | `/api/lobbies/join` | `{ lobbyId, password? }` | the lobby, or `400 { error }` (not found, full, started, wrong password); joining a lobby you already sit in returns it |
 | POST | `/api/lobbies/:lobbyId/leave` | none | `{ success: true }`, or `404` for an unknown lobby; a host who leaves hands the lobby to the first remaining seat, and a lobby left with no humans is deleted with its game |
@@ -262,10 +262,11 @@ migrated; the table starts a new game.
 
 ### Ship appearance
 
-Loadout submission optionally includes a `ShipAppearance`: `paint` and
-`secondaryPaint` (`#` and six hex digits) and `livery` (`band`, `split`,
+Loadout submission optionally includes a `ShipAppearance`: `hull`
+(`corvette`, `shrike` or `mantis`: the shape built round the same five mounts), `paint`
+and `secondaryPaint` (`#` and six hex digits) and `livery` (`band`, `split`,
 `chevron`, `stern`, `spine`: the pattern, always in the seat's colour). Those
-three fields are all it accepts: the strict
+four fields are all it accepts: the strict
 shared schema rejects any other, custom player identification colors included,
 and a submission carrying an appearance it rejects is refused whole.
 It is validated and saved atomically with loadout and mission choices, then locked

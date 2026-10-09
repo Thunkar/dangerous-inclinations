@@ -21,6 +21,7 @@ import {
 
 const appearance: ShipAppearance = {
   ...DEFAULT_SHIP_APPEARANCE,
+  hull: "shrike",
   paint: "#344149",
   secondaryPaint: "#b6a27b",
   livery: "chevron",
@@ -42,6 +43,8 @@ describe("match appearance", () => {
     for (const bad of [
       { ...appearance, secondaryPaint: "red" },
       { ...appearance, livery: "flames" },
+      { ...appearance, hull: "frigate" },
+      (({ hull: _hull, ...rest }) => rest)(appearance),
       { ...appearance, livery: "plain" },
       { ...appearance, liveryInk: "#d21b33" },
       { ...appearance, paint: "url(x)" },
