@@ -148,7 +148,9 @@ ui/src/components/board/  model.ts (useBoardModel: all either renderer draws),
 ui/src/ships/           model.ts (createShip: the 3D ship, shipyard and board alike),
                         hulls.ts (the hulls a player picks: mounts, framing, board fit),
                         shrike.ts, mantis.ts, loft.ts (the clipped-section lofts), parts.ts (the
-                        de Laval bells), mounts.ts (slot names per hull), ShipMark (the flat mark)
+                        de Laval bells), modules.ts (the shield comb, missile box, plasma
+                        projector and ram compressor), mounts.ts (slot names per hull),
+                        ShipMark (the flat mark)
 ```
 
 ## Conventions

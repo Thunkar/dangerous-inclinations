@@ -11,14 +11,12 @@ import {
   CylinderGeometry,
   ExtrudeGeometry,
   Group,
-  LatheGeometry,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
   Path,
   Shape,
   TorusGeometry,
-  Vector2,
   Vector3,
   Vector4,
 } from 'three'
@@ -34,6 +32,7 @@ import { HULL_INFO } from './hulls'
 import { buildShrike } from './shrike'
 import { buildMantis } from './mantis'
 import { delavalBells } from './parts'
+import { MODULE_BUILDS, type ModuleKit } from './modules'
 
 type Material = MeshStandardMaterial
 
@@ -826,9 +825,23 @@ export function createShip(
     box(p, [0.27, 0.09, 0.1], [0, y + 0.12, -0.55], dark)
   }
 
-  const moduleGeometry = (p: Group, type: SubsystemType) => {
+  const kit: ModuleKit = {
+    add,
+    box,
+    plate,
+    cylinder,
+    ring,
+    pipe,
+    prism,
+    frustum,
+    fin,
+    m: { hull, pale, dark, steel, rubber, copper, cyan, red },
+  }
+  const moduleGeometry = (p: Group, type: SubsystemType, forward: boolean) => {
     shoe(p, 0, dark, false)
     plate(p, [1.68, 0.12, 1.14], [0, 0.16, 0], hull)
+    const build = MODULE_BUILDS[type]
+    if (build) return build(kit, p, forward)
     switch (type) {
       case 'railgun':
         // The breech is supported by the collar. Ahead of it, keep the channel
@@ -908,88 +921,6 @@ export function createShip(
         }
         break
       }
-      case 'missiles': {
-        // Actual apertures in a single thick silo block, with short, supported
-        // missile noses emerging from all four cells.
-        const silo = new Shape()
-        silo.moveTo(-0.77, -0.54)
-        silo.lineTo(0.77, -0.54)
-        silo.lineTo(0.77, 0.54)
-        silo.lineTo(-0.77, 0.54)
-        silo.closePath()
-        for (const x of [-0.37, 0.37])
-          for (const z of [-0.25, 0.25]) {
-            const opening = new Path()
-            opening.absarc(x, z, 0.205, 0, Math.PI * 2, true)
-            silo.holes.push(opening)
-            cylinder(p, 0.19, 0.19, 0.035, [x, 0.25, z], rubber)
-            ring(p, 0.207, 0.035, [x, 0.59, z], steel)
-            cylinder(p, 0.135, 0.135, 0.35, [x, 0.48, z], pale)
-            cylinder(p, 0.143, 0.143, 0.08, [x, 0.65, z], steel)
-            const nose = add(
-              p,
-              new LatheGeometry(
-                [
-                  new Vector2(0.135, 0),
-                  new Vector2(0.128, 0.08),
-                  new Vector2(0.09, 0.19),
-                  new Vector2(0.025, 0.29),
-                  new Vector2(0, 0.31),
-                ],
-                12
-              ),
-              pale,
-              [x, 0.66, z]
-            )
-            nose.name = `warhead_${x < 0 ? 0 : 1}_${z < 0 ? 0 : 1}`
-          }
-        const wall = new ExtrudeGeometry(silo, {
-          depth: 0.36,
-          bevelEnabled: false,
-          curveSegments: 16,
-        })
-        wall.rotateX(-Math.PI / 2)
-        add(p, wall, hull, [0, 0.22, 0])
-        for (const x of [-0.78, 0.78]) plate(p, [0.09, 0.33, 1.06], [x, 0.4, 0], dark)
-        break
-      }
-      case 'plasma_cannon': {
-        // A broadside projector, not a turret: an octagonal containment
-        // chamber laid along the hull and sunk to past its waist in a bed of
-        // armour, banded by flat collars, with one short hexagonal muzzle
-        // rising from its crown to fire outboard. The laser stands up as a
-        // round stack; this lies half buried and fires through a hex throat.
-        plate(p, [1.52, 0.06, 0.66], [0, 0.25, 0], dark)
-        for (const z of [-1, 1]) {
-          plate(p, [1.6, 0.28, 0.24], [0, 0.36, z * 0.44], hull)
-          box(p, [1.24, 0.03, 0.06], [0, 0.505, z * 0.44], copper)
-        }
-        for (const x of [-1, 1]) plate(p, [0.12, 0.22, 0.66], [x * 0.76, 0.33, 0], hull)
-        const chamber = new Group()
-        chamber.name = 'plasma_containment_chamber'
-        p.add(chamber)
-        const along: Vec3 = [0, 0, Math.PI / 2]
-        const axis = 0.44
-        prism(chamber, 8, 0.3, 1.1, [0, axis, 0], steel, along)
-        for (const x of [-0.5, -0.3, 0.3, 0.5])
-          prism(chamber, 8, 0.36, 0.08, [x, axis, 0], dark, along)
-        for (const x of [-1, 1]) {
-          prism(chamber, 8, 0.27, 0.08, [x * 0.58, axis, 0], dark, along)
-          prism(chamber, 6, 0.13, 0.06, [x * 0.635, axis, 0], steel, along)
-        }
-        // The muzzle: a hex neck out of the crown, a shroud flaring at its
-        // own chamfer, a steel hex collar, and inside it the emitter face.
-        const muzzle = new Group()
-        muzzle.name = 'plasma_muzzle'
-        p.add(muzzle)
-        prism(muzzle, 6, 0.24, 0.18, [0, 0.67, 0], pale)
-        frustum(muzzle, 6, 0.24, 0.33, 0.12, [0, 0.82, 0], pale)
-        prism(muzzle, 6, 0.36, 0.08, [0, 0.92, 0], steel, [0, 0, 0], 0.25)
-        prism(muzzle, 6, 0.27, 0.04, [0, 0.89, 0], dark)
-        prism(muzzle, 6, 0.17, 0.03, [0, 0.925, 0], cyan)
-        prism(muzzle, 6, 0.08, 0.03, [0, 0.94, 0], dark)
-        break
-      }
       case 'laser':
         plate(p, [1.3, 0.26, 0.94], [0, 0.33, 0], pale)
         cylinder(p, 0.32, 0.43, 0.27, [0, 0.55, 0], steel)
@@ -998,27 +929,6 @@ export function createShip(
         cylinder(p, 0.25, 0.25, 0.025, [0, 0.838, 0], cyan)
         ring(p, 0.31, 0.045, [0, 0.82, 0], steel)
         for (const x of [-0.53, 0.53]) box(p, [0.14, 0.23, 0.68], [x, 0.45, 0], dark)
-        break
-      case 'shields':
-        plate(p, [1.48, 0.17, 0.97], [0, 0.3, 0], dark)
-        pipe(p, [-0.7, 0.4, 0], [0.7, 0.4, 0], 0.09, copper)
-        for (const x of [-0.48, 0, 0.48]) {
-          const coil = new Group()
-          coil.name = `exposed_shield_coil_${x}`
-          p.add(coil)
-          cylinder(coil, 0.12, 0.17, 0.4, [x, 0.57, 0], steel)
-          for (const y of [0.44, 0.58, 0.73]) {
-            ring(coil, 0.18, 0.038, [x, y, 0], cyan)
-            ring(coil, 0.135, 0.028, [x, y - 0.015, 0], copper)
-          }
-          cylinder(coil, 0.105, 0.105, 0.04, [x, 0.78, 0], copper)
-          cylinder(coil, 0.048, 0.048, 0.018, [x, 0.807, 0], cyan)
-        }
-        // An open perimeter cage protects the sides while exposing every coil.
-        for (const x of [-0.8, 0.8]) plate(p, [0.1, 0.44, 1.0], [x, 0.48, 0], hull)
-        for (const z of [-0.47, 0.47]) {
-          plate(p, [1.52, 0.15, 0.12], [0, 0.62, z], pale)
-        }
         break
       case 'radiator': {
         // Two radiative surfaces run along the hull. Local Z is the ship's
@@ -1040,43 +950,6 @@ export function createShip(
           for (const x of [-0.78, 0.78])
             pipe(p, [x, 0.32, 0], [x, 0.44, side * 0.39], 0.035, copper)
         }
-        break
-      }
-      case 'fuel_compressor': {
-        // The compressor sits on the bow hardpoint, whose frame sends local +Y
-        // down the nose and local X across it. It holds no fuel of its own
-        // (it buys a jump, it is not a tank), so the bow carries the pump and
-        // the exchanger that keeps it running: a squat volute mated flat to
-        // the nose, a stack of thin fins standing off it on two spacers, and
-        // copper from the casing over the stack and back into the hull. It
-        // fills the bay sideways rather than reaching past the collar.
-        plate(p, [1.1, 0.14, 1.0], [0, 0.29, 0], dark)
-        const pump = new Group()
-        pump.name = 'compressor_pump'
-        p.add(pump)
-        cylinder(pump, 0.4, 0.44, 0.26, [0, 0.49, 0], pale, [0, 0, 0], 16)
-        // One band around the casing, and the impeller ring capping it.
-        ring(pump, 0.425, 0.035, [0, 0.41, 0], dark)
-        ring(pump, 0.405, 0.05, [0, 0.595, 0], steel)
-        for (const x of [-0.5, 0.5]) box(pump, [0.13, 0.26, 0.44], [x, 0.49, 0], steel)
-        const exchanger = new Group()
-        exchanger.name = 'compressor_heat_exchanger'
-        p.add(exchanger)
-        plate(exchanger, [1.22, 0.07, 0.62], [0, 0.665, 0], pale)
-        plate(exchanger, [1.08, 0.022, 0.54], [0, 0.715, 0], dark)
-        for (let i = 0; i < 11; i++)
-          box(exchanger, [0.032, 0.18, 0.58], [-0.5 + i * 0.1, 0.8, 0], steel)
-        // Coolant leaves the casing, climbs past the stack, crosses the fins
-        // and drops back through the mating face.
-        for (const side of [-1, 1]) {
-          pipe(p, [side * 0.38, 0.48, 0], [side * 0.58, 0.48, 0], 0.05, copper)
-          pipe(p, [side * 0.58, 0.18, 0], [side * 0.58, 0.845, 0], 0.045, copper)
-          cylinder(p, 0.075, 0.075, 0.05, [side * 0.58, 0.26, 0], dark, [0, 0, 0], 8)
-        }
-        pipe(p, [-0.58, 0.845, 0], [0.58, 0.845, 0], 0.042, copper)
-        // Pressure telltale on the dorsal lip of the exchanger.
-        box(p, [0.22, 0.1, 0.045], [0, 0.665, 0.3], dark)
-        cylinder(p, 0.05, 0.05, 0.025, [0, 0.665, 0.33], cyan, [Math.PI / 2, 0, 0], 10)
         break
       }
       case 'disruptor': {
@@ -1440,7 +1313,7 @@ export function createShip(
       if (slot.unknown) {
         shoe(module, 0, dark, false)
         plate(module, [1.64, 0.34, 1.16], [0, 0.25, 0], hull)
-      } else if (slot.type) moduleGeometry(module, slot.type)
+      } else if (slot.type) moduleGeometry(module, slot.type, id === 'forward-0')
       if (slot.broken && !slot.unknown && slot.type) {
         const clones = new Map<Material, Material>()
         module.traverse(object => {
