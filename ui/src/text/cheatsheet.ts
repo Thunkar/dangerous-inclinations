@@ -167,7 +167,7 @@ export const CHEATSHEET = {
       absorbed:
         'Damage your shields absorb is heat too at a 1:1 ratio. A ballistic rack that intercepts missiles is {interceptHeat}: it goes on your track and carried over to your next turn.',
       over: 'Over {maxHeat} heat at your check is hull damage. Dissipate {dissipation} (+{radiator} a radiator) and carry the rest.',
-      cold: 'If you have 0 heat at your check, repair one broken subsystem.',
+      cold: 'Start your turn with 0 heat and power nothing: at your check, repair one broken subsystem.',
     },
     energyTitle: 'Energy an action puts on its subsystem',
     /** The twelve cells, in order. */
