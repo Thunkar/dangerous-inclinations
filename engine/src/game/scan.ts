@@ -1,6 +1,7 @@
 /**
- * Scan action. Requires an unbroken sensor array and a target on the same
- * ring within SCAN_SECTOR_RANGE sectors. Reveals the
+ * Scan action. Requires an unbroken sensor array and a target in the
+ * railgun's box at SCAN_SECTOR_RANGE: the scanner's ring, ahead of it within
+ * that many sectors, or its own sector. Reveals the
  * sensor, generates heat, lets the scanner look at one face-down slot of the
  * target (private knowledge) and acquires the transmission for any Intercept
  * mission on that target.
@@ -11,7 +12,7 @@
  * but a tile does one thing a turn: a sensor powered this turn cannot scan
  * (RULES §Energy and Heat).
  */
-import type { GameState, Player, Position, ScanAction } from "../models/game.ts";
+import type { GameState, Player, Position, ScanAction, ShipState } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { Cargo } from "../models/missions.ts";
@@ -21,16 +22,19 @@ import {
   isInterceptTransmissionMission,
   withItemAboard,
 } from "../models/missions.ts";
-import { sectorDistance } from "./geometry.ts";
+import { inSpinalBox } from "./targeting.ts";
 import { findSubsystem, useSubsystem } from "./ship.ts";
 
-/** Whether a sensor at `from` reaches `to`: the same ring, within SCAN_SECTOR_RANGE sectors. */
-export function inScanRange(from: Position, to: Position): boolean {
-  return (
-    from.wellId === to.wellId &&
-    from.ring === to.ring &&
-    sectorDistance(from.sector, to.sector) <= SCAN_SECTOR_RANGE
-  );
+/**
+ * Whether a sensor aboard `scanner` reaches `target`: the railgun's box at
+ * SCAN_SECTOR_RANGE (its ring, ahead of it as it faces within that many
+ * sectors, or its own sector).
+ */
+export function inScanRange(
+  scanner: Pick<ShipState, "wellId" | "ring" | "sector" | "facing">,
+  target: Position
+): boolean {
+  return inSpinalBox(scanner, target, SCAN_SECTOR_RANGE);
 }
 
 interface ScanResult {

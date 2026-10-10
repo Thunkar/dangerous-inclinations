@@ -332,7 +332,7 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
         sx={{ fontSize: '0.82rem', minWidth: 116, '& .MuiSelect-select': { py: 0.35 } }}
       >
         <MenuItem value="" sx={{ fontSize: '0.82rem' }}>
-          {inRange.length === 0 ? 'nobody within 3 sectors' : 'pick a target'}
+          {inRange.length === 0 ? 'nobody up to 3 sectors ahead' : 'pick a target'}
         </MenuItem>
         {inRange.map((target) => (
           <MenuItem key={target.id} value={target.id} sx={{ fontSize: '0.82rem' }}>

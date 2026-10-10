@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PLANET_OUTER_RING, STATION_RING } from "../../models/gravityWells.ts";
 import { executeTurn } from "../../game/turns.ts";
 import { viewFor } from "../../game/view.ts";
-import type { GameState } from "../../models/game.ts";
+import type { Facing, GameState, Position } from "../../models/game.ts";
 import {
   buildTurn,
   describeViewForAgent,
@@ -29,6 +29,7 @@ import {
   salvageMission,
   surveyMission,
   LANDING,
+  LOADOUTS,
 } from "../testUtils.ts";
 import { brawlerState, laneState, sensorState } from "../game/actionOrder.scenarios.ts";
 
@@ -551,11 +552,62 @@ describe("agent: the built turn in every order", () => {
       () => withShip(laneState(), "p1", { facing: "prograde" }),
       { kind: "jump", destinationWellId: ALPHA },
     ],
-  ])("drops a rotation asked for alongside %s, and says so", (_label, build, move) => {
+  ])("drops a rotation asked for before %s, and says so", (_label, build, move) => {
     const state = build();
-    const built = buildTurn(viewFor(state, "p1"), { rotate: true, move });
+    const built = buildTurn(viewFor(state, "p1"), { rotate: "before", move });
     expect(built.notes).toHaveLength(1);
     expect(built.actions.some((a) => a.type === "rotate")).toBe(false);
+    expect(executeTurn(state, built.actions).errors).toBeUndefined();
+  });
+
+  // p1 with a sensor bow on black hole ring 3, sector 0; a coast drifts it to
+  // sector 4. p2 is placed against where p1's move lands (`landed`).
+  type Where = "before" | "after" | null;
+  const along = (p: Position, sectors: number): Position => ({
+    ...p,
+    sector: (p.sector + sectors + 24) % 24,
+  });
+  const BURN_OUT = { kind: "burn", intensity: "medium", facing: "prograde" } as const;
+  it.each<[string, Facing, (landed: Position) => Position, TurnIntent, Where, Where, number]>([
+    ["a coast, true: a ship astern is turned to first", "prograde", () => ({ wellId: BH, ring: 3, sector: 22 }), { rotate: true }, "before", "before", 0],
+    ["a coast, true: the turn comes first and the scan after", "retrograde", (l) => along(l, 2), { rotate: true }, "before", "after", 0],
+    ["a coast, after: the turn and the scan both after it", "retrograde", (l) => along(l, 2), { rotate: "after" }, "after", "after", 0],
+    [
+      "a burn naming the facing the ship has, true: the turn after it, onto a ship astern",
+      "prograde",
+      (l) => along(l, -2),
+      { rotate: true, move: BURN_OUT },
+      "after",
+      "after",
+      0,
+    ],
+    [
+      "a burn naming the other facing, after: the turn has to come first, and says so",
+      "retrograde",
+      (l) => along(l, 2),
+      { rotate: "after", move: BURN_OUT },
+      "before",
+      "after",
+      1,
+    ],
+  ])("rotates and scans around %s", (_label, facing, target, intent, rotated, scanned, notes) => {
+    const p1 = { wellId: BH, ring: 3, sector: 0, facing, loadout: LOADOUTS.sensor } as const;
+    // Where the move lands, with p2 out of the way in another well.
+    const away = makeTwoPlayerGame(p1, { wellId: ALPHA, ring: 3, sector: 0 });
+    const moved = executeTurn(away, buildTurn(viewFor(away, "p1"), intent).actions);
+    expect(moved.errors).toBeUndefined();
+    const landed = getPlayer(moved.gameState, "p1").ship;
+    const state = makeTwoPlayerGame(
+      p1,
+      target({ wellId: landed.wellId, ring: landed.ring, sector: landed.sector })
+    );
+    const built = buildTurn(viewFor(state, "p1"), { ...intent, scan: { target: "p2" } });
+    expect(built.notes).toHaveLength(notes);
+    const at = (type: string) => built.actions.findIndex((a) => a.type === type);
+    const move = built.actions.findIndex((a) => a.type === "coast" || a.type === "burn");
+    const side = (i: number): Where => (i < 0 ? null : i < move ? "before" : "after");
+    expect([side(at("rotate")), side(at("scan"))]).toEqual([rotated, scanned]);
+    expect(at("rotate")).toBeLessThan(at("scan"));
     expect(executeTurn(state, built.actions).errors).toBeUndefined();
   });
 });

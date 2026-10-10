@@ -38,7 +38,7 @@ import {
 } from "./geometry.ts";
 import { resolveAttack } from "./damage.ts";
 import { addHeat, isDestroyed, isOnBoard, updateSubsystem, useSubsystem } from "./ship.ts";
-import { canBeFiredAt } from "./targeting.ts";
+import { canBeTargeted } from "./targeting.ts";
 
 const MISSILE = getMissileStats();
 
@@ -243,7 +243,7 @@ function flyMissile(state: GameState, missile: Missile): Flight {
   // fired at (RULES §Stations), so a missile that catches either neither
   // attacks nor is shot down: it stays in the air with one more move behind
   // it and burns out on schedule.
-  const untouchable = !canBeFiredAt(target, state.stations);
+  const untouchable = !canBeTargeted(target, state.stations);
 
   if (untouchable || !samePosition(moved, targetPos)) {
     const movesMade = missile.movesMade + 1;

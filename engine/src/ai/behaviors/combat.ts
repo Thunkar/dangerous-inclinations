@@ -15,7 +15,7 @@ import {
 } from "../../models/subsystems.ts";
 import { BURN_COSTS } from "../../models/rings.ts";
 import { ringVelocity } from "../../game/geometry.ts";
-import { canBeFiredAt, canEngage, canFireFrom } from "../../game/targeting.ts";
+import { canBeTargeted, canEngage, canFireFrom } from "../../game/targeting.ts";
 import { landsOnLaunch } from "../../game/missiles.ts";
 import { markedBy } from "../../game/escort.ts";
 import { recoilRing } from "../../game/movement.ts";
@@ -485,7 +485,7 @@ export function firingOptions(
   // its own (RULES §Destruction and Respawn).
   if (isQuietTurn(situation.view.turn, situation.me)) return intents;
   // Nor does anything reach a ship that just came back, or one at a berth.
-  if (!canBeFiredAt(target.player, situation.view.stations)) return intents;
+  if (!canBeTargeted(target.player, situation.view.stations)) return intents;
   // And a ship at a berth fires at nobody: a phase that finds the bot still
   // holding the berth it began the turn on has no shots. Arriving is not
   // being moored (RULES §Stations, Moored): a move that ends on a station

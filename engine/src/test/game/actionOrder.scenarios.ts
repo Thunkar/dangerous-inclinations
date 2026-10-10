@@ -177,8 +177,8 @@ export function brawlerState(): GameState {
 /**
  * p1 on black hole ring 3, sector 6, prograde, a sensor bow with two port
  * guns (side-0 laser, side-1 plasma, side-2 shields, side-3 missiles).
- *  - p2 two sectors astern on the ring: in scan range from the start, out of
- *    it after any move.
+ *  - p2 two sectors ahead on the ring: in scan range from the start, out of
+ *    it after any move (a coast leaves it astern), and after a rotation.
  *  - p3 one ring out, a sector ahead: the port laser's and the port plasma's
  *    while facing prograde from the start.
  *  - p4 one ring out at sector 11: in scan range only after a soft burn
@@ -189,7 +189,7 @@ export function sensorState(): GameState {
   return makeGameState(
     [
       makePlayer("p1", { wellId: BH, ring: 3, sector: 6 }, LOADOUTS.sensorGuns),
-      makePlayer("p2", { wellId: BH, ring: 3, sector: 4 }),
+      makePlayer("p2", { wellId: BH, ring: 3, sector: 8 }),
       makePlayer("p3", { wellId: BH, ring: 4, sector: 7 }),
       makePlayer("p4", { wellId: BH, ring: 4, sector: 11 }),
     ],
@@ -461,6 +461,7 @@ export const ORDER_TABLES: OrderTable[] = [
     items: [powerOn("forward-0", 2), scanAt("p2"), gun("side-0", "p3"), COAST],
     outcome: "refused",
   },
+  // p2 is ahead: a rotation before the scan turns it astern, out of the box.
   ...[COAST, SOFT].map(
     (move): OrderTable => ({
       name: `sensor: rotate, scan, laser, salvo, ${label([move])}`,

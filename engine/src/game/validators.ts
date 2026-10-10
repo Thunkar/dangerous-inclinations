@@ -48,7 +48,7 @@ import { SCAN_SECTOR_RANGE } from "../models/missions.ts";
 import { positionOf, ringVelocity, samePosition } from "./geometry.ts";
 import { findSubsystem, hasWorkingCompressor, isOnBoard, requestedDraw } from "./ship.ts";
 import { recoilRing, ringAfter } from "./movement.ts";
-import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange } from "./targeting.ts";
+import { canBeTargeted, isTouchable, canFireFrom, isInWeaponRange } from "./targeting.ts";
 import { findReadySensor, inScanRange } from "./scan.ts";
 import { isMooredAt, isMooredMidTurn } from "./stations.ts";
 import { freePiracyCards, seizableItemsNow } from "./piracy.ts";
@@ -214,7 +214,7 @@ function validateTarget(
   // (RULES §Destruction and Respawn). Both a shot and a scan are refused,
   // which is the whole point: a ship that returns to a sector everyone knows
   // must not be a free kill.
-  if (!canBeScanned(target))
+  if (!isTouchable(target))
     return { errors: [`${target.name} cannot be touched until their next turn is over`] };
   return { errors: [], target };
 }
@@ -302,8 +302,8 @@ export function validateFireWeaponAction(
     action.data.targetPlayerId
   );
   errors.push(...targetErrors);
-  // Scans still reach a berth; only weapons are refused, missiles included.
-  if (target && !canBeFiredAt(target, state.stations))
+  // A berth is safe: no weapon reaches it, missiles included.
+  if (target && !canBeTargeted(target, state.stations))
     errors.push(`${target.name} is moored: nobody fires at a ship at a berth`);
   if (target) {
     if (!isInWeaponRange(weapon, player.ship, positionOf(target.ship))) {
@@ -385,7 +385,7 @@ export function validateEscortMarkAction(
   if (unplacedEscorts(escort.missions).length === 0)
     return ["No Escort marker in hand: one marker per undone Escort"];
   if (!isOnBoard(carrier)) return [`${carrier.name} is not on the board`];
-  if (!canBeScanned(carrier))
+  if (!isTouchable(carrier))
     return [`${carrier.name} cannot be touched until their next turn is over`];
   if (isMooredMidTurn(state.stations, turn.start, positionOf(escort.ship)))
     return ["A moored ship marks nobody: burn off the berth first"];
@@ -472,7 +472,7 @@ export function validateSeizeAction(
   if (freePiracyCards(pirate.missions, pirate.cargo).length === 0)
     return ["No Piracy card free to take an item: each takes one, and its loot must be sold first"];
   if (!isOnBoard(victim)) return [`${victim.name} is not on the board`];
-  if (!canBeScanned(victim))
+  if (!isTouchable(victim))
     return [`${victim.name} cannot be touched until their next turn is over`];
   if (isMooredMidTurn(state.stations, turn.start, positionOf(pirate.ship)))
     return ["A moored ship seizes nothing: burn off the berth first"];
@@ -503,12 +503,15 @@ export function validateScanAction(state: GameState, action: ScanAction): string
     ];
   const { errors, target } = validateTarget(state, player, action.data.targetPlayerId);
   if (!target) return errors;
-  if (!inScanRange(positionOf(player.ship), positionOf(target.ship))) {
+  // A berth is safe from scans too (RULES §Stations); a moored ship may still scan.
+  if (!canBeTargeted(target, state.stations))
+    errors.push(`${target.name} is moored: nobody scans a ship at a berth`);
+  if (!inScanRange(player.ship, positionOf(target.ship))) {
     const sameRing =
       target.ship.wellId === player.ship.wellId && target.ship.ring === player.ship.ring;
     errors.push(
       sameRing
-        ? `${target.name} must be within ${SCAN_SECTOR_RANGE} sectors to scan`
+        ? `${target.name} is not ahead of you within ${SCAN_SECTOR_RANGE} sectors: rotate to face them, or close in`
         : `${target.name} must be on your ring to scan`
     );
   }

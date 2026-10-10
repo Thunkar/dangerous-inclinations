@@ -49,7 +49,7 @@ their next turn is a first round of their own: untouchable until it is over, and
 firing at, scanning and seizing from nobody on it). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
 from black hole ring 5 to its ring 4 and an inbound lane back. Stations orbit planet ring 2, with a faster ring 1 inside them, and are where cargo is
 loaded, ships are repaired and data is delivered. A moored ship can neither fire nor be
-fired at, missiles included (scans still reach it).
+fired at, missiles included, nor be scanned (it may still scan).
 
 Loadout subsystems (1 forward + 4 side slots) are **face-down** and revealed the
 first time they do something; the energy cubes on every slot are public.
@@ -948,6 +948,25 @@ not an argument:
   the rework 21 / 32, this rule 58 / 73; in the benchmark 13 per 100 kept
   against the old card's 25 (with the nine presets). Presence in the well is
   the cost; the spent state cost almost nothing (21 / 32 either way).
+
+- **The sensor scans into the railgun's box, and a berth stops scans.**
+  Adopted 10 Oct 2026, the designer's rule, for simplicity: a scan reaches
+  your ring 1–3 sectors ahead as you face, or your own sector
+  (`inSpinalBox`, shared with the railgun), instead of 3 sectors either way;
+  and a moored ship cannot be scanned (`canBeTargeted` is fire, missiles and
+  scan alike; a moored ship may still scan). The bots and `yarn seat` turn
+  before the move on a coast or after it when the move already has its
+  facing, for an Intercept scan (worth 2), a railgun shot (1) or a peek
+  (0.5). Measured against the rules before on the same seeds: 1000 games a
+  row on natural play, the baselines and every sensor preset, nothing moved
+  more than a point (dealt Intercept 32.0 → 33.0, raider 31.1 → 30.1,
+  watcher 28.8 → 28.9; natural three-seat 27 rounds and 2.7 kills either
+  way); 200 games over 62 rows, mean +0.1pp, no row past 4.5, no failing
+  flag (main's two `outlier`s cleared by their bars, not the rows).
+  Benchmark at 120 games: Intercept 57 → 55 completed per 100 kept, its
+  first scan still in round 2, so the early-scan problem below is not
+  this rule's to fix. A scan that needs a turn costs 3 heat, as a railgun
+  shot does.
 
 Known open problems:
 

@@ -67,7 +67,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Scan',
-      'same ring, within {scanRange} sectors, sensor aboard and unbroken. The scan puts {sensorEnergy} energy on it, so every shot after it has the wider range',
+      'same ring, 1–{scanRange} sectors ahead or in your sector, sensor aboard and unbroken. The scan puts {sensorEnergy} energy on it, so every shot after it has the wider range',
     ],
     [
       'Docking',
@@ -75,7 +75,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Berth',
-      'moored from the moment you dock until you leave the sector, so on the turn you arrive you may still fire after the move. A moored ship neither fires nor is fired at, missiles included. Scans still reach it',
+      'moored from the moment you dock until you leave the sector, so on the turn you arrive you may still fire after the move. A moored ship neither fires nor is fired at, missiles included, and nobody can scan it, though it may scan',
     ],
     [
       'Wrecks',

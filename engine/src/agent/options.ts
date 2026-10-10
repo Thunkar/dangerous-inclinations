@@ -4,13 +4,19 @@
  * guessing, so an illegal move is never their only option.
  */
 import type { Facing, Position } from "../models/game.ts";
-import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, isOpeningRound, isQuietTurn } from "../models/game.ts";
+import {
+  DEFAULT_DISSIPATION_CAPACITY,
+  MAX_HEAT,
+  isOpeningRound,
+  isQuietTurn,
+  oppositeFacing,
+} from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import { getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
 import type { GameView } from "../game/view.ts";
 import { positionOf, ringVelocity } from "../game/geometry.ts";
 import { inScanRange } from "../game/scan.ts";
-import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
+import { canBeTargeted, isTouchable, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
 import {
   legalMoves,
   projectPosition,
@@ -69,7 +75,10 @@ export interface SeatOptions {
   /** Fuel a scoop would gain this turn: 0 when the scoop is broken. */
   scoopGain: number;
   weapons: WeaponOption[];
+  /** Ships a scan reaches now, as the ship faces: its ring, ahead within range, or its sector. */
   scanTargets: string[];
+  /** Ships a scan reaches now after a rotation: the other way along the ring. */
+  scanTargetsIfRotated: string[];
   /**
    * Escort markers still in hand, and the carriers one could go on where the
    * ship is now (before the move) and after a plain coast. Marking is a
@@ -126,7 +135,7 @@ export function seatOptions(view: GameView): SeatOptions {
   // A ship recovering from a respawn is untouchable until the turn it plays
   // next is over (RULES §Destruction and Respawn), so it is on nobody's
   // target list while the flag is up.
-  const opponents = view.players.filter((p) => !p.isMe && canBeScanned(p));
+  const opponents = view.players.filter((p) => !p.isMe && isTouchable(p));
   const afterCoast = projectPosition(ship, ship.facing, {
     kind: "coast",
     moored,
@@ -153,7 +162,7 @@ export function seatOptions(view: GameView): SeatOptions {
         return opponents
           .filter(
             (o) =>
-              canBeFiredAt(o, view.stations) && isInWeaponRange(weapon, from, positionOf(o.ship!))
+              canBeTargeted(o, view.stations) && isInWeaponRange(weapon, from, positionOf(o.ship!))
           )
           .map((o) => o.id);
       };
@@ -179,7 +188,23 @@ export function seatOptions(view: GameView): SeatOptions {
   const sensor = ship.subsystems.find((s) => s.type === "sensor_array" && !s.isBroken);
   const scanTargets =
     sensor && !quiet
-      ? opponents.filter((o) => inScanRange(here, positionOf(o.ship!))).map((o) => o.id)
+      ? opponents
+          .filter(
+            (o) => canBeTargeted(o, view.stations) && inScanRange(here, positionOf(o.ship!))
+          )
+          .map((o) => o.id)
+      : [];
+  const rotated = { ...here, facing: oppositeFacing(ship.facing) };
+  const scanTargetsIfRotated =
+    sensor && !quiet
+      ? opponents
+          .filter(
+            (o) =>
+              canBeTargeted(o, view.stations) &&
+              !scanTargets.includes(o.id) &&
+              inScanRange(rotated, positionOf(o.ship!))
+          )
+          .map((o) => o.id)
       : [];
 
   const markersInHand = unplacedEscorts(me.missions).length;
@@ -239,6 +264,7 @@ export function seatOptions(view: GameView): SeatOptions {
     scoopGain: scoopWorks ? velocity : 0,
     weapons,
     scanTargets,
+    scanTargetsIfRotated,
     escort,
     seize,
     survey,

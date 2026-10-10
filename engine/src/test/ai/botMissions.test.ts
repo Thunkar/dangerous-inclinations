@@ -5,7 +5,7 @@
  * sale) is the engine suite's.
  */
 import { describe, it, expect } from "vitest";
-import type { GameState, Position, Wreck } from "../../models/game.ts";
+import type { Facing, GameState, Position, Wreck } from "../../models/game.ts";
 import { MAX_REACTION_MASS } from "../../models/game.ts";
 import type { Cargo, Mission, SurveyMission } from "../../models/missions.ts";
 import {
@@ -32,6 +32,7 @@ import { PATROL_GOAL_ID, REPAIR_GOAL_ID as REPAIR_GOAL } from "../../ai/behavior
 import { DEFAULT_BOT_PARAMETERS } from "../../ai/types.ts";
 import {
   LOADOUTS,
+  grounded,
   LANDING,
   ALPHA,
   BETA,
@@ -102,12 +103,40 @@ const currentGoal = (state: GameState) => situationOf(state).currentGoal;
 
 describe("bot missions", () => {
   // A sensor bow with an Intercept on p2: the scan is taken where it reaches,
-  // after the move that brings it in range, and never across a well.
-  it.each<[string, Position, string[]]>([
-    ["on its ring and within range", { wellId: BH, ring: 3, sector: 2 }, ["p2"]],
-    ["two rings out, after the burn", { wellId: BH, ring: 5, sector: 2 }, ["p2"]],
-    ["in another gravity well: no scan", { wellId: ALPHA, ring: 3, sector: 0 }, []],
-  ])("scans an Intercept target %s", (_label, target, scanned) => {
+  // turning the ship to face p2 when it is astern (before the move, or after
+  // a burn that already faced the way it needed), and never across a well.
+  it.each<[string, Position, string[], "before" | "after" | null, Facing | null | "any"]>([
+    [
+      "ahead on its ring, before the coast leaves it astern",
+      { wellId: BH, ring: 3, sector: 2 },
+      ["p2"],
+      "before",
+      null,
+    ],
+    [
+      "astern on its ring, turning first",
+      { wellId: BH, ring: 3, sector: 22 },
+      ["p2"],
+      "before",
+      "retrograde",
+    ],
+    ["two rings out, after the burn", { wellId: BH, ring: 5, sector: 2 }, ["p2"], "after", null],
+    [
+      "two rings out and astern of the burn, turning after it",
+      { wellId: BH, ring: 5, sector: 23 },
+      ["p2"],
+      "after",
+      "retrograde",
+    ],
+    [
+      "astern of an inward burn that had to turn: no scan",
+      { wellId: BH, ring: 1, sector: 2 },
+      [],
+      null,
+      "retrograde",
+    ],
+    ["in another gravity well: no scan", { wellId: ALPHA, ring: 3, sector: 0 }, [], null, "any"],
+  ])("scans an Intercept target %s", (_label, target, scanned, phase, turnsTo) => {
     const state = withMissions(
       makeTwoPlayerGame(
         { wellId: BH, ring: 3, sector: 0, loadout: LOADOUTS.sensorStarboardLaser },
@@ -123,8 +152,56 @@ describe("bot missions", () => {
       (a) => a.type === "burn" || a.type === "coast" || a.type === "well_transfer"
     );
     for (const scan of scans)
-      for (const move of moves) expect(scan.sequence!).toBeGreaterThan(move.sequence!);
+      for (const move of moves)
+        if (phase === "before") expect(scan.sequence!).toBeLessThan(move.sequence!);
+        else expect(scan.sequence!).toBeGreaterThan(move.sequence!);
+    const rotations = decision.actions.flatMap((a) => (a.type === "rotate" ? [a] : []));
+    // Across a well the move alone decides the facing.
+    if (turnsTo !== "any")
+      expect(rotations.map((a) => a.data.targetFacing)).toEqual(turnsTo ? [turnsTo] : []);
+    for (const scan of scans)
+      for (const rotation of rotations) expect(rotation.sequence!).toBeLessThan(scan.sequence!);
     expect(executeTurn(state, decision.actions).errors).toBeUndefined();
+  });
+
+  // No Intercept: a peek at a face-down slot is worth a turn of the ship when
+  // the heat leaves room for the rotation and the scan, and nothing is left to
+  // learn otherwise. Engines broken, so the bot coasts from where it sits.
+  it.each<[string, Position, (s: GameState) => GameState, boolean, boolean]>([
+    ["ahead on its ring: a peek without turning", { wellId: BH, ring: 3, sector: 2 }, (s) => s, false, true],
+    ["astern on its ring: turns and peeks", { wellId: BH, ring: 3, sector: 22 }, (s) => s, true, true],
+    [
+      "astern, too hot for the turn and the scan",
+      { wellId: BH, ring: 3, sector: 22 },
+      (s) => withShip(s, "p1", { heat: { currentHeat: 8 } }),
+      false,
+      false,
+    ],
+    [
+      "astern, every slot already known",
+      { wellId: BH, ring: 3, sector: 22 },
+      (s) =>
+        withPlayer(s, "p1", {
+          intel: { p2: ["forward-0", "side-0", "side-1", "side-2", "side-3"] },
+        }),
+      false,
+      false,
+    ],
+  ])("peeks at a rival %s", (_label, target, tweak, rotates, scans) => {
+    const state = tweak(
+      grounded(
+        makeTwoPlayerGame(
+          { wellId: BH, ring: 3, sector: 0, facing: "prograde", loadout: LOADOUTS.sensor },
+          target
+        )
+      )
+    );
+    const actions = botDecideActions(viewFor(state, "p1")).actions;
+    const rotation = actions.findIndex((a) => a.type === "rotate");
+    const scan = actions.findIndex((a) => a.type === "scan");
+    expect([rotation >= 0, scan >= 0]).toEqual([rotates, scans]);
+    if (rotates) expect(rotation).toBeLessThan(scan);
+    expect(executeTurn(state, actions).errors).toBeUndefined();
   });
 
   it("dives to black hole ring 1 for a Survey", () => {

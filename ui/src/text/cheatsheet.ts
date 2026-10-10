@@ -257,7 +257,7 @@ export const CHEATSHEET = {
     ],
     rules: [
       '<b>A critical breaks the slot you named</b>, shields or not, and its energy goes onto its owner’s heat.',
-      '<b>A berth is safe</b>: a moored ship neither fires nor is fired at, missiles included. Scans still reach it.',
+      '<b>A berth is safe</b>: a moored ship neither fires nor is fired at, missiles included, and nobody can scan it.',
     ],
   },
 
@@ -287,7 +287,7 @@ export const CHEATSHEET = {
     ],
     scanTitle: 'Scan to be sure',
     scan: [
-      'With a sensor, scan a ship on your ring within {sectors} sectors: look at one of its face-down subsystems. Intercept holders take its data.',
+      'With a sensor, scan a ship on your ring 1–{sectors} sectors ahead, or in your sector: look at one of its face-down subsystems. Intercept holders take its data.',
     ],
   },
 

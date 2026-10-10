@@ -4,7 +4,8 @@
  *
  * Point blank: a target in the attacker's own ring and sector is in range of
  *   every weapon, whatever its arc.
- * Spinal (railgun): same ring, 1..sectorRange sectors ahead in facing direction.
+ * Spinal (railgun): same ring, 1..sectorRange sectors ahead in facing direction
+ *   ({@link inSpinalBox}, which the sensor array's scan shares).
  * Broadside (laser, rack, plasma, disruptor): within ±ringRange rings and ±sectorRange sectors.
  *   Side-restricted broadsides only fire toward the ring direction their side
  *   faces; same-ring shots need `canTargetSameRing`.
@@ -39,21 +40,22 @@ export interface Seat {
 }
 
 /**
- * Whether anyone may scan this ship: on the board and not back from Home
- * this round (RULES §Destruction and Respawn).
+ * Whether anyone may touch this ship at all: on the board and not back from
+ * Home this round (RULES §Destruction and Respawn). A seizure and an Escort
+ * marker ask this, and then say for themselves why a berth refuses them.
  */
-export function canBeScanned(target: Seat): boolean {
+export function isTouchable(target: Seat): boolean {
   return isOnBoard(target) && !target.recovering;
 }
 
 /**
- * Whether anyone may fire at this ship, missiles included: scannable, and not
- * moored. A berth is safe both ways (RULES §Stations): the referee, the bots
- * and the previews ask this of the target and {@link canFireFrom} of the
- * attacker.
+ * Whether anyone may fire at or scan this ship, missiles included:
+ * touchable, and not moored. A berth is safe both ways (RULES §Stations):
+ * the referee, the bots and the previews ask this of the target and
+ * {@link canFireFrom} of the attacker. A moored ship may still scan others.
  */
-export function canBeFiredAt(target: Seat, stations: Station[]): boolean {
-  return canBeScanned(target) && !isMooredAt(stations, positionOf(target.ship!));
+export function canBeTargeted(target: Seat, stations: Station[]): boolean {
+  return isTouchable(target) && !isMooredAt(stations, positionOf(target.ship!));
 }
 
 /**
@@ -75,6 +77,28 @@ export function isInWeaponRange(
   if (!stats) return false;
   if (target.wellId !== attacker.wellId) return false;
   return checkRange(stats, weapon, attacker, target);
+}
+
+/**
+ * The spinal box: the attacker's own ring, 1..`sectorRange` sectors ahead in
+ * the direction it faces, or its own sector (point blank). The railgun fires
+ * into it and the sensor array scans into it (RULES §Scanning), so the two
+ * cannot drift. Nothing reaches across gravity wells: an attacker that names
+ * its well must share it with the target.
+ */
+export function inSpinalBox(
+  attacker: Pick<ShipState, "ring" | "sector" | "facing"> & { wellId?: Position["wellId"] },
+  target: Position,
+  sectorRange: number
+): boolean {
+  if (attacker.wellId !== undefined && attacker.wellId !== target.wellId) return false;
+  if (target.ring !== attacker.ring) return false;
+  if (sectorDistance(attacker.sector, target.sector) === 0) return true;
+  const ahead =
+    attacker.facing === "prograde"
+      ? forwardDistance(attacker.sector, target.sector)
+      : forwardDistance(target.sector, attacker.sector);
+  return ahead > 0 && ahead <= sectorRange;
 }
 
 function checkRange(
@@ -99,14 +123,8 @@ function checkRange(
   if (ringDist === 0 && sectorDist === 0) return true;
 
   switch (stats.arc) {
-    case "spinal": {
-      if (ringDist !== 0) return false;
-      const ahead =
-        attacker.facing === "prograde"
-          ? forwardDistance(attacker.sector, target.sector)
-          : forwardDistance(target.sector, attacker.sector);
-      return ahead > 0 && ahead <= sectorRange;
-    }
+    case "spinal":
+      return inSpinalBox(attacker, target, sectorRange);
     case "broadside": {
       if (sectorDist > sectorRange) return false;
       if (ringDist === 0) return stats.canTargetSameRing === true && sectorDist > 0;

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { GameState, ShipLoadout } from "../../models/game.ts";
+import type { Facing, GameState, ShipLoadout } from "../../models/game.ts";
+import { wrapSector } from "../../game/geometry.ts";
 import {
   LOADOUTS,
   GAMMA,
@@ -15,6 +16,7 @@ import {
   takenData,
   makeTwoPlayerGame,
   mustExecute,
+  rotate,
   scan,
   withPlayer,
   withShip,
@@ -109,6 +111,44 @@ describe("scan: a successful scan", () => {
     const result = executeTurnAs(state, scan(1, "p2"));
     expect(result.errors).toBeUndefined();
     expect(result.gameState.rngState).toBe(state.rngState);
+  });
+});
+
+describe("scan: the railgun's box at range 3", () => {
+  // p1 at R3 S0 with a sensor aboard, facing as named; p2 `offset` sectors
+  // along `ring` (negative is astern of prograde). Ahead is the way p1 faces.
+  it.each<[string, Facing, number, number, boolean]>([
+    ["1 ahead, facing prograde", "prograde", 3, 1, true],
+    ["2 ahead, facing prograde", "prograde", 3, 2, true],
+    ["3 ahead, facing prograde", "prograde", 3, 3, true],
+    ["4 ahead, facing prograde", "prograde", 3, 4, false],
+    ["1 behind, facing prograde", "prograde", 3, -1, false],
+    ["3 behind, facing prograde", "prograde", 3, -3, false],
+    ["1 behind prograde, facing retrograde", "retrograde", 3, -1, true],
+    ["3 behind prograde, facing retrograde", "retrograde", 3, -3, true],
+    ["4 behind prograde, facing retrograde", "retrograde", 3, -4, false],
+    ["1 ahead of prograde, facing retrograde", "retrograde", 3, 1, false],
+    ["the same sector, facing prograde", "prograde", 3, 0, true],
+    ["the same sector, facing retrograde", "retrograde", 3, 0, true],
+    ["one ring out, the same sector", "prograde", 4, 0, false],
+    ["one ring out, 1 ahead", "prograde", 4, 1, false],
+    ["one ring in, 2 ahead", "prograde", 2, 2, false],
+  ])("a target %s: in range %s", (_label, facing, ring, offset, legal) => {
+    const state = makeTwoPlayerGame(
+      { loadout: LOADOUTS.sensor, facing },
+      { ring, sector: wrapSector(offset) }
+    );
+    const result = executeTurnAs(state, scan(1, "p2", "side-0"));
+    if (legal) expect(result.errors).toBeUndefined();
+    else expectRefused(result, state);
+  });
+
+  it("a rotation first turns the box onto a ship astern", () => {
+    const state = makeTwoPlayerGame({ loadout: LOADOUTS.sensor }, { ring: 3, sector: 22 });
+    expectRefusedUnless(
+      executeTurnAs(state, scan(1, "p2", "side-0"), rotate(2, "retrograde")),
+      executeTurnAs(state, rotate(1, "retrograde"), scan(2, "p2", "side-0"))
+    );
   });
 });
 

@@ -295,7 +295,7 @@ describe("order: a missile reads the sensor when it is launched", () => {
       "critical",
     ],
   ])("%s: a missile on the target's sector rolls its 8 as a %s", (_label, actions, result) => {
-    // p2 two sectors astern on p1's ring: the missile flies onto it at launch.
+    // p2 two sectors ahead on p1's ring: the missile flies onto it at launch.
     const turn = executeTurnAs(sensorState(), ...actions);
     expect(turn.errors).toBeUndefined();
     const [hit] = eventsOf(turn.events, "attack_resolved").filter((e) => e.missileId);

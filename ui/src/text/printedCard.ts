@@ -79,7 +79,7 @@ export const PRINTED_CARD = {
           'critical',
           'Breaks the named slot face-up, through shields. Its energy converts to heat',
         ],
-        moored: ['moored', 'Neither fires nor is fired at, missiles too. Scans reach it'],
+        moored: ['moored', 'Neither fires nor is fired at, missiles too. Cannot be scanned'],
       },
     },
     weapons: {
@@ -106,7 +106,7 @@ export const PRINTED_CARD = {
       columns: { subsystem: 'subsystem', energy: 'energy', effect: 'effect' },
       shields: 'each energy stops {points} damage and comes off',
       ballistic_rack: 'shoots down {missiles} missiles a turn on {on}+, for {heat} heat',
-      sensor_array: "shots after it's enabled crit on {crit}+. Scan: your ring, within {sectors}",
+      sensor_array: "shots after it's enabled crit on {crit}+. Scan: your ring, 1–{sectors} ahead",
     },
     heat: {
       title: 'Heat check',

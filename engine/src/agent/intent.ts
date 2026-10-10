@@ -16,12 +16,12 @@ import type {
 } from "../models/game.ts";
 import { MAX_REACTION_MASS, isQuietTurn } from "../models/game.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
-import { LOAD_CRATES, SELL_FUEL, SELL_NOTHING } from "../models/missions.ts";
+import { LOAD_CRATES, SCAN_SECTOR_RANGE, SELL_FUEL, SELL_NOTHING } from "../models/missions.ts";
 import { getSubsystemConfig, isPowerableType } from "../models/subsystems.ts";
 import { BURN_COSTS, calculateBurnMassCost, calculateJumpMassCost } from "../models/rings.ts";
 import type { GameView } from "../game/view.ts";
 import { powerActions, type EnergyTargets } from "../ai/behaviors/survival.ts";
-import { canBeFiredAt, canBeScanned, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
+import { canBeTargeted, isTouchable, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
 import { inScanRange } from "../game/scan.ts";
 import { hasWorkingCompressor } from "../game/ship.ts";
 import { projectPosition, recoilRing, ringAfter, type MovementPreview } from "../game/movement.ts";
@@ -72,7 +72,16 @@ export interface TurnIntent {
    * not also power it).
    */
   power?: Partial<Record<SubsystemId, number>>;
-  rotate?: boolean;
+  /**
+   * Turn the ship to the other facing (the thrusters, once a turn). `true`
+   * turns it before a move that leaves the facing free (a coast, or a burn
+   * that names no facing) and right after one that already has the facing it
+   * needs (a burn naming the facing the ship has, or a jump while prograde),
+   * so it can scan or fire along the ring it arrives on. "before" and "after"
+   * place it explicitly. A move that needs the other facing always turns the
+   * ship before it.
+   */
+  rotate?: boolean | "before" | "after";
   move?:
     | { kind: "coast"; scoop?: boolean }
     | { kind: "burn"; intensity: BurnIntensity; adjustment?: number; facing?: Facing }
@@ -198,23 +207,43 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       );
   }
 
-  let facing: Facing = ship.facing;
-  let rotate = intent.rotate === true;
   const move = intent.move ?? { kind: "coast" as const };
-  // The rotation comes before the move, so the facing a move needs decides it:
-  // a burn's own facing when it names one, prograde for a jump.
+  // The thrusters turn the ship once a turn, before the move or right after
+  // it. A move that needs a facing decides it: a burn's own facing when it
+  // names one, prograde for a jump. Asked with `true`, the rotation goes
+  // before a move that leaves the facing free (or names none) and right after
+  // a move that already has the facing it needs, so a burn onto a ring can
+  // turn the ship to scan or fire along it; "before" and "after" say which.
   const moveFacing: Facing | undefined =
     move.kind === "burn" ? move.facing : move.kind === "jump" ? "prograde" : undefined;
-  if (moveFacing !== undefined && rotate !== (moveFacing !== ship.facing)) {
-    if (rotate)
+  const asked =
+    intent.rotate === true
+      ? "auto"
+      : intent.rotate === "before" || intent.rotate === "after"
+        ? intent.rotate
+        : null;
+  if (intent.rotate !== undefined && intent.rotate !== false && asked === null)
+    notes.push(`"rotate" is true, "before" or "after", not ${JSON.stringify(intent.rotate)}; ignored`);
+  let rotation: "before" | "after" | null = null;
+  if (moveFacing !== undefined && moveFacing !== ship.facing) {
+    rotation = "before";
+    if (asked === "after")
       notes.push(
-        `the ${move.kind} needs ${moveFacing} facing, which the ship already has; rotation dropped`
+        `the ${move.kind} needs ${moveFacing} facing, so the rotation goes before it; the thrusters turn once a turn, so there is none after it`
       );
-    rotate = moveFacing !== ship.facing;
+  } else if (asked === "auto") rotation = moveFacing === undefined ? "before" : "after";
+  else if (asked === "after") rotation = "after";
+  else if (asked === "before") {
+    if (moveFacing !== undefined)
+      notes.push(
+        `the ${move.kind} needs ${moveFacing} facing, which the ship already has; a rotation before it is dropped ("rotate": "after" turns the ship after the move)`
+      );
+    else rotation = "before";
   }
-  if (rotate) {
-    facing = ship.facing === "prograde" ? "retrograde" : "prograde";
-  }
+  const turned: Facing = ship.facing === "prograde" ? "retrograde" : "prograde";
+  /** Facing before and during the move, and after it. */
+  const facing: Facing = rotation === "before" ? turned : ship.facing;
+  const postFacing: Facing = rotation === null ? ship.facing : turned;
   for (const f of intent.fire ?? []) {
     const w = find(f.weapon);
     if (!w) {
@@ -245,7 +274,7 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
               ? phasedJumpDestination(jumpOption, move.adjustment ?? 0)
               : undefined,
           };
-  const post = projectPosition(ship, facing, preview);
+  const post = { ...projectPosition(ship, facing, preview), facing: postFacing };
   const targetPosition = (id: string) => {
     const s = view.players.find((p) => p.id === id)?.ship;
     return s ? positionOf(s) : null;
@@ -280,7 +309,8 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
 
   // A scan widens the critical range of every shot after it, so it goes as
   // early as it reaches: before the move when the target is in scan range
-  // from where the ship starts, otherwise right after the move.
+  // from where the ship starts (facing as the rotation leaves it), otherwise
+  // right after the move.
   const sensor = ship.subsystems.find((s) => s.type === "sensor_array");
   if (intent.scan && !sensor) notes.push("no sensor array aboard; scan dropped");
   const scanTarget = intent.scan ? targetPosition(intent.scan.target) : null;
@@ -390,13 +420,13 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
         ]
       : [];
 
-  if (rotate)
-    actions.push({
-      type: "rotate",
-      playerId: me.id,
-      sequence: seq(),
-      data: { targetFacing: facing },
-    });
+  const rotateAction = (): PlayerAction => ({
+    type: "rotate",
+    playerId: me.id,
+    sequence: seq(),
+    data: { targetFacing: turned },
+  });
+  if (rotation === "before") actions.push(rotateAction());
   actions.push(...markActions(true));
   actions.push(...seizeActions(true));
   actions.push(...surveyActions(true));
@@ -427,6 +457,7 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
         sectorAdjustment: move.adjustment ?? 0,
       },
     });
+  if (rotation === "after") actions.push(rotateAction());
   actions.push(...markActions(false));
   actions.push(...seizeActions(false));
   actions.push(...surveyActions(false));
@@ -569,7 +600,7 @@ function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): 
         else if (weapon.isBroken) notes.push(`${shot}: ${weapon.id} is broken`);
         else if (!canFireFrom(start, position, view.stations))
           notes.push(`${shot}: a moored ship fires at nobody; burn off the berth first`);
-        else if (!target?.ship || !canBeFiredAt(target, view.stations))
+        else if (!target?.ship || !canBeTargeted(target, view.stations))
           notes.push(`${shot}: that ship cannot be fired at now`);
         else if (!isInWeaponRange(weapon, { ...position, facing }, positionOf(target.ship)))
           notes.push(`${shot}: out of range from where it fires (${where()}, facing ${facing})`);
@@ -590,7 +621,7 @@ function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): 
         const victim = seat(a.data.victimId);
         if (quiet) notes.push(`${what}: nobody seizes on a first round`);
         else if (cards <= 0) notes.push(`${what}: no Piracy card free to take it by then`);
-        else if (!victim?.ship || !canBeScanned(victim))
+        else if (!victim?.ship || !isTouchable(victim))
           notes.push(`${what}: that ship cannot be touched now`);
         else if (isMooredMidTurn(view.stations, start, position))
           notes.push(`${what}: a moored ship seizes nothing; burn off the berth first`);
@@ -609,7 +640,7 @@ function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): 
         const what = `the Escort marker on ${a.data.carrierId}`;
         const carrier = seat(a.data.carrierId);
         if (markers <= 0) notes.push(`${what}: no Escort marker in hand by then`);
-        else if (!carrier?.ship || carrier.ship.isDestroyed || !canBeScanned(carrier))
+        else if (!carrier?.ship || carrier.ship.isDestroyed || !isTouchable(carrier))
           notes.push(`${what}: that ship cannot be touched now`);
         else if (isMooredMidTurn(view.stations, start, position))
           notes.push(`${what}: a moored ship marks nobody; burn off the berth first`);
@@ -668,10 +699,12 @@ function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): 
         if (quiet) notes.push(`${scan}: nobody scans on a first round`);
         else if (ship.subsystems.find((s) => s.type === "sensor_array")?.isBroken)
           notes.push(`${scan}: the sensor array is broken`);
-        else if (!target?.ship || !canBeScanned(target))
-          notes.push(`${scan}: that ship cannot be scanned now`);
-        else if (!inScanRange(position, positionOf(target.ship)))
-          notes.push(`${scan}: not on the ship's ring within range (${where()})`);
+        else if (!target?.ship || !canBeTargeted(target, view.stations))
+          notes.push(`${scan}: that ship cannot be scanned now (back from Home, or moored)`);
+        else if (!inScanRange({ ...position, facing }, positionOf(target.ship)))
+          notes.push(
+            `${scan}: not on your ring ahead of you (${facing}) within ${SCAN_SECTOR_RANGE} sectors, or in your sector (${where()})`
+          );
         break;
       }
     }

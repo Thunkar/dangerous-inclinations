@@ -10,9 +10,10 @@
  *   1. power the shields, racks and sensor the plan wants up
  *   2. what the ship takes where it starts: an Escort marker, a seizure,
  *      a survey's data, a black box
- *   3. rotate (if the movement or the railgun needs a facing)
+ *   3. rotate (if the movement, a scan or the railgun needs a facing)
  *   4. shots and scans that are in range from the current position
- *   5. the movement (coast / burn / jump)
+ *   5. the movement (coast / burn / jump), and a rotation after it when only
+ *      that turns the ship for a scan
  *   6. what the ship takes where the move ends, the same four
  *   7. shots and scans that are in range from the projected position
  *
@@ -46,7 +47,7 @@ import { ringVelocity, samePosition } from "../game/geometry.ts";
 import { bestSale, salesOnArrival } from "../game/docking.ts";
 import { allowedSales } from "./behaviors/sales.ts";
 import { escortCandidates, unplacedEscorts } from "../game/escort.ts";
-import { canBeFiredAt, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
+import { canBeTargeted, canEngage, canFireFrom, isInWeaponRange } from "../game/targeting.ts";
 import { heatAfterCheck } from "../game/heat.ts";
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from "./types.ts";
 import { INTERDICT_DANGER } from "./types.ts";
@@ -206,29 +207,94 @@ function buildCandidate(
     !isQuietTurn(view.turn, me) &&
     canFireFrom(status.position, at, view.stations) &&
     o.sameWell &&
-    canBeFiredAt(o.player, view.stations) &&
+    canBeTargeted(o.player, view.stations) &&
     !holdFire.has(o.player.id);
 
-  // Facing: the burn direction, or whatever gives the railgun a shot the
-  // turn may actually take.
+  // Facing: the burn direction, or whatever gives the turn a mission scan, the
+  // railgun a shot it may actually take, or a peek at a rival's face-down
+  // slot, in that order (2, 1 and a half). The sensor scans into the
+  // railgun's box (RULES §Scanning), so a scan can need the ship turned as
+  // much as a railgun shot does. The thrusters turn the ship once a turn:
+  // before everything when the move leaves the facing free, or right after
+  // the move when the ship already faces the way the move needs, so a burn
+  // onto a target's ring can still turn to scan it. A turn after the move is
+  // only taken for a scan; the railgun keeps the plans it had.
   const canRotate = !status.rotation.isBroken && !status.rotation.usedThisTurn;
-  let facing: Facing = movement.requiredFacing ?? ship.facing;
-  if (movement.requiredFacing === null && canRotate) {
-    const railgun = status.weapons.find((w) => w.type === "railgun" && isWeaponReady(w));
-    if (railgun) {
-      const shotsWith = (f: Facing) =>
-        situation.opponents.filter(
-          (o) =>
-            mayFireAt(o, landing) && isInWeaponRange(railgun, { ...landing, facing: f }, o.position)
-        ).length;
-      if (shotsWith(ship.facing) === 0 && shotsWith(oppositeFacing(ship.facing)) > 0)
-        facing = oppositeFacing(ship.facing);
+  type FacingPlan = { pre: Facing; post: Facing };
+  const held: Facing = movement.requiredFacing ?? ship.facing;
+  const other = oppositeFacing(held);
+  const plans: FacingPlan[] = [{ pre: held, post: held }];
+  if (canRotate && movement.requiredFacing === null) plans.push({ pre: other, post: other });
+  if (canRotate && held === ship.facing) plans.push({ pre: held, post: other });
+  const unturned = plans[0];
+  const railgun =
+    canRotate && movement.requiredFacing === null
+      ? status.weapons.find((w) => w.type === "railgun" && isWeaponReady(w))
+      : undefined;
+  const railgunShot = (f: Facing) =>
+    !!railgun &&
+    situation.opponents.some(
+      (o) => mayFireAt(o, landing) && isInWeaponRange(railgun, { ...landing, facing: f }, o.position)
+    );
+  // The other guns' shots a facing leaves bearing, before or after the move:
+  // a turn for a peek must not cost one (side-restricted guns fire off one side).
+  const bearing = (plan: FacingPlan) =>
+    status.weapons
+      .filter((w) => w.type !== "railgun" && isWeaponReady(w))
+      .reduce(
+        (n, w) =>
+          n +
+          situation.opponents.filter(
+            (o) =>
+              (mayFireAt(o, status.position) &&
+                canEngage(w, { ...status.position, facing: plan.pre }, o.position)) ||
+              (mayFireAt(o, landing) && canEngage(w, { ...landing, facing: plan.post }, o.position))
+          ).length,
+        0
+      );
+  // A rotation for a scan is only worth its cube if the scan fits the turn's
+  // heat after it.
+  const rotationHeat = getSubsystemConfig("rotation").minEnergy;
+  const scanAfterRotationFits =
+    movement.engineEnergy + rotationHeat + getSubsystemConfig("sensor_array").minEnergy <=
+    status.heatBudget;
+  const turns = (plan: FacingPlan) => plan.pre !== ship.facing || plan.post !== plan.pre;
+  /** The scan a plan's facings allow, if a rotation the plan needs leaves room for it. */
+  const scanWith = (plan: FacingPlan): ScanIntent | null => {
+    const scan = scanOption(
+      situation,
+      { ...status.position, facing: plan.pre },
+      { ...landing, facing: plan.post },
+      parameters
+    );
+    if (!scan || (turns(plan) && plan !== unturned && !scanAfterRotationFits)) return null;
+    // A peek is the least of the three: a turn for it gives up no other gun's shot.
+    if (!scan.forMission && plan !== unturned && bearing(plan) < bearing(unturned)) return null;
+    return scan;
+  };
+  let facingPlan = unturned;
+  let bestScore = -1;
+  let peekTurn = false;
+  for (const plan of plans) {
+    const scan = scanWith(plan);
+    // A turn after the move is for a scan only.
+    if (plan.post !== plan.pre && !scan) continue;
+    const mission = scan?.forMission === true;
+    const rail = railgunShot(plan.post);
+    const score = (mission ? 2 : 0) + (rail ? 1 : 0) + (scan && !mission ? 0.5 : 0);
+    if (score > bestScore) {
+      bestScore = score;
+      facingPlan = plan;
+      // Turned for nothing but the peek: the peek is what the rotation bought.
+      peekTurn = plan !== unturned && !!scan && !mission && rail === railgunShot(unturned.post);
     }
   }
+  const facing = facingPlan.pre;
   const rotate = facing !== ship.facing;
+  const rotateAfterMove = facingPlan.post !== facingPlan.pre;
 
   const pre = { ...status.position, facing };
-  const post = { ...landing, facing };
+  const post = { ...landing, facing: facingPlan.post };
   const endsOnStation = getStationAt(view.stations, post) !== undefined;
   /**
    * "Arrives at a station" (deliberately not "is at one"). Since a docked ship
@@ -263,9 +329,9 @@ function buildCandidate(
     targets.set(status.engines.id, movement.engineEnergy);
     heatUsed += movement.engineEnergy;
   }
-  if (rotate) {
-    targets.set(status.rotation.id, getSubsystemConfig("rotation").minEnergy);
-    heatUsed += getSubsystemConfig("rotation").minEnergy;
+  if (rotate || rotateAfterMove) {
+    targets.set(status.rotation.id, rotationHeat);
+    heatUsed += rotationHeat;
   }
   const heatBudget = status.heatBudget;
   // Heat is the only budget: a subsystem's cubes are its heat at the check.
@@ -294,7 +360,8 @@ function buildCandidate(
     heatUsed += scan.heat;
     scanChosen = scan;
   };
-  if (scan?.forMission) tryScan();
+  // A turn bought for a peek is spent before the guns can take its heat.
+  if (scan?.forMission || peekTurn) tryScan();
 
   // Weapons: concentrate on one target, biggest hits first, spilling
   // over to the next once that one is already accounted for.
@@ -617,6 +684,13 @@ function buildCandidate(
       break;
   }
 
+  if (rotateAfterMove)
+    tactical.push({
+      type: "rotate",
+      playerId: me.id,
+      sequence: sequence++,
+      data: { targetFacing: facingPlan.post },
+    });
   tactical.push(...takingActions(me.id, takings.after, next));
   if (scanChosen && (scanChosen as ScanIntent).phase === "post")
     tactical.push(scanAction(scanChosen));
@@ -905,7 +979,7 @@ export function generateCandidates(
           // Nothing can be done to a ship still recovering from a respawn,
           // or to one at a berth, so leaving the route to reach it buys
           // nothing.
-          canBeFiredAt(o.player, situation.view.stations) &&
+          canBeTargeted(o.player, situation.view.stations) &&
           o.ringDistance <= 3 &&
           (isKillTarget(situation.me, o) ||
             hullPotential(readyWeapons, o.shieldAbsorption) >= o.hull)

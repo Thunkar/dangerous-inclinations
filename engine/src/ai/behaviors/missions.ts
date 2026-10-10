@@ -52,6 +52,7 @@ import type { GameView } from "../../game/view.ts";
 import { getStationForPlanet, isMooredAt } from "../../game/stations.ts";
 import { positionOf, ringVelocity, sectorDistance } from "../../game/geometry.ts";
 import { markedBy } from "../../game/escort.ts";
+import { inScanRange } from "../../game/scan.ts";
 import { salesOnArrival } from "../../game/docking.ts";
 import { saleAllowedAt, saleBlocked } from "./sales.ts";
 import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from "../types.ts";
@@ -502,8 +503,8 @@ function interdictionTarget(
 /**
  * Where a bot with nothing to do goes: the black hole ring holding the most
  * rivals (ties to {@link PATROL_RING}, then the ring nearest it, then the
- * lower), at the sector of a rival on it with the most rivals within scan
- * range (ties to the one nearest the bot, then the lower sector). With no
+ * lower), at the sector of a rival on it with the most rivals in scan range
+ * facing one way or the other (ties to the one nearest the bot, then the lower sector). With no
  * rival in the black hole, ring {@link PATROL_RING} at the sector the nearest
  * rival's way home lands on, or under the bot if there is no rival at all.
  */
@@ -527,8 +528,17 @@ function patrolTarget(from: Position, opponents: Opponent[]): Position {
       a - b
   )[0];
   const rivals = onRing(ring);
+  // The scan's box points one way along the ring at a time, and the patrol
+  // turns the ship to whichever way holds more of them.
   const within = (sector: number) =>
-    rivals.filter((o) => sectorDistance(o.position.sector, sector) <= SCAN_SECTOR_RANGE).length;
+    Math.max(
+      ...(["prograde", "retrograde"] as const).map(
+        (facing) =>
+          rivals.filter((o) =>
+            inScanRange({ wellId: BLACK_HOLE_ID, ring, sector, facing }, o.position)
+          ).length
+      )
+    );
   const sector = rivals
     .map((o) => o.position.sector)
     .sort(
@@ -1033,6 +1043,10 @@ export function attachPlanToGoal(
     case "shadow": {
       const target = opponents.find((o) => o.player.id === goal.targetPlayerId);
       if (!target) return goal;
+      // Within the scan range either way along their ring: the scan's box
+      // points one way, and the planner turns the ship to it on the scan
+      // turn (before the move, or after it when the move already faces the
+      // way it needs).
       return planned(
         planShipToTarget(
           ship,

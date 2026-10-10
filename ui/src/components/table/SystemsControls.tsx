@@ -419,7 +419,7 @@ function ScanButton({
       title={
         blocked
           ? `No scan: ${blocked}`
-          : `Scan a ship on your ring within 3 sectors and look at one of their face-down subsystems. Puts ${
+          : `Scan a ship on your ring up to 3 sectors ahead, or in your sector, and look at one of their face-down subsystems. Puts ${
               getSubsystemConfig(sub.type).minEnergy
             } energy on the sensor, up until your next turn.`
       }

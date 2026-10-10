@@ -41,9 +41,9 @@ import {
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
   calculateJumpMassCost,
-  canBeFiredAt,
+  canBeTargeted,
   canSurvey,
-  canBeScanned,
+  isTouchable,
   canEngage,
   canFireFrom,
   drawFor,
@@ -326,29 +326,30 @@ export function walkSteps(
 
 /**
  * The rivals a step may be aimed at: on the board and not just back from
- * Home (RULES §Destruction and Respawn), the engine's `canBeScanned`.
+ * Home (RULES §Destruction and Respawn), the engine's `isTouchable`.
  */
 export function targetsFor(view: GameView): Target[] {
   return view.players
-    .filter(p => !p.isMe && canBeScanned(p))
+    .filter(p => !p.isMe && isTouchable(p))
     .map(p => ({
       id: p.id,
       position: { wellId: p.ship!.wellId, ring: p.ship!.ring, sector: p.ship!.sector },
     }))
 }
 
-/** Whether a rival may be fired at at all: the engine's `canBeFiredAt`, a berth included. */
-function firable(view: GameView, targetId: string): boolean {
+/** Whether a rival may be fired at or scanned at all: the engine's `canBeTargeted`, a berth included. */
+function targetable(view: GameView, targetId: string): boolean {
   const player = view.players.find(p => p.id === targetId)
-  return !!player && canBeFiredAt(player, view.stations)
+  return !!player && canBeTargeted(player, view.stations)
 }
 
 /**
  * The targets a step reaches from where it starts. A shot needs the engine's
  * range and a target that may be fired at, from a ship that may fire (a
  * moored ship neither fires nor is fired at, missiles included, RULES
- * §Stations); a scan needs the same ring within range, and still reaches a
- * berth.
+ * §Stations); a scan needs the railgun's box at the scan range (the same
+ * ring, ahead as the step faces, or the same sector) and a target that is
+ * not moored either, though a moored ship may scan.
  */
 export function targetsInRange(
   view: GameView,
@@ -362,9 +363,12 @@ export function targetsInRange(
     const weapon = loadout.find(s => s.id === step.subsystemId)
     if (!weapon || !canFireFrom(me.ship, at.position, view.stations)) return []
     const attacker = { ...at.position, facing: at.facing }
-    return targets.filter(t => firable(view, t.id) && isInWeaponRange(weapon, attacker, t.position))
+    return targets.filter(t => targetable(view, t.id) && isInWeaponRange(weapon, attacker, t.position))
   }
-  if (step.kind === 'scan') return targets.filter(t => inScanRange(at.position, t.position))
+  if (step.kind === 'scan') {
+    const scanner = { ...at.position, facing: at.facing }
+    return targets.filter(t => targetable(view, t.id) && inScanRange(scanner, t.position))
+  }
   return []
 }
 
@@ -639,7 +643,7 @@ export function planIssues(
         else if (
           target &&
           isOnBoard(target) &&
-          !canBeFiredAt(target, view.stations)
+          !canBeTargeted(target, view.stations)
         )
           problems.push(`${nameOf(step.targetId)} is moored: nobody fires at a ship at a berth`)
         else if (!inRange(step, at, step.targetId))
@@ -667,11 +671,13 @@ export function planIssues(
         if (!sensor) problems.push('No sensor array aboard')
         else if (sensor.isBroken)
           problems.push(`${slotWithSubsystem(sensor.id, sensor.type, hullOf(me))} is broken`)
-        if (!step.targetId) problems.push('Scan: pick a target on your ring within 3 sectors')
+        if (!step.targetId) problems.push('Scan: pick a target on your ring, up to 3 sectors ahead')
         else if (untouchable(step.targetId))
           problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
+        else if (!targetable(view, step.targetId))
+          problems.push(`${nameOf(step.targetId)} is moored: nobody scans a ship at a berth`)
         else if (!inRange(step, at, step.targetId))
-          problems.push('Scan: the target must be on your ring within 3 sectors')
+          problems.push('Scan: the target must be on your ring, up to 3 sectors ahead or in your sector. Rotate first to face it')
         if (!step.peekSlot) problems.push('Scan: choose which subsystem to look at')
         break
       }
