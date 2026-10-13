@@ -806,49 +806,6 @@ export function createShip(
     const build = MODULE_BUILDS[type]
     if (build) return build(kit, p, forward)
     switch (type) {
-      case 'railgun':
-        // The breech is supported by the collar. Ahead of it, keep the channel
-        // between the two stout rails open: no enclosing barrel or muzzle box.
-        plate(p, [1.12, 0.36, 0.72], [0, 0.36, 0], dark)
-        plate(p, [1.22, 0.15, 0.79], [0, 0.28, 0], pale)
-        for (const side of [-1, 1]) {
-          const rail = add(
-            p,
-            armoredSection([
-              [0.36, 0.24, 0.3],
-              [0.66, 0.22, 0.27],
-              [1.53, 0.18, 0.23],
-              [1.86, 0.175, 0.21],
-            ]),
-            steel,
-            [side * 0.3, 0, 0],
-            [0, 0, Math.PI / 2]
-          )
-          rail.name = `accelerator_rail_${side < 0 ? 'port' : 'starboard'}`
-          // A narrow conductor on the inside of each rail traces the open gap.
-          pipe(p, [side * 0.098, 0.75, 0], [side * 0.13, 1.73, 0], 0.027, cyan)
-          plate(p, [0.42, 0.46, 0.61], [side * 0.3, 0.56, 0], hull)
-          // Individual coil jackets and fasteners keep both rails readable.
-          for (const y of [0.87, 1.24, 1.61]) {
-            const z = y > 1.4 ? -0.23 : -0.26
-            plate(p, [0.34, 0.23, 0.06], [side * 0.3, y, z], pale)
-            plate(p, [0.085, 0.26, 0.43], [side * (y > 1.4 ? 0.485 : 0.51), y, 0], dark)
-            cylinder(
-              p,
-              0.038,
-              0.038,
-              0.026,
-              [side * 0.3, y, z - 0.038],
-              steel,
-              [Math.PI / 2, 0, 0],
-              6
-            )
-          }
-          pipe(p, [side * 0.54, 0.3, 0.12], [side * 0.5, 1.58, 0.12], 0.036, copper)
-          plate(p, [0.35, 0.075, 0.43], [side * 0.3, 1.865, 0], dark)
-          box(p, [0.045, 0.012, 0.16], [side * 0.3, 1.908, 0], steel)
-        }
-        break
       case 'sensor_array': {
         // Four shallow phased-array faces surround protected optical instruments.
         plate(p, [1.35, 0.24, 0.92], [0, 0.36, 0], dark)
