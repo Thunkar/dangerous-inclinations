@@ -879,15 +879,6 @@ export function createShip(
         }
         break
       }
-      case 'laser':
-        plate(p, [1.3, 0.26, 0.94], [0, 0.33, 0], pale)
-        cylinder(p, 0.32, 0.43, 0.27, [0, 0.55, 0], steel)
-        for (const y of [0.47, 0.59]) ring(p, 0.35, 0.06, [0, y, 0], dark)
-        cylinder(p, 0.36, 0.34, 0.17, [0, 0.74, 0], dark)
-        cylinder(p, 0.25, 0.25, 0.025, [0, 0.838, 0], cyan)
-        ring(p, 0.31, 0.045, [0, 0.82, 0], steel)
-        for (const x of [-0.53, 0.53]) box(p, [0.14, 0.23, 0.68], [x, 0.45, 0], dark)
-        break
       case 'radiator': {
         // Two radiative surfaces run along the hull. Local Z is the ship's
         // vertical axis on side mounts; a shallow cant exposes both broad faces.
