@@ -3,8 +3,9 @@
 // server already running for the workspace, so the scripts never share the
 // viewer's: they open the entry in the editor state, start a server on a
 // spare port and put the designer's open tabs back once it has rendered.
-// The editor state is one file, so runs in parallel take turns at it (a
-// lock directory) from writing it until their server shows their entry.
+// The editor state is one file, and a running server follows it (it renders
+// whatever tab the state names, even after it started), so runs in parallel
+// take turns: each holds a lock directory for its whole run.
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -21,9 +22,9 @@ async function lock() {
       mkdirSync(LOCK);
       return;
     } catch {
-      // Someone else's turn; a lock older than ten minutes is a dead run's.
+      // Someone else's turn; a lock older than half an hour is a dead run's.
       try {
-        if (Date.now() - statSync(LOCK).mtimeMs > 600_000) rmSync(LOCK, { recursive: true });
+        if (Date.now() - statSync(LOCK).mtimeMs > 1_800_000) rmSync(LOCK, { recursive: true });
       } catch {
         // gone already
       }
@@ -40,7 +41,7 @@ export async function withServer(entry, run) {
     locked = false;
   };
   const saved = existsSync(STATE) ? readFileSync(STATE, "utf8") : null;
-  // Put the tabs back once, while the lock is still ours.
+  // Put the tabs back once, before the lock is let go.
   const restore = () => {
     if (locked && saved !== null) writeFileSync(STATE, saved);
   };
@@ -73,14 +74,12 @@ export async function withServer(entry, run) {
       if (i > 2400) throw new Error(`FluidCAD server did not render ${entry}`);
       await sleep(250);
     }
-    restore();
-    unlock();
     return await run(port);
   } finally {
-    restore();
-    unlock();
     process.off("exit", stop);
     stop();
+    restore();
+    unlock();
   }
 }
 

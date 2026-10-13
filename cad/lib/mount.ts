@@ -2,16 +2,7 @@
 // screw, and the hull's recess and sealed magnet pocket.
 import { sketch, circle, extrude, subtract, fuse } from "fluidcad/core";
 import { MOUNT } from "../spec.ts";
-import {
-  prism,
-  disc,
-  grow,
-  move,
-  block,
-  type Point,
-  type Solid,
-  type Vec,
-} from "./solids.ts";
+import { prism, disc, grow, move, block, type Point, type Solid, type Vec } from "./solids.ts";
 
 export type Mount = typeof MOUNT;
 
