@@ -9,11 +9,13 @@
  * works is the one written here.
  */
 
-/** Game units to millimetres: the corvette is 8.5 units long and prints at 80. */
+import { CORVETTE } from "../ui/src/ships/corvetteShape.ts";
+
+/** Game units to millimetres: the corvette, bow to the bells' exit, prints at 80. */
 export const PRINT = {
   corvetteLength: 80,
   get mmPerUnit() {
-    return this.corvetteLength / 8.5;
+    return this.corvetteLength / CORVETTE.length;
   },
 };
 
@@ -30,11 +32,14 @@ export const PRINT = {
  * Mount frame: x forward, y dorsal, the mating face at z = 0, outboard +z.
  */
 export const MOUNT = {
-  /** Half the foot's length (x) and height (y). */
+  /**
+   * Half the foot's length (x) and height (y): 16 x 9, low enough to sink
+   * into the corvette's flank between its chamfers (10.3 mm at 80 mm).
+   */
   halfLength: 8,
-  halfHeight: 6,
+  halfHeight: 4.5,
   /** The chamfers: forward (the pointer) and aft. */
-  noseChamfer: 3.5,
+  noseChamfer: 2.5,
   tailChamfer: 1.5,
   /** How deep the hull's recess is; the foot's tenon fills it less the gap. */
   recessDepth: 1,
@@ -82,6 +87,12 @@ export const SLIDER = {
   /** How far the ridge sits in the track once the tongue has lifted the slider onto the dovetail. */
   engage: 0.55,
 };
+
+/**
+ * The display ship stands on a square peg (square, so it keeps its heading)
+ * in a blind socket from its keel. The socket takes the tenon's clearance.
+ */
+export const STAND = { peg: 6, depth: 8, clearance: 0.1 };
 
 /** A 0.4 mm nozzle's limits, for the checks every part should meet. */
 export const FDM = {

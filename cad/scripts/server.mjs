@@ -30,12 +30,16 @@ export async function withServer(entry, run) {
   };
   process.on("exit", stop);
   try {
+    // Up, and showing the entry: the summary names the file once it has rendered.
     for (let i = 0; ; i++) {
       try {
-        if ((await fetch(`http://localhost:${port}/api/health`)).ok) break;
+        const res = await fetch(`http://localhost:${port}/api/scene/summary`);
+        const file = res.ok ? (await res.json())?.file : null;
+        if (typeof file === "string" && resolve(file) === resolve(entry)) break;
       } catch {
-        if (i > 120) throw new Error("FluidCAD server did not start");
+        // not up yet
       }
+      if (i > 480) throw new Error(`FluidCAD server did not render ${entry}`);
       await new Promise((r) => setTimeout(r, 250));
     }
     return await run(port);

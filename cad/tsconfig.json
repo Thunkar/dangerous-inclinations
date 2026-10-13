@@ -2,9 +2,20 @@
   "compilerOptions": {
     "target": "es2022",
     "module": "nodenext",
+    "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": true,
     "noEmit": true,
-    "strict": true
+    "strict": true,
+    "skipLibCheck": true,
+    "types": []
   },
-  "include": ["spec.ts"]
+  "include": [
+    "spec.ts",
+    "lib/**/*.ts",
+    "pieces/**/*.ts",
+    "coupons/**/*.part.js",
+    "parts/**/*.part.js"
+  ]
 }

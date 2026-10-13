@@ -32,6 +32,7 @@ import { HULL_INFO } from './hulls'
 import { buildShrike } from './shrike'
 import { buildMantis } from './mantis'
 import { delavalBells } from './parts'
+import { CORVETTE } from './corvetteShape'
 import { MODULE_BUILDS, type ModuleKit } from './modules'
 
 type Material = MeshStandardMaterial
@@ -403,49 +404,34 @@ export function createShip(
     )
   else {
     body.scale.set(config.length, config.armor, config.beam)
-    add(
-      body,
-      armoredSection([
-        [-3.25, 0.71, 1.04],
-        [-2.6, 0.84, 1.14],
-        [1.95, 0.84, 1.14],
-        [2.55, 0.76, 1.0],
-        [3.04, 0.56, 0.8],
-      ]),
-      dark
-    )
+    add(body, armoredSection(CORVETTE.core.map(station => [...station])), dark)
     // The armor: slab plating standing proud of the core, with seams between
     // the tiles. Everything painted on the deck (markings and spine)
     // rides on top of the plate; the bow tile stands lowest, to keep the
     // citadel clear.
-    const relief = 0.8
+    const relief = CORVETTE.armor.relief
     const deck = 0.05 + relief * 0.33
     const keel = 0.05 + relief * 0.3
     const chine = 0.07 + relief * 0.19
-    const deckTop = 0.8 + deck
+    const deckTop = CORVETTE.armor.deckY + deck
     // Flat armour laid in rectangles with tight seams, a port and a starboard
     // plate to each tile, rather than one moulded slab: plating that was bolted
     // on, not cast.
-    const plateSeam = 0.035
-    for (const [x, l, share] of [
-      [-2.12, 0.93, 1],
-      [-0.98, 1.25, 1],
-      [0.43, 1.43, 1],
-      [1.68, 0.91, 0.42],
-    ] as [number, number, number][]) {
+    const plateSeam = CORVETTE.armor.seam
+    for (const [x, l, share] of CORVETTE.armor.tiles) {
       const step = deck * share
       const length = l - plateSeam
       for (const side of [-1, 1]) {
-        const deckWidth = (1.64 - plateSeam * 3) / 2
+        const deckWidth = (CORVETTE.armor.deckWidth - plateSeam * 3) / 2
         slab(
           [length, step, deckWidth],
-          [x, 0.8 + step / 2, (side * (deckWidth + plateSeam)) / 2],
+          [x, CORVETTE.armor.deckY + step / 2, (side * (deckWidth + plateSeam)) / 2],
           hull
         )
-        const keelWidth = (1.6 - plateSeam * 3) / 2
+        const keelWidth = (CORVETTE.armor.keelWidth - plateSeam * 3) / 2
         slab(
           [length, keel, keelWidth],
-          [x, -0.79 - keel / 2, (side * (keelWidth + plateSeam)) / 2],
+          [x, CORVETTE.armor.keelY - keel / 2, (side * (keelWidth + plateSeam)) / 2],
           hull
         )
         slab([length, chine, 0.5], [x, 0.61, side * 0.98], pale, [side * 0.68, 0, 0])
@@ -453,17 +439,11 @@ export function createShip(
       }
     }
     // Command citadel: a recessed slit, armored eyebrow, and forward cheek plates.
-    add(
-      body,
-      armoredSection([
-        [1.25, 0.08, 0.58],
-        [1.55, 0.3, 0.62],
-        [2.6, 0.3, 0.49],
-        [3.1, 0.08, 0.42],
-      ]),
-      pale,
-      [0, 0.93, 0]
-    )
+    add(body, armoredSection(CORVETTE.citadel.stations.map(station => [...station])), pale, [
+      0,
+      CORVETTE.citadel.lift,
+      0,
+    ])
     box(body, [0.045, 0.14, 0.65], [2.73, 1.14, 0], rubber, [0, 0, 0.36])
     for (const z of [-0.22, 0, 0.22])
       box(body, [0.05, 0.052, 0.14], [2.76, 1.15, z], cyan, [0, 0, 0.36])
@@ -538,29 +518,32 @@ export function createShip(
         box(body, [0.055, 0.035, 0.3], [0.05 + i * 0.13, deckTop, side * 0.52], rubber)
     }
     // Fixed scoop on the ventral bow.
-    plate(body, [1.2, 0.26, 0.92], [2.58, -0.69, 0], steel)
+    plate(body, [...CORVETTE.scoop.size], [...CORVETTE.scoop.at], steel)
     box(body, [0.11, 0.18, 0.67], [3.16, -0.68, 0], rubber)
     for (const z of [-0.24, -0.08, 0.08, 0.24])
       box(body, [0.12, 0.15, 0.03], [3.22, -0.68, z], pale)
 
     // The afterbody is lofted in world space so it joins both the independently
     // scaled hull and the engine cluster without a step or a floating adapter.
-    const driveOrigin = -3.13 * config.length
+    const driveOrigin = CORVETTE.drive.origin * config.length
     const engineScale = config.engineSize
     // The engine block stands taller than the hull it pushes, above the deck line
     // and below the keel, so the drive is the first thing the silhouette says.
-    const sternHeight =
-      (config.engines === 5 ? 1.28 : config.engines === 1 ? 1.16 : 1.1) * engineScale
-    const sternWidth = (config.engines === 1 ? 1.12 : 1.5) * engineScale
+    const sternHeight = CORVETTE.drive.sternHeight[config.engines] * engineScale
+    const sternWidth = CORVETTE.drive.sternWidth[config.engines] * engineScale
     // The block's full section, held from where the flare ends to the thrust
     // plate so the shroud behind it carries on at the same size, not smaller.
-    const blockHeight = sternHeight + 0.08 * engineScale
-    const blockWidth = sternWidth + 0.03 * engineScale
+    const [blockFore, blockAft] = CORVETTE.drive.block
+    const blockHeight = sternHeight + CORVETTE.drive.blockAdds[0] * engineScale
+    const blockWidth = sternWidth + CORVETTE.drive.blockAdds[1] * engineScale
     const aftSections: [number, number, number][] = [
-      [driveOrigin - 0.78 * engineScale, blockHeight, blockWidth],
-      [driveOrigin - 0.22 * engineScale, blockHeight, blockWidth],
-      [-2.8 * config.length, 0.91 * config.armor, 1.16 * config.beam],
-      [-2.35 * config.length, 0.84 * config.armor, 1.14 * config.beam],
+      [driveOrigin + blockFore * engineScale, blockHeight, blockWidth],
+      [driveOrigin + blockAft * engineScale, blockHeight, blockWidth],
+      ...CORVETTE.afterbody.joins.map(([x, h, w]): [number, number, number] => [
+        x * config.length,
+        h * config.armor,
+        w * config.beam,
+      ]),
     ]
     const afterbody = new Group()
     afterbody.name = 'integrated_aft_hull'
@@ -604,8 +587,8 @@ export function createShip(
     // the flare would dip into it between the kinks. A clamp covers each bend.
     const aftStations = [
       -2.62 * config.length,
-      -2.8 * config.length,
-      driveOrigin - 0.22 * engineScale,
+      CORVETTE.afterbody.joins[0][0] * config.length,
+      driveOrigin + blockAft * engineScale,
       driveOrigin - 0.76 * engineScale,
     ]
     const run = (at: (x: number) => Vec3, lay: (from: Vec3, to: Vec3) => void) =>
@@ -651,7 +634,11 @@ export function createShip(
     add(
       drive,
       armoredSection([
-        [-0.825, (sternHeight / engineScale) * 0.92, (sternWidth / engineScale) * 0.94],
+        [
+          CORVETTE.drive.thrustPlate,
+          (sternHeight / engineScale) * 0.92,
+          (sternWidth / engineScale) * 0.94,
+        ],
         [-0.755, (sternHeight / engineScale) * 0.92, (sternWidth / engineScale) * 0.94],
       ]),
       dark
@@ -680,20 +667,8 @@ export function createShip(
       (geometry, mat, pos, rot, parent = drive) => add(parent as Group, geometry, mat, pos, rot),
       { dark, steel, cyan },
       drive,
-      -0.825,
-      config.engines === 1
-        ? [[0, 0, 1.6]]
-        : [
-            [0, 0, 1.15],
-            [0, -0.99, 0.79],
-            [0, 0.99, 0.79],
-            ...(config.engines === 5
-              ? ([
-                  [-0.83, 0, 0.6],
-                  [0.83, 0, 0.6],
-                ] as [number, number, number][])
-              : []),
-          ]
+      CORVETTE.drive.thrustPlate,
+      CORVETTE.bells[config.engines]
     )
 
     // The engine room. A shroud carries the hull's own section on past the
@@ -705,9 +680,7 @@ export function createShip(
     const H = blockHeight / engineScale
     const W = blockWidth / engineScale
     const chamfer = Math.min(H, W) * 0.35
-    const skin = 0.14
-    const shroudFore = -0.8
-    const shroudAft = -1.52
+    const { fore: shroudFore, aft: shroudAft, skin } = CORVETTE.drive.shroud
     const shroudLength = shroudFore - shroudAft
     const shroudX = (shroudFore + shroudAft) / 2
     for (const s of [-1, 1]) {

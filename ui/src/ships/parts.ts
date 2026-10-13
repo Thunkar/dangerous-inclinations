@@ -17,6 +17,7 @@ import {
   Vector3,
 } from 'three'
 import type { Vec3 } from './config'
+import { BELL_PROFILE, BELL_WALL } from './bell'
 
 type Mat = MeshStandardMaterial
 export type Put = (
@@ -27,45 +28,14 @@ export type Put = (
   parent?: Object3D
 ) => Mesh
 
-/** The de Laval bell's outside, throat to lip, as [radius, distance aft]. */
-const BELL: [number, number][] = [
-  [0.175, 0.33],
-  [0.275, 0.5],
-  [0.355, 0.7],
-  [0.415, 0.9],
-  [0.455, 1.1],
-  [0.465, 1.22],
-]
-/** Its wall: the chamber, converging to the throat, then the bell and back in. */
-const WALL = [
-  [0.3, -0.12],
-  [0.3, 0.08],
-  [0.17, 0.28],
-  [0.17, 0.33],
-  [0.27, 0.5],
-  [0.35, 0.7],
-  [0.41, 0.9],
-  [0.45, 1.1],
-  [0.46, 1.25],
-  [0.44, 1.25],
-  [0.43, 1.1],
-  [0.39, 0.9],
-  [0.33, 0.7],
-  [0.25, 0.5],
-  [0.15, 0.33],
-  [0.15, 0.28],
-]
-/** A full-size bell reaches this far aft of where it is hung. */
-export const BELL_LENGTH = 1.25
-
 function radiusAt(v: number) {
-  for (let i = 1; i < BELL.length; i++)
-    if (v <= BELL[i][1]) {
-      const [r0, v0] = BELL[i - 1]
-      const [r1, v1] = BELL[i]
+  for (let i = 1; i < BELL_PROFILE.length; i++)
+    if (v <= BELL_PROFILE[i][1]) {
+      const [r0, v0] = BELL_PROFILE[i - 1]
+      const [r1, v1] = BELL_PROFILE[i]
       return r0 + ((r1 - r0) * (v - v0)) / (v1 - v0)
     }
-  return BELL.at(-1)![0]
+  return BELL_PROFILE.at(-1)![0]
 }
 
 /**
@@ -80,11 +50,11 @@ export function delavalBells(
   ink: Record<'dark' | 'steel' | 'cyan', Mat>,
   parent: Object3D,
   plate: number,
-  bells: [y: number, z: number, scale: number][],
+  bells: readonly (readonly [y: number, z: number, scale: number])[],
   name = 'drive_bell'
 ) {
   const hang = plate + 0.09
-  const jacket = coolingJacket(BELL, 28, 0.014)
+  const jacket = coolingJacket(BELL_PROFILE, 28, 0.014)
   const ring = (r: number, tube: number, v: number, mat: Mat, bell: Object3D) =>
     put(new TorusGeometry(r, tube, 6, 40), mat, [0, v, 0], [Math.PI / 2, 0, 0], bell)
   const pipe = (from: Vec3, to: Vec3, r: number) => {
@@ -108,7 +78,7 @@ export function delavalBells(
     parent.add(bell)
     put(
       new LatheGeometry(
-        WALL.map(([u, v]) => new Vector2(u, v)),
+        BELL_WALL.map(([u, v]) => new Vector2(u, v)),
         40
       ),
       ink.dark,

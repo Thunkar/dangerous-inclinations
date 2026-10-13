@@ -378,11 +378,17 @@ Each player has an 80mm display ship on a base; the board carries small
 tokens. `cad/spec.ts` holds every size the pieces must agree on (the mount,
 the magnets, the cubes, the scale) as pure data, so the game's renderer can
 read it too; capacities come from the engine (`SUBSYSTEM_CONFIGS`,
-`MAX_HEAT`). `cad/lib/` builds tools on the XY plane and moves them
-(`prism`, `section`, `vee`, `move`, `turn`): FluidCAD fuses everything
-inside a `part()`, so each printable is its own part and cuts are explicit
-`subtract`s. Check a part by `--list-shapes` (one solid each),
-`scripts/slice.mjs` (a section's numbers) and `yarn shot`. `fluidcad export`
+`MAX_HEAT`). `cad/lib/` (TypeScript) builds tools on the XY plane and moves them
+(`prism`, `section`, `vee`, `move`, `turn`); each piece's geometry is a
+TypeScript module in `cad/pieces/`, and a `.part.js` (the only extension
+FluidCAD's viewer opens) is a few lines that call it. `yarn workspace
+@dangerous-inclinations/cad typecheck` checks it all. The corvette's numbers
+are `ui/src/ships/corvetteShape.ts`, which the game's model reads too.
+FluidCAD fuses touching solids inside a `part()` on its own, and a solid
+fused that way cannot be fused again, so every solid is built `.new()`,
+joined by explicit `fuse`/`subtract`, and each printable is its own part. Check a part by `--list-shapes` (one solid each),
+`scripts/slice.mjs` (a section's numbers), `scripts/overhang.mjs` (what
+would need support) and `yarn shot`. `fluidcad export`
 exports whatever tab a running server shows, so `export` and `shot` start a
 server of their own (`scripts/server.mjs`) and put the viewer's open tabs back.
 
@@ -432,6 +438,9 @@ every beat; the rest of the table reads `useAnimationControls`, `useDice` and
 
 `ui/dev-three.html` mounts the 3D board on a fixture with no server
 (`board/three/dev/fixtureModel.ts`), which is how board work is checked.
+`ui/dev-ship.html?hull=corvette&view=iso|side|top|front|rear` draws one ship
+from the yard the same way, the reference the printed hulls are drawn
+against.
 
 ## Settled: do not re-propose without measuring
 

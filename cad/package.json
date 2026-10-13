@@ -6,7 +6,8 @@
   "scripts": {
     "view": "fluidcad serve",
     "export": "node scripts/export.mjs",
-    "shot": "node scripts/shot.mjs"
+    "shot": "node scripts/shot.mjs",
+    "typecheck": "tsc -p ."
   },
   "dependencies": {
     "@dangerous-inclinations/engine": "workspace:*",

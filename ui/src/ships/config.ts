@@ -10,6 +10,7 @@ import {
 import { HULL_INK } from './palette'
 import { MOUNTS, type MountId } from './mounts'
 import { SHRIKE_MOUNTS, MANTIS_MOUNTS } from './hulls'
+import { CORVETTE } from './corvetteShape'
 export { MOUNTS, type MountId } from './mounts'
 export type Vec3 = [number, number, number]
 export type Finish = 'paint' | 'resin'
@@ -94,7 +95,7 @@ export function mountTransform(
   if (config.appearance?.hull === 'mantis') return MANTIS_MOUNTS[id]
   if (id === 'forward-0') {
     return {
-      position: [3.05 * config.length, 0, 0],
+      position: [CORVETTE.mounts.bow * config.length, 0, 0],
       // The shoe's long axis spans the bow, so the rails sit side by side.
       rotation: [-Math.PI / 2, 0, -Math.PI / 2],
       scale: [1, 1, 1],
@@ -104,7 +105,11 @@ export function mountTransform(
   const index = MOUNTS.find(m => m.id === id)!.index
   const side = index < 2 ? -1 : 1
   return {
-    position: [(index % 2 === 0 ? 1.58 : -0.64) * config.length, 0, side * 1.08 * config.beam],
+    position: [
+      (index % 2 === 0 ? CORVETTE.mounts.fore : CORVETTE.mounts.aft) * config.length,
+      0,
+      side * CORVETTE.mounts.flank * config.beam,
+    ],
     rotation: [(side * Math.PI) / 2, 0, 0],
     scale: [1, 1, -side],
     normal: [0, 0, side],
