@@ -78,12 +78,14 @@ export function buildSpec(spec: SolidSpec, f: number): Solid | null {
     case "loft":
       return lofted(spec.stations, f);
     case "hollow": {
+      const rake = spec.rake;
       const outer = lofted(
         [
           [spec.x0, ...spec.outer0],
           [spec.x1, ...spec.outer1],
         ],
-        f
+        f,
+        rake
       );
       const run = 0.02 * (spec.x1 - spec.x0);
       const inner = lofted(
@@ -91,7 +93,8 @@ export function buildSpec(spec: SolidSpec, f: number): Solid | null {
           [spec.x0 - run, ...spec.inner0],
           [spec.x1 + run, ...spec.inner1],
         ],
-        f
+        f,
+        rake && { ...rake, fromX: rake.fromX - run }
       );
       return subtract(outer, inner);
     }
@@ -129,24 +132,42 @@ function alongY(solid: Solid, h: number): Solid {
   return move(turn(solid, "x", -90), 0, -h / 2, 0);
 }
 
-/** `armoredSection` (ui/src/ships/loft.ts) as a solid: stations [x, h, w, lift?] along x. */
-function lofted(stations: number[][], f: number): Solid {
-  const profile = ([x, h, w, lift = 0]: number[]) =>
-    sketch(plane("yz", { offset: x * f }), () => {
-      const c = Math.min(h, w) * 0.35;
-      // The yz sketch's (a, b) is the world's (y, z): height then width.
-      const p: Point[] = [
-        [h, w - c],
-        [h - c, w],
-        [-h + c, w],
-        [-h, w - c],
-        [-h, -w + c],
-        [-h + c, -w],
-        [h - c, -w],
-        [h, -w + c],
-      ].map(([y, z]) => [(y + lift) * f, z * f]);
-      outline(p);
-    });
+/**
+ * `armoredSection` (ui/src/ships/loft.ts) as a solid: stations [x, h, w, lift?]
+ * along x. With `rake`, a station at or ahead of `fromX` is sheared (x moves
+ * forward by k for every unit below y0): its ring stays flat, on a yz plane
+ * turned about z by atan(k), and is stretched along that plane by 1 / cos.
+ */
+function lofted(
+  stations: number[][],
+  f: number,
+  rake?: { k: number; y0: number; fromX: number }
+): Solid {
+  const profile = ([x, h, w, lift = 0]: number[]) => {
+    const c = Math.min(h, w) * 0.35;
+    // The yz sketch's (a, b) is the world's (y, z): height then width.
+    const ring: Point[] = [
+      [h, w - c],
+      [h - c, w],
+      [-h + c, w],
+      [-h, w - c],
+      [-h, -w + c],
+      [-h + c, -w],
+      [h - c, -w],
+      [h, -w + c],
+    ].map(([y, z]) => [(y + lift) * f, z * f]);
+    if (!rake || x < rake.fromX - 1e-9)
+      return sketch(plane("yz", { offset: x * f }), () => outline(ring));
+    // The sheared ring lies on the plane x + k y = x + k y0. FluidCAD moves
+    // the yz plane along x by `offset` and then turns it about its own
+    // vertical (world z) by `rotateY`, its in-plane axis then running along
+    // (-sin t, cos t, 0): a ring point at height y sits y / cos t along it.
+    const t = Math.atan(rake.k);
+    const at = (x + rake.k * rake.y0) * f;
+    return sketch(plane("yz", { rotateY: (t * 180) / Math.PI, offset: at }), () =>
+      outline(ring.map(([y, z]): Point => [y / Math.cos(t), z]))
+    );
+  };
   const pieces = stations.slice(1).map((s, i) => loft(profile(stations[i]), profile(s)).new());
   return pieces.length > 1 ? fuse(...pieces) : pieces[0];
 }

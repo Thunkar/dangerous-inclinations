@@ -6,6 +6,7 @@
  */
 import type { Hull } from '@dangerous-inclinations/engine'
 import type { MountId, Vec3 } from './config'
+import { CORVETTE } from './corvetteShape'
 
 export interface MountPose {
   position: Vec3
@@ -40,6 +41,11 @@ export interface HullInfo {
    * drawn on.
    */
   board: { scale: number; lift: number }
+  /**
+   * The hull's flat bottom (game y): what it stands on when printed belly
+   * down. A bay shoulder or bow collar that ends near it is carried to it.
+   */
+  keel: number
 }
 
 export const HULL_INFO: Record<Hull, HullInfo> = {
@@ -48,6 +54,7 @@ export const HULL_INFO: Record<Hull, HullInfo> = {
     stage: { center: [0.2, 0, 0], radius: 6.9, floor: -3.3 },
     livery: { band: [0, 0], chevron: 0, stern: 0, split: 0, spine: 0, beam: 1, spineZ: 0 },
     board: { scale: 4, lift: 0 },
+    keel: CORVETTE.armor.keelY - (0.05 + CORVETTE.armor.relief * 0.3),
   },
   shrike: {
     name: 'Shrike',
@@ -64,6 +71,8 @@ export const HULL_INFO: Record<Hull, HullInfo> = {
     // Smaller than the corvette's 4, so the crest stays under the escort
     // badges once the blade is lifted clear of the surface.
     board: { scale: 3.2, lift: 10.7 },
+    // The keel plates under the chassis; the blade hangs below them.
+    keel: -1.27,
   },
   mantis: {
     name: 'Mantis',
@@ -78,6 +87,8 @@ export const HULL_INFO: Record<Hull, HullInfo> = {
       spineZ: 1.7,
     },
     board: { scale: 3.2, lift: 1.6 },
+    // The arms' undersides; the arm fins hang below them.
+    keel: -0.8,
   },
 }
 

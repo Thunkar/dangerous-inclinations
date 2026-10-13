@@ -13,44 +13,59 @@ import type { BufferGeometry, Material, Matrix4, Mesh, Object3D } from 'three'
 type V2 = [number, number]
 type V3 = [number, number, number]
 
-export type SolidSpec = /** A box centred on the origin (`BoxGeometry`, `RoundedBoxGeometry`). */
-(| { kind: 'box'; size: V3 }
-  /**
-   * `CylinderGeometry`: along y, centred, `top` radius at +y. With few sides
-   * it is a faceted prism (vertices at x = r sin a, z = r cos a, from
-   * a = `thetaStart`); with many it reads round.
-   */
-  | {
-      kind: 'cylinder'
-      top: number
-      bottom: number
-      height: number
-      sides: number
-      thetaStart: number
-    }
-  /** `TorusGeometry`: a ring of `radius` in the xy plane round z, a tube of `tube`. */
-  | { kind: 'torus'; radius: number; tube: number }
-  /**
-   * `ExtrudeGeometry`: `outline` (anticlockwise, with `holes`) in xy, pulled
-   * along +z from 0 to `depth`. With a bevel the outline grows by `bevel.size`
-   * and the solid runs from -`bevel.thickness` to `depth` + `bevel.thickness`.
-   */
-  | {
-      kind: 'extrude'
-      outline: V2[]
-      holes: V2[][]
-      depth: number
-      bevel: { thickness: number; size: number } | null
-    }
-  /** `armoredSection` (`loft.ts`): [x, half height, half width, lift?] stations, aft to fore. */
-  | { kind: 'loft'; stations: number[][] }
-  /** `hollowSection` (`loft.ts`), its arguments as given. */
-  | { kind: 'hollow'; x0: number; x1: number; outer0: V3; outer1: V3; inner0: V3; inner1: V3 }
-  /** `LatheGeometry`: the [radius, y] profile turned round y. */
-  | { kind: 'lathe'; profile: V2[] }
-  /** Finer than any print: drawn by the game, left off the print (cooling tubes, glow discs). */
-  | { kind: 'detail' }
-) & { bake?: number[] }
+export type SolidSpec =
+  /** A box centred on the origin (`BoxGeometry`, `RoundedBoxGeometry`). */
+  (
+    | { kind: 'box'; size: V3 }
+    /**
+     * `CylinderGeometry`: along y, centred, `top` radius at +y. With few sides
+     * it is a faceted prism (vertices at x = r sin a, z = r cos a, from
+     * a = `thetaStart`); with many it reads round.
+     */
+    | {
+        kind: 'cylinder'
+        top: number
+        bottom: number
+        height: number
+        sides: number
+        thetaStart: number
+      }
+    /** `TorusGeometry`: a ring of `radius` in the xy plane round z, a tube of `tube`. */
+    | { kind: 'torus'; radius: number; tube: number }
+    /**
+     * `ExtrudeGeometry`: `outline` (anticlockwise, with `holes`) in xy, pulled
+     * along +z from 0 to `depth`. With a bevel the outline grows by `bevel.size`
+     * and the solid runs from -`bevel.thickness` to `depth` + `bevel.thickness`.
+     */
+    | {
+        kind: 'extrude'
+        outline: V2[]
+        holes: V2[][]
+        depth: number
+        bevel: { thickness: number; size: number } | null
+      }
+    /** `armoredSection` (`loft.ts`): [x, half height, half width, lift?] stations, aft to fore. */
+    | { kind: 'loft'; stations: number[][] }
+    /**
+     * `hollowSection` (`loft.ts`), its arguments as given; `rake` shears its
+     * end rings at or ahead of `fromX` (x moves forward by k for every unit
+     * below y0), as the shrike rakes its chin intake.
+     */
+    | {
+        kind: 'hollow'
+        x0: number
+        x1: number
+        outer0: V3
+        outer1: V3
+        inner0: V3
+        inner1: V3
+        rake?: { k: number; y0: number; fromX: number }
+      }
+    /** `LatheGeometry`: the [radius, y] profile turned round y. */
+    | { kind: 'lathe'; profile: V2[] }
+    /** Finer than any print: drawn by the game, left off the print (cooling tubes, glow discs). */
+    | { kind: 'detail' }
+  ) & { bake?: number[] }
 
 /** Tag a geometry with the solid it is. Returns the geometry. */
 export function describe<T extends BufferGeometry>(geometry: T, spec: SolidSpec): T {

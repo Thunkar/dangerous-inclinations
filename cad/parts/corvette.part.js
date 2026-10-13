@@ -1,4 +1,6 @@
 import { part } from "fluidcad/core";
-import { buildCorvette, PAUSE_BEFORE } from "../pieces/corvette.ts";
+import { buildHull, pausesOf } from "../pieces/hull.ts";
 
-export const corvette = part(`Corvette (pause before Z ${PAUSE_BEFORE})`, () => buildCorvette());
+export const corvette = part(`Corvette (pause before Z ${pausesOf("corvette").join(", ")})`, () =>
+  buildHull("corvette")
+);

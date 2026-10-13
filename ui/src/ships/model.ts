@@ -1134,9 +1134,9 @@ export function createShip(
 
   /**
    * `keel` is where the hull's keel plane lies in the mount frame's Z (the
-   * frame's dorsal axis), for a hull that stands on its keel: the ventral
-   * shoulder then reaches down to it, so the hull has a flat bottom and no
-   * shelf under its bays.
+   * frame's dorsal axis). A ventral shoulder or collar that ends near it
+   * (within 0.45) is carried to it, or cut back to it if it hangs below, so
+   * the hull stands flat with no shelf under its bays.
    */
   const armoredCradle = (frame: Group, forward: boolean, keel?: number) => {
     const cradle = new Group()
@@ -1149,8 +1149,8 @@ export function createShip(
       // Its open end protects the breech without bridging across the rails.
       for (const z of [-0.8, 0.8]) {
         // Down to the keel, the ventral collar keeps its full depth along.
-        const top = z - 0.13
-        const deep = z < 0 && keel !== undefined
+        const top = z + 0.13
+        const deep = z < 0 && keel !== undefined && Math.abs(z - 0.13 - keel) < 0.45
         const w = (top - (keel ?? 0)) / 2
         add(
           cradle,
@@ -1212,7 +1212,7 @@ export function createShip(
       for (const z of [-0.82]) {
         // Down to the keel, the ventral shoulder keeps its full depth along.
         const top = z + 0.135
-        const deep = z < 0 && keel !== undefined
+        const deep = z < 0 && keel !== undefined && Math.abs(z - 0.135 - keel) < 0.45
         const w = (top - (keel ?? 0)) / 2
         add(
           cradle,
@@ -1255,12 +1255,10 @@ export function createShip(
     plate(frame, [1.95, 0.13, 1.44], [0, -0.06, 0], dark)
     shoe(frame, 0, steel, true)
     const forward = mount.group === 'forward'
-    // The corvette stands on its keel plating; its mounts sit at y = 0.
-    const keelPlane =
-      hullKind === 'corvette'
-        ? (CORVETTE.armor.keelY - (0.05 + CORVETTE.armor.relief * 0.3)) * config.armor
-        : undefined
-    armoredCradle(frame, forward, keelPlane)
+    // The keel in the frame's dorsal axis (which is the ship's y), at the
+    // corvette's proportions for the corvette.
+    const keelY = HULL_INFO[hullKind].keel * (hullKind === 'corvette' ? config.armor : 1)
+    armoredCradle(frame, forward, keelY - position[1])
     const highlight = material('highlight', HULL_INK.steel, 0.4)
     for (const x of [-0.67, 0.67])
       for (const z of [-1, 1]) {

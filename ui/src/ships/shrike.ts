@@ -17,7 +17,7 @@ import {
 } from 'three'
 import { armoredSection, hollowSection, type Station } from './loft'
 import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid, type Put } from './parts'
-import { bake } from './solid'
+import { bake, solidOf } from './solid'
 import type { Vec3 } from './config'
 
 type Mat = MeshStandardMaterial
@@ -88,11 +88,13 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
   )
   // Plating as the corvette lays it: deck and keel tiles with seams, and
   // chine plates canted over the clipped edges above and below the mounts.
+  // The chines lie at the chamfers' own 45 degrees: the ship prints belly
+  // down, and so nothing over them faces down.
   for (const s of [-1, 1]) {
     slab([1.9, 0.14, 0.7], [0.3, 2.4, s * 0.37], m.hull)
     slab([1.9, 0.14, 0.7], [0.3, -1.2, s * 0.37], m.hull)
-    slab([1.95, 0.17, 0.5], [0.3, 2.15, s * 0.72], m.pale, [s * 0.68, 0, 0])
-    slab([1.95, 0.15, 0.42], [0.3, -0.95, s * 0.72], m.pale, [-s * 0.65, 0, 0])
+    slab([1.95, 0.17, 0.5], [0.3, 2.15, s * 0.72], m.pale, [s * (Math.PI / 4), 0, 0])
+    slab([1.95, 0.15, 0.42], [0.3, -0.95, s * 0.72], m.pale, [-s * (Math.PI / 4), 0, 0])
   }
   // The nose, tapering to the bow mount as the corvette's does, and its shoulders.
   section(
@@ -146,14 +148,21 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
       lift,
     ]
     const lip: [number, number, number] = [half + 0.03, 0.73, lift]
-    // The rake moves vertices after the hollows are described, and no solid
-    // kind carries it: the print builds these three unraked.
+    // The rake moves vertices after the hollows are described, so the
+    // description carries it too.
     for (const part of [
       hollow(back, front, section0, section1, bore(0.02), bore(0.02), m.hull),
       hollow(front, front + 0.06, lip, lip, bore(0.02), bore(0.02), m.pale),
       hollow(back + 0.02, front + 0.065, bore(0), bore(0), bore(-0.03), bore(-0.03), m.dark),
-    ])
+    ]) {
       rake(part, k, top, back + 0.1)
+      const spec = solidOf(part.geometry)
+      if (spec?.kind === 'hollow')
+        part.geometry.userData = {
+          ...part.geometry.userData,
+          solid: { ...spec, rake: { k, y0: top, fromX: back + 0.1 } },
+        }
+    }
     section(
       [
         [back + 0.01, mouth[0], mouth[1], lift],

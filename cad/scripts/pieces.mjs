@@ -4,7 +4,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { SUBSYSTEM_CONFIGS, canInstallInSlot } from "@dangerous-inclinations/engine";
 
-const BELLS = 3;
+/** How many bells each hull hangs (`CORVETTE.bells[3]`, and the shrike's and mantis's clusters of five). */
+const BELLS = { corvette: 3, shrike: 5, mantis: 5 };
 const types = Object.keys(SUBSYSTEM_CONFIGS).filter(
   (t) => canInstallInSlot(t, "side") || canInstallInSlot(t, "forward")
 );
@@ -15,8 +16,9 @@ for (const t of types)
     `parts/modules/${t}.part.js`,
     `import { part } from "fluidcad/core";\nimport { buildModule } from "../../pieces/module.ts";\n\nexport const module = part("${t}", () => buildModule("${t}"));\n`
   );
-for (let i = 0; i < BELLS; i++)
-  writeFileSync(
-    `parts/bells/bell-${i}.part.js`,
-    `import { part } from "fluidcad/core";\nimport { buildBell } from "../../pieces/bells.ts";\n\nexport const bell = part("Bell ${i}", () => buildBell(${i}));\n`
-  );
+for (const [hull, n] of Object.entries(BELLS))
+  for (let i = 0; i < n; i++)
+    writeFileSync(
+      `parts/bells/${hull}-bell-${i}.part.js`,
+      `import { part } from "fluidcad/core";\nimport { buildBell } from "../../pieces/bells.ts";\n\nexport const bell = part("${hull} bell ${i}", () => buildBell("${hull}", ${i}));\n`
+    );

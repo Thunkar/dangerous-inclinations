@@ -30,6 +30,8 @@ const CORE_W = 0.75
 const CORE_H = 0.85
 const CORE_AFT = -3.8
 export const CORE_RAISE = 0.5
+/** The arms' undersides, where the ship stands on its keel. */
+const KEEL = -ARM_H
 
 export function buildMantis(body: Group, put: Put, m: MantisInk) {
   const section = (s: Station[], mat: Mat, pos?: Vec3, rot?: Vec3) =>
@@ -87,11 +89,27 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     slab([0.7, 0.3, 0.12], [-1.75, R + 0.05, s * 0.79], m.pale)
     // Chines canted over the core's edges above and below.
     slab([1.9, 0.13, 0.3], [-2.75, R + 0.72, s * 0.62], m.pale, [s * 0.68, 0, 0])
-    slab([1.9, 0.12, 0.28], [-2.75, R - 0.72, s * 0.62], m.pale, [-s * 0.65, 0, 0])
+    slab([1.9, 0.12, 0.28], [-2.75, R - 0.72, s * 0.62], m.pale, [-s * (Math.PI / 4), 0, 0])
     // Armour laid in steps down the flanks, and vents behind it.
     slab([1.5, 0.62, 0.08], [-2.85, R, s * 0.78], m.pale)
     slab([0.9, 0.36, 0.08], [-2.7, R + 0.04, s * 0.84], m.hull)
     for (let i = 0; i < 4; i++) box([0.05, 0.42, 0.03], [-3.75 + i * 0.1, R, s * 0.77], m.dark)
+  }
+  // A dark keel block under the core, down to the arms' undersides: the
+  // ship prints belly down, and the raised core would otherwise hang over
+  // the bed. It is as wide as the core's flat underside, so the core's own
+  // chamfers rise from its edges, and it carries the braces' undersides as
+  // bridges to the arms.
+  {
+    const bottom = R - CORE_H
+    const h = (bottom - KEEL + 0.05) / 2
+    section(
+      [
+        [CORE_AFT + 0.25, h, 0.49, KEEL + h],
+        [-1.75, h, 0.49, KEEL + h],
+      ],
+      m.dark
+    )
   }
   // The fixed scoop under the core's forward face.
   slab([0.8, 0.2, 0.6], [-2.0, R - 0.9, 0], m.steel)
@@ -180,7 +198,7 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     for (const t of [-1, 1]) {
       const edge = z + t * 0.37
       slab([4.9, 0.13, 0.28], [0.5, 0.66, edge], m.pale, [t * 0.68, 0, 0])
-      slab([4.9, 0.12, 0.24], [0.5, -0.66, edge], m.pale, [-t * 0.65, 0, 0])
+      slab([4.9, 0.12, 0.24], [0.5, -0.66, edge], m.pale, [-t * (Math.PI / 4), 0, 0])
     }
     // A rib standing proud between the flank mounts, where the loads come in.
     const face = z + s * (ARM_W + 0.04)

@@ -1,4 +1,4 @@
-// The corvette's bells, printed on their own, mouth down, and pushed into
+// A ship's bells, printed on their own, mouth down, and pushed into
 // their sockets in the thrust plate. Each is the yard's de Laval bell
 // (ui/src/ships/bell.ts) at the game's scale for its place, with the game's
 // own hat bands; the cooling tubes are finer than a nozzle and stay off. The
@@ -11,7 +11,8 @@ import { placedSolids, type PlacedSolid } from "../../ui/src/ships/solid.ts";
 import { FDM, PRINT } from "../spec.ts";
 import { placeSolid } from "../lib/kit.ts";
 import type { Solid } from "../lib/solids.ts";
-import { corvetteModel } from "./corvette.ts";
+import type { Hull } from "@dangerous-inclinations/engine";
+import { shipModel } from "./hull.ts";
 
 const S = PRINT.mmPerUnit;
 /** The printed bell's thinnest wall, mm. */
@@ -36,8 +37,8 @@ function printedProfile(scale: number): [number, number][] {
   return [...outer, ...thinned, [0, throat], [0, outer[0][1]]];
 }
 
-export function buildBell(index: number, dx = 0): void {
-  const model = corvetteModel();
+export function buildBell(hull: Hull, index: number, dx = 0): void {
+  const model = shipModel(hull);
   const bell: Object3D | undefined = model.root.getObjectByName(`drive_bell_${index}`);
   if (!bell) throw new Error(`No drive_bell_${index}`);
   model.root.updateMatrixWorld(true);
