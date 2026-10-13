@@ -4,6 +4,7 @@
  * share one section and read as one yard's work.
  */
 import { BufferGeometry, Float32BufferAttribute } from 'three'
+import { describe } from './solid'
 
 export type Station = [number, number, number] | [number, number, number, number]
 
@@ -52,7 +53,10 @@ export function armoredSection(sections: Station[]): BufferGeometry {
     tri([first[0], first[3] ?? 0, 0], rings[0][j], rings[0][i])
     tri([last[0], last[3] ?? 0, 0], rings.at(-1)![i], rings.at(-1)![j])
   }
-  return geometryOf(vertices)
+  return describe(geometryOf(vertices), {
+    kind: 'loft',
+    stations: sections.map(station => [...station]),
+  })
 }
 
 /**
@@ -84,5 +88,13 @@ export function hollowSection(
     tri(n[1][i], o[1][i], o[1][j])
     tri(n[1][i], o[1][j], n[1][j])
   }
-  return geometryOf(vertices)
+  return describe(geometryOf(vertices), {
+    kind: 'hollow',
+    x0,
+    x1,
+    outer0: [...outer0],
+    outer1: [...outer1],
+    inner0: [...inner0],
+    inner1: [...inner1],
+  })
 }

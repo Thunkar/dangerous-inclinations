@@ -2,7 +2,16 @@
 // screw, and the hull's recess and sealed magnet pocket.
 import { sketch, circle, extrude, subtract, fuse } from "fluidcad/core";
 import { MOUNT } from "../spec.ts";
-import { prism, disc, grow, move, block, section, type Point, type Solid } from "./solids.ts";
+import {
+  prism,
+  disc,
+  grow,
+  move,
+  block,
+  type Point,
+  type Solid,
+  type Vec,
+} from "./solids.ts";
 
 export type Mount = typeof MOUNT;
 
@@ -53,47 +62,44 @@ export function tenon(m: Mount = MOUNT, body = 5): Solid {
 }
 
 /**
- * The hull side of the mount, as the tools to subtract from the hull, in the
- * mount frame (the caller moves them onto the hull): the recess (z from 0
- * down to -recessDepth, with 1 mm of overshoot outward so it cuts cleanly
- * through the face) and the magnet pocket behind it, a disc on edge with a
- * slot reaching `rise` from its centre along y to the print's pause layer
- * (negative for a mount whose frame has its dorsal side down). The print
- * pauses where the slot ends, the magnet drops in, and the layers above seal
- * it.
+ * The hull side of the mount, in the mount frame (the caller moves it onto
+ * the hull): the recess, z from 0 down to -recessDepth, with 1 mm of
+ * overshoot outward so it cuts cleanly through the face.
  */
-export function socketTools(m: Mount = MOUNT, rise = 0): { recess: Solid; pocket: Solid } {
-  const recess = move(prism(footOutline(m), m.recessDepth + 1), 0, 0, -m.recessDepth);
+export function recessTool(m: Mount = MOUNT): Solid {
+  return move(prism(footOutline(m), m.recessDepth + 1), 0, 0, -m.recessDepth);
+}
+
+/**
+ * The magnet's pocket behind the recess floor, in the mount frame: a disc on
+ * edge with a slot reaching `rise` from its centre along y to the print's
+ * pause layer (negative for a mount whose frame has its dorsal side down).
+ * The print pauses where the slot ends, the magnet drops in, and the layers
+ * above seal it.
+ */
+export function pocketTool(m: Mount = MOUNT, rise = 0): Solid {
   const d = m.magnet.diameter + m.magnetClearance;
   const t = m.magnet.thickness + m.magnetClearance;
   const front = -m.recessDepth - m.skin;
   const round = move(disc(d, t), 0, 0, front - t);
-  const slot = block([-d / 2, Math.min(0, rise), front - t], [d / 2, Math.max(0, rise), front]);
-  return { recess, pocket: rise ? fuse(round, slot) : round };
+  if (!rise) return round;
+  return fuse(
+    round,
+    block([-d / 2, Math.min(0, rise), front - t], [d / 2, Math.max(0, rise), front])
+  );
 }
 
-/**
- * The plate a mount stands on: the foot's outline plus `wall` all round,
- * proud of the hull by the recess depth (the mount frame's z = 0 is its
- * face, so the recess floor is the hull's own surface) and reaching `depth`
- * into it. Its dorsal and ventral faces are bevelled at 45 degrees into the
- * hull, so whichever is underneath prints without support.
- */
-export function padSolid(m: Mount = MOUNT, wall = 1.6, depth = 4): Solid {
-  const x = m.halfLength + wall;
-  const y = m.halfHeight + wall;
-  return move(
-    section(
-      [
-        [-y, 0],
-        [-y - depth, -depth],
-        [y + depth, -depth],
-        [y, 0],
-      ],
-      2 * x
-    ),
-    -x,
-    0,
-    0
-  );
+/** The mount's box in its own frame, recess and pocket with its slot: [min, max]. */
+export function socketBounds(m: Mount = MOUNT, rise = 0): [Vec, Vec] {
+  const r = (m.magnet.diameter + m.magnetClearance) / 2;
+  const deep = m.recessDepth + m.skin + m.magnet.thickness + m.magnetClearance;
+  return [
+    [-m.halfLength, Math.min(-m.halfHeight, -r, rise), -deep],
+    [m.halfLength, Math.max(m.halfHeight, r, rise), 1],
+  ];
+}
+
+/** Both of the hull's tools for a mount. */
+export function socketTools(m: Mount = MOUNT, rise = 0): { recess: Solid; pocket: Solid } {
+  return { recess: recessTool(m), pocket: pocketTool(m, rise) };
 }

@@ -1,162 +1,230 @@
 // The corvette's hull, at 80 mm bow to bells, printed in one piece belly
-// down. Its massing comes from the game's own numbers
-// (ui/src/ships/corvetteShape.ts); what the print changes is said where it
-// is changed.
-//
-// The five mounts stand on raised plates (the flank between the chamfers is
-// lower than a foot), each recess floor on the hull's own surface and its 6x2
-// magnet sealed 0.7 behind it. All five magnets sit at mid-height, so one
-// pause seals every one: insert a pause before the layer named in the part.
-// The bells print separately (parts/bells.part.js) and plug into the thrust plate.
-import { subtract, fuse } from "fluidcad/core";
-import type { Axis, Solid, Vec } from "../lib/solids.ts";
+// down. It is the game's own ship: `createShip` builds it, every mesh is
+// rebuilt as a solid (lib/kit.ts) and the solids are fused. What the print
+// changes is only what printing needs, each said where it is done: parts
+// thinner than a nozzle can draw are thickened, the modules, the mount shoes
+// and the bells are left off (they print on their own), the bed is the keel,
+// the mounts are cut to the printed interface with their magnets sealed at
+// one pause, and the bells and the stand get sockets.
+import { subtract } from "fluidcad/core";
+import { Box3, Matrix4, Vector3, type Object3D } from "three";
+import { DEFAULT_SHIP_APPEARANCE } from "@dangerous-inclinations/engine";
+import { createShip, type ShipModel } from "../../ui/src/ships/model.ts";
+import { DEFAULT_CONFIG, MOUNTS as GAME_MOUNTS, type MountId } from "../../ui/src/ships/config.ts";
+import { placedSolids, type PlacedSolid } from "../../ui/src/ships/solid.ts";
 import { CORVETTE } from "../../ui/src/ships/corvetteShape.ts";
-import { MOUNT, STAND, FDM } from "../spec.ts";
-import { S, BED, at, armored, onBed } from "../lib/hull.ts";
-import { block, move, turn, disc } from "../lib/solids.ts";
-import { socketTools, padSolid } from "../lib/mount.ts";
+import { MOUNT, STAND, FDM, PRINT } from "../spec.ts";
+import { printFrame, placeSolid, placeBuilt, unite } from "../lib/kit.ts";
+import { block, type Solid, type Vec } from "../lib/solids.ts";
+import { recessTool, pocketTool, socketBounds, type Mount } from "../lib/mount.ts";
 
-const ENGINES = 3;
-const C = CORVETTE;
-const { keelY, keelWidth, tiles } = C.armor;
-const D = C.drive;
-const H = D.sternHeight[ENGINES] + D.blockAdds[0];
-const W = D.sternWidth[ENGINES] + D.blockAdds[1];
-const o = D.origin;
+const S = PRINT.mmPerUnit;
+/** The keel plating's underside, in hull units: the bed. */
+const BED = CORVETTE.armor.keelY - (0.05 + CORVETTE.armor.relief * 0.3);
+const FRAME = printFrame(BED);
 
-/** Mid-height, where every mount's magnet centre sits, and the pause above it. */
+export function corvetteModel(): ShipModel {
+  return createShip({
+    ...DEFAULT_CONFIG,
+    appearance: { ...DEFAULT_SHIP_APPEARANCE, hull: "corvette" },
+  });
+}
+
+/**
+ * What prints with the hull: not the modules (`module_<mount>_<type>`), the
+ * mount shoes, the bells and their gimbal struts (they run into where a
+ * printed bell plugs in), or the shipyard's mount highlights (a marker the
+ * yard lights when a mount is picked, not part of the ship).
+ */
+const onHull = (p: PlacedSolid) =>
+  p.material !== "highlight" &&
+  !p.path.some(
+    (n) =>
+      n.startsWith("module_") ||
+      n === "mount_shoe" ||
+      n.startsWith("drive_bell") ||
+      n === "bell_gimbal"
+  );
+
+/** An object's matrix relative to the ship's root. */
+function inShip(object: Object3D, root: Object3D): Matrix4 {
+  root.updateMatrixWorld(true);
+  return root.matrixWorld.clone().invert().multiply(object.matrixWorld);
+}
+
+/**
+ * How far out along its outboard axis each mount's face (the hull's skin) is
+ * from the game's mount frame, in hull units. At the bow the face is the
+ * game's own mount plate, which is wider and taller than the foot.
+ */
+const flank = CORVETTE.core[2][2] - CORVETTE.mounts.flank;
+const FACE: Record<MountId, number> = {
+  "forward-0": CORVETTE.core[CORVETTE.core.length - 1][0] - CORVETTE.mounts.bow,
+  "side-0": flank,
+  "side-1": flank,
+  "side-2": flank,
+  "side-3": flank,
+};
+
+/**
+ * The printed mount's frame (x forward, y dorsal, z outboard, z = 0 the face,
+ * in mm) as a matrix into the print. The game's mount frame is +X forward, +Y
+ * outboard, +Z dorsal; the printed one maps onto it by a rotation (its dorsal
+ * to the game's ventral, which the foot's symmetry allows).
+ */
+function mountFrame(model: ShipModel, id: MountId): Matrix4 {
+  const frame = model.mounts.get(id)!.frame;
+  const toGame = new Matrix4().makeBasis(
+    new Vector3(1, 0, 0),
+    new Vector3(0, 0, -1),
+    new Vector3(0, 1, 0)
+  );
+  return FRAME.clone()
+    .multiply(inShip(frame, model.root))
+    .multiply(new Matrix4().makeTranslation(0, FACE[id], 0))
+    .multiply(toGame)
+    .multiply(new Matrix4().makeScale(1 / S, 1 / S, 1 / S));
+}
+
+export interface CorvetteOptions {
+  /** Carry the keel on under the bow to its plate (the bow then prints without support). */
+  keelToBow: boolean;
+  mount?: Mount;
+}
+
+/** The pause: every magnet's centre is at mid-height, its slot ends on the layer line above. */
 const CENTRE = -BED * S;
 const PAUSE =
   Math.ceil((CENTRE + (MOUNT.magnet.diameter + MOUNT.magnetClearance) / 2) / FDM.layer) * FDM.layer;
 export const PAUSE_BEFORE = +(PAUSE + FDM.layer).toFixed(2);
-const RISE = PAUSE - CENTRE;
 
-/**
- * The mounts, as [x, y, z] of the plate's face in mm, the turn from the mount
- * frame (x forward, y dorsal, z outboard) to the print, and which way the
- * print's up runs in the mount frame.
- */
-const flank = C.core[2][2] * S + MOUNT.recessDepth;
-const bow = C.core[C.core.length - 1][0] * S;
-interface MountAt {
-  at: Vec;
-  turns: [Axis, number][];
-  up: 1 | -1;
+/** Something to cut, where it can reach in the print (mm). */
+interface Cut {
+  box: Box3;
+  make: () => Solid;
+  /** Would this cut take all of a piece in `box`? Then the piece is left out, not cut to nothing. */
+  swallows?: (box: Box3) => boolean;
 }
 
-const MOUNTS: MountAt[] = [
-  ...[C.mounts.fore, C.mounts.aft].flatMap((x): MountAt[] => [
-    // Port: outboard to -y, dorsal up.
-    { at: [x * S, -flank, CENTRE], turns: [["x", 90]], up: 1 },
-    // Starboard: the same module rolled over (it is symmetric dorsal to
-    // ventral), so its frame's dorsal side is down.
-    { at: [x * S, flank, CENTRE], turns: [["x", -90]], up: -1 },
-  ]),
-  // The bow: the foot's long axis across the beam, outboard forward.
-  {
-    at: [bow + MOUNT.recessDepth, 0, CENTRE],
-    turns: [
-      ["y", 90],
-      ["x", 90],
-    ],
-    up: 1,
-  },
-];
+const boxOf = ([lo, hi]: [Vec, Vec], m: Matrix4) =>
+  new Box3(new Vector3(...lo), new Vector3(...hi)).applyMatrix4(m);
 
-const place = (solid: Solid, mount: MountAt): Solid =>
-  move(
-    mount.turns.reduce((s, [axis, deg]) => turn(s, axis, deg), solid),
-    ...mount.at
-  );
+export function buildCorvette({ keelToBow, mount = MOUNT }: CorvetteOptions): void {
+  const model = corvetteModel();
 
-export interface CorvetteOptions {
-  keelToBow: boolean;
-  /** The mount, for trying other feet; the spec's by default. */
-  mount?: typeof MOUNT;
-  /** Stand the flank mounts on plates; without, the recess is sunk in the flank. */
-  flankPlates?: boolean;
-}
-
-export function buildCorvette({
-  keelToBow,
-  mount = MOUNT,
-  flankPlates = false,
-}: CorvetteOptions): void {
-  let hull: Solid = fuse(
-    armored(C.core),
-    // The afterbody: the drive block held aft, flaring into the core.
-    armored([[o + D.block[0], H, W], [o + D.block[1], H, W], ...C.afterbody.joins]),
-    // The shroud carries the block's section on aft of the thrust plate.
-    armored([
-      [o + D.shroud.aft, H, W],
-      [o + D.block[0] + 0.01, H, W],
-    ])
-  );
-
-  // The keel plating, one slab per tile as the game lays it (seams later),
-  // and carried aft to the drive block so the afterbody's flare does not
-  // hang over the bed. With `keelToBow` it runs on under the bow to the
-  // bow plate, which the bow needs to print without support.
-  const keelTop = (keelY - BED) * S + 0.01;
-  const half = (keelWidth / 2) * S;
-  const [lastX, lastLength] = tiles[tiles.length - 1];
-  const last = lastX + lastLength / 2;
-  const keelFrom = (o + D.block[1]) * S;
-  const keelTo = keelToBow ? bow : last * S;
-  hull = fuse(hull, block([keelFrom, -half, 0], [keelTo, half, keelTop]));
-  if (keelToBow) {
-    // Under the bow the core rises off the plating, so the keel stands up to
-    // meet it.
-    hull = fuse(hull, block([last * S - 1, -half * 0.75, 0], [keelTo, half * 0.75, CENTRE]));
-  }
-
-  // The mount plates, then their recesses and sealed magnet slots.
-  for (const m of MOUNTS) {
-    const onFlank = m.at[0] !== MOUNTS[MOUNTS.length - 1].at[0];
-    if (onFlank && !flankPlates) continue;
-    hull = fuse(hull, place(padSolid(mount), m));
-  }
-  for (const m of MOUNTS) {
-    const sunk = !flankPlates && m.at[0] !== MOUNTS[MOUNTS.length - 1].at[0];
-    const { recess, pocket } = socketTools(mount, m.up * RISE);
-    if (sunk) {
-      // No plate: the face is the flank itself, so the recess goes in by its depth.
-      const inward = {
-        ...m,
-        at: [m.at[0], m.at[1] - Math.sign(m.at[1]) * mount.recessDepth, m.at[2]] as Vec,
+  // The pieces: the game's hull, mesh by mesh, and what the print adds.
+  // `box` is where a piece is, `reach` where it may reach once grown and thickened.
+  const pieces: { box: Box3; reach: Box3; make: () => Solid | null }[] = placedSolids(model.root)
+    .filter(onHull)
+    .map((p) => {
+      const box = boxOf(p.bounds, FRAME);
+      return {
+        box,
+        reach: box.clone().expandByScalar(1),
+        make: () => placeSolid(p, FRAME, { min: FDM.minFeature, grow: FDM.join }),
       };
-      hull = subtract(hull, place(recess, inward));
-      hull = subtract(hull, place(pocket, inward));
-      continue;
-    }
-    hull = subtract(hull, place(recess, m));
-    hull = subtract(hull, place(pocket, m));
+    });
+  if (keelToBow) {
+    // Under the bow the core rises off the keel plating, so the keel stands
+    // up to meet it and runs on to the bow.
+    const { tiles, keelWidth } = CORVETTE.armor;
+    const [lastX, lastLength] = tiles[tiles.length - 1];
+    const half = (keelWidth / 2) * S * 0.75;
+    const bow = CORVETTE.core[CORVETTE.core.length - 1][0] * S;
+    const lo: Vec = [(lastX + lastLength / 2) * S - 1, -half, 0];
+    const hi: Vec = [bow, half, CENTRE];
+    const box = boxOf([lo, hi], new Matrix4());
+    pieces.push({ box, reach: box, make: () => block(lo, hi) });
   }
 
-  // The shroud's bay: open aft, back to the thrust plate.
-  const bay = armored([
-    [o + D.shroud.aft - 0.2, H - D.shroud.skin, W - D.shroud.skin],
-    [o + D.thrustPlate, H - D.shroud.skin, W - D.shroud.skin],
-  ]);
-  hull = subtract(hull, bay);
-
-  // A socket in the thrust plate for each bell's chamber, which reaches
-  // 0.09 + 0.12 x scale forward of the plate face.
-  const plate = (o + D.thrustPlate) * S;
-  for (const [y, z, scale] of C.bells[ENGINES]) {
-    const [, py, pz] = at([0, y, z]);
-    const r = 0.3 * scale * S + MOUNT.clearance;
-    const deep = (0.09 + 0.12 * scale) * S;
-    hull = subtract(hull, move(turn(disc(2 * r, deep + 0.5), "y", 90), plate - 0.5, py, pz));
+  // The cuts: each mount's recess and sealed magnet slot, a socket in the
+  // thrust plate for each bell, the stand's socket, and the bed (the drive
+  // block stands lower than the keel; the bed is the keel).
+  const cuts: Cut[] = [];
+  for (const { id } of GAME_MOUNTS) {
+    const m = mountFrame(model, id);
+    // The slot rises to the pause, whichever way the mount frame's y points in the print.
+    const up = Math.sign(new Vector3(0, 1, 0).transformDirection(m).z) || 1;
+    const rise = up * (PAUSE - new Vector3().setFromMatrixPosition(m).z);
+    const box = boxOf(socketBounds(mount, rise), m);
+    // A piece inside the recess's box, seen in the mount's own frame.
+    const local = m.clone().invert();
+    const recess = new Box3(
+      new Vector3(-mount.halfLength, -mount.halfHeight, -mount.recessDepth),
+      new Vector3(mount.halfLength, mount.halfHeight, 2)
+    );
+    cuts.push({
+      box,
+      make: () => placeBuilt(recessTool(mount), m),
+      swallows: (b) => recess.containsBox(b.clone().applyMatrix4(local)),
+    });
+    cuts.push({ box, make: () => placeBuilt(pocketTool(mount, rise), m) });
   }
-
-  // The stand's socket, up from the keel.
+  // The bell's chamber (radius 0.3 of a bell, from 0.12 ahead of where it
+  // hangs to 0.2 behind, through the plate's face 0.09 behind it at any
+  // scale), grown by the tenon's clearance.
+  model.root.traverse((o) => {
+    if (!/^drive_bell_\d+$/.test(o.name)) return;
+    const bell = inShip(o, model.root).multiply(new Matrix4().makeTranslation(0, 0.04, 0));
+    const scale = new Vector3().setFromMatrixScale(bell).x;
+    const r = 0.3 + MOUNT.clearance / (S * scale);
+    const placed: PlacedSolid = {
+      spec: { kind: "cylinder", top: r, bottom: r, height: 0.32, sides: 48, thetaStart: 0 },
+      matrix: bell.toArray(),
+      material: "",
+      path: [o.name, "socket"],
+      bounds: [
+        [-r, -0.16, -r],
+        [r, 0.16, r],
+      ],
+    };
+    cuts.push({
+      box: boxOf(placed.bounds, FRAME.clone().multiply(bell)),
+      make: () => placeSolid(placed, FRAME)!,
+    });
+  });
   const side = STAND.peg + 2 * STAND.clearance;
-  hull = subtract(
-    hull,
-    block([-0.4 * S - side / 2, -side / 2, -1], [-0.4 * S + side / 2, side / 2, STAND.depth])
-  );
+  const stand: [Vec, Vec] = [
+    [-0.4 * S - side / 2, -side / 2, -1],
+    [-0.4 * S + side / 2, side / 2, STAND.depth],
+  ];
+  cuts.push({ box: boxOf(stand, new Matrix4()), make: () => block(...stand) });
+  const below: [Vec, Vec] = [
+    [-200, -200, -50],
+    [200, 200, 0],
+  ];
+  cuts.push({
+    box: boxOf(below, new Matrix4()),
+    make: () => block(...below),
+    // `reach` is a piece grown by 1 mm: one that would leave at most 0.3 mm above the bed goes.
+    swallows: (b) => b.max.z <= 1.3,
+  });
 
-  // The drive block stands lower than the keel; the bed is the keel.
-  onBed(hull);
+  // Cut each piece where a cut reaches it, then fuse what is left: cutting
+  // the pieces is cutting their union, and a few small cuts finish where one
+  // cut through the whole hull does not.
+  const cutPieces = pieces
+    .filter((p) => !cuts.some((c) => c.swallows?.(p.reach)))
+    .map((p) => {
+      let s = p.make();
+      if (!s) return null;
+      for (const c of cuts) if (c.box.intersectsBox(p.reach)) s = subtract(s, c.make());
+      return { s, box: p.box };
+    })
+    .filter((p): p is { s: Solid; box: Box3 } => p !== null);
+  // The fuse is anchored on the biggest piece, the core.
+  const volume = (b: Box3) =>
+    b
+      .getSize(new Vector3())
+      .toArray()
+      .reduce((a, n) => a * n, 1);
+  const core = cutPieces.reduce(
+    (best, p, i) => (volume(p.box) > volume(cutPieces[best].box) ? i : best),
+    0
+  );
+  unite(
+    cutPieces.map((p) => p.s),
+    60,
+    core
+  );
 }

@@ -4,8 +4,10 @@
  * takes its paint and livery like everything else on it.
  */
 import {
+  BoxGeometry,
   BufferGeometry,
   CylinderGeometry,
+  ExtrudeGeometry,
   Float32BufferAttribute,
   Group,
   LatheGeometry,
@@ -15,9 +17,13 @@ import {
   TorusGeometry,
   Vector2,
   Vector3,
+  type ExtrudeGeometryOptions,
+  type Shape,
 } from 'three'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import type { Vec3 } from './config'
 import { BELL_PROFILE, BELL_WALL } from './bell'
+import { describe } from './solid'
 
 type Mat = MeshStandardMaterial
 export type Put = (
@@ -27,6 +33,60 @@ export type Put = (
   rot?: Vec3,
   parent?: Object3D
 ) => Mesh
+
+/** A box, described; with a `radius`, its edges rounded (`RoundedBoxGeometry`). */
+export function boxSolid(size: Vec3, radius?: number): BufferGeometry {
+  const geometry =
+    radius === undefined ? new BoxGeometry(...size) : new RoundedBoxGeometry(...size, 1, radius)
+  return describe(geometry, { kind: 'box', size: [...size] })
+}
+
+/** A `CylinderGeometry` of `sides` faces, described. */
+export function cylinderSolid(
+  top: number,
+  bottom: number,
+  height: number,
+  sides: number
+): CylinderGeometry {
+  return describe(new CylinderGeometry(top, bottom, height, sides), {
+    kind: 'cylinder',
+    top,
+    bottom,
+    height,
+    sides,
+    thetaStart: 0,
+  })
+}
+
+/** A `TorusGeometry`, described. */
+export function torusSolid(
+  radius: number,
+  tube: number,
+  radialSegments: number,
+  tubularSegments: number
+): TorusGeometry {
+  return describe(new TorusGeometry(radius, tube, radialSegments, tubularSegments), {
+    kind: 'torus',
+    radius,
+    tube,
+  })
+}
+
+/** An `ExtrudeGeometry`, described by the outline it extrudes (three's defaults filled in). */
+export function extrudeSolid(shape: Shape, options: ExtrudeGeometryOptions): ExtrudeGeometry {
+  const { shape: outline, holes } = shape.extractPoints(options.curveSegments ?? 12)
+  const thickness = options.bevelThickness ?? 0.2
+  return describe(new ExtrudeGeometry(shape, options), {
+    kind: 'extrude',
+    outline: outline.map(p => [p.x, p.y]),
+    holes: holes.map(hole => hole.map(p => [p.x, p.y])),
+    depth: options.depth ?? 1,
+    bevel:
+      (options.bevelEnabled ?? true)
+        ? { thickness, size: options.bevelSize ?? thickness - 0.1 }
+        : null,
+  })
+}
 
 function radiusAt(v: number) {
   for (let i = 1; i < BELL_PROFILE.length; i++)
@@ -56,18 +116,22 @@ export function delavalBells(
   const hang = plate + 0.09
   const jacket = coolingJacket(BELL_PROFILE, 28, 0.014)
   const ring = (r: number, tube: number, v: number, mat: Mat, bell: Object3D) =>
-    put(new TorusGeometry(r, tube, 6, 40), mat, [0, v, 0], [Math.PI / 2, 0, 0], bell)
+    put(torusSolid(r, tube, 6, 40), mat, [0, v, 0], [Math.PI / 2, 0, 0], bell)
   const pipe = (from: Vec3, to: Vec3, r: number) => {
     const a = new Vector3(...from)
     const b = new Vector3(...to)
     const mesh = put(
-      new CylinderGeometry(r, r, a.distanceTo(b), 10),
+      cylinderSolid(r, r, a.distanceTo(b), 10),
       ink.steel,
       a.clone().add(b).multiplyScalar(0.5).toArray() as Vec3,
       undefined,
       parent
     )
     mesh.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), b.sub(a).normalize())
+    // Named for the print, which leaves the struts off: they run into where
+    // a printed bell plugs in. Not `drive_bell_*`, which is how the board
+    // finds the nozzles.
+    mesh.name = 'bell_gimbal'
   }
   bells.forEach(([y, z, scale], i) => {
     const bell = new Group()
@@ -77,9 +141,12 @@ export function delavalBells(
     bell.rotation.z = Math.PI / 2 // the bell's +Y points aft
     parent.add(bell)
     put(
-      new LatheGeometry(
-        BELL_WALL.map(([u, v]) => new Vector2(u, v)),
-        40
+      describe(
+        new LatheGeometry(
+          BELL_WALL.map(([u, v]) => new Vector2(u, v)),
+          40
+        ),
+        { kind: 'lathe', profile: BELL_WALL.map(([u, v]): [number, number] => [u, v]) }
       ),
       ink.dark,
       undefined,
@@ -91,9 +158,16 @@ export function delavalBells(
     ring(0.48, 0.028, 1.22, ink.dark, bell)
     ring(0.32, 0.04, -0.08, ink.steel, bell)
     ring(0.2, 0.025, 0.31, ink.steel, bell)
-    put(new CylinderGeometry(0.14, 0.14, 0.01, 24), ink.cyan, [0, 0.3, 0], undefined, bell)
+    // The glow in the throat: a disc finer than any print.
     put(
-      new TorusGeometry(0.3 * scale + 0.07, 0.03, 6, 32),
+      describe(new CylinderGeometry(0.14, 0.14, 0.01, 24), { kind: 'detail' }),
+      ink.cyan,
+      [0, 0.3, 0],
+      undefined,
+      bell
+    )
+    put(
+      torusSolid(0.3 * scale + 0.07, 0.03, 6, 32),
       ink.dark,
       [plate, y, z],
       [0, Math.PI / 2, 0],
@@ -138,5 +212,6 @@ function coolingJacket(profile: [number, number][], tubes: number, depth: number
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3))
   geometry.setIndex(index)
   geometry.computeVertexNormals()
-  return geometry
+  // Tubes 0.014 deep on the bell's wall: drawn, not printed.
+  return describe(geometry, { kind: 'detail' })
 }

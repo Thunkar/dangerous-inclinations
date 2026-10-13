@@ -98,6 +98,11 @@ export const STAND = { peg: 6, depth: 8, clearance: 0.1 };
 export const FDM = {
   minWall: 1.2,
   minFeature: 0.6,
+  /**
+   * How much every part of a game's ship grows when printed, so the overlays
+   * the game keeps a hair (0.1 to 0.2 mm here) off their walls touch them.
+   */
+  join: 0.15,
   maxOverhangDegrees: 45,
   layer: 0.2,
 };

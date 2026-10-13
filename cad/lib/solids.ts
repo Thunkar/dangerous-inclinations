@@ -11,11 +11,27 @@ export type Point = [number, number];
 export type Vec = [number, number, number];
 export type Axis = "x" | "y" | "z";
 
+/**
+ * A closed polygon with no repeated points: drops each point within `tol`
+ * of the one before it, the last too if it closes back onto the first
+ * (three's outlines do), since a sketch refuses a zero-length side.
+ */
+export function distinct(points: Point[], tol = 1e-4): Point[] {
+  const same = (a: Point, b: Point) => Math.abs(a[0] - b[0]) < tol && Math.abs(a[1] - b[1]) < tol;
+  const out = points.filter((p, i) => i === 0 || !same(p, points[i - 1]));
+  while (out.length > 1 && same(out[0], out[out.length - 1])) out.pop();
+  return out;
+}
+
+/** Draw a closed polygon in the open sketch. */
+export function outline(points: Point[]): void {
+  const p = distinct(points);
+  p.forEach((q, i) => line(q, p[(i + 1) % p.length]));
+}
+
 /** A closed polygon on z = 0, pulled up by `height`, as a solid of its own. */
 export function prism(points: Point[], height: number): Solid {
-  sketch("xy", () => {
-    points.forEach((p, i) => line(p, points[(i + 1) % points.length]));
-  });
+  sketch("xy", () => outline(points));
   return extrude(height).new();
 }
 

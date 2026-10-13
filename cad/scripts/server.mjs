@@ -44,6 +44,7 @@ export async function withServer(entry, run) {
     }
     return await run(port);
   } finally {
+    process.off("exit", stop);
     stop();
     if (saved !== null) writeFileSync(STATE, saved);
   }

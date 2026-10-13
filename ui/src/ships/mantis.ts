@@ -8,20 +8,10 @@
  * dorsal, port is -Z; the mounts themselves are placed by `MANTIS_MOUNTS`
  * (hulls.ts).
  */
-import {
-  BoxGeometry,
-  CylinderGeometry,
-  ExtrudeGeometry,
-  Group,
-  MeshStandardMaterial,
-  Object3D,
-  Shape,
-  TorusGeometry,
-  Vector3,
-} from 'three'
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import { Group, Matrix4, MeshStandardMaterial, Object3D, Shape, Vector3 } from 'three'
 import { armoredSection, hollowSection, type Station } from './loft'
-import { delavalBells, type Put } from './parts'
+import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid, type Put } from './parts'
+import { bake } from './solid'
 import type { Vec3 } from './config'
 
 type Mat = MeshStandardMaterial
@@ -45,15 +35,9 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
   const section = (s: Station[], mat: Mat, pos?: Vec3, rot?: Vec3) =>
     put(armoredSection(s), mat, pos, rot)
   const slab = (size: Vec3, pos: Vec3, mat: Mat, rot?: Vec3, parent: Object3D = body) =>
-    put(
-      new RoundedBoxGeometry(...size, 1, Math.min(0.018, ...size.map(n => n / 3))),
-      mat,
-      pos,
-      rot,
-      parent
-    )
+    put(boxSolid(size, Math.min(0.018, ...size.map(n => n / 3))), mat, pos, rot, parent)
   const box = (size: Vec3, pos: Vec3, mat: Mat, rot?: Vec3, parent: Object3D = body) =>
-    put(new BoxGeometry(...size), mat, pos, rot, parent)
+    put(boxSolid(size), mat, pos, rot, parent)
   const cylinder = (
     r: number,
     h: number,
@@ -61,12 +45,12 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     mat: Mat,
     rot?: Vec3,
     parent: Object3D = body
-  ) => put(new CylinderGeometry(r, r, h, 16), mat, pos, rot, parent)
+  ) => put(cylinderSolid(r, r, h, 16), mat, pos, rot, parent)
   const pipe = (from: Vec3, to: Vec3, r: number, mat: Mat, parent: Object3D = body) => {
     const a = new Vector3(...from)
     const b = new Vector3(...to)
     const mesh = put(
-      new CylinderGeometry(r, r, a.distanceTo(b), 10),
+      cylinderSolid(r, r, a.distanceTo(b), 10),
       mat,
       a.clone().add(b).multiplyScalar(0.5).toArray() as Vec3,
       undefined,
@@ -80,8 +64,8 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     shape.moveTo(...points[0])
     for (const point of points.slice(1)) shape.lineTo(...point)
     shape.closePath()
-    const geo = new ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false })
-    geo.translate(0, 0, -thickness / 2)
+    const geo = extrudeSolid(shape, { depth: thickness, bevelEnabled: false })
+    bake(geo, new Matrix4().makeTranslation(0, 0, -thickness / 2))
     return put(geo, mat, [0, 0, z], rot)
   }
 
@@ -383,7 +367,7 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     const roof = H + 0.02
     for (const z of [-0.42, 0.42]) {
       put(
-        new CylinderGeometry(0.12, 0.12, 0.36, 20),
+        cylinderSolid(0.12, 0.12, 0.36, 20),
         m.dark,
         [aft + 0.28, roof + 0.13, z],
         [0, 0, Math.PI / 2],
@@ -391,7 +375,7 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
       )
       for (const dx of [-0.12, 0.12])
         put(
-          new TorusGeometry(0.125, 0.022, 6, 24),
+          torusSolid(0.125, 0.022, 6, 24),
           m.steel,
           [aft + 0.28 + dx, roof + 0.13, z],
           [0, Math.PI / 2, 0],

@@ -5,18 +5,15 @@
  * These intersecting display meshes are NOT manufacturing solids.
  */
 import {
-  BoxGeometry,
   BufferGeometry,
   Color,
   CylinderGeometry,
-  ExtrudeGeometry,
   Group,
   Matrix4,
   Mesh,
   MeshStandardMaterial,
   Path,
   Shape,
-  TorusGeometry,
   Vector3,
   Vector4,
 } from 'three'
@@ -25,13 +22,13 @@ import { MOUNTS, mountTransform, type MountId, type Vec3, type ShipConfig } from
 import { HULL_INK } from './palette'
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { visibleSlots, type VisibleSlots } from './visual'
 import { armoredSection } from './loft'
 import { HULL_INFO } from './hulls'
 import { buildShrike } from './shrike'
 import { buildMantis } from './mantis'
-import { delavalBells } from './parts'
+import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid } from './parts'
+import { bake, describe } from './solid'
 import { CORVETTE } from './corvetteShape'
 import { MODULE_BUILDS, type ModuleKit } from './modules'
 
@@ -129,8 +126,10 @@ export function createShip(
   const materials = new Set<Material>()
   const boardDetail = options.detail === 'board'
   const resin = config.finish === 'resin'
-  function material(color: string, metalness = 0.35, emissive = 0): Material {
+  /** `name` is the paint the print takes (`solid.ts`). */
+  function material(name: string, color: string, metalness = 0.35, emissive = 0): Material {
     const m = new MeshStandardMaterial({
+      name,
       color: resin ? '#a1aaa4' : color,
       roughness: resin ? 0.85 : 0.52,
       metalness: resin ? 0 : metalness,
@@ -178,19 +177,20 @@ export function createShip(
     }
     m.customProgramCacheKey = () => 'livery'
   }
-  const hull = material(config.paint)
+  const hull = material('hull', config.paint)
   takesLivery(hull)
   const pale = material(
+    'pale',
     config.appearance?.secondaryPaint ??
       new Color(config.paint).lerp(new Color('#ffffff'), 0.2).getStyle()
   )
-  const dark = material(HULL_INK.dark, 0.65)
-  const steel = material(HULL_INK.steel, 0.75)
-  const rubber = material(HULL_INK.rubber, 0.1)
-  const copper = material(HULL_INK.copper, 0.72)
-  const cyan = material(HULL_INK.cyan, 0.3, 0.7)
-  const engineGlow = material(HULL_INK.glow, 0.2, 3.2)
-  const red = material(HULL_INK.warn, 0.1, 1)
+  const dark = material('dark', HULL_INK.dark, 0.65)
+  const steel = material('steel', HULL_INK.steel, 0.75)
+  const rubber = material('rubber', HULL_INK.rubber, 0.1)
+  const copper = material('copper', HULL_INK.copper, 0.72)
+  const cyan = material('cyan', HULL_INK.cyan, 0.3, 0.7)
+  const engineGlow = material('glow', HULL_INK.glow, 0.2, 3.2)
+  const red = material('red', HULL_INK.warn, 0.1, 1)
 
   const add = (
     parent: Group,
@@ -210,7 +210,7 @@ export function createShip(
     return mesh
   }
   const box = (p: Group, size: Vec3, pos: Vec3, mat = hull, rot: Vec3 = [0, 0, 0]) =>
-    add(p, new BoxGeometry(...size), mat, pos, rot)
+    add(p, boxSolid(size), mat, pos, rot)
   const plate = (p: Group, size: Vec3, pos: Vec3, mat = hull, rot: Vec3 = [0, 0, 0]) => {
     const [w, h, d] = size
     const c = Math.min(w, d) * 0.17
@@ -225,7 +225,7 @@ export function createShip(
     shape.lineTo(-w / 2, -d / 2 + c)
     shape.closePath()
     const bevel = Math.min(w / 4, h / 4, d / 4, 0.035)
-    const geo = new ExtrudeGeometry(shape, {
+    const geo = extrudeSolid(shape, {
       depth: h - 2 * bevel,
       bevelEnabled: true,
       bevelThickness: bevel,
@@ -233,8 +233,8 @@ export function createShip(
       bevelSegments: 1,
       steps: 1,
     })
-    geo.rotateX(-Math.PI / 2)
-    geo.translate(0, -h / 2 + bevel, 0)
+    bake(geo, new Matrix4().makeRotationX(-Math.PI / 2))
+    bake(geo, new Matrix4().makeTranslation(0, -h / 2 + bevel, 0))
     return add(p, geo, mat, pos, rot)
   }
   const slab = (
@@ -245,7 +245,7 @@ export function createShip(
     parent: Group = body
   ) => {
     const radius = Math.min(0.018, ...size.map(n => n / 3))
-    return add(parent, new RoundedBoxGeometry(...size, 1, radius), mat, pos, rot)
+    return add(parent, boxSolid(size, radius), mat, pos, rot)
   }
   const cylinder = (
     p: Group,
@@ -257,13 +257,7 @@ export function createShip(
     rot: Vec3 = [0, 0, 0],
     segments = 12
   ) =>
-    add(
-      p,
-      new CylinderGeometry(r1, r2, h, boardDetail ? Math.min(segments, 8) : segments),
-      mat,
-      pos,
-      rot
-    )
+    add(p, cylinderSolid(r1, r2, h, boardDetail ? Math.min(segments, 8) : segments), mat, pos, rot)
   const ring = (
     p: Group,
     radius: number,
@@ -271,14 +265,7 @@ export function createShip(
     pos: Vec3,
     mat = steel,
     rot: Vec3 = [Math.PI / 2, 0, 0]
-  ) =>
-    add(
-      p,
-      new TorusGeometry(radius, tube, boardDetail ? 4 : 5, boardDetail ? 12 : 24),
-      mat,
-      pos,
-      rot
-    )
+  ) => add(p, torusSolid(radius, tube, boardDetail ? 4 : 5, boardDetail ? 12 : 24), mat, pos, rot)
   const pipe = (p: Group, from: Vec3, to: Vec3, radius: number, mat = steel) => {
     const a = new Vector3(...from),
       b = new Vector3(...to)
@@ -325,7 +312,7 @@ export function createShip(
       polygon(cut, hole + bevel)
       shape.holes.push(cut)
     }
-    const geo = new ExtrudeGeometry(shape, {
+    const geo = extrudeSolid(shape, {
       depth: h - 2 * bevel,
       bevelEnabled: true,
       bevelThickness: bevel,
@@ -333,8 +320,8 @@ export function createShip(
       bevelSegments: 1,
       steps: 1,
     })
-    geo.rotateX(-Math.PI / 2)
-    geo.translate(0, -h / 2 + bevel, 0)
+    bake(geo, new Matrix4().makeRotationX(-Math.PI / 2))
+    bake(geo, new Matrix4().makeTranslation(0, -h / 2 + bevel, 0))
     return add(p, geo, mat, pos, rot)
   }
   /** A flat-shaded tapered polygon along Y: a pyramid when the top radius is 0. */
@@ -348,18 +335,12 @@ export function createShip(
     mat = steel,
     rot: Vec3 = [0, 0, 0]
   ) => {
-    const smooth = new CylinderGeometry(
-      top,
-      bottom,
-      h,
-      sides,
-      1,
-      false,
-      Math.PI / 2 + Math.PI / sides
-    )
+    const thetaStart = Math.PI / 2 + Math.PI / sides
+    const smooth = new CylinderGeometry(top, bottom, h, sides, 1, false, thetaStart)
     const geo = smooth.toNonIndexed()
     smooth.dispose()
     geo.computeVertexNormals()
+    describe(geo, { kind: 'cylinder', top, bottom, height: h, sides, thetaStart })
     return add(p, geo, mat, pos, rot)
   }
   /** A flat plate cut to a profile in the XY plane, `thickness` deep across Z. */
@@ -374,8 +355,8 @@ export function createShip(
     shape.moveTo(...points[0])
     for (const point of points.slice(1)) shape.lineTo(...point)
     shape.closePath()
-    const geo = new ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false })
-    geo.translate(0, 0, -thickness / 2)
+    const geo = extrudeSolid(shape, { depth: thickness, bevelEnabled: false })
+    bake(geo, new Matrix4().makeTranslation(0, 0, -thickness / 2))
     return add(p, geo, mat, [0, 0, 0], rot)
   }
 
@@ -484,7 +465,7 @@ export function createShip(
     // The dorsal hardback: a stepped armoured block over the crew spaces, the
     // way a working hull puts its pressure volume under the heaviest plate, with
     // the dorsal airlock on its top step. Nothing up here is ornament: trays for
-    // the cable runs, and a grab rail for whoever is out on the hull.
+    // the cable runs, and grip strips for whoever is out on the hull.
     const hardback = deckTop + 0.2
     plate(body, [2.3, 0.2, 1.06], [-1.28, deckTop + 0.1, 0], pale)
     plate(body, [1.25, 0.14, 0.72], [-1.62, hardback + 0.07, 0], hull)
@@ -498,22 +479,6 @@ export function createShip(
     for (const side of [-1, 1]) {
       // Cable trays from the hardback to the citadel.
       plate(body, [1.35, 0.05, 0.12], [0.55, deckTop + 0.025, side * 0.2], dark)
-      // The forward frame carried over the deck as a hoop, standing clear of
-      // the cable trays that run under it.
-      box(body, [0.2, 0.14, 0.07], [0.47, deckTop + 0.07, side * 0.8], steel)
-    }
-    box(body, [0.2, 0.07, 1.67], [0.47, deckTop + 0.175, 0], steel)
-    for (const side of [-1, 1]) {
-      // A grab rail on stand-offs down each deck edge.
-      pipe(
-        body,
-        [-2.45, deckTop + 0.07, side * 0.72],
-        [1.2, deckTop + 0.07, side * 0.72],
-        0.018,
-        steel
-      )
-      for (let x = -2.4; x <= 1.2; x += 0.45)
-        box(body, [0.03, 0.07, 0.03], [x, deckTop + 0.035, side * 0.72], steel)
       for (let i = 0; i < 6; i++)
         box(body, [0.055, 0.035, 0.3], [0.05 + i * 0.13, deckTop, side * 0.52], rubber)
     }
@@ -780,22 +745,25 @@ export function createShip(
       hole.absarc(x, 0, magnetRadius, 0, Math.PI * 2, true)
       shape.holes.push(hole)
     }
-    const geo = new ExtrudeGeometry(shape, { depth: 0.12, bevelEnabled: false, curveSegments: 20 })
-    geo.rotateX(-Math.PI / 2)
-    add(p, geo, mat, [0, y, 0])
+    const geo = extrudeSolid(shape, { depth: 0.12, bevelEnabled: false, curveSegments: 20 })
+    bake(geo, new Matrix4().makeRotationX(-Math.PI / 2))
+    const meshes = [add(p, geo, mat, [0, y, 0])]
     for (const x of [-magnetSpacing, magnetSpacing]) {
-      cylinder(
-        p,
-        magnetRadius * 0.96,
-        magnetRadius * 0.96,
-        0.06,
-        [x, y + (recessed ? 0.045 : 0.06), 0],
-        steel
+      meshes.push(
+        cylinder(
+          p,
+          magnetRadius * 0.96,
+          magnetRadius * 0.96,
+          0.06,
+          [x, y + (recessed ? 0.045 : 0.06), 0],
+          steel
+        )
       )
-      if (!resin) box(p, [magnetRadius * 0.6, 0.008, 0.025], [x, y + 0.078, 0], dark)
+      if (!resin) meshes.push(box(p, [magnetRadius * 0.6, 0.008, 0.025], [x, y + 0.078, 0], dark))
     }
     // Key at one end prevents a 180-degree reversed module.
-    box(p, [0.27, 0.09, 0.1], [0, y + 0.12, -0.55], dark)
+    meshes.push(box(p, [0.27, 0.09, 0.1], [0, y + 0.12, -0.55], dark))
+    for (const mesh of meshes) mesh.name = 'mount_shoe'
   }
 
   const kit: ModuleKit = {
@@ -1230,7 +1198,7 @@ export function createShip(
     shoe(frame, 0, steel, true)
     const forward = mount.group === 'forward'
     armoredCradle(frame, forward)
-    const highlight = material(HULL_INK.steel, 0.4)
+    const highlight = material('highlight', HULL_INK.steel, 0.4)
     for (const x of [-0.67, 0.67])
       for (const z of [-1, 1]) {
         box(

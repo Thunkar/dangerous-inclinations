@@ -376,21 +376,45 @@ shrinks to hide that (`.di-card > *` never shrinks, so overflow shows).
 `.part.js` files, mm, Z up = the print's up, every part drawn in its print pose).
 Each player has an 80mm display ship on a base; the board carries small
 tokens. `cad/spec.ts` holds every size the pieces must agree on (the mount,
-the magnets, the cubes, the scale) as pure data, so the game's renderer can
-read it too; capacities come from the engine (`SUBSYSTEM_CONFIGS`,
-`MAX_HEAT`). `cad/lib/` (TypeScript) builds tools on the XY plane and moves them
-(`prism`, `section`, `vee`, `move`, `turn`); each piece's geometry is a
-TypeScript module in `cad/pieces/`, and a `.part.js` (the only extension
-FluidCAD's viewer opens) is a few lines that call it. `yarn workspace
-@dangerous-inclinations/cad typecheck` checks it all. The corvette's numbers
-are `ui/src/ships/corvetteShape.ts`, which the game's model reads too.
-FluidCAD fuses touching solids inside a `part()` on its own, and a solid
-fused that way cannot be fused again, so every solid is built `.new()`,
-joined by explicit `fuse`/`subtract`, and each printable is its own part. Check a part by `--list-shapes` (one solid each),
-`scripts/slice.mjs` (a section's numbers), `scripts/overhang.mjs` (what
-would need support) and `yarn shot`. `fluidcad export`
-exports whatever tab a running server shows, so `export` and `shot` start a
-server of their own (`scripts/server.mjs`) and put the viewer's open tabs back.
+the magnets, the cubes, the scale, the FDM limits) as pure data; capacities
+come from the engine (`SUBSYSTEM_CONFIGS`, `MAX_HEAT`). Each piece's geometry
+is a TypeScript module in `cad/pieces/`, and a `.part.js` (the only extension
+FluidCAD's viewer opens) is a few lines that call it; `yarn workspace
+@dangerous-inclinations/cad typecheck` checks it all.
+
+**The printed ships are the game's ships.** Every geometry the yard
+(`ui/src/ships/`) creates carries a description of the solid it is
+(`ui/src/ships/solid.ts`: box, cylinder, torus, extrude, loft, hollow, lathe,
+or `detail` for what no nozzle can draw), recorded with `describe` and `bake`
+and checked for every hull and module by `solid.test.ts`; rendering ignores
+it. `placedSolids(root)` walks a built ship into described meshes with their
+matrices and bounds, and `cad/lib/kit.ts` rebuilds each as a FluidCAD solid in
+the print's frame (a rotation of the game's, never an axis swap, which would
+print the mirror image). So `pieces/corvette.ts` calls `createShip` and prints
+what it draws, with only what printing needs added: every part grown by
+`FDM.join` (the game keeps overlays a hair off their walls) and thickened to
+`FDM.minFeature`; modules, mount shoes, bells, gimbal struts and the yard's
+mount highlights left off; the mount recesses and pause-sealed magnet slots
+cut at the game's own mount frames; sockets for the bells and the stand; the
+bed at the keel. Modules (`pieces/module.ts`) and bells (`pieces/bells.ts`)
+print on their own the same way. A change to a ship in the yard is a change
+to its print. `corvetteShape.ts` and `bell.ts` are the numbers both read.
+
+FluidCAD's booleans have three traps, all handled in `cad/lib/`: a solid
+must be built `.new()` (features, mirrors included, otherwise fuse into
+whatever they touch and leave the operand consumed); a fuse of solids that do
+not touch yields nothing, so a later operation on it fails; and one cut or
+fuse across the whole hull can crash its kernel or run for ever. So the hull
+is built cut-then-fuse: each mesh's solid takes only the cuts whose box
+reaches it (a piece a cut would swallow is left out), then `unite` fuses
+everything in chunks that each carry a copy of the core. Check a part with
+`scripts/errors.mjs` (feature errors, which the export CLI does not print),
+`--list-shapes`, `scripts/islands.mjs` (separate bodies; a sealed magnet
+pocket shows as one), `scripts/slice.mjs`, `scripts/overhang.mjs` and
+`yarn shot`. `fluidcad export` exports whatever tab a running server shows,
+so `export` and `shot` start a server of their own (`scripts/server.mjs`)
+and put the viewer's open tabs back. A hung build leaves its server running:
+`pkill -f "[f]luidcad/server/dist/index.js"`.
 
 The designer's constraints: 6x2 magnets are **sealed in plastic**,
 never exposed (small children); each module

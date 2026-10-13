@@ -6,21 +6,18 @@
  * themselves are placed by `SHRIKE_MOUNTS` (hulls.ts).
  */
 import {
-  BoxGeometry,
   BufferGeometry,
-  CylinderGeometry,
-  ExtrudeGeometry,
   Group,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   Object3D,
   Shape,
-  TorusGeometry,
   Vector3,
 } from 'three'
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { armoredSection, hollowSection, type Station } from './loft'
-import { delavalBells, type Put } from './parts'
+import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid, type Put } from './parts'
+import { bake } from './solid'
 import type { Vec3 } from './config'
 
 type Mat = MeshStandardMaterial
@@ -29,20 +26,14 @@ export type ShrikeInk = Record<'hull' | 'pale' | 'dark' | 'steel' | 'copper' | '
 export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
   const section = (s: Station[], mat: Mat, pos?: Vec3) => put(armoredSection(s), mat, pos)
   const slab = (size: Vec3, pos: Vec3, mat: Mat, rot?: Vec3, parent: Object3D = body) =>
-    put(
-      new RoundedBoxGeometry(...size, 1, Math.min(0.018, ...size.map(n => n / 3))),
-      mat,
-      pos,
-      rot,
-      parent
-    )
+    put(boxSolid(size, Math.min(0.018, ...size.map(n => n / 3))), mat, pos, rot, parent)
   const box = (size: Vec3, pos: Vec3, mat: Mat, rot?: Vec3, parent: Object3D = body) =>
-    put(new BoxGeometry(...size), mat, pos, rot, parent)
+    put(boxSolid(size), mat, pos, rot, parent)
   const pipe = (from: Vec3, to: Vec3, r: number, mat: Mat, parent: Object3D = body) => {
     const a = new Vector3(...from)
     const b = new Vector3(...to)
     const mesh = put(
-      new CylinderGeometry(r, r, a.distanceTo(b), 10),
+      cylinderSolid(r, r, a.distanceTo(b), 10),
       mat,
       a.clone().add(b).multiplyScalar(0.5).toArray() as Vec3,
       undefined,
@@ -57,8 +48,8 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
     shape.moveTo(...points[0])
     for (const point of points.slice(1)) shape.lineTo(...point)
     shape.closePath()
-    const geo = new ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false })
-    geo.translate(0, lift, z - thickness / 2)
+    const geo = extrudeSolid(shape, { depth: thickness, bevelEnabled: false })
+    bake(geo, new Matrix4().makeTranslation(0, lift, z - thickness / 2))
     return put(geo, mat)
   }
   const hollow = (
@@ -155,6 +146,8 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
       lift,
     ]
     const lip: [number, number, number] = [half + 0.03, 0.73, lift]
+    // The rake moves vertices after the hollows are described, and no solid
+    // kind carries it: the print builds these three unraked.
     for (const part of [
       hollow(back, front, section0, section1, bore(0.02), bore(0.02), m.hull),
       hollow(front, front + 0.06, lip, lip, bore(0.02), bore(0.02), m.pale),
@@ -385,7 +378,7 @@ function stern(
     box([0.02, 0.03, (W - skin) * 2 - 0.1], [-1.19, y, 0], m.dark, undefined, g)
   for (const z of [-0.6, 0.6]) box([0.02, 0.9, 0.03], [-1.19, 0, z], m.dark, undefined, g)
   const bolt = (y: number, z: number) =>
-    at(new CylinderGeometry(0.035, 0.035, 0.03, 6), m.dark, [-1.195, y, z], [0, 0, Math.PI / 2])
+    at(cylinderSolid(0.035, 0.035, 0.03, 6), m.dark, [-1.195, y, z], [0, 0, Math.PI / 2])
   for (let i = -4; i <= 4; i++)
     for (const s of [-1, 1]) bolt(s * (H - skin - 0.09), (i * (W - skin - 0.1)) / 4.4)
   for (let i = -7; i <= 7; i++)
@@ -394,14 +387,9 @@ function stern(
   // conduit carried aft along the shroud below it.
   for (const s of [-1, 1]) {
     const zc = s * (W + 0.2)
-    at(new CylinderGeometry(0.16, 0.16, 0.5, 20), m.dark, [-1.32, 0.95, zc], [0, 0, Math.PI / 2])
+    at(cylinderSolid(0.16, 0.16, 0.5, 20), m.dark, [-1.32, 0.95, zc], [0, 0, Math.PI / 2])
     for (const dx of [-0.17, 0.17])
-      at(
-        new TorusGeometry(0.165, 0.028, 6, 24),
-        m.steel,
-        [-1.32 + dx, 0.95, zc],
-        [0, Math.PI / 2, 0]
-      )
+      at(torusSolid(0.165, 0.028, 6, 24), m.steel, [-1.32 + dx, 0.95, zc], [0, Math.PI / 2, 0])
     box([0.3, 0.28, 0.08], [-1.32, 0.95, s * (W + 0.04)], m.steel, undefined, g)
     pipe([-1.07, 0.95, zc], [-0.98, 0.95, zc], 0.05, m.copper, g)
     pipe([-0.98, 0.95, zc], [-0.98, 0.95, s * (W + 0.01)], 0.05, m.copper, g)
