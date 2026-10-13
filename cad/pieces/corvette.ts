@@ -87,8 +87,6 @@ function mountFrame(model: ShipModel, id: MountId): Matrix4 {
 }
 
 export interface CorvetteOptions {
-  /** Carry the keel on under the bow to its plate (the bow then prints without support). */
-  keelToBow: boolean;
   mount?: Mount;
 }
 
@@ -109,7 +107,7 @@ interface Cut {
 const boxOf = ([lo, hi]: [Vec, Vec], m: Matrix4) =>
   new Box3(new Vector3(...lo), new Vector3(...hi)).applyMatrix4(m);
 
-export function buildCorvette({ keelToBow, mount = MOUNT }: CorvetteOptions): void {
+export function buildCorvette({ mount = MOUNT }: CorvetteOptions = {}): void {
   const model = corvetteModel();
 
   // The pieces: the game's hull, mesh by mesh, and what the print adds.
@@ -124,18 +122,6 @@ export function buildCorvette({ keelToBow, mount = MOUNT }: CorvetteOptions): vo
         make: () => placeSolid(p, FRAME, { min: FDM.minFeature, grow: FDM.join }),
       };
     });
-  if (keelToBow) {
-    // Under the bow the core rises off the keel plating, so the keel stands
-    // up to meet it and runs on to the bow.
-    const { tiles, keelWidth } = CORVETTE.armor;
-    const [lastX, lastLength] = tiles[tiles.length - 1];
-    const half = (keelWidth / 2) * S * 0.75;
-    const bow = CORVETTE.core[CORVETTE.core.length - 1][0] * S;
-    const lo: Vec = [(lastX + lastLength / 2) * S - 1, -half, 0];
-    const hi: Vec = [bow, half, CENTRE];
-    const box = boxOf([lo, hi], new Matrix4());
-    pieces.push({ box, reach: box, make: () => block(lo, hi) });
-  }
 
   // The cuts: each mount's recess and sealed magnet slot, a socket in the
   // thrust plate for each bell, the stand's socket, and the bed (the drive

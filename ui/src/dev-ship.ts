@@ -1,6 +1,6 @@
 /**
  * One ship from the yard, with no server and no React: `dev-ship.html?hull=
- * corvette&view=iso` (views: iso, side, top, front, rear). The reference the
+ * corvette&view=iso` (views: iso, side, top, front, rear, bottom, below). The reference the
  * printed pieces in `cad/` are drawn against. `module=<subsystem>` fits it
  * in every mount that takes it, and `focus=<mount>` (side-0, forward-0, ...)
  * frames that mount close up instead of the whole ship.
@@ -61,6 +61,8 @@ const directions: Record<string, Vector3> = {
   top: new Vector3(0, 1, 0.0001),
   front: new Vector3(1, 0, 0),
   rear: new Vector3(-1, 0.25, 0.4),
+  bottom: new Vector3(0.0001, -1, 0),
+  below: new Vector3(1, -0.8, 1.2),
 }
 // A focused mount is seen from outboard (its frame's +Y), turned by the view.
 if (frame) {

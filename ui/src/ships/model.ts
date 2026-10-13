@@ -416,8 +416,30 @@ export function createShip(
           hull
         )
         slab([length, chine, 0.5], [x, 0.61, side * 0.98], pale, [side * 0.68, 0, 0])
-        slab([length, chine * 0.85, 0.42], [x, -0.62, side * 0.98], pale, [-side * 0.65, 0, 0])
+        // The ventral chine lies at the chamfer's own 45 degrees, so the hull
+        // has no shelf underneath when it stands on its keel.
+        slab([length, chine * 0.85, 0.42], [x, -0.62, side * 0.98], pale, [
+          -side * (Math.PI / 4),
+          0,
+          0,
+        ])
       }
+    }
+    // The keel runs on aft under the afterbody to the drive block, so the
+    // whole ship sits on one flat plane of plating.
+    {
+      const keelWidth = (CORVETTE.armor.keelWidth - plateSeam * 3) / 2
+      const [x0, l0] = CORVETTE.armor.tiles[0]
+      const fore = x0 - l0 / 2 - plateSeam
+      const aft =
+        (CORVETTE.drive.origin * config.length + CORVETTE.drive.block[1] * config.engineSize) /
+        config.length
+      for (const side of [-1, 1])
+        slab(
+          [fore - aft, keel, keelWidth],
+          [(fore + aft) / 2, CORVETTE.armor.keelY - keel / 2, (side * (keelWidth + plateSeam)) / 2],
+          hull
+        )
     }
     // Command citadel: a recessed slit, armored eyebrow, and forward cheek plates.
     add(body, armoredSection(CORVETTE.citadel.stations.map(station => [...station])), pale, [
@@ -1119,7 +1141,13 @@ export function createShip(
     }
   }
 
-  const armoredCradle = (frame: Group, forward: boolean) => {
+  /**
+   * `keel` is where the hull's keel plane lies in the mount frame's Z (the
+   * frame's dorsal axis), for a hull that stands on its keel: the ventral
+   * shoulder then reaches down to it, so the hull has a flat bottom and no
+   * shelf under its bays.
+   */
+  const armoredCradle = (frame: Group, forward: boolean, keel?: number) => {
     const cradle = new Group()
     cradle.name = forward ? 'armored_bow_collar' : 'armored_equipment_bay'
     frame.add(cradle)
@@ -1129,27 +1157,42 @@ export function createShip(
       // A tapered upper/lower collar flows out of the existing bow armor.
       // Its open end protects the breech without bridging across the rails.
       for (const z of [-0.8, 0.8]) {
+        // Down to the keel, the ventral collar keeps its full depth along.
+        const top = z - 0.13
+        const deep = z < 0 && keel !== undefined
+        const w = (top - (keel ?? 0)) / 2
         add(
           cradle,
-          armoredSection([
-            [-0.64, 0.8, 0.12],
-            [-0.2, 0.98, 0.13],
-            [0.32, 0.98, 0.1],
-            [0.73, 0.77, 0.075],
-          ]),
+          armoredSection(
+            deep
+              ? [
+                  [-0.64, 0.8, w],
+                  [-0.2, 0.98, w],
+                  [0.32, 0.98, w],
+                  [0.73, 0.77, w],
+                ]
+              : [
+                  [-0.64, 0.8, 0.12],
+                  [-0.2, 0.98, 0.13],
+                  [0.32, 0.98, 0.1],
+                  [0.73, 0.77, 0.075],
+                ]
+          ),
           pale,
-          [0, 0, z],
+          [0, 0, deep ? top - w : z],
           [0, 0, Math.PI / 2]
         )
       }
+      // The side pieces reach up and down into the collars, so the collars'
+      // undersides bridge between them when the hull prints.
       for (const x of [-1.04, 1.04]) {
         add(
           cradle,
           armoredSection([
-            [-0.59, 0.14, 0.6],
-            [-0.13, 0.13, 0.64],
-            [0.33, 0.1, 0.6],
-            [0.73, 0.07, 0.46],
+            [-0.59, 0.14, 0.7],
+            [-0.13, 0.13, 0.7],
+            [0.33, 0.1, 0.7],
+            [0.73, 0.07, 0.7],
           ]),
           hull,
           [x, 0, 0],
@@ -1159,17 +1202,46 @@ export function createShip(
     } else {
       // Deeply rooted shoulder armor above and below each module. The clear
       // opening is wider than the shared shoe, including at the shortest hull.
-      for (const z of [-0.82, 0.82]) {
+      // The dorsal shoulder is a cowl raked at 45 degrees from the skin out to
+      // its crest, so nothing over the bay faces down (the hull prints belly
+      // down): its section in (y outboard, z dorsal), pulled along X.
+      fin(
+        cradle,
+        [
+          [-0.685, -0.24],
+          [-0.685, 0.06],
+          [-0.925, 0.3],
+          [-0.955, 0.3],
+          [-0.955, -0.24],
+        ],
+        1.94,
+        pale,
+        [0, Math.PI / 2, 0]
+      )
+      for (const z of [-0.82]) {
+        // Down to the keel, the ventral shoulder keeps its full depth along.
+        const top = z + 0.135
+        const deep = z < 0 && keel !== undefined
+        const w = (top - (keel ?? 0)) / 2
         add(
           cradle,
-          armoredSection([
-            [-0.97, 0.19, 0.075],
-            [-0.76, 0.32, 0.135],
-            [0.66, 0.32, 0.135],
-            [0.97, 0.18, 0.075],
-          ]),
+          armoredSection(
+            deep
+              ? [
+                  [-0.97, 0.19, w],
+                  [-0.76, 0.32, w],
+                  [0.66, 0.32, w],
+                  [0.97, 0.18, w],
+                ]
+              : [
+                  [-0.97, 0.19, 0.075],
+                  [-0.76, 0.32, 0.135],
+                  [0.66, 0.32, 0.135],
+                  [0.97, 0.18, 0.075],
+                ]
+          ),
           pale,
-          [0, 0.08, z]
+          [0, 0.08, deep ? top - w : z]
         )
       }
       for (const x of [-1, 1]) {
@@ -1192,7 +1264,12 @@ export function createShip(
     plate(frame, [1.95, 0.13, 1.44], [0, -0.06, 0], dark)
     shoe(frame, 0, steel, true)
     const forward = mount.group === 'forward'
-    armoredCradle(frame, forward)
+    // The corvette stands on its keel plating; its mounts sit at y = 0.
+    const keelPlane =
+      hullKind === 'corvette'
+        ? (CORVETTE.armor.keelY - (0.05 + CORVETTE.armor.relief * 0.3)) * config.armor
+        : undefined
+    armoredCradle(frame, forward, keelPlane)
     const highlight = material('highlight', HULL_INK.steel, 0.4)
     for (const x of [-0.67, 0.67])
       for (const z of [-1, 1]) {

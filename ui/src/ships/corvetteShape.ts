@@ -97,6 +97,10 @@ export const CORVETTE = {
     ],
   } as Record<1 | 3 | 5, readonly (readonly [number, number, number])[]>,
 
-  /** The fixed fuel scoop on the ventral bow: plate size and centre. */
-  scoop: { size: [1.2, 0.26, 0.92], at: [2.58, -0.69, 0] } as const,
+  /**
+   * The fixed fuel scoop on the ventral bow: plate size and centre. It reaches
+   * down to the keel plane (0.01 short, so it does not flicker against the
+   * bow collar lying on it), so the bow has a flat bottom too.
+   */
+  scoop: { size: [1.2, 0.51, 1.2], at: [2.58, -0.815, 0] } as const,
 }
