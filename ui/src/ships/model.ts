@@ -836,28 +836,6 @@ export function createShip(
         }
         break
       }
-      case 'radiator': {
-        // Two radiative surfaces run along the hull. Local Z is the ship's
-        // vertical axis on side mounts; a shallow cant exposes both broad faces.
-        plate(p, [1.65, 0.12, 0.35], [0, 0.3, 0], dark)
-        pipe(p, [-0.81, 0.39, 0], [0.81, 0.39, 0], 0.045, copper)
-        for (const side of [-1, 1]) {
-          const panel = new Group()
-          panel.name = `radiator_panel_${side}`
-          panel.position.set(0, 0.46, side * 0.39)
-          panel.rotation.x = -side * 0.22
-          p.add(panel)
-          plate(panel, [1.83, 0.055, 0.66], [0, 0, 0], steel)
-          plate(panel, [1.7, 0.018, 0.55], [0, 0.037, 0], dark)
-          plate(panel, [1.7, 0.018, 0.55], [0, -0.037, 0], dark)
-          for (const face of [-1, 1])
-            for (let i = 0; i < 9; i++)
-              box(panel, [0.015, 0.009, 0.5], [-0.72 + i * 0.18, face * 0.05, 0], steel)
-          for (const x of [-0.78, 0.78])
-            pipe(p, [x, 0.32, 0], [x, 0.44, side * 0.39], 0.035, copper)
-        }
-        break
-      }
       case 'disruptor': {
         // An emitter, not a gun, and the same module in every mount: a low
         // faceted housing laid along the plate in a saddle that fills the
