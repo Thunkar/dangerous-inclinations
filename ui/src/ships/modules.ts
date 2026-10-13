@@ -1,6 +1,6 @@
 /**
  * The modules built outside the ship's own file: the shield comb, the
- * missile box, the plasma projector and the ram compressor. Each is handed
+ * plasma projector and the ram compressor (the rebuilt ones are in `builds/`). Each is handed
  * the yard's tools and paints (`ModuleKit`) and the module's group, after the
  * shared shoe and base plate are on it. Module frame: +Y off the plate
  * (outboard on a flank, out of the nose on the bow), +X fore along the hull
@@ -76,10 +76,6 @@ const flat = (x: number, h: number, w: number): Station => [x, h, w, h]
 const axial = (x: number, r: number, w = r): Station => [x, r, w, 0]
 /** Turns a loft along +X to run along +Y (its section's height then lies along -X). */
 const UP: Vec3 = [0, 0, Math.PI / 2]
-/** Turns a prism or frustum along +Y to run along +X. */
-const FORE: Vec3 = [0, 0, -Math.PI / 2]
-/** Turns a prism along +Y to run along Z. */
-const ACROSS: Vec3 = [Math.PI / 2, 0, 0]
 
 function loft(
   k: ModuleKit,
@@ -183,158 +179,6 @@ const comb: ModuleBuild = (kit, p) => {
   }
   // The ladder's rails, tying the vanes at both edges.
   for (const side of [-1, 1]) plate(vanes, [1.0, 0.07, 0.06], [0, 0.46, side * 0.44], m.steel)
-}
-
-/**
- * The launcher's box of four tubes, in its own frame: tubes along +X, the
- * face at the fore end a 2x2 of octagonal collars each holding a sunk seeker.
- */
-function tubeBox(kit: ModuleKit, parent: Group) {
-  const { add, box, prism, frustum, m } = kit
-  const tubes = new Group()
-  tubes.name = 'missiles_box'
-  parent.add(tubes)
-  add(
-    tubes,
-    armoredSection([
-      [-0.5, 0.14, 0.27, 0],
-      [-0.44, 0.17, 0.3, 0],
-      [0.42, 0.17, 0.3, 0],
-      [0.48, 0.16, 0.29, 0],
-    ]),
-    m.hull
-  )
-  // Steel armour bands round the box, a ready slit a round in the fore one.
-  for (const x of [-0.3, 0.2])
-    add(
-      tubes,
-      armoredSection([
-        [x, 0.18, 0.31, 0],
-        [x + 0.08, 0.18, 0.31, 0],
-      ]),
-      m.steel
-    )
-  for (const z of [-0.21, -0.07, 0.07, 0.21])
-    box(tubes, [0.04, 0.012, 0.06], [0.24, 0.18, z], m.cyan)
-  for (const y of [-0.084, 0.084])
-    for (const z of [-0.15, 0.15]) {
-      prism(tubes, 8, 0.092, 0.1, [0.52, y, z], m.steel, FORE, 0.066)
-      prism(tubes, 8, 0.07, 0.02, [0.48, y, z], m.dark, FORE)
-      frustum(tubes, 8, 0.058, 0.012, 0.06, [0.52, y, z], m.hull, FORE)
-    }
-  return tubes
-}
-
-/**
- * Box launcher: an armoured box of four tubes canted up on trunnions in a
- * saddle that runs the bay, a feed block in the saddle aft loading it. On the
- * bow the box stands in the collar on its trunnions and fires out of the nose.
- */
-const launcher: ModuleBuild = (kit, p, forward) => {
-  const { add, plate, prism, fin, pipe, m } = kit
-  plate(p, [1.64, 0.08, 1.06], [0, 0.26, 0], m.dark)
-  if (forward) {
-    // Bow: the box stands along +Y and fires out of the nose, broad across
-    // the bow, on trunnions in two cheeks at its ends over a breech block.
-    const pivot = 0.62
-    const cradle = new Group()
-    cradle.name = 'missiles_bow_cradle'
-    p.add(cradle)
-    add(cradle, armoredSection([sat(-0.52, 0.05, 0.26, 0.3), sat(0.52, 0.05, 0.26, 0.3)]), m.dark)
-    for (const side of [-1, 1]) {
-      add(
-        cradle,
-        armoredSection([
-          [0.3, 0.07, 0.3, 0],
-          [0.36, 0.09, 0.34, 0],
-          [0.66, 0.09, 0.34, 0],
-          [0.8, 0.06, 0.2, 0],
-        ]),
-        m.pale,
-        [side * 0.62, 0, 0],
-        UP
-      )
-      prism(cradle, 8, 0.1, 0.24, [side * 0.6, pivot, 0], m.steel, FORE)
-      prism(cradle, 6, 0.055, 0.03, [side * 0.73, pivot, 0], m.dark, FORE)
-      // Gussets from the breech block up the cheek's inner face.
-      for (const z of [-0.2, 0.2])
-        fin(
-          cradle,
-          [
-            [0, 0.36],
-            [0.1, 0.36],
-            [0, 0.5],
-          ],
-          0.03,
-          m.steel,
-          [0, side < 0 ? Math.PI : 0, 0]
-        ).position.set(side * 0.53, 0, z)
-    }
-    // Turned so the tubes run out of the nose and the box lies broad across it.
-    const turn = new Group()
-    turn.rotation.y = Math.PI / 2
-    p.add(turn)
-    const tubes = tubeBox(kit, turn)
-    tubes.rotation.z = Math.PI / 2
-    // Short, so the face stands just proud of the collar's lip.
-    tubes.position.y = pivot
-    tubes.scale.set(0.62, 1.6, 1.6)
-    return
-  }
-  const pivot: [number, number] = [0.06, 0.6]
-  // The saddle: two chamfered cheeks along the bay, rising to the trunnions.
-  const saddle = new Group()
-  saddle.name = 'missiles_saddle'
-  p.add(saddle)
-  for (const side of [-1, 1]) {
-    add(
-      saddle,
-      armoredSection([
-        sat(-0.84, 0.06, 0.08, 0.3),
-        sat(-0.5, 0.09, 0.08, 0.3),
-        sat(-0.12, 0.17, 0.08, 0.3),
-        sat(0.24, 0.17, 0.08, 0.3),
-        sat(0.5, 0.05, 0.08, 0.3),
-      ]),
-      m.pale,
-      [0, 0, side * 0.41]
-    )
-    // The trunnion through the cheek, capped outside.
-    prism(saddle, 8, 0.1, 0.18, [pivot[0], pivot[1], side * 0.42], m.steel, ACROSS)
-    prism(saddle, 6, 0.055, 0.03, [pivot[0], pivot[1], side * 0.52], m.dark, ACROSS)
-    // Gussets bracing the cheek's fore slope.
-    for (const z of [0.38, 0.47])
-      fin(
-        saddle,
-        [
-          [0.24, 0.3],
-          [0.56, 0.3],
-          [0.24, 0.6],
-        ],
-        0.03,
-        m.steel
-      ).position.z = side * z
-  }
-  const tubes = tubeBox(kit, p)
-  tubes.position.set(pivot[0], pivot[1], 0)
-  tubes.rotation.z = 0.2
-  // The feed block in the saddle aft, its lid and conduits into the box.
-  const feed = new Group()
-  feed.name = 'missiles_feed'
-  p.add(feed)
-  add(
-    feed,
-    armoredSection([
-      sat(-0.84, 0.08, 0.28, 0.3),
-      sat(-0.8, 0.11, 0.31, 0.3),
-      sat(-0.5, 0.11, 0.31, 0.3),
-      sat(-0.46, 0.08, 0.28, 0.3),
-    ]),
-    m.dark
-  )
-  plate(feed, [0.3, 0.04, 0.44], [-0.65, 0.53, 0], m.hull)
-  plate(feed, [0.18, 0.03, 0.2], [-0.65, 0.56, 0], m.steel)
-  for (const z of [-0.16, 0.16]) pipe(feed, [-0.5, 0.46, z], [-0.38, 0.46, z], 0.03, m.copper)
 }
 
 /**
@@ -544,7 +388,6 @@ const REBUILT: Partial<Record<SubsystemType, ModuleBuild | undefined>> = {
 
 export const MODULE_BUILDS: Partial<Record<SubsystemType, ModuleBuild>> = {
   shields: comb,
-  missiles: launcher,
   plasma_cannon: twinCoil,
   fuel_compressor: ramIntake,
   ...(Object.fromEntries(Object.entries(REBUILT).filter(([, b]) => b)) as Partial<
