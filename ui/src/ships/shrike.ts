@@ -247,7 +247,6 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
   // cockpit's tail onto the chassis deck.
   sweptFin([1.4, 3.05], [-0.25, 4.35], [-1.45, 4.35], [-0.7, 2.42], 0.2, [[0.3, 2.42]])
   box([0.1, 0.08, 0.1], [-1.3, 4.39, 0], m.red)
-  pipe([-1.43, 4.35, 0], [-2.2, 4.75, 0], 0.018, m.steel)
   // The blade, the bigger: from under the chin to a flat bottom below the
   // column, its trailing edge cranked.
   const root: [number, number] = [2.05, -0.76]
