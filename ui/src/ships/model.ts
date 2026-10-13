@@ -855,11 +855,6 @@ export function createShip(
           cylinder(p, 0.08, 0.08, 0.016, [0, 0.807, z], cyan)
           ring(p, 0.11, 0.02, [0, 0.8, z], steel)
         }
-        // Short, supported interferometer elements instead of a tall mast.
-        for (const x of [-0.69, 0.69]) {
-          plate(p, [0.1, 0.3, 0.12], [x, 0.46, 0], pale)
-          box(p, [0.22, 0.06, 0.1], [x, 0.63, 0], steel)
-        }
         break
       }
       case 'laser':
