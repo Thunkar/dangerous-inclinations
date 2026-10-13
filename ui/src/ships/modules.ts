@@ -16,6 +16,10 @@ import {
 } from 'three'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import { armoredSection, hollowSection, type Station } from './loft'
+import { laser } from './builds/laser'
+import { radiator } from './builds/radiator'
+import { railgun } from './builds/railgun'
+import { missiles } from './builds/missiles'
 
 type Vec3 = [number, number, number]
 type Material = MeshStandardMaterial
@@ -530,9 +534,20 @@ const ramIntake: ModuleBuild = (k, p) => {
   }
 }
 
+/** The modules rebuilt each in a file of its own (`builds/`), when written. */
+const REBUILT: Partial<Record<SubsystemType, ModuleBuild | undefined>> = {
+  laser,
+  radiator,
+  railgun,
+  missiles,
+}
+
 export const MODULE_BUILDS: Partial<Record<SubsystemType, ModuleBuild>> = {
   shields: comb,
   missiles: launcher,
   plasma_cannon: twinCoil,
   fuel_compressor: ramIntake,
+  ...(Object.fromEntries(Object.entries(REBUILT).filter(([, b]) => b)) as Partial<
+    Record<SubsystemType, ModuleBuild>
+  >),
 }
