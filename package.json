@@ -6,7 +6,8 @@
   "workspaces": [
     "engine",
     "ui",
-    "server"
+    "server",
+    "cad"
   ],
   "scripts": {
     "build": "turbo run build",
@@ -22,7 +23,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "bench": "turbo run bench --filter=@dangerous-inclinations/engine --"
+    "bench": "turbo run bench --filter=@dangerous-inclinations/engine --",
+    "cad": "yarn workspace @dangerous-inclinations/cad view"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

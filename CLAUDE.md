@@ -23,6 +23,7 @@ Yarn workspaces + turbo:
 engine/   @dangerous-inclinations/engine   pure game logic, bots, simulator
 server/   @dangerous-inclinations/server   Fastify + WebSocket + Redis
 ui/       @dangerous-inclinations/ui       React 19 + Vite + MUI
+cad/      @dangerous-inclinations/cad      FluidCAD: the printed pieces for the table
 ```
 
 ### Separation of concerns
@@ -181,6 +182,9 @@ yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak ch
 yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural, baselines, logical, illogical, off-book, extreme; flags
 yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.md  # the standing benchmark page
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal
+yarn cad                                                          # FluidCAD viewer for cad/ (localhost:3100; build the engine first)
+yarn workspace @dangerous-inclinations/cad export                 # every printable to cad/out/*.step + .stl
+yarn workspace @dangerous-inclinations/cad shot coupons/mount.part.js iso-ftr top   # PNGs of a part, headless
 node scripts/shot.mjs '/' shot.png                    # photograph the running UI (needs `yarn dev`; PLAYER_ID + ?game=<id> for a seat)
 DOCKERHUB_USER=<you> scripts/deploy.sh               # build + push both images, restart the stack on the NAS (Dockerfile, deploy/)
 ```
@@ -365,6 +369,37 @@ swapped and the face turned 180°). It does not repeat the board or the
 missions: ring speeds, lane sectors and card text are printed in front of you. About 105mm of column per
 face; content that does not fit is content to cut, and nothing in the card
 shrinks to hide that (`.di-card > *` never shrinks, so overflow shows).
+
+## The printed pieces
+
+`cad/` models the table's 3D-printed pieces in code with FluidCAD (OpenCascade,
+`.part.js` files, mm, Z up = the print's up, every part drawn in its print pose).
+Each player has an 80mm display ship on a base; the board carries small
+tokens. `cad/spec.ts` holds every size the pieces must agree on (the mount,
+the magnets, the cubes, the scale) as pure data, so the game's renderer can
+read it too; capacities come from the engine (`SUBSYSTEM_CONFIGS`,
+`MAX_HEAT`). `cad/lib/` builds tools on the XY plane and moves them
+(`prism`, `section`, `vee`, `move`, `turn`): FluidCAD fuses everything
+inside a `part()`, so each printable is its own part and cuts are explicit
+`subtract`s. Check a part by `--list-shapes` (one solid each),
+`scripts/slice.mjs` (a section's numbers) and `yarn shot`. `fluidcad export`
+exports whatever tab a running server shows, so `export` and `shot` start a
+server of their own (`scripts/server.mjs`) and put the viewer's open tabs back.
+
+The designer's constraints: 6x2 magnets are **sealed in plastic**,
+never exposed (small children); each module
+holds a ferrous M2x4 countersunk screw and sticks to one magnet per mount;
+**one module print fits all four flank mounts**, so the foot and every module
+are symmetric dorsal to ventral and point forward; hidden modules sit upside
+down in base pockets held by shape alone (angled to keep the base thin);
+energy cubes (8.1mm) sit on a rail beside each slot, heat on a track; hull and
+fuel are sliders; missiles come from a shared pile; a broken subsystem is
+taken off the ship and the base. Hulls print in one
+piece, not split: each magnet pocket is a slot rising to a pause layer, the
+magnet drops in on edge at the pause and the layers above seal it. A mount
+face is vertical in the print, so its skin is perimeters and must be two
+walls: 0.7mm (0.6 gives one). `coupons/` are the
+test pieces that set the tolerances in `spec.ts`.
 
 ## The board has two renderers
 

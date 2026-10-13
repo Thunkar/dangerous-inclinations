@@ -1,0 +1,15 @@
+{
+  "name": "@dangerous-inclinations/cad",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "view": "fluidcad serve",
+    "export": "node scripts/export.mjs",
+    "shot": "node scripts/shot.mjs"
+  },
+  "dependencies": {
+    "@dangerous-inclinations/engine": "workspace:*",
+    "fluidcad": "0.0.46"
+  }
+}
