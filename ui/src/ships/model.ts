@@ -547,9 +547,11 @@ export function createShip(
     // bells need the room. The afterbody eases up from the core to meet it.
     const [blockFore, blockAft] = CORVETTE.drive.block
     const bed = CORVETTE.bed
-    const axial = (CORVETTE.drive.sternHeight[config.engines] + CORVETTE.drive.blockAdds[0]) * engineScale
+    const axial =
+      (CORVETTE.drive.sternHeight[config.engines] + CORVETTE.drive.blockAdds[0]) * engineScale
     let room = 0
-    for (let i = 0; i <= 24; i++) room = Math.max(room, bellTop(shroudFore - ((shroudFore - shroudAft) * i) / 24))
+    for (let i = 0; i <= 24; i++)
+      room = Math.max(room, bellTop(shroudFore - ((shroudFore - shroudAft) * i) / 24))
     const blockHeight = Math.max((axial - bed) / 2, (room + skin) * engineScale)
     const sternHeight = blockHeight - CORVETTE.drive.blockAdds[0] * engineScale
     const blockWidth = sternWidth + CORVETTE.drive.blockAdds[1] * engineScale
@@ -642,7 +644,12 @@ export function createShip(
         for (const x of vents) {
           const { height, width } = aftProfile(x)
           const length = height * 0.43
-          box(afterbody, [0.075, length, 0.035], [x, foot + length / 2, side * (width + 0.014)], dark)
+          box(
+            afterbody,
+            [0.075, length, 0.035],
+            [x, foot + length / 2, side * (width + 0.014)],
+            dark
+          )
         }
     }
 
@@ -1129,20 +1136,22 @@ export function createShip(
     // above and below, so a ship seen from under the ring is the same ship.
     if (forward) {
       // The collar round the bow mount: an upper and a lower plate and a
-      // cheek each side between them, no wider than the hull's flanks at the
-      // bow and narrowing to the nose in plan. Each
-      // plate ends in a point: a 45-degree chisel on its inner face meets a
+      // cheek each side between them, as wide as the hull's flanks at the bow
+      // face and narrowing steadily to the nose in plan. Each plate ends in a
+      // point: a 45-degree chisel on its inner face meets a
       // 45-degree bevel on its outer one (the lower plate's flat outer face
       // stands on the bed). Below the upper plate (above the lower) a web
       // carries the chisel's plane on into the bow, clear of every bow
       // module: printed belly down, nothing faces the bed.
       const { outer, inner, chisel, tip } = BOW_COLLAR
       // The chisel lies on z = x + plane; the outer bevel starts at x =
-      // bevel and meets it at the tip. In plan each plate's front corners are
-      // cut at 45 degrees by as much as the cheeks' ends are top and bottom.
-      const corner = 0.24
+      // bevel and meets it at the tip. `across(x)` is a plate's half width.
+      const [face, nose] = [1.04, 0.78]
+      const across = (x: number) => face - ((face - nose) * Math.max(0, x)) / tip
       const plane = inner - chisel
       const bevel = 2 * tip - (outer - plane)
+      // The bow modules' reach across.
+      const clear = 0.9
       // A station from its outer and inner faces and its half width.
       const faces = (x: number, o: number, i: number, w: number): Station4 => [
         x,
@@ -1155,11 +1164,11 @@ export function createShip(
           cradle,
           armoredSection([
             faces(-0.64, outer, inner + 0.02, 0.8),
-            faces(-0.2, outer, inner, 1.04),
-            faces(tip - corner, outer, inner, 1.02),
-            faces(chisel, outer, inner, 1.02 - (chisel - tip + corner)),
-            faces(bevel, outer, bevel + plane, 1.02 - (bevel - tip + corner)),
-            faces(tip, tip + plane + 0.005, tip + plane - 0.005, 1.02 - corner),
+            faces(-0.2, outer, inner, face),
+            faces(0, outer, inner, face),
+            faces(chisel, outer, inner, across(chisel)),
+            faces(bevel, outer, bevel + plane, across(bevel)),
+            faces(tip, tip + plane + 0.005, tip + plane - 0.005, nose),
           ]),
           pale,
           [0, 0, 0],
@@ -1176,25 +1185,27 @@ export function createShip(
             [-0.2, side * inner],
             [chisel, side * inner],
           ],
-          1.8,
+          (clear - 0.01) * 2,
           pale,
           [0, Math.PI / 2, Math.PI / 2]
         )
       }
-      // The cheeks, inside the plates' outline and flush with the hull's
-      // flanks at the bow, end in a 45-degree bevel top and bottom.
+      // The cheeks: their inner faces clear of every bow module, their outer
+      // ones on the plates' edges, so they narrow with the plates to a point
+      // where the plates' edges come in to the modules; bevelled at 45
+      // degrees top and bottom on the way.
       const cheek = inner + 0.01
-      for (const x of [-0.96, 0.96]) {
+      const end = (tip * (face - clear)) / (face - nose)
+      for (const side of [-1, 1]) {
+        const at = (x: number, w: number): Station4 => {
+          const h = Math.max(0.005, (across(x) - clear) / 2)
+          return [x, h, w, -side * h]
+        }
         add(
           cradle,
-          armoredSection([
-            [-0.59, 0.06, cheek],
-            [-0.13, 0.06, cheek],
-            [tip - corner, 0.05, cheek],
-            [tip, 0.04, cheek - corner],
-          ]),
+          armoredSection([at(-0.59, cheek), at(-0.13, cheek), at(0, cheek), at(end, cheek - end)]),
           hull,
-          [x, 0, 0],
+          [side * clear, 0, 0],
           [0, 0, Math.PI / 2]
         )
       }
