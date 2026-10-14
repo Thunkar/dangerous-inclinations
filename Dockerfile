@@ -18,6 +18,7 @@ COPY .yarn/releases .yarn/releases
 COPY engine/package.json engine/
 COPY server/package.json server/
 COPY ui/package.json ui/
+COPY cad/package.json cad/
 RUN $YARN install --immutable
 COPY tsconfig.json ./
 COPY engine engine
@@ -35,6 +36,7 @@ COPY .yarn/releases .yarn/releases
 COPY engine/package.json engine/
 COPY server/package.json server/
 COPY ui/package.json ui/
+COPY cad/package.json cad/
 RUN node .yarn/releases/yarn-4.12.0.cjs workspaces focus @dangerous-inclinations/server --production
 
 # --- server -------------------------------------------------------------------
