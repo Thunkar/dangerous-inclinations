@@ -30,6 +30,7 @@ import { buildMantis } from './mantis'
 import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid } from './parts'
 import { bake, describe } from './solid'
 import { CORVETTE } from './corvetteShape'
+import { BELL_LENGTH, bellRadius } from './bell'
 import { MODULE_BUILDS, type ModuleKit } from './modules'
 
 type Material = MeshStandardMaterial
@@ -673,17 +674,35 @@ export function createShip(
     const { fore: shroudFore, aft: shroudAft, skin } = CORVETTE.drive.shroud
     const shroudLength = shroudFore - shroudAft
     const shroudX = (shroudFore + shroudAft) / 2
-    // The roof's inside slopes down to the thrust plate at 25 degrees, so it
-    // is not a flat ceiling over the bay (the hull prints belly down); the
-    // big bell's chamber still clears it by a third of a unit.
-    const drop = shroudLength * Math.tan((25 * Math.PI) / 180)
+    // The roof's inside slopes down to the thrust plate as steeply as the
+    // bells hung under it allow, up to 45 degrees, so the hull prints belly
+    // down with no ceiling over the bay: each bell's chamber (where its print
+    // plugs in) and its outside stay clear of the slope.
+    const ceiling = H - skin
+    const clearOf = (x: number) =>
+      Math.max(
+        -Infinity,
+        ...CORVETTE.bells[config.engines].map(([y, , scale]) => {
+          const d = (CORVETTE.drive.thrustPlate + 0.09 - x) / scale
+          if (d < -0.12 || d > BELL_LENGTH) return -Infinity
+          const outside = bellRadius(d)
+          return y + (d <= 0.58 ? Math.max(0.3, outside) : outside) * scale + 0.03
+        })
+      )
+    let drop = shroudLength
+    for (let i = 0; i < 24; i++) {
+      const x = shroudFore - (shroudLength * i) / 24
+      const above = ceiling - (drop * (x - shroudAft)) / shroudLength
+      if (above < clearOf(x))
+        drop = Math.max(0, ((ceiling - clearOf(x)) * shroudLength) / (x - shroudAft))
+    }
     fin(
       drive,
       [
         [shroudAft, H],
         [shroudFore, H],
-        [shroudFore, H - skin - drop],
-        [shroudAft, H - skin],
+        [shroudFore, ceiling - drop],
+        [shroudAft, ceiling],
       ],
       (W - chamfer) * 2,
       hull
@@ -1132,16 +1151,17 @@ export function createShip(
       }
     } else {
       // Shoulder armour above and below each module: a straight outboard
-      // edge and a flat face to the bay, thinning towards its ends on the
-      // outside face only, over the full length of the bay's end plates.
+      // edge and a flat face to the bay, its ends bevelled at 45 degrees on
+      // the outside face only (the ventral one stands on the bed), over the
+      // full length of the bay's end plates.
       const BAY = 0.685
       for (const side of [-1, 1]) {
         add(
           cradle,
           armoredSection([
             [-1.045, 0.075, 0.32, BAY + 0.075],
-            [-0.76, 0.135, 0.32, BAY + 0.135],
-            [0.66, 0.135, 0.32, BAY + 0.135],
+            [-0.985, 0.135, 0.32, BAY + 0.135],
+            [0.985, 0.135, 0.32, BAY + 0.135],
             [1.045, 0.075, 0.32, BAY + 0.075],
           ]),
           pale,

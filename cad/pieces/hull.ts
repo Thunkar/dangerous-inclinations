@@ -19,7 +19,7 @@ import { CORVETTE } from "../../ui/src/ships/corvetteShape.ts";
 import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
 import { MOUNT, STAND, FDM, PRINT } from "../spec.ts";
 import { printFrame, placeSolid, placeBuilt, uniteAlong } from "../lib/kit.ts";
-import { block, disc, move, turn, type Solid, type Vec } from "../lib/solids.ts";
+import { block, disc, move, taper, turn, type Solid, type Vec } from "../lib/solids.ts";
 import { recessTool, pocketTool, socketBounds, type Mount } from "../lib/mount.ts";
 
 const S = PRINT.mmPerUnit;
@@ -251,6 +251,29 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): void {
     [x + side / 2, side / 2, STAND.depth],
   ];
   cuts.push({ box: boxOf(stand, new Matrix4()), make: () => block(...stand) });
+  // Its roof rises to a point at 45 degrees rather than closing flat over the peg.
+  const roof: [Vec, Vec] = [
+    [x - side / 2, -side / 2, STAND.depth - 0.01],
+    [x + side / 2, side / 2, STAND.depth + side / 2],
+  ];
+  cuts.push({
+    box: boxOf(roof, new Matrix4()),
+    make: () =>
+      move(
+        taper(
+          [
+            [-side / 2, -side / 2],
+            [side / 2, -side / 2],
+            [side / 2, side / 2],
+            [-side / 2, side / 2],
+          ],
+          side / 2 - 0.05
+        ),
+        x,
+        0,
+        STAND.depth - 0.01
+      ),
+  });
   cuts.push(...pinCuts(hull, true));
   cuts.push({
     box: boxOf(BELOW, new Matrix4()),

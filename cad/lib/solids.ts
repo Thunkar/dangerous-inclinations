@@ -35,6 +35,12 @@ export function prism(points: Point[], height: number): Solid {
   return extrude(height).new();
 }
 
+/** A closed convex polygon on z = 0 pulled up by `height`, every side drawn in at 45 degrees. */
+export function taper(points: Point[], height: number): Solid {
+  sketch("xy", () => outline(points));
+  return extrude(height).draft(-45).new();
+}
+
 /** An axis-aligned box from [x0, y0, z0] to [x1, y1, z1]. */
 export function block([x0, y0, z0]: Vec, [x1, y1, z1]: Vec): Solid {
   const b = prism(

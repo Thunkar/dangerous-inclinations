@@ -34,3 +34,14 @@ export const BELL_WALL = [
 ]
 /** A full-size bell reaches this far aft of where it is hung. */
 export const BELL_LENGTH = 1.25
+
+/** The bell's outside radius at a distance aft of where it is hung (0 past either end). */
+export function bellRadius(d: number): number {
+  const outside = BELL_WALL.slice(0, 9)
+  for (let i = 1; i < outside.length; i++) {
+    const [r0, d0] = outside[i - 1]
+    const [r1, d1] = outside[i]
+    if (d >= d0 && d <= d1) return d1 === d0 ? Math.max(r0, r1) : r0 + ((r1 - r0) * (d - d0)) / (d1 - d0)
+  }
+  return 0
+}
