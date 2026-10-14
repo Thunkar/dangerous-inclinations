@@ -1146,7 +1146,8 @@ export function createShip(
     // above and below, so a ship seen from under the ring is the same ship.
     if (forward) {
       // The collar round the bow mount: an upper and a lower plate and a
-      // cheek each side between them, all narrowing to the nose in plan. Each
+      // cheek each side between them, no wider than the hull's flanks at the
+      // bow and narrowing to the nose in plan. Each
       // plate ends in a point: a 45-degree chisel on its inner face meets a
       // 45-degree bevel on its outer one (the lower plate's flat outer face
       // stands on the bed). Below the upper plate (above the lower) a web
@@ -1169,10 +1170,10 @@ export function createShip(
           cradle,
           armoredSection([
             faces(-0.64, outer, inner + 0.02, 0.8),
-            faces(-0.2, outer, inner, 1.18),
-            faces(chisel, outer, inner, 1.14),
-            faces(bevel, outer, bevel + plane, 1.12),
-            faces(tip, tip + plane + 0.005, tip + plane - 0.005, 1.0),
+            faces(-0.2, outer, inner, 1.04),
+            faces(chisel, outer, inner, 1.02),
+            faces(bevel, outer, bevel + plane, 1.0),
+            faces(tip, tip + plane + 0.005, tip + plane - 0.005, 0.92),
           ]),
           pale,
           [0, 0, 0],
@@ -1194,16 +1195,17 @@ export function createShip(
           [0, Math.PI / 2, Math.PI / 2]
         )
       }
-      // The cheeks end in a 45-degree bevel top and bottom.
+      // The cheeks, inside the plates' outline and flush with the hull's
+      // flanks at the bow, end in a 45-degree bevel top and bottom.
       const cheek = inner + 0.01
-      for (const x of [-1.04, 1.04]) {
+      for (const x of [-0.96, 0.96]) {
         add(
           cradle,
           armoredSection([
-            [-0.59, 0.14, cheek],
-            [-0.13, 0.13, cheek],
-            [tip - 0.24, 0.1, cheek],
-            [tip, 0.07, cheek - 0.24],
+            [-0.59, 0.06, cheek],
+            [-0.13, 0.06, cheek],
+            [tip - 0.24, 0.05, cheek],
+            [tip, 0.04, cheek - 0.24],
           ]),
           hull,
           [x, 0, 0],
