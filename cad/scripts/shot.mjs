@@ -17,7 +17,7 @@ if (!entry) {
 const views = asked.length ? asked : ["iso-ftr", "iso-btl"];
 const name = basename(entry).replace(/\.(part|assembly)\.js$/, "");
 
-await withServer(entry, async (port) => {
+await withServer(entry, async (port, served) => {
   const browser = await chromium.launch({
     args: [
       "--no-sandbox",
@@ -34,7 +34,7 @@ await withServer(entry, async (port) => {
       const out = `out/${name}-${view}.png`;
       execFileSync(
         "npx",
-        ["fluidcad", "export", "png", "-e", entry, "-p", port, "--view", view, "-o", out],
+        ["fluidcad", "export", "png", "-e", served, "-p", port, "--view", view, "-o", out],
         { stdio: ["ignore", "ignore", "inherit"] }
       );
       console.log(out);

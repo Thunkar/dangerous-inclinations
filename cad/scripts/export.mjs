@@ -27,7 +27,7 @@ for (const file of files) {
       .replace(/\.part\.js$/, "")
   );
   mkdirSync(dirname(out), { recursive: true });
-  await withServer(file, async (port) => {
+  await withServer(file, async (port, served) => {
     for (const [format, extra] of [
       ["step", []],
       ["stl", ["--resolution", "fine"]],
@@ -39,7 +39,7 @@ for (const file of files) {
           "export",
           format,
           "-e",
-          file,
+          served,
           "-p",
           port,
           "-o",

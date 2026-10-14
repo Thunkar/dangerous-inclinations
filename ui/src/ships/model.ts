@@ -1067,13 +1067,7 @@ export function createShip(
     }
   }
 
-  /**
-   * `keel` is where the hull's keel plane lies in the mount frame's Z (the
-   * frame's dorsal axis). A ventral shoulder or collar that ends near it
-   * (within 0.45) is carried to it, or cut back to it if it hangs below, so
-   * the hull stands flat with no shelf under its bays.
-   */
-  const armoredCradle = (frame: Group, forward: boolean, keel?: number) => {
+  const armoredCradle = (frame: Group, forward: boolean) => {
     const cradle = new Group()
     cradle.name = forward ? 'armored_bow_collar' : 'armored_equipment_bay'
     frame.add(cradle)
@@ -1083,42 +1077,27 @@ export function createShip(
       // A tapered upper/lower collar flows out of the existing bow armor.
       // Its open end protects the breech without bridging across the rails.
       for (const z of [-0.8, 0.8]) {
-        // Down to the keel, the ventral collar keeps its full depth along.
-        const top = z + 0.13
-        const deep = z < 0 && keel !== undefined && Math.abs(z - 0.13 - keel) < 0.45
-        const w = (top - (keel ?? 0)) / 2
         add(
           cradle,
-          armoredSection(
-            deep
-              ? [
-                  [-0.64, 0.8, w],
-                  [-0.2, 0.98, w],
-                  [0.32, 0.98, w],
-                  [0.73, 0.77, w],
-                ]
-              : [
-                  [-0.64, 0.8, 0.12],
-                  [-0.2, 0.98, 0.13],
-                  [0.32, 0.98, 0.1],
-                  [0.73, 0.77, 0.075],
-                ]
-          ),
+          armoredSection([
+            [-0.64, 0.8, 0.12],
+            [-0.2, 0.98, 0.13],
+            [0.32, 0.98, 0.1],
+            [0.73, 0.77, 0.075],
+          ]),
           pale,
-          [0, 0, deep ? top - w : z],
+          [0, 0, z],
           [0, 0, Math.PI / 2]
         )
       }
-      // The side pieces reach up and down into the collars, so the collars'
-      // undersides bridge between them when the hull prints.
       for (const x of [-1.04, 1.04]) {
         add(
           cradle,
           armoredSection([
-            [-0.59, 0.14, 0.7],
-            [-0.13, 0.13, 0.7],
-            [0.33, 0.1, 0.7],
-            [0.73, 0.07, 0.7],
+            [-0.59, 0.14, 0.6],
+            [-0.13, 0.13, 0.64],
+            [0.33, 0.1, 0.6],
+            [0.73, 0.07, 0.46],
           ]),
           hull,
           [x, 0, 0],
@@ -1128,46 +1107,17 @@ export function createShip(
     } else {
       // Deeply rooted shoulder armor above and below each module. The clear
       // opening is wider than the shared shoe, including at the shortest hull.
-      // The dorsal shoulder is a cowl raked at 45 degrees from the skin out to
-      // its crest, so nothing over the bay faces down (the hull prints belly
-      // down): its section in (y outboard, z dorsal), pulled along X.
-      fin(
-        cradle,
-        [
-          [-0.685, -0.24],
-          [-0.685, 0.06],
-          [-0.925, 0.3],
-          [-0.955, 0.3],
-          [-0.955, -0.24],
-        ],
-        1.94,
-        pale,
-        [0, Math.PI / 2, 0]
-      )
-      for (const z of [-0.82]) {
-        // Down to the keel, the ventral shoulder keeps its full depth along.
-        const top = z + 0.135
-        const deep = z < 0 && keel !== undefined && Math.abs(z - 0.135 - keel) < 0.45
-        const w = (top - (keel ?? 0)) / 2
+      for (const z of [-0.82, 0.82]) {
         add(
           cradle,
-          armoredSection(
-            deep
-              ? [
-                  [-0.97, 0.19, w],
-                  [-0.76, 0.32, w],
-                  [0.66, 0.32, w],
-                  [0.97, 0.18, w],
-                ]
-              : [
-                  [-0.97, 0.19, 0.075],
-                  [-0.76, 0.32, 0.135],
-                  [0.66, 0.32, 0.135],
-                  [0.97, 0.18, 0.075],
-                ]
-          ),
+          armoredSection([
+            [-0.97, 0.19, 0.075],
+            [-0.76, 0.32, 0.135],
+            [0.66, 0.32, 0.135],
+            [0.97, 0.18, 0.075],
+          ]),
           pale,
-          [0, 0.08, deep ? top - w : z]
+          [0, 0.08, z]
         )
       }
       for (const x of [-1, 1]) {
@@ -1190,10 +1140,7 @@ export function createShip(
     plate(frame, [1.95, 0.13, 1.44], [0, -0.06, 0], dark)
     shoe(frame, 0, steel, true)
     const forward = mount.group === 'forward'
-    // The keel in the frame's dorsal axis (which is the ship's y), at the
-    // corvette's proportions for the corvette.
-    const keelY = HULL_INFO[hullKind].keel * (hullKind === 'corvette' ? config.armor : 1)
-    armoredCradle(frame, forward, keelY - position[1])
+    armoredCradle(frame, forward)
     const highlight = material('highlight', HULL_INK.steel, 0.4)
     for (const x of [-0.67, 0.67])
       for (const z of [-1, 1]) {
