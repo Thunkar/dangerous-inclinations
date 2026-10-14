@@ -58,7 +58,7 @@ export function tenon(m: Mount = MOUNT, body = 5): Solid {
  * overshoot outward so it cuts cleanly through the face.
  */
 export function recessTool(m: Mount = MOUNT): Solid {
-  return move(prism(footOutline(m), m.recessDepth + 1), 0, 0, -m.recessDepth);
+  return move(prism(footOutline(m), m.recessDepth + m.recessReach), 0, 0, -m.recessDepth);
 }
 
 /**
@@ -86,7 +86,7 @@ export function socketBounds(m: Mount = MOUNT, rise = 0): [Vec, Vec] {
   const deep = m.recessDepth + m.skin + m.magnet.thickness + m.magnetClearance;
   return [
     [-m.halfLength, Math.min(-m.halfHeight, -r, rise), -deep],
-    [m.halfLength, Math.max(m.halfHeight, r, rise), 1],
+    [m.halfLength, Math.max(m.halfHeight, r, rise), m.recessReach],
   ];
 }
 

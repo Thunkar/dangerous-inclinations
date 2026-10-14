@@ -43,6 +43,12 @@ export const MOUNT = {
   tailChamfer: 1.5,
   /** How deep the hull's recess is; the foot's tenon fills it less the gap. */
   recessDepth: 1,
+  /**
+   * How far out of the mount face the recess is cut, so whatever stands over
+   * the face in the foot's outline (a web under a bay shoulder) is notched
+   * for the tenon on its way in.
+   */
+  recessReach: 3,
   /** Gap all round between the tenon and the recess (printed: 0.1 seats). */
   clearance: 0.1,
   /**

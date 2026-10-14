@@ -212,7 +212,7 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): void {
     const local = m.clone().invert();
     const recess = new Box3(
       new Vector3(-mount.halfLength, -mount.halfHeight, -mount.recessDepth),
-      new Vector3(mount.halfLength, mount.halfHeight, 2)
+      new Vector3(mount.halfLength, mount.halfHeight, mount.recessReach + 1)
     );
     cuts.push({
       box,

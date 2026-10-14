@@ -773,7 +773,7 @@ export function createShip(
     if (boardDetail) return // Mount interfaces are enclosed on assembled board miniatures.
     const shape = new Shape()
     const w = 0.9,
-      d = 0.65,
+      d = 0.42,
       c = 0.16
     shape.moveTo(-w + c, -d)
     shape.lineTo(w - c, -d)
@@ -810,7 +810,7 @@ export function createShip(
       if (!resin) meshes.push(box(p, [magnetRadius * 0.6, 0.008, 0.025], [x, y + 0.078, 0], dark))
     }
     // Key at one end prevents a 180-degree reversed module.
-    meshes.push(box(p, [0.27, 0.09, 0.1], [0, y + 0.12, -0.55], dark))
+    meshes.push(box(p, [0.27, 0.09, 0.1], [0, y + 0.12, -d + 0.1], dark))
     for (const mesh of meshes) mesh.name = 'mount_shoe'
   }
 
@@ -828,7 +828,7 @@ export function createShip(
   }
   const moduleGeometry = (p: Group, type: SubsystemType, forward: boolean) => {
     shoe(p, 0, dark, false)
-    plate(p, [1.68, 0.12, 1.14], [0, 0.16, 0], hull)
+    plate(p, [1.68, 0.12, 1.0], [0, 0.16, 0], hull)
     const build = MODULE_BUILDS[type]
     if (build) return build(kit, p, forward)
     switch (type) {
@@ -1131,24 +1131,43 @@ export function createShip(
         )
       }
     } else {
-      // Deeply rooted shoulder armor above and below each module. The clear
-      // opening is wider than the shared shoe, including at the shortest hull.
-      for (const z of [-0.82, 0.82]) {
+      // Shoulder armour above and below each module: a straight outboard
+      // edge and a flat face to the bay, thinning towards its ends on the
+      // outside face only, over the full length of the bay's end plates.
+      const BAY = 0.685
+      for (const side of [-1, 1]) {
         add(
           cradle,
           armoredSection([
-            [-0.97, 0.19, 0.075],
-            [-0.76, 0.32, 0.135],
-            [0.66, 0.32, 0.135],
-            [0.97, 0.18, 0.075],
+            [-1.045, 0.075, 0.32, BAY + 0.075],
+            [-0.76, 0.135, 0.32, BAY + 0.135],
+            [0.66, 0.135, 0.32, BAY + 0.135],
+            [1.045, 0.075, 0.32, BAY + 0.075],
           ]),
           pale,
-          [0, 0.08, z]
+          [0, 0.08, 0],
+          [(side * Math.PI) / 2, 0, 0]
         )
       }
-      for (const x of [-1, 1]) {
-        plate(cradle, [0.09, 0.39, 1.35], [x, 0.025, 0], steel)
-      }
+      for (const x of [-1, 1]) plate(cradle, [0.09, 0.39, 1.35], [x, 0.025, 0], steel)
+      // A 45-degree web under each shoulder, carrying on from the chamfer of
+      // its outboard edge down into the hull: printed belly down, nothing
+      // over the bay faces the bed. The modules' base plates and shoes are
+      // narrow enough to clear it.
+      const tip = 0.4 - 0.047
+      for (const side of [-1, 1])
+        fin(
+          cradle,
+          [
+            [-side * BAY, tip],
+            [-side * (BAY - tip - 0.05), -0.05],
+            [-side * (BAY - tip - 0.05), -0.12],
+            [-side * BAY, -0.12],
+          ],
+          2.0,
+          pale,
+          [0, Math.PI / 2, 0]
+        )
     }
   }
 
