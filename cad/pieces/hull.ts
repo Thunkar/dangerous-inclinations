@@ -18,7 +18,7 @@ import { placedSolids, type PlacedSolid } from "../../ui/src/ships/solid.ts";
 import { CORVETTE } from "../../ui/src/ships/corvetteShape.ts";
 import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
 import { MOUNT, STAND, FDM, PRINT } from "../spec.ts";
-import { printFrame, placeSolid, placeBuilt, unite } from "../lib/kit.ts";
+import { printFrame, placeSolid, placeBuilt, uniteAlong } from "../lib/kit.ts";
 import { block, disc, move, turn, type Solid, type Vec } from "../lib/solids.ts";
 import { recessTool, pocketTool, socketBounds, type Mount } from "../lib/mount.ts";
 
@@ -160,14 +160,10 @@ function piecesOf(model: ShipModel, frame: Matrix4): Piece[] {
 
 /**
  * Cut each piece where a cut reaches it, then fuse what is left, anchored on
- * the biggest. The pieces go to the fuse in order along the hull, so a piece
- * and the one it touches land in the same chunk (`unite`): a piece whose only
- * neighbour is in another chunk would be left out of the fuse.
+ * the biggest, in runs along the hull (`uniteAlong`).
  */
 function cutAndUnite(pieces: Piece[], cuts: Cut[]): Solid {
-  const centre = (b: Box3) => b.getCenter(new Vector3()).x;
-  const made = [...pieces]
-    .sort((a, b) => centre(a.box) - centre(b.box))
+  const made = pieces
     .filter((p) => !cuts.some((c) => c.swallows?.(p.reach)))
     .map((p) => {
       let s = p.make();
@@ -182,11 +178,7 @@ function cutAndUnite(pieces: Piece[], cuts: Cut[]): Solid {
       .toArray()
       .reduce((a, n) => a * n, 1);
   const core = made.reduce((best, p, i) => (volume(p.box) > volume(made[best].box) ? i : best), 0);
-  return unite(
-    made.map((p) => p.s),
-    100,
-    core
-  );
+  return uniteAlong(made, core);
 }
 
 function pinCuts(hull: Hull, up: boolean): Cut[] {

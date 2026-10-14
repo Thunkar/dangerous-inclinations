@@ -359,3 +359,41 @@ export function unite(solids: Solid[], chunk = 60, anchorAt = 0): Solid {
   }
   return fuse(...groups);
 }
+
+/**
+ * Fuse many solids into one, by place: pieces in order along x (their boxes,
+ * mm), cut into runs of `chunk`. FluidCAD fuses solids that do not touch
+ * into nothing, and one fuse of a few hundred can crash its kernel, so each
+ * run is fused on its own and the runs then together. A piece that reaches
+ * over the split between two runs goes into both (a copy into the second), so
+ * two pieces that touch across the split always share a run; and every run
+ * carries a copy of the anchor (the core), so the runs overlap.
+ */
+export function uniteAlong(
+  pieces: { s: Solid; box: { min: { x: number }; max: { x: number } } }[],
+  anchorAt: number,
+  chunk = 100,
+  reach = 1
+): Solid {
+  if (pieces.length <= chunk) return fuse(...pieces.map((p) => p.s));
+  const anchor = pieces[anchorAt];
+  const rest = pieces
+    .filter((_, i) => i !== anchorAt)
+    .sort((a, b) => a.box.min.x + a.box.max.x - (b.box.min.x + b.box.max.x));
+  const runs: (typeof rest)[] = [];
+  for (let i = 0; i < rest.length; i += chunk) runs.push(rest.slice(i, i + chunk));
+  // Copies first, before any fuse takes the originals.
+  const extras: Solid[][] = runs.map(() => []);
+  for (let r = 0; r + 1 < runs.length; r++) {
+    const split = (runs[r][runs[r].length - 1].box.max.x + runs[r + 1][0].box.min.x) / 2;
+    for (const p of runs[r])
+      if (p.box.max.x + reach > split) extras[r + 1].push(translate(0, 0, 0, true, p.s));
+    for (const p of runs[r + 1])
+      if (p.box.min.x - reach < split) extras[r].push(translate(0, 0, 0, true, p.s));
+  }
+  const cores = runs.map((_, r) =>
+    r + 1 < runs.length ? translate(0, 0, 0, true, anchor.s) : anchor.s
+  );
+  const fused = runs.map((run, r) => fuse(cores[r], ...run.map((p) => p.s), ...extras[r]));
+  return fuse(...fused);
+}

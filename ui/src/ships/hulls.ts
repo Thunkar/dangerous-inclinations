@@ -54,7 +54,7 @@ export const HULL_INFO: Record<Hull, HullInfo> = {
     stage: { center: [0.2, 0, 0], radius: 6.9, floor: -3.3 },
     livery: { band: [0, 0], chevron: 0, stern: 0, split: 0, spine: 0, beam: 1, spineZ: 0 },
     board: { scale: 4, lift: 0 },
-    keel: CORVETTE.armor.keelY - (0.05 + CORVETTE.armor.relief * 0.3),
+    keel: CORVETTE.bed,
   },
   shrike: {
     name: 'Shrike',

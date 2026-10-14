@@ -524,10 +524,11 @@ export function createShip(
     const blockHeight = sternHeight + CORVETTE.drive.blockAdds[0] * engineScale
     const blockWidth = sternWidth + CORVETTE.drive.blockAdds[1] * engineScale
     // The drive rides up off the hull's axis until the block's underside lies
-    // on the keel plane, so the ship stands flat on its keel with nothing of
-    // the drive below it; the afterbody eases up from the core to meet it.
-    const keelBottom = (CORVETTE.armor.keelY - keel) * config.armor
-    const driveLift = Math.max(0, blockHeight + keelBottom)
+    // on the plane the ship stands on (`CORVETTE.bed`, the bays' undersides),
+    // so nothing of the drive is below it; the afterbody eases up from the
+    // core to meet it.
+    const bed = CORVETTE.bed
+    const driveLift = Math.max(0, blockHeight + bed)
     const aftSections: [number, number, number, number][] = [
       [driveOrigin + blockFore * engineScale, blockHeight, blockWidth, driveLift],
       [driveOrigin + blockAft * engineScale, blockHeight, blockWidth, driveLift],
@@ -593,35 +594,18 @@ export function createShip(
       aftStations.slice(1).forEach((x, i) => lay(at(aftStations[i]), at(x)))
     for (const vertical of [-1, 1]) {
       // Structural armor along the dorsal and ventral centreline onto the thrust bulkhead.
-      // The ventral one stops at the keel plane.
+      // The ventral one stops at the bed.
       run(
         x => [
           x,
           Math.max(
             vertical * (aftProfile(x).height + 0.074) + aftProfile(x).lift,
-            vertical < 0 ? keelBottom + 0.07 : -Infinity
+            vertical < 0 ? bed + 0.07 : -Infinity
           ),
           0,
         ],
         (from, to) => strake(from, to, 0.48 * config.beam, 0.14, pale)
       )
-      for (const side of [-1, 1]) {
-        run(
-          x => [x, vertical * 0.46 + aftProfile(x).lift, side * (aftProfile(x).width + 0.099)],
-          (from, to) => strake(from, to, 0.19, 0.12, pale)
-        )
-        run(
-          x => [x, vertical * 0.3 + aftProfile(x).lift, side * (aftProfile(x).width + 0.075)],
-          (from, to) => pipe(afterbody, from, to, 0.055, copper)
-        )
-        for (const x of aftStations.slice(1, -1))
-          box(
-            afterbody,
-            [0.12, 0.16, 0.16],
-            [x, vertical * 0.3 + aftProfile(x).lift, side * (aftProfile(x).width + 0.06)],
-            steel
-          )
-      }
     }
     for (const side of [-1, 1]) {
       for (let i = 0; i < 5; i++) {
@@ -689,15 +673,31 @@ export function createShip(
     const { fore: shroudFore, aft: shroudAft, skin } = CORVETTE.drive.shroud
     const shroudLength = shroudFore - shroudAft
     const shroudX = (shroudFore + shroudAft) / 2
+    // The roof's inside slopes down to the thrust plate at 25 degrees, so it
+    // is not a flat ceiling over the bay (the hull prints belly down); the
+    // big bell's chamber still clears it by a third of a unit.
+    const drop = shroudLength * Math.tan((25 * Math.PI) / 180)
+    fin(
+      drive,
+      [
+        [shroudAft, H],
+        [shroudFore, H],
+        [shroudFore, H - skin - drop],
+        [shroudAft, H - skin],
+      ],
+      (W - chamfer) * 2,
+      hull
+    )
     for (const s of [-1, 1]) {
-      // Roof and floor, the flanks, and a plate across each chamfer.
-      slab(
-        [shroudLength, skin, (W - chamfer) * 2],
-        [shroudX, s * (H - skin / 2), 0],
-        hull,
-        [0, 0, 0],
-        drive
-      )
+      // The floor, the flanks, and a plate across each chamfer.
+      if (s < 0)
+        slab(
+          [shroudLength, skin, (W - chamfer) * 2],
+          [shroudX, s * (H - skin / 2), 0],
+          hull,
+          [0, 0, 0],
+          drive
+        )
       slab(
         [shroudLength, (H - chamfer) * 2, skin],
         [shroudX, 0, s * (W - skin / 2)],

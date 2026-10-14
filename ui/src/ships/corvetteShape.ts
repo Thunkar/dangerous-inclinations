@@ -21,6 +21,14 @@ export const CORVETTE = {
     [3.04, 0.56, 0.8],
   ] as readonly Station[],
 
+  /**
+   * Where the corvette stands when printed belly down (game y): the underside
+   * of the bow collar (its mount at y 0, the collar's lower half 0.93 down),
+   * which the flank bays' ventral shoulders reach to within 0.025, so both
+   * rest on the bed; the keel plating below it is cut away by the print.
+   */
+  bed: -0.93,
+
   /** The flank mounts' x (fore, aft), their distance off the centreline, and the bow mount's x. */
   mounts: { fore: 1.58, aft: -0.64, flank: 1.08, bow: 3.05 },
 
