@@ -98,3 +98,40 @@ export function hollowSection(
     inner1: [...inner1],
   })
 }
+
+/**
+ * A solid lofted through convex [y, z] rings at increasing x, each with the
+ * same number of points, joined point to point and capped at both ends: a
+ * shape whose section changes along its length (a web under a shoulder
+ * that narrows to its ends).
+ */
+export function sectionLoft(sections: { x: number; ring: [number, number][] }[]): BufferGeometry {
+  const rings = sections.map(({ x, ring }) => ring.map(([y, z]) => [x, y, z]))
+  const tris: number[][][] = []
+  for (let r = 0; r < rings.length - 1; r++) {
+    const n = rings[r].length
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n
+      tris.push([rings[r][i], rings[r + 1][j], rings[r + 1][i]])
+      tris.push([rings[r][i], rings[r][j], rings[r + 1][j]])
+    }
+  }
+  const [first, last] = [rings[0], rings.at(-1)!]
+  for (let i = 1; i + 1 < first.length; i++) tris.push([first[0], first[i + 1], first[i]])
+  for (let i = 1; i + 1 < last.length; i++) tris.push([last[0], last[i], last[i + 1]])
+  // Whichever way the rings run, every face points out of the solid.
+  const volume = tris.reduce(
+    (v, [a, b, c]) =>
+      v +
+      (a[0] * (b[1] * c[2] - b[2] * c[1]) -
+        a[1] * (b[0] * c[2] - b[2] * c[0]) +
+        a[2] * (b[0] * c[1] - b[1] * c[0])) /
+        6,
+    0
+  )
+  const vertices = tris.flatMap(([a, b, c]) => (volume < 0 ? [...a, ...c, ...b] : [...a, ...b, ...c]))
+  return describe(geometryOf(vertices), {
+    kind: 'sections',
+    sections: sections.map(({ x, ring }) => ({ x, ring: ring.map(([y, z]) => [y, z]) })),
+  })
+}

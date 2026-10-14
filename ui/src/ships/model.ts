@@ -23,7 +23,7 @@ import { HULL_INK } from './palette'
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { visibleSlots, type VisibleSlots } from './visual'
-import { armoredSection } from './loft'
+import { armoredSection, sectionLoft } from './loft'
 import { HULL_INFO } from './hulls'
 import { buildShrike } from './shrike'
 import { buildMantis } from './mantis'
@@ -32,6 +32,16 @@ import { bake, describe } from './solid'
 import { CORVETTE } from './corvetteShape'
 import { BELL_LENGTH, bellRadius } from './bell'
 import { MODULE_BUILDS, type ModuleKit } from './modules'
+
+type Station4 = [number, number, number, number]
+
+/**
+ * The bow collar in the bow mount's frame: its plates' outer and inner faces
+ * (off the mount's centre), how far out of the nose they reach and how long
+ * their 45-degree lip is. The reach is as far as the lip's plane, carried on
+ * into the bow, stays clear of every bow module.
+ */
+const BOW_COLLAR = { outer: 0.93, inner: 0.67, reach: 0.5, chisel: 0.24 }
 
 type Material = MeshStandardMaterial
 
@@ -1119,30 +1129,53 @@ export function createShip(
     // Both shoulders take the secondary paint: the scheme reads the same
     // above and below, so a ship seen from under the ring is the same ship.
     if (forward) {
-      // A tapered upper/lower collar flows out of the existing bow armor.
-      // Its open end protects the breech without bridging across the rails.
-      for (const z of [-0.8, 0.8]) {
+      // The collar round the bow mount: an upper and a lower plate, flat on
+      // the outside (the lower one stands on the bed), and a cheek each side
+      // between them, narrowing to the nose in plan. Each plate's lip is a
+      // 45-degree chisel on its inner face, and below the upper one (above
+      // the lower) a web carries the chisel's plane on into the bow, clear
+      // of every bow module: printed belly down, nothing faces the bed.
+      const { outer, inner, reach, chisel } = BOW_COLLAR
+      const lip = 0.01
+      for (const side of [-1, 1]) {
+        const at = (x: number, h: number, w: number): Station4 => [x, h, w, outer - h]
         add(
           cradle,
           armoredSection([
-            [-0.64, 0.8, 0.12],
-            [-0.2, 0.98, 0.13],
-            [0.32, 0.98, 0.1],
-            [0.73, 0.77, 0.075],
+            at(-0.64, 0.12, 0.8),
+            at(-0.2, (outer - inner) / 2, 1.18),
+            at(reach - chisel, (outer - inner) / 2, 1.14),
+            at(reach, lip, 1.0),
           ]),
           pale,
-          [0, 0, z],
-          [0, 0, Math.PI / 2]
+          [0, 0, 0],
+          [0, (side * Math.PI) / 2, Math.PI / 2]
+        )
+        // The web: the chisel's plane from where it meets the plate's inner
+        // face down to the shoe's height.
+        const top = outer - 2 * lip
+        const foot = 0.42
+        fin(
+          cradle,
+          [
+            [reach - (top - foot), side * foot],
+            [-0.2, side * foot],
+            [-0.2, side * inner],
+            [reach - chisel, side * inner],
+          ],
+          1.8,
+          pale,
+          [0, Math.PI / 2, Math.PI / 2]
         )
       }
       for (const x of [-1.04, 1.04]) {
         add(
           cradle,
           armoredSection([
-            [-0.59, 0.14, 0.6],
-            [-0.13, 0.13, 0.64],
-            [0.33, 0.1, 0.6],
-            [0.73, 0.07, 0.46],
+            [-0.59, 0.14, inner + 0.01],
+            [-0.13, 0.13, inner + 0.01],
+            [reach - chisel, 0.1, inner + 0.01],
+            [reach, 0.07, inner + 0.01 - chisel],
           ]),
           hull,
           [x, 0, 0],
@@ -1150,44 +1183,52 @@ export function createShip(
         )
       }
     } else {
-      // Shoulder armour above and below each module: a straight outboard
-      // edge and a flat face to the bay, its ends bevelled at 45 degrees on
-      // the outside face only (the ventral one stands on the bed), over the
-      // full length of the bay's end plates.
+      // Shoulder armour above and below each module, narrowing to points at
+      // both ends of the bay, with a flat face to the bay and its ends
+      // bevelled at 45 degrees on the outside face only (the ventral one
+      // stands on the bed), over the full length of the bay's end plates.
       const BAY = 0.685
+      // [x, half thickness, half reach]: the reach is outboard of y 0.08.
+      const shoulder: [number, number, number][] = [
+        [-1.045, 0.075, 0.19],
+        [-0.985, 0.135, 0.217],
+        [-0.76, 0.135, 0.32],
+        [0.66, 0.135, 0.32],
+        [0.985, 0.135, 0.202],
+        [1.045, 0.075, 0.18],
+      ]
       for (const side of [-1, 1]) {
         add(
           cradle,
-          armoredSection([
-            [-1.045, 0.075, 0.32, BAY + 0.075],
-            [-0.985, 0.135, 0.32, BAY + 0.135],
-            [0.985, 0.135, 0.32, BAY + 0.135],
-            [1.045, 0.075, 0.32, BAY + 0.075],
-          ]),
+          armoredSection(shoulder.map(([x, h, w]) => [x, h, w, BAY + h])),
           pale,
           [0, 0.08, 0],
           [(side * Math.PI) / 2, 0, 0]
         )
+        // A 45-degree web under each shoulder, carrying on from the chamfer
+        // of its outboard edge down into the hull, narrowing with it:
+        // printed belly down, nothing over the bay faces the bed. The
+        // modules' base plates and shoes are narrow enough to clear it.
+        add(
+          cradle,
+          sectionLoft(
+            shoulder.map(([x, h, w]) => {
+              const tip = 0.08 + w - 0.35 * Math.min(h, w)
+              return {
+                x,
+                ring: [
+                  [tip, side * BAY],
+                  [-0.05, side * (BAY - tip - 0.05)],
+                  [-0.12, side * (BAY - tip - 0.05)],
+                  [-0.12, side * BAY],
+                ],
+              }
+            })
+          ),
+          pale
+        )
       }
       for (const x of [-1, 1]) plate(cradle, [0.09, 0.39, 1.35], [x, 0.025, 0], steel)
-      // A 45-degree web under each shoulder, carrying on from the chamfer of
-      // its outboard edge down into the hull: printed belly down, nothing
-      // over the bay faces the bed. The modules' base plates and shoes are
-      // narrow enough to clear it.
-      const tip = 0.4 - 0.047
-      for (const side of [-1, 1])
-        fin(
-          cradle,
-          [
-            [-side * BAY, tip],
-            [-side * (BAY - tip - 0.05), -0.05],
-            [-side * (BAY - tip - 0.05), -0.12],
-            [-side * BAY, -0.12],
-          ],
-          2.0,
-          pale,
-          [0, Math.PI / 2, 0]
-        )
     }
   }
 
@@ -1211,8 +1252,10 @@ export function createShip(
       for (const z of [-1, 1]) {
         box(
           frame,
-          [0.16, 0.025, 0.05],
-          [x, forward ? 0.74 : 0.41, z * (forward ? 0.8 : 0.82)],
+          forward ? [0.16, 0.05, 0.025] : [0.16, 0.025, 0.05],
+          forward
+            ? [x, BOW_COLLAR.reach - BOW_COLLAR.chisel - 0.06, z * (BOW_COLLAR.outer + 0.012)]
+            : [x, 0.41, z * 0.82],
           highlight
         )
       }

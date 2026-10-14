@@ -17,7 +17,7 @@ import {
 import { Euler, Matrix4, Vector3 } from "three";
 import type { PlacedSolid, SolidSpec } from "../../ui/src/ships/solid.ts";
 import { PRINT } from "../spec.ts";
-import { prism, move, turn, outline, distinct, grow, type Point, type Solid } from "./solids.ts";
+import { prism, move, turn, outline, distinct, grow, section, type Point, type Solid } from "./solids.ts";
 
 /**
  * The game's frame to the print's, in mm: the game is +X bow, +Y dorsal, Z
@@ -77,6 +77,30 @@ export function buildSpec(spec: SolidSpec, f: number): Solid | null {
     }
     case "loft":
       return lofted(spec.stations, f);
+    case "sections": {
+      const at = ({ x, ring }: { x: number; ring: [number, number][] }) =>
+        sketch(plane("yz", { offset: x * f }), () =>
+          outline(ring.map(([y, z]): Point => [y * f, z * f]))
+        );
+      const same = (a: [number, number][], b: [number, number][]) =>
+        a.length === b.length &&
+        a.every(([y, z], k) => Math.abs(y - b[k][0]) < 1e-9 && Math.abs(z - b[k][1]) < 1e-9);
+      const pieces = spec.sections.slice(1).map((s, i) => {
+        const a = spec.sections[i];
+        if (same(a.ring, s.ring))
+          return move(
+            section(
+              a.ring.map(([y, z]): Point => [y * f, z * f]),
+              (s.x - a.x) * f
+            ),
+            a.x * f,
+            0,
+            0
+          );
+        return loft(at(a), at(s)).new();
+      });
+      return pieces.length > 1 ? fuse(...pieces) : pieces[0];
+    }
     case "hollow": {
       const rake = spec.rake;
       const outer = lofted(
@@ -168,7 +192,31 @@ function lofted(
       outline(ring.map(([y, z]): Point => [y / Math.cos(t), z]))
     );
   };
-  const pieces = stations.slice(1).map((s, i) => loft(profile(stations[i]), profile(s)).new());
+  // A segment whose two ends are the same section is a prism: built as one,
+  // its faces are planes, not the B-spline surface a loft always fits, and
+  // OpenCascade's booleans are far faster on planes.
+  const same = (a: number[], b: number[]) =>
+    [1, 2, 3].every((k) => Math.abs((a[k] ?? 0) - (b[k] ?? 0)) < 1e-9);
+  const raked = (x: number) => !!rake && x >= rake.fromX - 1e-9;
+  const pieces = stations.slice(1).map((s, i) => {
+    const a = stations[i];
+    if (same(a, s) && !raked(a[0]) && !raked(s[0])) {
+      const [, h, w, lift = 0] = a;
+      const c = Math.min(h, w) * 0.35;
+      const ring: Point[] = [
+        [h, w - c],
+        [h - c, w],
+        [-h + c, w],
+        [-h, w - c],
+        [-h, -w + c],
+        [-h + c, -w],
+        [h - c, -w],
+        [h, -w + c],
+      ].map(([y, z]) => [(y + lift) * f, z * f]);
+      return move(section(ring, (s[0] - a[0]) * f), a[0] * f, 0, 0);
+    }
+    return loft(profile(a), profile(s)).new();
+  });
   return pieces.length > 1 ? fuse(...pieces) : pieces[0];
 }
 
@@ -212,6 +260,14 @@ export function grown(spec: SolidSpec, g: number): SolidSpec {
         bevel: { thickness: bevel.thickness + g, size: bevel.size },
       };
     }
+    case "sections":
+      return {
+        ...spec,
+        sections: spec.sections.map(({ x, ring }, i, all) => ({
+          x: x + (i === 0 ? -g : i === all.length - 1 ? g : 0),
+          ring: outward(ring, g),
+        })),
+      };
     case "loft":
       return {
         ...spec,

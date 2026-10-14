@@ -61,6 +61,11 @@ export type SolidSpec =
         inner1: V3
         rake?: { k: number; y0: number; fromX: number }
       }
+    /**
+     * `sectionLoft` (`loft.ts`): convex [y, z] rings at increasing x, the
+     * same number of points each, joined point to point.
+     */
+    | { kind: 'sections'; sections: { x: number; ring: V2[] }[] }
     /** `LatheGeometry`: the [radius, y] profile turned round y. */
     | { kind: 'lathe'; profile: V2[] }
     /** Finer than any print: drawn by the game, left off the print (cooling tubes, glow discs). */

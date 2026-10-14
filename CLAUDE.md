@@ -411,7 +411,12 @@ not touch yields nothing, so a later operation on it fails; and one cut or
 fuse across the whole hull can crash its kernel or run for ever. So the hull
 is built cut-then-fuse: each mesh's solid takes only the cuts whose box
 reaches it (a piece a cut would swallow is left out), then `unite` fuses
-everything in chunks that each carry a copy of the core. Check a part with
+everything in chunks that each carry a copy of the core. Build with planes wherever the faces are flat: FluidCAD's loft fits a
+B-spline surface even between identical sections, and booleans on B-splines
+are what make a build slow (the corvette took over ten minutes with every
+loft segment a loft, 21 seconds with the constant ones built as prisms in
+`lib/kit.ts`). `scripts/timing.mjs` says where a build's time goes, and a
+viewer left open rebuilds its part on every edit to `ui/src/ships/`. Check a part with
 `scripts/errors.mjs` (feature errors, which the export CLI does not print),
 `--list-shapes`, `scripts/islands.mjs` (separate bodies; a sealed magnet
 pocket shows as one), `scripts/slice.mjs`, `scripts/overhang.mjs` and
