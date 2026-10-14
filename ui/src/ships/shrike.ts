@@ -252,21 +252,6 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
   const root: [number, number] = [2.05, -0.76]
   const lead: [number, number] = [-0.35, -4.85]
   sweptFin(root, lead, [-2.0, -4.85], [-0.7, -1.0], 0.5, [], [[-0.95, -2.9]])
-  // The ladder down its leading edge.
-  const [dx, dy] = [lead[0] - root[0], lead[1] - root[1]]
-  const len = Math.hypot(dx, dy)
-  const [nx, ny] = [-dy / len, dx / len]
-  const off = (u: number, d: number): [number, number] => [
-    root[0] + dx * u + nx * d,
-    root[1] + dy * u + ny * d,
-  ]
-  for (const z of [-0.18, 0.18])
-    pipe([...off(0.03, 0.26), z], [...off(0.97, 0.26), z], 0.045, m.steel)
-  for (let u = 0.08; u < 0.97; u += 0.11) {
-    pipe([...off(u, 0.26), -0.22], [...off(u, 0.26), 0.22], 0.03, m.steel)
-    pipe([...off(u, 0.26), 0], [...off(u, 0), 0], 0.03, m.copper)
-  }
-  for (const z of [-0.1, 0.1]) pipe([-1.98, -4.85, z], [-3.05, -5.3, z], 0.02, m.steel)
 
   stern(body, put, m, { slab, box, pipe, fin, hollow })
 }
