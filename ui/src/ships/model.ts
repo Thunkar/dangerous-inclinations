@@ -38,11 +38,11 @@ type Station4 = [number, number, number, number]
 /**
  * The bow collar in the bow mount's frame: its plates' outer and inner faces
  * (off the mount's centre), where the 45-degree chisel on the inner face
- * starts, and the point out of the nose where it meets the 45-degree bevel
- * on the outer face. The chisel's plane, carried on into the bow, stays
- * clear of every bow module.
+ * starts, and the knife edge out of the nose where it meets the outer face.
+ * The chisel's plane, carried on into the bow, stays clear of every bow
+ * module, which is what sets how far the collar reaches.
  */
-const BOW_COLLAR = { outer: 0.93, inner: 0.67, chisel: 0.26, tip: 0.415 }
+const BOW_COLLAR = { outer: 0.93, inner: 0.67, chisel: 0.36, tip: 0.615 }
 
 type Material = MeshStandardMaterial
 
@@ -1137,19 +1137,16 @@ export function createShip(
     if (forward) {
       // The collar round the bow mount: an upper and a lower plate and a
       // cheek each side between them, as wide as the hull's flanks at the bow
-      // face and narrowing steadily to the nose in plan. Each plate ends in a
-      // point: a 45-degree chisel on its inner face meets a
-      // 45-degree bevel on its outer one (the lower plate's flat outer face
-      // stands on the bed). Below the upper plate (above the lower) a web
+      // face and narrowing steadily to the nose in plan. Each plate is flat
+      // outside (the lower one stands on the bed) and ends in a knife edge: a
+      // 45-degree chisel on its inner face running out to the outer one. Below the upper plate (above the lower) a web
       // carries the chisel's plane on into the bow, clear of every bow
       // module: printed belly down, nothing faces the bed.
       const { outer, inner, chisel, tip } = BOW_COLLAR
-      // The chisel lies on z = x + plane; the outer bevel starts at x =
-      // bevel and meets it at the tip. `across(x)` is a plate's half width.
+      // The chisel lies on z = x + plane. `across(x)` is a plate's half width.
       const [face, nose] = [1.04, 0.78]
       const across = (x: number) => face - ((face - nose) * Math.max(0, x)) / tip
       const plane = inner - chisel
-      const bevel = 2 * tip - (outer - plane)
       // The bow modules' reach across.
       const clear = 0.9
       // A station from its outer and inner faces and its half width.
@@ -1167,8 +1164,7 @@ export function createShip(
             faces(-0.2, outer, inner, face),
             faces(0, outer, inner, face),
             faces(chisel, outer, inner, across(chisel)),
-            faces(bevel, outer, bevel + plane, across(bevel)),
-            faces(tip, tip + plane + 0.005, tip + plane - 0.005, nose),
+            faces(tip, outer, tip + plane, nose),
           ]),
           pale,
           [0, 0, 0],
