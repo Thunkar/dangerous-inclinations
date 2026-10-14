@@ -416,9 +416,10 @@ everything in chunks that each carry a copy of the core. Check a part with
 `--list-shapes`, `scripts/islands.mjs` (separate bodies; a sealed magnet
 pocket shows as one), `scripts/slice.mjs`, `scripts/overhang.mjs` and
 `yarn shot`. `fluidcad export` exports whatever tab a running server shows,
-so `export` and `shot` start a server of their own (`scripts/server.mjs`)
-and put the viewer's open tabs back; a running server follows the editor
-state, so parallel runs take turns (a lock in `.fluidcad/`). A hung build leaves its server running:
+and a running server follows its workspace's tab, so `export` and `shot`
+run each server in a private workspace (`scripts/server.mjs`: a temporary
+directory of links to the cad files under `.runs/`), which leaves the
+designer's open viewer and other runs alone. A hung build leaves its server running:
 `pkill -f "[f]luidcad/server/dist/index.js"`.
 
 The designer's constraints: 6x2 magnets are **sealed in plastic**,
