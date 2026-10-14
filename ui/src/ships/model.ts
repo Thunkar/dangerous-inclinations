@@ -1171,13 +1171,12 @@ export function createShip(
           [0, (side * Math.PI) / 2, Math.PI / 2]
         )
         // The web: the chisel's plane from where it meets the plate's inner
-        // face down to the shoe's height.
-        const foot = 0.42
+        // face on down into the bow, a wedge with no flat underside of its own
+        // (on a hull whose bow does not swallow it, that would face the bed).
         fin(
           cradle,
           [
-            [foot - plane, side * foot],
-            [-0.2, side * foot],
+            [-0.2, side * (plane - 0.2)],
             [-0.2, side * inner],
             [chisel, side * inner],
           ],

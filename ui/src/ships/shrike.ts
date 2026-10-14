@@ -115,7 +115,8 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
   // vanes running into it and a splitter down the middle.
   {
     const k = 0.55
-    const top = 0.44
+    // High enough to carry the bow collar's lower plate.
+    const top = 0.52
     const under: [number, number][] = [
       [1.2, -1.05],
       [2.3, -0.92],
@@ -193,7 +194,8 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
       for (const y of [-0.36, 0.02]) box([1.4, 0.035, 0.03], [1.85, y, s * 0.78], m.pale)
   }
 
-  // The cockpit pod, high and set back: it ends over the bow module.
+  // The cockpit pod, high and set back, sitting on the chassis and the nose:
+  // it ends over the bow module.
   section(
     [
       [-0.55, 0.2, 0.48],
@@ -202,7 +204,7 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
       [2.05, 0.1, 0.32, -0.12],
     ],
     m.hull,
-    [0, 2.72, 0]
+    [0, 2.67, 0]
   )
   section(
     [
@@ -212,9 +214,9 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
       [1.95, 0.04, 0.22],
     ],
     m.dark,
-    [0, 2.98, 0]
+    [0, 2.93, 0]
   )
-  for (const z of [-0.2, 0, 0.2]) box([0.36, 0.05, 0.11], [1.3, 3.15, z], m.cyan, [0, 0, -0.3])
+  for (const z of [-0.2, 0, 0.2]) box([0.36, 0.05, 0.11], [1.3, 3.1, z], m.cyan, [0, 0, -0.3])
 
   // The fins: rooted along the hull no further aft than the side modules,
   // both edges swept aft from there and cut square at the end, each with a
@@ -291,11 +293,13 @@ function stern(
 ) {
   const g = new Group()
   g.name = 'stern_drive'
-  g.position.set(0, 0.6, 0)
+  // Its floor lies on the keel plane the hull prints on (the keel plates'
+  // undersides), its top where it was.
+  g.position.set(0, 0.6 - 0.055, 0)
   body.add(g)
   const at = (geo: BufferGeometry, mat: Mat, pos?: Vec3, rot?: Vec3, parent: Object3D = g) =>
     put(geo, mat, pos, rot, parent)
-  const H = 1.76
+  const H = 1.815
   const W = 0.96
   const skin = 0.12
   const fore = -1.1

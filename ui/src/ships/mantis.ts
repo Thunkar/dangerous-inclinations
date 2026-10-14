@@ -95,9 +95,9 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     slab([0.9, 0.36, 0.08], [-2.7, R + 0.04, s * 0.84], m.hull)
     for (let i = 0; i < 4; i++) box([0.05, 0.42, 0.03], [-3.75 + i * 0.1, R, s * 0.77], m.dark)
   }
-  // A dark keel block under the core, down to the arms' undersides: the
-  // ship prints belly down, and the raised core would otherwise hang over
-  // the bed. It is as wide as the core's flat underside, so the core's own
+  // A dark keel block under the core, down to the arms' undersides, from the
+  // drive's aft end to the scoop: the ship prints belly down, and the raised
+  // core would otherwise hang over the bed. It is as wide as the core's flat underside, so the core's own
   // chamfers rise from its edges, and it carries the braces' undersides as
   // bridges to the arms.
   {
@@ -105,8 +105,8 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     const h = (bottom - KEEL + 0.05) / 2
     section(
       [
-        [CORE_AFT + 0.25, h, 0.49, KEEL + h],
-        [-1.75, h, 0.49, KEEL + h],
+        [CORE_AFT - 0.55, h, 0.49, KEEL + h],
+        [-1.6, h, 0.49, KEEL + h],
       ],
       m.dark
     )
@@ -204,16 +204,17 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     const face = z + s * (ARM_W + 0.04)
     box([0.2, 0.9, 0.1], [0.3, 0, face], m.steel)
     for (const y of [-0.3, 0, 0.3]) box([0.24, 0.06, 0.06], [0.3, y, face + s * 0.06], m.dark)
-    // The arm's tip: a nacelle front, tapering evenly all round to the
-    // intake. The taper is the intake's own wall, so the mouth starts where
+    // The arm's tip: a nacelle front, tapering to the intake on top and at
+    // the sides. The taper is the intake's own wall, so the mouth starts where
     // it ends: a pale lip, a dark lining, a recessed back face and vanes
     // running into it. Thrusters outboard and a nav light, red to port, the
     // fuel teal to starboard.
     {
       const tip = (x: number, h: number, w: number, lift: number) => [x, h, w, lift] as const
       const back = tip(3.3, ARM_H, ARM_W, 0)
-      const front = tip(3.8, 0.64, 0.38, 0)
-      const mouth = { h: 0.3, w: 0.24, y: 0 }
+      // Flat underneath, so it stands on the bed with the arm.
+      const front = tip(3.8, 0.64, 0.38, 0.64 - ARM_H)
+      const mouth = { h: 0.3, w: 0.24, y: (0.64 - ARM_H) / 2 }
       const bore = (grow: number): [number, number, number] => [
         mouth.h + grow,
         mouth.w + grow,

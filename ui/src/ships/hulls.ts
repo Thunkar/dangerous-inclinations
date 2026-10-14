@@ -101,7 +101,8 @@ const side = (x: number, y: number, face: number, s: -1 | 1): MountPose => ({
 
 /**
  * The shrike's mounts: both flanks in one column on the chassis, the upper
- * pair over the lower, and the bow mount sunk under the cockpit.
+ * pair over the lower (low enough that its ventral shoulders stand on the
+ * keel plane the hull prints on), and the bow mount sunk under the cockpit.
  */
 export const SHRIKE_MOUNTS: Record<MountId, MountPose> = {
   'forward-0': {
@@ -111,9 +112,9 @@ export const SHRIKE_MOUNTS: Record<MountId, MountPose> = {
     normal: [1, 0, 0],
   },
   'side-0': side(0.3, 1.45, 0.76, -1),
-  'side-1': side(0.3, -0.15, 0.76, -1),
+  'side-1': side(0.3, -0.315, 0.76, -1),
   'side-2': side(0.3, 1.45, 0.76, 1),
-  'side-3': side(0.3, -0.15, 0.76, 1),
+  'side-3': side(0.3, -0.315, 0.76, 1),
 }
 
 /**
