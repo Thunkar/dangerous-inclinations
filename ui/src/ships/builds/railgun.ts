@@ -18,9 +18,9 @@ type Vec3 = [number, number, number]
 const UP: Vec3 = [0, 0, Math.PI / 2]
 
 /** The rail's centre across the bow and its half width across. */
-const RAIL = { x: 0.27, h: 0.12 }
+const RAIL = { x: 0.23, h: 0.08 }
 /** The rail's half depth (dorsal to ventral) at y: deep at the breech, tapering to the muzzle. */
-const depth = (y: number) => 0.29 - (0.07 * (y - 0.8)) / 1.2
+const depth = (y: number) => 0.2 - (0.05 * (y - 0.8)) / 1.2
 /** Where each clamp starts up the rail. */
 const CLAMPS = [1.2, 1.56]
 
@@ -99,20 +99,20 @@ export const railgun: ModuleBuild = (kit, p) => {
     stand(
       flank,
       [
-        [0.3, 0.205, 0.36],
-        [0.9, 0.205, 0.36],
+        [0.3, 0.13, 0.24],
+        [0.72, 0.13, 0.24],
       ],
       m.dark,
-      0.585
+      0.51
     )
-    for (let i = 0; i < 4; i++)
-      box(flank, [0.07, 0.42, 0.07], [0.785, 0.47, -0.225 + i * 0.15], m.steel)
-    plate(flank, [0.38, 0.06, 0.7], [0.59, 0.9, 0], m.pale)
-    for (const z of [-0.075, 0.075]) box(flank, [0.24, 0.08, 0.07], [0.62, 0.94, z], m.steel)
-    box(flank, [0.2, 0.07, 0.12], [0.62, 0.93, 0], m.cyan)
-    for (const z of [-0.24, 0.24]) {
-      prism(flank, 6, 0.06, 0.1, [0.66, 0.95, z], m.steel)
-      box(flank, [0.32, 0.08, 0.07], [0.52, 0.94, z * 0.85], m.copper)
+    for (let i = 0; i < 3; i++)
+      box(flank, [0.07, 0.3, 0.07], [0.645, 0.5, -0.15 + i * 0.15], m.steel)
+    plate(flank, [0.28, 0.06, 0.5], [0.51, 0.72, 0], m.pale)
+    for (const z of [-0.06, 0.06]) box(flank, [0.18, 0.08, 0.07], [0.52, 0.76, z], m.steel)
+    box(flank, [0.15, 0.07, 0.1], [0.52, 0.75, 0], m.cyan)
+    for (const z of [-0.17, 0.17]) {
+      prism(flank, 6, 0.05, 0.08, [0.56, 0.77, z], m.steel)
+      box(flank, [0.26, 0.07, 0.07], [0.42, 0.76, z * 0.85], m.copper)
     }
 
     // The rail: steel, deep, its muzzle chamfered in from the outside so
