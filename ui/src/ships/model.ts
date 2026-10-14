@@ -23,7 +23,7 @@ import { HULL_INK } from './palette'
 
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { visibleSlots, type VisibleSlots } from './visual'
-import { armoredSection, sectionLoft } from './loft'
+import { armoredSection, hollowSection, sectionLoft } from './loft'
 import { HULL_INFO } from './hulls'
 import { buildShrike } from './shrike'
 import { buildMantis } from './mantis'
@@ -480,20 +480,6 @@ export function createShip(
         box(body, [0.2, 1.0, 0.1], [x, 0, side * 1.19], steel)
         for (const y of [-0.34, 0, 0.34]) box(body, [0.24, 0.06, 0.06], [x, y, side * 1.26], dark)
       }
-      // Maneuvering thrusters remain with the hull, regardless of loadout.
-      for (const x of [2.7]) {
-        plate(body, [0.48, 0.22, 0.38], [x, -0.35, side * (x > 0 ? 0.91 : 1.16)], dark, [
-          (side * Math.PI) / 2,
-          0,
-          0,
-        ])
-        for (const dx of [-0.12, 0.12])
-          cylinder(body, 0.075, 0.09, 0.1, [x + dx, -0.35, side * (x > 0 ? 1.05 : 1.3)], rubber, [
-            (side * Math.PI) / 2,
-            0,
-            0,
-          ])
-      }
       box(body, [0.17, 0.08, 0.14], [2.11, 0.78, side * 0.88], side < 0 ? red : cyan)
     }
     // The dorsal hardback: a stepped armoured block over the crew spaces, the
@@ -729,45 +715,42 @@ export function createShip(
       if (above < clearOf(x))
         drop = Math.max(0, ((ceiling - clearOf(x)) * shroudLength) / (x - shroudAft))
     }
-    fin(
+    // The shroud: one shell in the hull's own clipped section, `skin` thick
+    // all round, its inside roof sloping down to the thrust plate by `drop`.
+    // Dark panels lie on its outer chamfers and pale ones on its flanks.
+    add(
       drive,
-      [
-        [shroudAft, H],
-        [shroudFore, H],
-        [shroudFore, ceiling - drop],
-        [shroudAft, ceiling],
-      ],
-      (W - chamfer) * 2,
+      hollowSection(
+        shroudAft,
+        shroudFore,
+        [H, W, 0],
+        [H, W, 0],
+        [ceiling, W - skin, 0],
+        [ceiling - drop / 2, W - skin, -drop / 2]
+      ),
       hull
     )
+    const panel = 0.03
     for (const s of [-1, 1]) {
-      // The floor, the flanks, and a plate across each chamfer.
-      if (s < 0)
-        slab(
-          [shroudLength, skin, (W - chamfer) * 2],
-          [shroudX, s * (H - skin / 2), 0],
-          hull,
-          [0, 0, 0],
-          drive
-        )
       slab(
-        [shroudLength, (H - chamfer) * 2, skin],
-        [shroudX, 0, s * (W - skin / 2)],
+        [shroudLength - 0.12, (H - chamfer) * 2 - 0.08, panel],
+        [shroudX, 0, s * (W + panel / 2)],
         pale,
         [0, 0, 0],
         drive
       )
-      for (const t of [-1, 1]) {
-        const inset = chamfer / 2 + skin * 0.35
+      for (const t of [-1, 1])
         slab(
-          [shroudLength - 0.02, skin, chamfer * Math.SQRT2 + skin * 0.4],
-          // The lower plates sit a hair higher, so their corners stay above the keel plane.
-          [shroudX, s * (H - inset) + (s < 0 ? 0.025 : 0), t * (W - inset)],
+          [shroudLength - 0.12, panel, chamfer * Math.SQRT2 - 0.08],
+          [
+            shroudX,
+            s * (H - chamfer / 2 + panel / 2 / Math.SQRT2),
+            t * (W - chamfer / 2 + panel / 2 / Math.SQRT2),
+          ],
           dark,
           [s * t * (Math.PI / 4), 0, 0],
           drive
         )
-      }
     }
     // Frames round the shroud, where it takes the thrust into the hull.
     for (const x of [shroudFore - 0.08, shroudAft + 0.16]) {
