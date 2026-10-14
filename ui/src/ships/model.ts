@@ -523,13 +523,19 @@ export function createShip(
     const [blockFore, blockAft] = CORVETTE.drive.block
     const blockHeight = sternHeight + CORVETTE.drive.blockAdds[0] * engineScale
     const blockWidth = sternWidth + CORVETTE.drive.blockAdds[1] * engineScale
-    const aftSections: [number, number, number][] = [
-      [driveOrigin + blockFore * engineScale, blockHeight, blockWidth],
-      [driveOrigin + blockAft * engineScale, blockHeight, blockWidth],
-      ...CORVETTE.afterbody.joins.map(([x, h, w]): [number, number, number] => [
+    // The drive rides up off the hull's axis until the block's underside lies
+    // on the keel plane, so the ship stands flat on its keel with nothing of
+    // the drive below it; the afterbody eases up from the core to meet it.
+    const keelBottom = (CORVETTE.armor.keelY - keel) * config.armor
+    const driveLift = Math.max(0, blockHeight + keelBottom)
+    const aftSections: [number, number, number, number][] = [
+      [driveOrigin + blockFore * engineScale, blockHeight, blockWidth, driveLift],
+      [driveOrigin + blockAft * engineScale, blockHeight, blockWidth, driveLift],
+      ...CORVETTE.afterbody.joins.map(([x, h, w]): [number, number, number, number] => [
         x * config.length,
         h * config.armor,
         w * config.beam,
+        0,
       ]),
     ]
     const afterbody = new Group()
@@ -542,10 +548,15 @@ export function createShip(
           const a = aftSections[i - 1],
             b = aftSections[i]
           const t = Math.max(0, (x - a[0]) / (b[0] - a[0]))
-          return { height: a[1] + (b[1] - a[1]) * t, width: a[2] + (b[2] - a[2]) * t }
+          return {
+            height: a[1] + (b[1] - a[1]) * t,
+            width: a[2] + (b[2] - a[2]) * t,
+            lift: a[3] + (b[3] - a[3]) * t,
+          }
         }
       }
-      return { height: aftSections.at(-1)![1], width: aftSections.at(-1)![2] }
+      const [, height, width, lift] = aftSections.at(-1)!
+      return { height, width, lift }
     }
     const strake = (from: Vec3, to: Vec3, width: number, thickness: number, mat: Material) => {
       const a = new Vector3(...from),
@@ -564,8 +575,8 @@ export function createShip(
     add(
       afterbody,
       armoredSection([
-        [seamX - 0.035, seam.height + 0.027, seam.width + 0.027],
-        [seamX + 0.035, seam.height + 0.027, seam.width + 0.027],
+        [seamX - 0.035, seam.height + 0.027, seam.width + 0.027, seam.lift],
+        [seamX + 0.035, seam.height + 0.027, seam.width + 0.027, seam.lift],
       ]),
       dark
     )
@@ -582,24 +593,32 @@ export function createShip(
       aftStations.slice(1).forEach((x, i) => lay(at(aftStations[i]), at(x)))
     for (const vertical of [-1, 1]) {
       // Structural armor along the dorsal and ventral centreline onto the thrust bulkhead.
+      // The ventral one stops at the keel plane.
       run(
-        x => [x, vertical * (aftProfile(x).height + 0.074), 0],
+        x => [
+          x,
+          Math.max(
+            vertical * (aftProfile(x).height + 0.074) + aftProfile(x).lift,
+            vertical < 0 ? keelBottom + 0.07 : -Infinity
+          ),
+          0,
+        ],
         (from, to) => strake(from, to, 0.48 * config.beam, 0.14, pale)
       )
       for (const side of [-1, 1]) {
         run(
-          x => [x, vertical * 0.46, side * (aftProfile(x).width + 0.099)],
+          x => [x, vertical * 0.46 + aftProfile(x).lift, side * (aftProfile(x).width + 0.099)],
           (from, to) => strake(from, to, 0.19, 0.12, pale)
         )
         run(
-          x => [x, vertical * 0.3, side * (aftProfile(x).width + 0.075)],
+          x => [x, vertical * 0.3 + aftProfile(x).lift, side * (aftProfile(x).width + 0.075)],
           (from, to) => pipe(afterbody, from, to, 0.055, copper)
         )
         for (const x of aftStations.slice(1, -1))
           box(
             afterbody,
             [0.12, 0.16, 0.16],
-            [x, vertical * 0.3, side * (aftProfile(x).width + 0.06)],
+            [x, vertical * 0.3 + aftProfile(x).lift, side * (aftProfile(x).width + 0.06)],
             steel
           )
       }
@@ -607,14 +626,14 @@ export function createShip(
     for (const side of [-1, 1]) {
       for (let i = 0; i < 5; i++) {
         const x = driveOrigin + (-0.44 + i * 0.17) * engineScale
-        const { height, width } = aftProfile(x)
-        box(afterbody, [0.075, height * 0.43, 0.035], [x, 0, side * (width + 0.014)], dark)
+        const { height, width, lift } = aftProfile(x)
+        box(afterbody, [0.075, height * 0.43, 0.035], [x, lift, side * (width + 0.014)], dark)
       }
     }
 
     const drive = new Group()
     drive.name = 'fixed_engines'
-    drive.position.x = driveOrigin
+    drive.position.set(driveOrigin, driveLift, 0)
     drive.scale.setScalar(engineScale)
     root.add(drive)
     // Recessed dark thrust plate and a painted perimeter lip carry the bells.
@@ -690,7 +709,8 @@ export function createShip(
         const inset = chamfer / 2 + skin * 0.35
         slab(
           [shroudLength, skin, chamfer * Math.SQRT2 + skin * 0.4],
-          [shroudX, s * (H - inset), t * (W - inset)],
+          // The lower plates sit a hair higher, so their corners stay above the keel plane.
+          [shroudX, s * (H - inset) + (s < 0 ? 0.025 : 0), t * (W - inset)],
           dark,
           [s * t * (Math.PI / 4), 0, 0],
           drive
@@ -700,7 +720,13 @@ export function createShip(
     // Frames round the shroud, where it takes the thrust into the hull.
     for (const x of [shroudFore - 0.08, shroudAft + 0.16]) {
       for (const s of [-1, 1]) {
-        box(drive, [0.1, 0.06, (W - chamfer) * 2 + 0.1], [x, s * (H + 0.03), 0], steel)
+        // The ventral bar is let into the shroud's floor, a hair above the keel plane.
+        box(
+          drive,
+          [0.1, 0.06, (W - chamfer) * 2 + 0.1],
+          [x, s < 0 ? -H + 0.04 : H + 0.03, 0],
+          steel
+        )
         box(drive, [0.1, (H - chamfer) * 2 + 0.1, 0.06], [x, 0, s * (W + 0.03)], steel)
       }
     }
