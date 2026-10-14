@@ -37,11 +37,12 @@ type Station4 = [number, number, number, number]
 
 /**
  * The bow collar in the bow mount's frame: its plates' outer and inner faces
- * (off the mount's centre), how far out of the nose they reach and how long
- * their 45-degree lip is. The reach is as far as the lip's plane, carried on
- * into the bow, stays clear of every bow module.
+ * (off the mount's centre), where the 45-degree chisel on the inner face
+ * starts, and the point out of the nose where it meets the 45-degree bevel
+ * on the outer face. The chisel's plane, carried on into the bow, stays
+ * clear of every bow module.
  */
-const BOW_COLLAR = { outer: 0.93, inner: 0.67, reach: 0.5, chisel: 0.24 }
+const BOW_COLLAR = { outer: 0.93, inner: 0.67, chisel: 0.26, tip: 0.415 }
 
 type Material = MeshStandardMaterial
 
@@ -527,18 +528,45 @@ export function createShip(
     const engineScale = config.engineSize
     // The engine block stands taller than the hull it pushes, above the deck line
     // and below the keel, so the drive is the first thing the silhouette says.
-    const sternHeight = CORVETTE.drive.sternHeight[config.engines] * engineScale
     const sternWidth = CORVETTE.drive.sternWidth[config.engines] * engineScale
+    const { fore: shroudFore, aft: shroudAft, skin } = CORVETTE.drive.shroud
+    const bells = CORVETTE.bells[config.engines]
+    // How high above the drive's axis the bells reach at x (drive units): the
+    // chamber where a printed bell plugs in, the bell's outside, and the
+    // gimbal ring and struts off the thrust plate, with a margin.
+    const bellTop = (x: number) =>
+      Math.max(
+        -Infinity,
+        ...bells.flatMap(([y, , scale]) => {
+          const plate = CORVETTE.drive.thrustPlate
+          const hang = plate + 0.09
+          const reach: number[] = []
+          const d = (hang - x) / scale
+          if (d >= -0.12 && d <= BELL_LENGTH)
+            reach.push((d <= 0.58 ? Math.max(0.3, bellRadius(d)) : bellRadius(d)) * scale)
+          if (Math.abs(x - plate) <= 0.03) reach.push(0.3 * scale + 0.1)
+          const strutEnd = hang - 0.2 * scale
+          if (x <= plate && x >= strutEnd) {
+            const t = (plate - x) / (plate - strutEnd)
+            reach.push(0.3 * scale + 0.1 + (0.22 * scale - 0.3 * scale - 0.1) * t + 0.022)
+          }
+          return reach.map(r => y + r + 0.04)
+        })
+      )
     // The block's full section, held from where the flare ends to the thrust
     // plate so the shroud behind it carries on at the same size, not smaller.
+    // Its floor lies on the plane the ship stands on (`CORVETTE.bed`, the
+    // bays' undersides), so nothing of the drive is below it, and its top
+    // where it would stand on the hull's axis; it is only taller when the
+    // bells need the room. The afterbody eases up from the core to meet it.
     const [blockFore, blockAft] = CORVETTE.drive.block
-    const blockHeight = sternHeight + CORVETTE.drive.blockAdds[0] * engineScale
-    const blockWidth = sternWidth + CORVETTE.drive.blockAdds[1] * engineScale
-    // The drive rides up off the hull's axis until the block's underside lies
-    // on the plane the ship stands on (`CORVETTE.bed`, the bays' undersides),
-    // so nothing of the drive is below it; the afterbody eases up from the
-    // core to meet it.
     const bed = CORVETTE.bed
+    const axial = (CORVETTE.drive.sternHeight[config.engines] + CORVETTE.drive.blockAdds[0]) * engineScale
+    let room = 0
+    for (let i = 0; i <= 24; i++) room = Math.max(room, bellTop(shroudFore - ((shroudFore - shroudAft) * i) / 24))
+    const blockHeight = Math.max((axial - bed) / 2, (room + skin) * engineScale)
+    const sternHeight = blockHeight - CORVETTE.drive.blockAdds[0] * engineScale
+    const blockWidth = sternWidth + CORVETTE.drive.blockAdds[1] * engineScale
     const driveLift = Math.max(0, blockHeight + bed)
     const aftSections: [number, number, number, number][] = [
       [driveOrigin + blockFore * engineScale, blockHeight, blockWidth, driveLift],
@@ -618,12 +646,18 @@ export function createShip(
         (from, to) => strake(from, to, 0.48 * config.beam, 0.14, pale)
       )
     }
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < 5; i++) {
-        const x = driveOrigin + (-0.44 + i * 0.17) * engineScale
-        const { height, width, lift } = aftProfile(x)
-        box(afterbody, [0.075, height * 0.43, 0.035], [x, lift, side * (width + 0.014)], dark)
-      }
+    // Vents down each flank of the flare, standing on one line, the ones
+    // nearer the drive longer as the block grows.
+    {
+      const vents = [0, 1, 2, 3, 4].map(i => driveOrigin + (-0.44 + i * 0.17) * engineScale)
+      const fore = aftProfile(vents.at(-1)!)
+      const foot = fore.lift - fore.height * 0.215
+      for (const side of [-1, 1])
+        for (const x of vents) {
+          const { height, width } = aftProfile(x)
+          const length = height * 0.43
+          box(afterbody, [0.075, length, 0.035], [x, foot + length / 2, side * (width + 0.014)], dark)
+        }
     }
 
     const drive = new Group()
@@ -674,31 +708,20 @@ export function createShip(
 
     // The engine room. A shroud carries the hull's own section on past the
     // thrust plate, so the bells sit back inside armour instead of hanging off
-    // the stern. Everything that feeds a
-    // bell is out where it can be serviced: turbopumps on the roof, their feed
-    // lines running forward and down into the block, and the flank conduits
-    // carried aft into the block.
+    // the stern. Everything that feeds a bell is out where it can be
+    // serviced: turbopumps on the roof, their feed lines running forward and
+    // down into the block.
     const H = blockHeight / engineScale
     const W = blockWidth / engineScale
     const chamfer = Math.min(H, W) * 0.35
-    const { fore: shroudFore, aft: shroudAft, skin } = CORVETTE.drive.shroud
     const shroudLength = shroudFore - shroudAft
     const shroudX = (shroudFore + shroudAft) / 2
     // The roof's inside slopes down to the thrust plate as steeply as the
-    // bells hung under it allow, up to 45 degrees, so the hull prints belly
-    // down with no ceiling over the bay: each bell's chamber (where its print
-    // plugs in) and its outside stay clear of the slope.
+    // bells hung under it allow, up to 45 degrees, so it is no flat ceiling
+    // when the hull prints belly down; every bell, its chamber and its gimbal
+    // stay clear of the slope.
     const ceiling = H - skin
-    const clearOf = (x: number) =>
-      Math.max(
-        -Infinity,
-        ...CORVETTE.bells[config.engines].map(([y, , scale]) => {
-          const d = (CORVETTE.drive.thrustPlate + 0.09 - x) / scale
-          if (d < -0.12 || d > BELL_LENGTH) return -Infinity
-          const outside = bellRadius(d)
-          return y + (d <= 0.58 ? Math.max(0.3, outside) : outside) * scale + 0.03
-        })
-      )
+    const clearOf = bellTop
     let drop = shroudLength
     for (let i = 0; i < 24; i++) {
       const x = shroudFore - (shroudLength * i) / 24
@@ -737,7 +760,7 @@ export function createShip(
       for (const t of [-1, 1]) {
         const inset = chamfer / 2 + skin * 0.35
         slab(
-          [shroudLength, skin, chamfer * Math.SQRT2 + skin * 0.4],
+          [shroudLength - 0.02, skin, chamfer * Math.SQRT2 + skin * 0.4],
           // The lower plates sit a hair higher, so their corners stay above the keel plane.
           [shroudX, s * (H - inset) + (s < 0 ? 0.025 : 0), t * (W - inset)],
           dark,
@@ -785,13 +808,6 @@ export function createShip(
       pipe(drive, [feedX, roof + 0.19, z], [feedX, roof, z], 0.05, copper)
       box(drive, [0.2, 0.04, 0.2], [feedX, roof + 0.01, z], steel)
     }
-    // The flank conduits, carried aft along the shroud to a junction on the block.
-    for (const y of [-0.3, 0.3])
-      for (const z of [-1, 1]) {
-        const reach = z * (W + 0.075)
-        pipe(drive, [-0.76, y, reach], [shroudAft + 0.3, y, reach], 0.055, copper)
-        box(drive, [0.16, 0.18, 0.16], [shroudAft + 0.3, y, z * (W + 0.06)], steel)
-      }
   }
 
   // Same paired magnet spacing and keyed interface on every mount.
@@ -1129,23 +1145,34 @@ export function createShip(
     // Both shoulders take the secondary paint: the scheme reads the same
     // above and below, so a ship seen from under the ring is the same ship.
     if (forward) {
-      // The collar round the bow mount: an upper and a lower plate, flat on
-      // the outside (the lower one stands on the bed), and a cheek each side
-      // between them, narrowing to the nose in plan. Each plate's lip is a
-      // 45-degree chisel on its inner face, and below the upper one (above
-      // the lower) a web carries the chisel's plane on into the bow, clear
-      // of every bow module: printed belly down, nothing faces the bed.
-      const { outer, inner, reach, chisel } = BOW_COLLAR
-      const lip = 0.01
+      // The collar round the bow mount: an upper and a lower plate and a
+      // cheek each side between them, all narrowing to the nose in plan. Each
+      // plate ends in a point: a 45-degree chisel on its inner face meets a
+      // 45-degree bevel on its outer one (the lower plate's flat outer face
+      // stands on the bed). Below the upper plate (above the lower) a web
+      // carries the chisel's plane on into the bow, clear of every bow
+      // module: printed belly down, nothing faces the bed.
+      const { outer, inner, chisel, tip } = BOW_COLLAR
+      // The chisel lies on z = x + plane; the outer bevel starts at x =
+      // bevel and meets it at the tip.
+      const plane = inner - chisel
+      const bevel = 2 * tip - (outer - plane)
+      // A station from its outer and inner faces and its half width.
+      const faces = (x: number, o: number, i: number, w: number): Station4 => [
+        x,
+        (o - i) / 2,
+        w,
+        (o + i) / 2,
+      ]
       for (const side of [-1, 1]) {
-        const at = (x: number, h: number, w: number): Station4 => [x, h, w, outer - h]
         add(
           cradle,
           armoredSection([
-            at(-0.64, 0.12, 0.8),
-            at(-0.2, (outer - inner) / 2, 1.18),
-            at(reach - chisel, (outer - inner) / 2, 1.14),
-            at(reach, lip, 1.0),
+            faces(-0.64, outer, inner + 0.02, 0.8),
+            faces(-0.2, outer, inner, 1.18),
+            faces(chisel, outer, inner, 1.14),
+            faces(bevel, outer, bevel + plane, 1.12),
+            faces(tip, tip + plane + 0.005, tip + plane - 0.005, 1.0),
           ]),
           pale,
           [0, 0, 0],
@@ -1153,29 +1180,30 @@ export function createShip(
         )
         // The web: the chisel's plane from where it meets the plate's inner
         // face down to the shoe's height.
-        const top = outer - 2 * lip
         const foot = 0.42
         fin(
           cradle,
           [
-            [reach - (top - foot), side * foot],
+            [foot - plane, side * foot],
             [-0.2, side * foot],
             [-0.2, side * inner],
-            [reach - chisel, side * inner],
+            [chisel, side * inner],
           ],
           1.8,
           pale,
           [0, Math.PI / 2, Math.PI / 2]
         )
       }
+      // The cheeks end in a 45-degree bevel top and bottom.
+      const cheek = inner + 0.01
       for (const x of [-1.04, 1.04]) {
         add(
           cradle,
           armoredSection([
-            [-0.59, 0.14, inner + 0.01],
-            [-0.13, 0.13, inner + 0.01],
-            [reach - chisel, 0.1, inner + 0.01],
-            [reach, 0.07, inner + 0.01 - chisel],
+            [-0.59, 0.14, cheek],
+            [-0.13, 0.13, cheek],
+            [tip - 0.24, 0.1, cheek],
+            [tip, 0.07, cheek - 0.24],
           ]),
           hull,
           [x, 0, 0],
@@ -1254,7 +1282,7 @@ export function createShip(
           frame,
           forward ? [0.16, 0.05, 0.025] : [0.16, 0.025, 0.05],
           forward
-            ? [x, BOW_COLLAR.reach - BOW_COLLAR.chisel - 0.06, z * (BOW_COLLAR.outer + 0.012)]
+            ? [x, BOW_COLLAR.chisel - 0.06, z * (BOW_COLLAR.outer + 0.012)]
             : [x, 0.41, z * 0.82],
           highlight
         )

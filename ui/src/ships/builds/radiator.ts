@@ -44,7 +44,8 @@ export const radiator: ModuleBuild = (k, p) => {
     // each end where it meets the spine.
     for (const x of [-0.7, 0.7]) {
       k.pipe(p, [x, 0.41, 0], [x, PANEL.at, side * PANEL.out], 0.04, copper)
-      k.plate(p, [0.14, 0.2, 0.2], [x * 1.2, 0.36, side * 0.17], steel)
+      // Inside the end cap's outline, so no face of one lies on a face of the other.
+      k.plate(p, [0.14, 0.18, 0.2], [x * 1.17, 0.35, side * 0.17], steel)
     }
   }
 }
