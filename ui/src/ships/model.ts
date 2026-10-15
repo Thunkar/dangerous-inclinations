@@ -31,7 +31,7 @@ import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid } from 
 import { bake, describe } from './solid'
 import { CORVETTE } from './corvetteShape'
 import { BELL_LENGTH, bellRadius } from './bell'
-import { MODULE_BUILDS, type ModuleKit } from './modules'
+import { MODULE_BASE, MODULE_BUILDS, type ModuleKit } from './modules'
 
 type Station4 = [number, number, number, number]
 
@@ -863,7 +863,12 @@ export function createShip(
   }
   const moduleGeometry = (p: Group, type: SubsystemType, forward: boolean) => {
     shoe(p, 0, dark, false)
-    plate(p, [1.68, 0.12, 1.0], [0, 0.16, 0], hull)
+    plate(
+      p,
+      [MODULE_BASE.length, MODULE_BASE.thickness, MODULE_BASE.width],
+      [0, MODULE_BASE.at, 0],
+      hull
+    )
     const build = MODULE_BUILDS[type]
     if (build) return build(kit, p, forward)
     switch (type) {
@@ -902,9 +907,9 @@ export function createShip(
         // faceted housing laid along the plate in a saddle that fills the
         // bay, with a finned capacitor block at its after end, two clamped
         // coils, armour panels and an aiming box, and at its fore end a squat
-        // hex emitter head facing outboard: a recessed array of cyan cells in
-        // a steel collar crowned with stubby electrode studs, braced by short
-        // radiator vanes. No barrel: the burst goes out all round.
+        // hex emitter head facing outboard: a cyan core in a steel collar
+        // with three electrode prongs, braced by radiator vanes. No barrel:
+        // the burst goes out all round.
         const emitter = new Group()
         emitter.name = 'disruptor_emitter'
         p.add(emitter)
@@ -1039,45 +1044,44 @@ export function createShip(
             0,
           ])
         }
-        // The head: a hex block, cyan slits in its forward faces, short
+        // The head: a big hex block, a cyan slit in each forward face,
         // radiator vanes at its corners, and on top a steel collar round a
-        // recessed array of cyan cells, crowned with electrode studs.
+        // cyan core with three electrode prongs standing out of it, each
+        // tipped cyan. Every piece is big enough to survive a print.
         const head = new Group()
         head.name = 'disruptor_head'
-        head.position.x = 0.54
+        head.position.x = 0.48
         emitter.add(head)
-        prism(head, 6, 0.25, 0.34, [0, 0.17, 0], dark)
+        const R = 0.32
+        const H = 0.42
+        prism(head, 6, R, H, [0, H / 2, 0], dark)
         for (const angle of [-Math.PI / 3, 0, Math.PI / 3]) {
           const face = new Group()
           face.rotation.y = angle
           head.add(face)
-          box(face, [0.03, 0.18, 0.07], [0.222, 0.17, 0], cyan)
+          box(face, [0.03, 0.24, 0.1], [R * Math.cos(Math.PI / 6), H / 2, 0], cyan)
         }
         for (const angle of [-90, -30, 30, 90])
           fin(
             head,
             [
-              [0.18, 0],
-              [0.32, 0],
-              [0.32, 0.1],
-              [0.18, 0.24],
+              [R * 0.7, 0],
+              [R + 0.1, 0],
+              [R + 0.1, 0.12],
+              [R * 0.7, 0.32],
             ],
-            0.06,
+            0.08,
             steel,
             [0, (angle * Math.PI) / 180, 0]
           )
-        prism(head, 6, 0.27, 0.06, [0, 0.37, 0], steel, [0, 0, 0], 0.19)
-        prism(head, 6, 0.2, 0.04, [0, 0.35, 0], dark)
-        for (let i = -1; i < 6; i++) {
-          const a = (i * Math.PI) / 3
-          const r = i < 0 ? 0 : 0.11
-          prism(head, 6, 0.055, 0.03, [Math.cos(a) * r, 0.385, -Math.sin(a) * r], cyan)
-        }
-        for (let i = 0; i < 6; i++) {
-          const a = Math.PI / 6 + (i * Math.PI) / 3
-          const [x, z] = [Math.cos(a) * 0.23, -Math.sin(a) * 0.23]
-          prism(head, 6, 0.04, 0.09, [x, 0.445, z], steel)
-          prism(head, 6, 0.03, 0.03, [x, 0.505, z], cyan)
+        prism(head, 6, R + 0.02, 0.08, [0, H + 0.04, 0], steel, [0, 0, 0], R - 0.08)
+        prism(head, 6, R - 0.08, 0.04, [0, H + 0.02, 0], dark)
+        prism(head, 6, 0.14, 0.08, [0, H + 0.06, 0], cyan)
+        for (let i = 0; i < 3; i++) {
+          const a = Math.PI / 6 + (i * 2 * Math.PI) / 3
+          const [x, z] = [Math.cos(a) * 0.2, -Math.sin(a) * 0.2]
+          frustum(head, 6, 0.075, 0.045, 0.26, [x, H + 0.21, z], steel)
+          prism(head, 6, 0.055, 0.06, [x, H + 0.37, z], cyan)
         }
         break
       }

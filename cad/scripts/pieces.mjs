@@ -14,7 +14,7 @@ mkdirSync("parts/bells", { recursive: true });
 for (const t of types)
   writeFileSync(
     `parts/modules/${t}.part.js`,
-    `import { part } from "fluidcad/core";\nimport { buildModule } from "../../pieces/module.ts";\n\nexport const module = part("${t}", () => buildModule("${t}"));\n`
+    `import { part } from "fluidcad/core";\nimport { buildModule, screwFor } from "../../pieces/module.ts";\n\nexport const module = part(\`${t} (M2 screw up to \${screwFor("${t}")} mm)\`, () => buildModule("${t}"));\n`
   );
 for (const [hull, n] of Object.entries(BELLS))
   for (let i = 0; i < n; i++)

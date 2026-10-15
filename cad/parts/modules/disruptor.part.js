@@ -1,4 +1,4 @@
 import { part } from "fluidcad/core";
-import { buildModule } from "../../pieces/module.ts";
+import { buildModule, screwFor } from "../../pieces/module.ts";
 
-export const module = part("disruptor", () => buildModule("disruptor"));
+export const module = part(`disruptor (M2 screw up to ${screwFor("disruptor")} mm)`, () => buildModule("disruptor"));

@@ -401,7 +401,9 @@ ventral shoulders to, so the hull stands flat). What hangs below the keel
 (the shrike's blade, the mantis's arm fins) prints as a piece of its own,
 turned over onto its cut, and is glued on (filament pins where it is thick
 enough). Modules (`pieces/module.ts`) and bells (`pieces/bells.ts`)
-print on their own the same way. A change to a ship in the yard is a change
+print on their own the same way; a module adds a 45-degree skirt from its
+foot to the base plate's edge (where the game draws the shoe), so the plate
+has no lip in the air. A change to a ship in the yard is a change
 to its print. `corvetteShape.ts` and `bell.ts` are the numbers both read.
 
 FluidCAD's booleans have three traps, all handled in `cad/lib/`: a solid
@@ -429,7 +431,8 @@ designer's open viewer and other runs alone. A hung build leaves its server runn
 
 The designer's constraints: 6x2 magnets are **sealed in plastic**,
 never exposed (small children); each module
-holds a ferrous M2x4 countersunk screw and sticks to one magnet per mount;
+holds a ferrous M2 countersunk screw (4 mm, or up to 6 where the module's
+plastic allows: its part's name says how long) and sticks to one magnet per mount;
 **one module print fits all four flank mounts**, so the foot and every module
 are symmetric dorsal to ventral and point forward; hidden modules sit upside
 down in base pockets held by shape alone (angled to keep the base thin);

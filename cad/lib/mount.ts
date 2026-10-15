@@ -28,28 +28,32 @@ export function footOutline(m: Mount = MOUNT): Point[] {
 }
 
 /**
- * The screw's seat from the mating face (z = 0) up: the pilot for the thread
- * and the countersink cone, which leaves the head a hair under the face.
+ * The screw's pilot for the thread, from the mating face (z = 0) up, `depth`
+ * deep. Each tool is built only when asked for: FluidCAD keeps every solid
+ * a part builds, so an unused one prints as a body of its own.
  */
-export function screwTools(m: Mount = MOUNT): { pilot: Solid; cone: Solid } {
-  const pilot = disc(m.screw.pilot, m.screw.length + 0.6);
+export function pilotTool(m: Mount = MOUNT, depth = m.screw.shortest + 0.6): Solid {
+  return disc(m.screw.pilot, depth);
+}
+
+/** The screw head's countersink cone at the mating face, leaving the head a hair under it. */
+export function countersinkTool(m: Mount = MOUNT): Solid {
   const sink = (m.screw.headDiameter - m.screw.pilot) / 2;
   sketch("xy", () => {
     circle([0, 0], m.screw.headDiameter);
   });
-  const cone = extrude(sink).draft(-45).new();
-  return { pilot, cone };
+  return extrude(sink).draft(-45).new();
 }
 
 /**
  * The module's tenon: the outline less the clearance, `recessDepth - 0.1`
- * thick from z = 0 up, with `body` of solid behind it for the thread and the
- * screw seat drilled from the mating face. Prints mating face down.
+ * thick from z = 0 up, with `body` of solid behind it, and the screw's
+ * countersink cut from the mating face. Prints mating face down; the pilot is
+ * drilled through whatever stands on it (`pilotTool`).
  */
 export function tenon(m: Mount = MOUNT, body = 5): Solid {
   const t = prism(grow(footOutline(m), -m.clearance), m.recessDepth - 0.1 + body);
-  const { pilot, cone } = screwTools(m);
-  return subtract(subtract(t, pilot), cone);
+  return subtract(t, countersinkTool(m));
 }
 
 /**

@@ -66,7 +66,12 @@ export const MOUNT = {
     pilot: 1.7,
     /** ISO 7046 / DIN 965 head, 90 degrees, sunk a hair below the face. */
     headDiameter: 4.0,
-    length: 4,
+    /**
+     * The screws a module takes: every module's pilot fits the shortest, and
+     * runs as deep as its plastic allows up to the longest.
+     */
+    shortest: 4,
+    longest: 6,
   },
 };
 

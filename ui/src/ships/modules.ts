@@ -24,6 +24,13 @@ import { missiles } from './builds/missiles'
 type Vec3 = [number, number, number]
 type Material = MeshStandardMaterial
 
+/**
+ * The base plate every module stands on, in the module's frame: its length
+ * along X, thickness along Y, width along Z, and the Y of its middle. The
+ * printed module flares down from it to the foot (`cad/pieces/module.ts`).
+ */
+export const MODULE_BASE = { length: 1.68, thickness: 0.12, width: 1.0, at: 0.16 }
+
 /** The yard's tools and paints, handed to a module built outside this file. */
 export interface ModuleKit {
   add: (p: Group, geometry: BufferGeometry, mat: Material, pos?: Vec3, rot?: Vec3) => Mesh
