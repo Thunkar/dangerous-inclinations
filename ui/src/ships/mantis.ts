@@ -9,7 +9,7 @@
  * (hulls.ts).
  */
 import { Group, Matrix4, MeshStandardMaterial, Object3D, Shape, Vector3 } from 'three'
-import { armoredSection, hollowSection, type Station } from './loft'
+import { armoredSection, hollowSection, sectionLoft, type Station } from './loft'
 import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid, type Put } from './parts'
 import { bake } from './solid'
 import type { Vec3 } from './config'
@@ -95,20 +95,28 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     slab([0.9, 0.36, 0.08], [-2.7, R + 0.04, s * 0.84], m.hull)
     for (let i = 0; i < 4; i++) box([0.05, 0.42, 0.03], [-3.75 + i * 0.1, R, s * 0.77], m.dark)
   }
-  // A dark keel block under the core, down to the arms' undersides, from the
-  // drive's aft end to the scoop: the ship prints belly down, and the raised
-  // core would otherwise hang over the bed. It is as wide as the core's flat underside, so the core's own
-  // chamfers rise from its edges, and it carries the braces' undersides as
-  // bridges to the arms.
+  // The keel: the core's belly carried down to the arms' undersides, from
+  // the drive's aft end to the scoop, in the hull's own paint. Its sides
+  // leave the core's flat underside where the core's lower chamfers end and
+  // close in at 60 degrees to a flat on the plane the ship prints on (and
+  // the keel fin is glued to), so nothing of the raised core hangs over the
+  // bed and nothing of the keel faces down.
   {
-    const bottom = R - CORE_H
-    const h = (bottom - KEEL + 0.05) / 2
-    section(
-      [
-        [CORE_AFT - 0.55, h, 0.49, KEEL + h],
-        [-1.6, h, 0.49, KEEL + h],
-      ],
-      m.dark
+    const top = R - CORE_H + 0.01
+    const flat = CORE_W - Math.min(CORE_H, CORE_W) * 0.35
+    const foot = flat - (top - KEEL) / Math.tan(Math.PI / 3)
+    const ring: [number, number][] = [
+      [top, -flat],
+      [top, flat],
+      [KEEL, foot],
+      [KEEL, -foot],
+    ]
+    put(
+      sectionLoft([
+        { x: CORE_AFT - 0.55, ring },
+        { x: -1.6, ring },
+      ]),
+      m.hull
     )
   }
   // The fixed scoop under the core's forward face.
