@@ -84,6 +84,18 @@ function octagon(x0: number, x1: number, y: number, c: number): Point[] {
   ];
 }
 
+/** Whether the square of half side r about p lies inside the convex polygon (anticlockwise). */
+function inside(polygon: Point[], [x, y]: Point, r: number): boolean {
+  return polygon.every(([ax, ay], i) => {
+    const [bx, by] = polygon[(i + 1) % polygon.length];
+    const [ex, ey] = [bx - ax, by - ay];
+    const len = Math.hypot(ex, ey);
+    // Distance of the square's worst corner to the edge's line, inward positive.
+    const d = (ex * (y - ay) - ey * (x - ax)) / len - r * (Math.abs(ex) + Math.abs(ey)) / len;
+    return d >= 0;
+  });
+}
+
 /** A square of side s centred on the origin. */
 const square = (s: number): Point[] => [
   [-s / 2, -s / 2],
@@ -103,12 +115,15 @@ export function buildBase(): Solid {
   const trackWide = TRACK_SIZE.y[1] - TRACK_SIZE.y[0];
   const half = trackY0 + trackWide + 2 * SEAT + 4;
   const bow = { pocket: 46, rail: 46 + p.wide + CUBE.wall + CUBE.pocket / 2 };
-  const stern = { rails: -52, heat: -52 - CUBE.pocket - 2 * CUBE.wall - ICON - 2 };
+  // The heat track nearer the ship, where the deck is full width; the fixed
+  // subsystems' shorter rails at the stern, their icons between the two.
+  const stern = { heat: -52, rails: -52 - CUBE.pocket - 2 * CUBE.wall - ICON - 2 };
   const x1 = bow.rail + CUBE.pocket / 2 + CUBE.wall + 3;
-  const x0 = stern.heat - CUBE.pocket / 2 - CUBE.wall - 3;
+  const x0 = stern.rails - CUBE.pocket / 2 - CUBE.wall - 3;
 
   // The deck: the top octagon grown by the slope at the table, drawn in to it.
-  const c = 24;
+  const c = 20;
+  const deckTop = octagon(x0, x1, half, c);
   let body: Solid = taper(octagon(x0 - inset, x1 + inset, half + inset, c + inset * 0.4), top, SLOPE);
 
   const cuts: Solid[] = [];
@@ -128,7 +143,7 @@ export function buildBase(): Solid {
   // The forward slot: across the bow, its rail ahead of it.
   modulePocket([bow.pocket + p.wide / 2, 0], true);
   cuts.push(...cubeRow(capacity("forward"), [bow.rail, 0], top, "y"));
-  // Astern: the fixed subsystems' rails across the ship, each marked, then heat.
+  // Astern: the heat track, then the fixed subsystems' rails across the ship, each marked.
   const fixed: { type: SubsystemType; icon: IconName }[] = [
     { type: "engines", icon: "thrusters" },
     { type: "rotation", icon: "maneuvering_thrusters" },
@@ -173,6 +188,10 @@ export function buildBase(): Solid {
     [STAND.peg / 2, STAND.peg / 2, SHIP_BED - 0.5]
   );
   const base = fuse(body, pedestal, pin);
+  // Every icon stands clear of the deck's edge, where the slope would cut it.
+  for (const m of marks)
+    if (!inside(deckTop, m.at, ICON / 2 + 1.5))
+      throw new Error(`The ${m.icon} icon at ${m.at.map((v) => v.toFixed(1))} runs off the deck`);
   for (const m of marks) engrave(m.icon, ICON, m.at, top);
   return base;
 }
