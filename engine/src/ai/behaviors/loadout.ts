@@ -217,6 +217,16 @@ const KIT: Record<BotRole, Partial<Record<SecondaryKind, BotPresetId>>> = {
 const KIT_PRIORITY: readonly SecondaryKind[] = ["piracy", "salvage", "escort", "survey", "tanker"];
 
 /**
+ * The secondaries a preset is fitted for: the cards whose kit in its role
+ * names it, in {@link KIT_PRIORITY} order. A role's default is no card's kit,
+ * so it has none (the printed loadout cards read it as "any").
+ */
+export function presetSecondaries(id: BotPresetId): SecondaryKind[] {
+  const kit = KIT[presetRole(id)];
+  return KIT_PRIORITY.filter((kind) => kit[kind] === id);
+}
+
+/**
  * The preset a hand flies: the role's default unless an open secondary asks
  * for another, the higher card in {@link KIT_PRIORITY} deciding between two.
  *

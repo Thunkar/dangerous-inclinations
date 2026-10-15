@@ -136,10 +136,11 @@ engine/src/sim/         runGame, runBatch (workers), stats (from events), cli
 engine/src/test/        vitest; helpers in testUtils.ts
 server/src/             services/gameService.ts, websocket/roomHandler.ts, routes/
 ui/src/                 context/ (game, animation, plan, boardMode, navigation),
-                        components/table/, art/glyphs.tsx (the one drawn icon set)
+                        components/table/, art/ (subsystemArt.ts: the subsystems' marks)
 ui/src/site/            routes.ts (the four sections), Landing, Tools, Cheatsheet,
                         turn.ts (the turn, stated once), numbers.ts, poster.tsx,
                         guide/ (the cheatsheet's sections), card/ (the printed card),
+                        loadouts/ (the twelve loadout cards),
                         tools/ (RoutePlannerTool + OrbitalWindows, windows.ts,
                         windowDiagrams.tsx; HeatTrackerTool, heatMat.ts; DiceTool)
 ui/src/design/          tokens.ts (the dark table), press.ts (paper, ink, red: all printed matter)
@@ -149,8 +150,9 @@ ui/src/components/board/  model.ts (useBoardModel: all either renderer draws),
 ui/src/ships/           model.ts (createShip: the 3D ship, shipyard and board alike),
                         hulls.ts (the hulls a player picks: mounts, framing, board fit),
                         shrike.ts, mantis.ts, loft.ts (the clipped-section lofts), parts.ts (the
-                        de Laval bells), modules.ts (the shield comb, missile box, plasma
-                        projector and ram compressor), mounts.ts (slot names per hull),
+                        de Laval bells), modules.ts (the kit, the plasma projector and
+                        the ram compressor), builds/ (the other modules, one a file),
+                        mounts.ts (slot names per hull),
                         ShipMark (the flat mark)
 ```
 
@@ -313,15 +315,19 @@ wedge through the black hole, the mark). `site/poster.tsx` holds the pieces
 (display type, slabs, the mark) and `site/guide/parts.tsx` the cheatsheet's
 (numbered sections, points, chips, the ledger a heat check is written in).
 
-**One icon set** (`ui/src/art/`): the artwork is the PNGs in
-`ui/public/assets/icons`, traced to vector once by `scripts/trace-icons.py` into
-the generated `art/paths.ts`. Drawn from the vector rather than the bitmap for
-two reasons: a bitmap flattened by a CSS filter can be made white but not
-black, and the card needs black ink; and a 400px bitmap at 6mm is not what you
-want on paper. `SubsystemIcon` draws from it, so a subsystem is the same mark on the
-board, in the loadout and on the card, and nothing in it carries a colour.
-Re-run the script after changing an icon. The site's nav is type, not icons;
-the rest of the app's chrome stays on MUI icons.
+**One icon set** (`ui/src/art/`): each subsystem's mark is a stencil drawn
+from the module the yard builds (`art/subsystemArt.ts`), on the mission
+glyphs' contract: a 64 box, filled polygons cut with straight edges, the
+holes even-odd, no colour of its own. `TileIcon` and `SubsystemIcon` draw it,
+so a subsystem is the same mark on the board, in the loadout, on the printed
+cards and engraved on the printed pieces (`cad/lib/icons.ts`), and it looks
+like the module in the player's hand: change a module enough and its mark
+changes with it. Check a mark at 24px on paper and on ink; three of the
+modules are boxes of bars, and silhouette is what tells them apart. The only
+traced artwork left is heat, hull and fuel for the printed pieces
+(`ui/public/assets/icons` through `scripts/trace-icons.py` into `art/paths.ts`).
+The site's nav is type, not icons; the rest of the app's chrome stays on MUI
+icons.
 
 **The cheatsheet** (`site/Cheatsheet.tsx`, `site/guide/`) teaches the game in
 the order a first table meets it, eight numbered sections: the goal (the six
@@ -369,6 +375,20 @@ swapped and the face turned 180°). It does not repeat the board or the
 missions: ring speeds, lane sectors and card text are printed in front of you. About 105mm of column per
 face; content that does not fit is content to cut, and nothing in the card
 shrinks to hide that (`.di-card > *` never shrinks, so overflow shows).
+
+**The loadout cards** (`ui/src/site/loadouts/`, words in `text/loadoutCards.ts`)
+are the twelve bot presets as cards for a first game, on the `/card` page
+after the player card: 63x88mm, the mission cards' size, nine to an A4 page,
+fronts only, in colour. Each is a poster: the role's family ink (hunter red,
+interceptor violet, hauler teal, as their primaries) in a stripe with the
+name up it, the insignia top right (the role's badge shape with the preset's
+signature subsystem in it), the bow large, the flanks as Port and Starboard
+columns by slot code (F1, P1, P2, S1, S2: never fore and aft, which the
+shrike does not have), and a black bar with the missions it is kept with
+(`presetSecondaries`, the bots' own table read backwards) and one line on
+how to fly it. Everything on it is read from the engine's presets, so a
+preset that changes changes its card; the line is the designer's, in the text
+file. The two prints on the page are exclusive (`body[data-printing]`).
 
 ## The printed pieces
 

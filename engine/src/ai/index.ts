@@ -247,6 +247,7 @@ export {
   PRESETS_BY_ROLE,
   PRESET_NAMES,
   presetRole,
+  presetSecondaries,
 } from "./behaviors/loadout.ts";
 export type { BotPresetId, BotRole } from "./behaviors/loadout.ts";
 export { analyzeSituation, shieldAbsorption, suspectedWeapon } from "./analyzer.ts";

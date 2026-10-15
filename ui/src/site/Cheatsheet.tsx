@@ -13,7 +13,9 @@
  * what is on screen is the geometry that reaches the printer. Printing lays
  * four faces on each A4 page with crop marks (`card/sheet.ts`): two cards on
  * one side, or four fronts and then four backs for a duplex printer, and
- * nothing else on the page prints.
+ * nothing else on the page prints. The loadout cards follow it
+ * (`loadouts/`), one per preset, and print nine to a page from their own
+ * button.
  */
 import { useState } from 'react'
 import { Box } from '@mui/material'
@@ -44,6 +46,9 @@ import { cropMarks, sheetPages, type PrintMode } from './card/sheet'
 import { INK } from './diagram'
 import { Segments } from './tools/controls'
 import { CHEATSHEET } from '../text/cheatsheet'
+import { LOADOUT_CARDS } from '../text/loadoutCards'
+import { LoadoutSection } from './loadouts/LoadoutSection'
+import { LOADOUT_CSS } from './loadouts/loadoutStyles'
 import { rich } from '../utils/rich'
 
 const T = CHEATSHEET
@@ -58,6 +63,7 @@ const STYLE = `
 :root { --di-sans: ${FONT_BODY}; --di-mono: ${FONT_MONO}; --di-display: ${FONT_DISPLAY}; }
 ${CARD_PAGE_CSS}
 ${CARD_CSS}
+${LOADOUT_CSS}
 `
 
 const CONTENTS: Array<{ id: string; label: string }> = (
@@ -71,7 +77,7 @@ function Contents() {
       aria-label={T.contents.label}
       sx={{
         display: 'grid',
-        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', lg: 'repeat(9, 1fr)' },
+        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(5, 1fr)', lg: 'repeat(10, 1fr)' },
         gap: '4px',
         mt: { xs: 4, sm: 5 },
       }}
@@ -111,37 +117,42 @@ function Contents() {
           </Box>
         </Box>
       ))}
-      <Box
-        component="a"
-        href="#card"
-        sx={{
-          gridColumn: { xs: 'span 2', sm: 'auto' },
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          gap: 0.75,
-          p: 1.5,
-          minHeight: 88,
-          bgcolor: PRESS.red,
-          color: PRESS.paper,
-          textDecoration: 'none',
-          '&:hover': { bgcolor: PRESS.ink },
-        }}
-      >
-        <PrintIcon sx={{ fontSize: 26 }} />
+      {[
+        { href: '#card', label: T.contents.card },
+        { href: '#loadouts', label: LOADOUT_CARDS.section.contents },
+      ].map(tile => (
         <Box
-          component="span"
+          key={tile.href}
+          component="a"
+          href={tile.href}
           sx={{
-            fontFamily: FONT_DISPLAY,
-            fontWeight: 600,
-            fontSize: '1.02rem',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: 0.75,
+            p: 1.5,
+            minHeight: 88,
+            bgcolor: PRESS.red,
+            color: PRESS.paper,
+            textDecoration: 'none',
+            '&:hover': { bgcolor: PRESS.ink },
           }}
         >
-          {T.contents.card}
+          <PrintIcon sx={{ fontSize: 26 }} />
+          <Box
+            component="span"
+            sx={{
+              fontFamily: FONT_DISPLAY,
+              fontWeight: 600,
+              fontSize: '1.02rem',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {tile.label}
+          </Box>
         </Box>
-      </Box>
+      ))}
     </Box>
   )
 }
@@ -195,7 +206,11 @@ function PrintSheets({ mode }: { mode: PrintMode }) {
 
 /** The bundled faces must be in before the sheet is laid out for the printer. */
 function print() {
-  void document.fonts.ready.then(() => window.print())
+  void document.fonts.ready.then(() => {
+    // The loadout cards' print marks the body while it runs; never inherit a mark left behind.
+    delete document.body.dataset.printing
+    window.print()
+  })
 }
 
 function PrintCard() {
@@ -325,6 +340,7 @@ export function Cheatsheet() {
       </Box>
 
       <PrintCard />
+      <LoadoutSection />
       <SiteFooter />
     </Box>
   )
