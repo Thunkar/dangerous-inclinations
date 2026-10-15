@@ -8,16 +8,17 @@
 // thrusters, scoop) and the heat track, each marked with the game's icon,
 // and the hull and fuel sliders' tracks drop into seats along the flanks.
 // The deck is as thick as the tallest module needs, and nothing stands on
-// it but the stand.
-import { subtract, fuse } from "fluidcad/core";
+// it but the ship's stand, printed for each hull (pieces/stand.ts), in the
+// socket at its centre.
+import { subtract } from "fluidcad/core";
 import {
   SUBSYSTEM_CONFIGS,
   canInstallInSlot,
   MAX_HEAT,
   type SubsystemType,
 } from "@dangerous-inclinations/engine";
-import { CUBE, STAND } from "../spec.ts";
-import { block, taper, move, type Point, type Solid } from "../lib/solids.ts";
+import { CUBE } from "../spec.ts";
+import { block, prism, taper, move, type Point, type Solid } from "../lib/solids.ts";
 import { engrave, type IconName } from "../lib/icons.ts";
 import { envelopeOf, MODULE_TYPES } from "./module.ts";
 import { TRACK_SIZE } from "./slider.ts";
@@ -35,8 +36,29 @@ const SEAT = 0.2;
 const SLOPE = 30;
 /** Icons engraved beside the rails and tracks, mm square. */
 const ICON = 8;
-/** Where the ship's bed stands above the table. */
-export const SHIP_BED = 34;
+/**
+ * The socket every hull's stand plugs into, at the deck's centre: a
+ * rectangle with its fore port corner cut, so a stand goes in only facing
+ * the bow, and as deep as the deck allows.
+ */
+export const SOCKET = { long: 14, wide: 10, key: 3, depth: 8, clearance: 0.15 };
+
+/** The socket's outline, grown by g (the stand's tenon is it shrunk). */
+export function socketOutline(g = 0): Point[] {
+  const [x, y, k] = [SOCKET.long / 2 + g, SOCKET.wide / 2 + g, SOCKET.key];
+  return [
+    [-x, -y],
+    [x, -y],
+    [x, y - k],
+    [x - k, y],
+    [-x, y],
+  ];
+}
+
+/** How high the deck stands: every stand starts there. */
+export function deckTop(): number {
+  return FLOOR + pocket().depth;
+}
 
 /** The pocket every module fits, and how deep the tallest needs it. */
 function pocket() {
@@ -96,17 +118,9 @@ function inside(polygon: Point[], [x, y]: Point, r: number): boolean {
   });
 }
 
-/** A square of side s centred on the origin. */
-const square = (s: number): Point[] => [
-  [-s / 2, -s / 2],
-  [s / 2, -s / 2],
-  [s / 2, s / 2],
-  [-s / 2, s / 2],
-];
-
 export function buildBase(): Solid {
   const p = pocket();
-  const top = FLOOR + p.depth;
+  const top = deckTop();
   const inset = top * Math.tan((SLOPE * Math.PI) / 180);
   // Where things sit on the deck: the ship's centre line on y = 0, the bow +x.
   const side = { inner: 22, fore: 23, aft: -25 };
@@ -124,7 +138,7 @@ export function buildBase(): Solid {
   // The deck: the top octagon grown by the slope at the table, drawn in to it.
   // Its corners are cut as far as the heat track along the stern allows.
   const c = 12;
-  const deckTop = octagon(x0, x1, half, c);
+  const rim = octagon(x0, x1, half, c);
   let body: Solid = taper(octagon(x0 - inset, x1 + inset, half + inset, c + inset * 0.4), top, SLOPE);
 
   const cuts: Solid[] = [];
@@ -181,17 +195,12 @@ export function buildBase(): Solid {
   // One cut at a time: a fuse of tools that do not touch yields nothing.
   for (const cut of cuts) body = subtract(body, cut);
 
-  // The stand: a tapered pedestal off the deck, and the peg the ship's socket takes.
-  const rise = SHIP_BED - STAND.depth + 0.5 - top;
-  const pedestal = move(taper(square(26), rise + 0.01, 14), 0, 0, top - 0.01);
-  const pin = block(
-    [-STAND.peg / 2, -STAND.peg / 2, top + rise - 0.5],
-    [STAND.peg / 2, STAND.peg / 2, SHIP_BED - 0.5]
-  );
-  const base = fuse(body, pedestal, pin);
+  // The socket the hull's stand plugs into.
+  body = subtract(body, move(prism(socketOutline(SOCKET.clearance), SOCKET.depth + 1), 0, 0, top - SOCKET.depth));
+  const base = body;
   // Every icon stands clear of the deck's edge, where the slope would cut it.
   for (const m of marks)
-    if (!inside(deckTop, m.at, ICON / 2 + 1.5))
+    if (!inside(rim, m.at, ICON / 2 + 1.5))
       throw new Error(`The ${m.icon} icon at ${m.at.map((v) => v.toFixed(1))} runs off the deck`);
   for (const m of marks) engrave(m.icon, ICON, m.at, top);
   return base;

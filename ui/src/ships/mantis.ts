@@ -33,6 +33,25 @@ export const CORE_RAISE = 0.5
 /** The arms' undersides, where the ship stands on its keel. */
 const KEEL = -ARM_H
 
+/**
+ * The keel under the core: its top (the core's flat underside) and the
+ * half widths there and at its foot on the keel plane, its sides at 60
+ * degrees, and where it runs: from inside the shroud's aft band to past the
+ * scoop. What a display stand cradles.
+ */
+export const MANTIS_KEEL = (() => {
+  const top = CORE_RAISE - CORE_H + 0.01
+  const flat = CORE_W - Math.min(CORE_H, CORE_W) * 0.35
+  return {
+    top,
+    flat,
+    foot: flat - (top - KEEL) / Math.tan(Math.PI / 3),
+    aft: CORE_AFT - 0.53,
+    fore: -1.52,
+    keel: KEEL,
+  }
+})()
+
 export function buildMantis(body: Group, put: Put, m: MantisInk) {
   const section = (s: Station[], mat: Mat, pos?: Vec3, rot?: Vec3) =>
     put(armoredSection(s), mat, pos, rot)
@@ -102,9 +121,7 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
   // the keel fin is glued to), so nothing of the raised core hangs over the
   // bed and nothing of the keel faces down.
   {
-    const top = R - CORE_H + 0.01
-    const flat = CORE_W - Math.min(CORE_H, CORE_W) * 0.35
-    const foot = flat - (top - KEEL) / Math.tan(Math.PI / 3)
+    const { top, flat, foot, aft, fore } = MANTIS_KEEL
     const ring: [number, number][] = [
       [top, -flat],
       [top, flat],
@@ -114,9 +131,9 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     put(
       sectionLoft([
         // Inside the shroud's pale aft band, so its end is on no face of the shroud's.
-        { x: CORE_AFT - 0.53, ring },
+        { x: aft, ring },
         // Past the scoop's face, so no face of the scoop lies on its end.
-        { x: -1.52, ring },
+        { x: fore, ring },
       ]),
       m.hull
     )

@@ -17,6 +17,7 @@ import { DEFAULT_CONFIG, MOUNTS as GAME_MOUNTS, type MountId } from "../../ui/sr
 import { placedSolids, type PlacedSolid } from "../../ui/src/ships/solid.ts";
 import { CORVETTE } from "../../ui/src/ships/corvetteShape.ts";
 import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
+import { MANTIS_KEEL } from "../../ui/src/ships/mantis.ts";
 import { MOUNT, STAND, FDM, PRINT } from "../spec.ts";
 import { printFrame, placeSolid, placeBuilt, uniteAlong } from "../lib/kit.ts";
 import { block, disc, move, taper, turn, type Solid, type Vec } from "../lib/solids.ts";
@@ -25,16 +26,31 @@ import { recessTool, pocketTool, socketBounds, type Mount } from "../lib/mount.t
 const S = PRINT.mmPerUnit;
 
 /**
- * Each hull's print: `bed` is its flat bottom (game y, `HULL_INFO.keel`); `stand` the x of the stand's socket; `pins` the x of the
- * filament pins that locate a piece glued on below the bed (none where the
- * piece is too thin to take one).
+ * Each hull's print: `bed` is its flat bottom (game y, `HULL_INFO.keel`);
+ * `socket` where the stand's peg goes in (x), how wide the peg is and how
+ * deep the socket, for a hull whose stand has a peg (`pieces/stand.ts`: the
+ * shrike's grips its blade instead); `pins` the x of the filament pins that
+ * locate a piece glued on below the bed (none where the piece is too thin
+ * to take one).
  */
-export const HULL_PRINT: Record<Hull, { bed: number; stand: number; pins: number[] }> = {
-  corvette: { bed: HULL_INFO.corvette.keel, stand: -0.4, pins: [] },
-  // The blade hangs below the keel plates.
-  shrike: { bed: HULL_INFO.shrike.keel, stand: 0.3, pins: [-0.2, 0.9] },
+export const HULL_PRINT: Record<
+  Hull,
+  { bed: number; socket: { x: number; peg: number; depth: number } | null; pins: number[] }
+> = {
+  corvette: {
+    bed: HULL_INFO.corvette.keel,
+    socket: { x: -0.4, peg: STAND.peg, depth: STAND.depth },
+    pins: [],
+  },
+  // The blade hangs below the keel plates, over where a socket would go.
+  shrike: { bed: HULL_INFO.shrike.keel, socket: null, pins: [-0.2, 0.9] },
+  // The keel under the core is 4 mm wide at its foot: a slim peg, at its middle.
   // The arm fins hang below the arms, too thin for pins.
-  mantis: { bed: HULL_INFO.mantis.keel, stand: 0.3, pins: [] },
+  mantis: {
+    bed: HULL_INFO.mantis.keel,
+    socket: { x: (MANTIS_KEEL.aft + MANTIS_KEEL.fore) / 2, peg: 2.6, depth: 5 },
+    pins: [],
+  },
 };
 
 export function shipModel(hull: Hull): ShipModel {
@@ -158,6 +174,41 @@ function piecesOf(model: ShipModel, frame: Matrix4): Piece[] {
     });
 }
 
+/** The stand's socket at x: a square for the peg, `depth` deep, its roof rising to a point at 45 degrees. */
+function socketCuts(x: number, peg: number, depth: number): Cut[] {
+  const cuts: Cut[] = [];
+  const side = peg + 2 * STAND.clearance;
+  const stand: [Vec, Vec] = [
+    [x - side / 2, -side / 2, -1],
+    [x + side / 2, side / 2, depth],
+  ];
+  cuts.push({ box: boxOf(stand, new Matrix4()), make: () => block(...stand) });
+  // Its roof rises to a point at 45 degrees rather than closing flat over the peg.
+  const roof: [Vec, Vec] = [
+    [x - side / 2, -side / 2, depth - 0.01],
+    [x + side / 2, side / 2, depth + side / 2],
+  ];
+  cuts.push({
+    box: boxOf(roof, new Matrix4()),
+    make: () =>
+      move(
+        taper(
+          [
+            [-side / 2, -side / 2],
+            [side / 2, -side / 2],
+            [side / 2, side / 2],
+            [-side / 2, side / 2],
+          ],
+          side / 2 - 0.05
+        ),
+        x,
+        0,
+        depth - 0.01
+      ),
+  });
+  return cuts;
+}
+
 /**
  * Cut each piece where a cut reaches it, then fuse what is left, anchored on
  * the biggest, in runs along the hull (`uniteAlong`).
@@ -244,36 +295,8 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): Solid {
       make: () => placeSolid(placed, frame)!,
     });
   });
-  const side = STAND.peg + 2 * STAND.clearance;
-  const x = HULL_PRINT[hull].stand * S;
-  const stand: [Vec, Vec] = [
-    [x - side / 2, -side / 2, -1],
-    [x + side / 2, side / 2, STAND.depth],
-  ];
-  cuts.push({ box: boxOf(stand, new Matrix4()), make: () => block(...stand) });
-  // Its roof rises to a point at 45 degrees rather than closing flat over the peg.
-  const roof: [Vec, Vec] = [
-    [x - side / 2, -side / 2, STAND.depth - 0.01],
-    [x + side / 2, side / 2, STAND.depth + side / 2],
-  ];
-  cuts.push({
-    box: boxOf(roof, new Matrix4()),
-    make: () =>
-      move(
-        taper(
-          [
-            [-side / 2, -side / 2],
-            [side / 2, -side / 2],
-            [side / 2, side / 2],
-            [-side / 2, side / 2],
-          ],
-          side / 2 - 0.05
-        ),
-        x,
-        0,
-        STAND.depth - 0.01
-      ),
-  });
+  const socket = HULL_PRINT[hull].socket;
+  if (socket) cuts.push(...socketCuts(socket.x * S, socket.peg, socket.depth));
   cuts.push(...pinCuts(hull, true));
   cuts.push({
     box: boxOf(BELOW, new Matrix4()),
@@ -290,7 +313,7 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): Solid {
  * locate it. Only what reaches well below the bed (2 mm) belongs to it; the
  * slivers of the drive block and the like under the bed are simply cut off.
  */
-export function buildBelow(hull: Hull): void {
+export function buildBelow(hull: Hull): Solid | null {
   const model = shipModel(hull);
   const frame = printFrame(HULL_PRINT[hull].bed);
   const pieces = piecesOf(model, frame).filter((p) => p.box.min.z < -2);
@@ -303,5 +326,5 @@ export function buildBelow(hull: Hull): void {
     ...pinCuts(hull, false),
   ];
   // Built below the bed, then turned over about x: the cut is the bed.
-  if (pieces.length) turn(cutAndUnite(pieces, cuts), "x", 180);
+  return pieces.length ? turn(cutAndUnite(pieces, cuts), "x", 180) : null;
 }

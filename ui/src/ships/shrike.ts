@@ -23,6 +23,12 @@ import type { Vec3 } from './config'
 type Mat = MeshStandardMaterial
 export type ShrikeInk = Record<'hull' | 'pale' | 'dark' | 'steel' | 'copper' | 'cyan' | 'red', Mat>
 
+/**
+ * The blade's flat bottom (y, and x aft and fore), its thickness, and how far
+ * aft of its leading edge the pale band runs: what a display stand grips.
+ */
+export const SHRIKE_BLADE = { bottom: -4.85, aft: -2.0, fore: -0.35, thick: 0.5, band: 0.34 }
+
 export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
   const section = (s: Station[], mat: Mat, pos?: Vec3) => put(armoredSection(s), mat, pos)
   const slab = (size: Vec3, pos: Vec3, mat: Mat, rot?: Vec3, parent: Object3D = body) =>
@@ -237,7 +243,7 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
     let [px, py] = [-ey / l, ex / l]
     if (px * (trail[0] - root[0]) + py * (trail[1] - root[1]) > 0) [px, py] = [-px, -py]
     const proud = (p: [number, number]): [number, number] => [p[0] + px * 0.02, p[1] + py * 0.02]
-    const band = 0.34
+    const band = SHRIKE_BLADE.band
     fin(
       [proud(root), proud(lead), [lead[0] - band, lead[1]], [root[0] - band * 1.5, root[1]]],
       thickness + 0.05,
@@ -251,9 +257,10 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
   box([0.1, 0.08, 0.1], [-1.3, 4.39, 0], m.red)
   // The blade, the bigger: from under the chin to a flat bottom below the
   // column, its trailing edge cranked.
+  const { bottom, aft, fore, thick } = SHRIKE_BLADE
   const root: [number, number] = [2.05, -0.76]
-  const lead: [number, number] = [-0.35, -4.85]
-  sweptFin(root, lead, [-2.0, -4.85], [-0.7, -1.0], 0.5, [], [[-0.95, -2.9]])
+  const lead: [number, number] = [fore, bottom]
+  sweptFin(root, lead, [aft, bottom], [-0.7, -1.0], thick, [], [[-0.95, -2.9]])
 
   stern(body, put, m, { slab, box, pipe, fin, hollow })
 }
