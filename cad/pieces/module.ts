@@ -176,6 +176,30 @@ export function buildModule(type: SubsystemType, dx = 0): void {
   if (dx) move(piece, dx, 0, 0);
 }
 
+/**
+ * The box `type`'s printed module fills, mating face on the bed: its length
+ * (x, along the mount), width (y) and height (z) in mm, grown as the print
+ * grows its parts.
+ */
+export function envelopeOf(type: SubsystemType): { long: number; wide: number; tall: number } {
+  const { group, frame } = layout(type);
+  group.updateMatrixWorld(true);
+  const toGroup = group.matrixWorld.clone().invert();
+  const box = new Box3();
+  group.traverse((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh || o.name === "mount_shoe" || solidOf(mesh.geometry)?.kind === "detail") return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    box.union(mesh.geometry.boundingBox!.clone().applyMatrix4(frame.clone().multiply(toGroup).multiply(mesh.matrixWorld)));
+  });
+  const g = 2 * FDM.join;
+  return {
+    long: 2 * Math.max(-box.min.x, box.max.x) + g,
+    wide: 2 * Math.max(-box.min.y, box.max.y) + g,
+    tall: box.max.z + FDM.join,
+  };
+}
+
 /** Every subsystem a loadout slot can hold, each of which prints as a module. */
 export const MODULE_TYPES: SubsystemType[] = (
   Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]

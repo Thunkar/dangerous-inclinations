@@ -19,13 +19,19 @@ type Vec3 = [number, number, number]
 const UP: Vec3 = [0, 0, Math.PI / 2]
 
 /**
- * How much of the gun's drawn height it keeps out of the plate: it was
- * drawn standing 2.05 out, and is shortened so it hides in a base pocket.
- * `Y` takes a drawn height up the gun to its height, `L` a drawn length.
+ * How much of its drawn height each part of the gun keeps out of the plate,
+ * so the gun hides in a base pocket no deeper than the rack's: the breech,
+ * its clamp band and the capacitor banks (drawn up to 0.8) keep half, the
+ * rails above them (drawn from 0.8 to 2.05) seven tenths. `Y` takes a drawn
+ * height to its height, `L` a drawn length up the rails, `B` one in the breech.
  */
-const SHORT = 0.88
-const Y = (y: number) => 0.3 + (y - 0.3) * SHORT
-const L = (length: number) => length * SHORT
+const BASE = 0.5
+const RAILS = 0.7
+const ROOT = 0.8
+const Y = (y: number) =>
+  y <= ROOT ? 0.3 + (y - 0.3) * BASE : 0.3 + (ROOT - 0.3) * BASE + (y - ROOT) * RAILS
+const L = (length: number) => length * RAILS
+const B = (length: number) => length * BASE
 /** The rail's centre across the bow and its half width across. */
 const RAIL = { x: 0.23, h: 0.08 }
 /** The rail's half depth (dorsal to ventral) at y: deep at the breech, tapering to the muzzle. */
@@ -117,7 +123,7 @@ export const railgun: ModuleBuild = (kit, p) => {
       0.51
     )
     for (let i = 0; i < 3; i++)
-      box(flank, [0.07, L(0.3), 0.07], [0.645, Y(0.5), -0.15 + i * 0.15], m.steel)
+      box(flank, [0.07, B(0.3), 0.07], [0.645, Y(0.5), -0.15 + i * 0.15], m.steel)
     plate(flank, [0.28, 0.06, 0.5], [0.51, Y(0.72), 0], m.pale)
     for (const z of [-0.06, 0.06]) box(flank, [0.18, 0.08, 0.07], [0.52, Y(0.76), z], m.steel)
     box(flank, [0.15, 0.07, 0.1], [0.52, Y(0.75), 0], m.cyan)

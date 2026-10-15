@@ -12,18 +12,25 @@ import { SLIDER } from "../spec.ts";
 const STEPS = SLIDER.steps;
 const PITCH = SLIDER.pitch;
 /** The pointer at step 0, from the open end. */
-const START = 12;
-const LENGTH = START + (STEPS - 1) * PITCH + 14;
+const START = 10;
+/** The slider's foot: twice as long as it is wide, so it cannot rack. */
+const FOOT = 10;
+/** Long enough for the foot at step 10, with 2 to spare before the closed end. */
+const LENGTH = START + (STEPS - 1) * PITCH + FOOT + 2;
 const TOP = 5;
-const WIDTH = { label: -13.5, grooves: 8 };
+/** The numbers' band (they stand clear of the cap's pointer) and the grooves' side. */
+const WIDTH = { label: -11.5, grooves: 8 };
+const NUMBERS_AT = -10.8;
+
+/** The track bar's size, for the base it drops into: x from 0, y across, z up. */
+export const TRACK_SIZE = { length: LENGTH, y: [WIDTH.label, WIDTH.grooves], height: TOP };
 
 /** The dovetail: 60 degree flanks (a 30 degree overhang prints smooth). */
 const FLANK = (60 * Math.PI) / 180;
 const DOVETAIL = { top: 2.6, depth: 1.8 };
 
-/** The slider: a foot twice as long as it is wide, so it cannot rack. */
-const FOOT = 10;
-const CAP = { half: 11, gap: 0.3, thick: 1.8, y0: -3.4 };
+/** The slider's cap, a finger's width long. */
+const CAP = { half: 9, gap: 0.3, thick: 1.8, y0: -3.4 };
 /** The tongue: fixed aft, free forward, 1.2 thick, 11 long. */
 const TONGUE = { x0: -6, x1: 5, y0: 3.8, thick: 1.2, slot: 0.6 };
 /** The ridge's 90 degree tip, near the tongue's free end. */
@@ -81,7 +88,7 @@ export function buildTrack(): void {
   sketch(plane("xy", { offset: TOP }), () => {
     for (let i = 0; i < STEPS; i++) {
       text(String(i))
-        .at([START + i * PITCH, -12])
+        .at([START + i * PITCH, NUMBERS_AT])
         .size(SLIDER.numberSize)
         .bold()
         .align("center");

@@ -192,7 +192,7 @@ function pinCuts(hull: Hull, up: boolean): Cut[] {
   });
 }
 
-export function buildHull(hull: Hull, mount: Mount = MOUNT): void {
+export function buildHull(hull: Hull, mount: Mount = MOUNT): Solid {
   const model = shipModel(hull);
   const frame = printFrame(HULL_PRINT[hull].bed);
   const pieces = piecesOf(model, frame);
@@ -281,7 +281,7 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): void {
     // `reach` is a piece grown by 1 mm: one that would leave at most 0.3 mm above the bed goes.
     swallows: (b) => b.max.z <= 1.3,
   });
-  cutAndUnite(pieces, cuts);
+  return cutAndUnite(pieces, cuts);
 }
 
 /**

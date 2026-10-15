@@ -91,8 +91,9 @@ export const CUBE = {
  */
 export const SLIDER = {
   steps: 11,
-  pitch: 7,
-  numberSize: 5.5,
+  /** Step to step, and the numbers' height: 6 and 4.8 since the base (7 and 5.5 before). */
+  pitch: 6,
+  numberSize: 4.8,
   /** The dovetail's gap on each flank as drawn; 0 slides (the designer's print). */
   clearance: 0,
   /** How far the ridge sits in the track once the tongue has lifted the slider onto the dovetail. */
