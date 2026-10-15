@@ -113,8 +113,10 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     ]
     put(
       sectionLoft([
-        { x: CORE_AFT - 0.55, ring },
-        { x: -1.6, ring },
+        // Inside the shroud's pale aft band, so its end is on no face of the shroud's.
+        { x: CORE_AFT - 0.53, ring },
+        // Past the scoop's face, so no face of the scoop lies on its end.
+        { x: -1.52, ring },
       ]),
       m.hull
     )
