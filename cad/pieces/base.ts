@@ -169,11 +169,7 @@ export function buildBase(): Solid {
   modulePocket([bow.pocket + p.wide / 2, 0], true);
   cuts.push(...cubeRow(capacity("forward"), [bow.rail, 0], top, "y"));
   // Astern: the fixed subsystems' rails across the ship, each marked, then heat.
-  const fixed: { type: SubsystemType; icon: IconName }[] = [
-    { type: "engines", icon: "thrusters" },
-    { type: "rotation", icon: "maneuvering_thrusters" },
-    { type: "scoop", icon: "scoop" },
-  ];
+  const fixed: SubsystemType[] = ["engines", "rotation", "scoop"];
   // Spread across the stern: the engines and the scoop out at the flanks,
   // the thrusters' one cube by the centre line, the middle left clear; each
   // icon at the port end of its row, as the heat track's is.
@@ -181,13 +177,13 @@ export function buildBase(): Solid {
   const outer = half - CUBE.wall - 1;
   const mark = ICON + 1;
   fixed.forEach((f, i) => {
-    const n = SUBSYSTEM_CONFIGS[f.type].maxEnergy;
+    const n = SUBSYSTEM_CONFIGS[f].maxEnergy;
     const length = rowLength(n);
     const s = i - 1;
     const mid =
       s > 0 ? outer - mark - length / 2 : s < 0 ? -(outer - length / 2) : (length - (length + mark)) / 2;
     cuts.push(...cubeRow(n, [rails, mid], top, "y"));
-    marks.push({ icon: f.icon, at: [rails, mid + length / 2 + 1 + ICON / 2] });
+    marks.push({ icon: f, at: [rails, mid + length / 2 + 1 + ICON / 2] });
   });
   const fold = MAX_HEAT / 2;
   for (const x of heat) cuts.push(...cubeRow(fold, [x, 0], top, "y"));

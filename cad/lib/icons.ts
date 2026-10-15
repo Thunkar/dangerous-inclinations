@@ -1,15 +1,21 @@
-// The game's icons (ui/src/art/paths.ts: one filled path per icon on a 64 box,
-// y down, traced from the artwork) as outlines a sketch can draw, so a printed
-// piece carries the same marks as the board and the card.
+// The game's icons as outlines a sketch can draw, so a printed piece carries
+// the same marks as the board and the cards: the subsystems' stencils
+// (ui/src/art/subsystemArt.ts) and the traced marks for heat, hull and fuel
+// (ui/src/art/paths.ts). Both are closed loops on a 64 box, y down, the
+// stencils' holes nested inside their loops.
 import { sketch, plane, cut } from "fluidcad/core";
+import type { SubsystemType } from "@dangerous-inclinations/engine";
 import { TRACED_PATHS } from "../../ui/src/art/paths.ts";
+import { SUBSYSTEM_PATHS } from "../../ui/src/art/subsystemArt.ts";
 import { outline, type Point } from "./solids.ts";
 
-export type IconName = keyof typeof TRACED_PATHS;
+export type IconName = keyof typeof TRACED_PATHS | SubsystemType;
+
+const PATHS: Record<IconName, string> = { ...TRACED_PATHS, ...SUBSYSTEM_PATHS };
 
 /** An icon's closed loops, `size` mm square, centred on the origin, y up; curves become 4 segments. */
 export function iconLoops(name: IconName, size: number): Point[][] {
-  const tokens = TRACED_PATHS[name].match(/[MLQZ]|-?\d*\.?\d+/g) ?? [];
+  const tokens = PATHS[name].match(/[MLQZ]|-?\d*\.?\d+/g) ?? [];
   const k = size / 64;
   const at = (x: number, y: number): Point => [(x - 32) * k, (32 - y) * k];
   const loops: Point[][] = [];

@@ -1,7 +1,7 @@
 /**
- * One subsystem glyph, rendered the same way everywhere: the icon set's own
- * artwork, traced to vector (`art/glyphs.tsx`), which the printed card draws
- * from too. Nothing tints the mark; a tile's category shows as an edge or a
+ * One subsystem glyph, rendered the same way everywhere: the stencil drawn
+ * from the module (`art/subsystemArt.ts`), which the printed cards draw from
+ * too. Nothing tints the mark; a tile's category shows as an edge or a
  * badge, never as the glyph's fill. It is decorative (no title, hidden from
  * screen readers): the tooltip or label around it names the tile, and a native
  * SVG title inside a tooltip is only a second tooltip.
