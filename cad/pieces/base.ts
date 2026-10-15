@@ -134,12 +134,12 @@ export function buildBase(): Solid {
   const trackWide = TRACK_SIZE.y[1] - TRACK_SIZE.y[0] + 2 * SEAT;
   const half = trackY0 + trackWide + 3;
   const bow = { pocket: 37, rail: 37 + p.wide + CUBE.wall + CUBE.pocket / 2 };
-  // Astern of the side slots, the fixed subsystems' rails (their icons aft
-  // of them), and behind those the heat track folded in two rows of five.
+  // Astern of the side slots, with room between, the fixed subsystems' rails
+  // (each icon in line with its cubes), and behind those the heat track
+  // folded in two rows of five.
   const aftSlot = side.aft - Math.max(p.long, rowLength(capacity("side"))) / 2;
-  const rails = aftSlot - CUBE.wall - CUBE.pocket / 2;
-  const marksX = rails - CUBE.pocket / 2 - CUBE.wall - ICON / 2 - 1;
-  const heat = [marksX - ICON / 2 - 2 - CUBE.wall - CUBE.pocket / 2];
+  const rails = aftSlot - 6 - CUBE.pocket / 2;
+  const heat = [rails - CUBE.pocket / 2 - CUBE.wall - 3 - CUBE.pocket / 2];
   heat.push(heat[0] - PITCH);
   // The tracks run from just fore of the fixed rails.
   const trackX0 = rails + CUBE.pocket / 2 + CUBE.wall + 1;
@@ -175,14 +175,19 @@ export function buildBase(): Solid {
     { type: "scoop", icon: "scoop" },
   ];
   // Spread across the stern: the engines and the scoop out at the flanks,
-  // the thrusters' one cube on the centre line, the middle left clear.
+  // the thrusters' one cube by the centre line, the middle left clear; each
+  // icon at the port end of its row, as the heat track's is.
   const marks: { icon: IconName; at: Point }[] = [];
   const outer = half - CUBE.wall - 1;
+  const mark = ICON + 1;
   fixed.forEach((f, i) => {
     const n = SUBSYSTEM_CONFIGS[f.type].maxEnergy;
-    const mid = (i - 1) * (outer - rowLength(n) / 2) * (i === 1 ? 0 : 1);
+    const length = rowLength(n);
+    const s = i - 1;
+    const mid =
+      s > 0 ? outer - mark - length / 2 : s < 0 ? -(outer - length / 2) : (length - (length + mark)) / 2;
     cuts.push(...cubeRow(n, [rails, mid], top, "y"));
-    marks.push({ icon: f.icon, at: [marksX, mid] });
+    marks.push({ icon: f.icon, at: [rails, mid + length / 2 + 1 + ICON / 2] });
   });
   const fold = MAX_HEAT / 2;
   for (const x of heat) cuts.push(...cubeRow(fold, [x, 0], top, "y"));
