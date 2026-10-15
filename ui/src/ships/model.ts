@@ -48,6 +48,9 @@ const BOW_COLLAR = { outer: 0.93, inner: 0.67, chisel: 0.36, tip: 0.615 }
 
 type Material = MeshStandardMaterial
 
+/** Where a module's group sits off its mount frame, outboard, when it is seated. */
+const MODULE_SEAT = 0.12
+
 /** The livery patterns as the paint shader numbers them. */
 const LIVERY_CODE: Record<Livery, number> = {
   band: 1,
@@ -846,7 +849,7 @@ export function createShip(
     underside: number,
     top: number
   ) => {
-    const skin = mountFace(forward) - p.position.y
+    const skin = mountFace(forward) - MODULE_SEAT
     if (!boardDetail) {
       const thick = (FOOT.recessDepth - FOOT.clearance) * MM
       const tenon = extrudeSolid(footShape(-FOOT.clearance), { depth: thick, bevelEnabled: false })
@@ -1318,7 +1321,7 @@ export function createShip(
         )
       }
     const module = new Group()
-    module.position.y = 0.12
+    module.position.y = MODULE_SEAT
     frame.add(module)
     mounts.set(mount.id, { frame, module, highlight, labelPosition: new Vector3(0, 0.35, 0.94) })
   }
@@ -1456,7 +1459,7 @@ export function createShip(
 
 export function poseShip(model: ShipModel, exploded: number, selected: MountId | null) {
   for (const [id, mount] of model.mounts) {
-    mount.module.position.y = 0.12 + exploded * 2.2
+    mount.module.position.y = MODULE_SEAT + exploded * 2.2
     mount.highlight.color.set(id === selected ? HULL_INK.warn : HULL_INK.steel)
     mount.highlight.emissive.set(id === selected ? HULL_INK.warn : '#000000')
     mount.highlight.emissiveIntensity = id === selected ? 0.8 : 0
