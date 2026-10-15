@@ -7,6 +7,8 @@
 // for its energy. Astern lie the fixed subsystems' rails (engines,
 // thrusters, scoop) and the heat track, each marked with the game's icon,
 // and the hull and fuel sliders' tracks drop into seats along the flanks.
+// Everything is packed as close as fingers allow: the side slots' pockets
+// lie under the ship, which stands clear of the deck.
 // The deck is as thick as the tallest module needs, and nothing stands on
 // it but the ship's stand, printed for each hull (pieces/stand.ts), in the
 // socket at its centre.
@@ -33,7 +35,7 @@ const PITCH = CUBE.pocket + CUBE.wall;
 /** Room round a slider track bar in its seat. */
 const SEAT = 0.2;
 /** The deck's sides, from vertical. */
-const SLOPE = 30;
+const SLOPE = 20;
 /** Icons engraved beside the rails and tracks, mm square. */
 const ICON = 8;
 /**
@@ -123,21 +125,29 @@ export function buildBase(): Solid {
   const top = deckTop();
   const inset = top * Math.tan((SLOPE * Math.PI) / 180);
   // Where things sit on the deck: the ship's centre line on y = 0, the bow +x.
-  const side = { inner: 22, fore: 23, aft: -25 };
+  // The side slots' pockets lie under the ship's flanks (it stands well clear
+  // of the deck, and a pocket is reached only to reveal), their rails just
+  // outboard of the ship, and the slider tracks outboard of those.
+  const side = { inner: 8, fore: 23, aft: -25 };
   const railY = side.inner + p.wide + CUBE.wall + CUBE.pocket / 2;
-  const trackY0 = railY + CUBE.pocket / 2 + CUBE.wall + 2;
-  const trackWide = TRACK_SIZE.y[1] - TRACK_SIZE.y[0];
-  const half = trackY0 + trackWide + 2 * SEAT + 4;
-  const bow = { pocket: 46, rail: 46 + p.wide + CUBE.wall + CUBE.pocket / 2 };
-  // The fixed subsystems' rails with the slots' (their icons aft of them),
-  // and the heat track behind, along the stern.
-  const stern = { rails: -52, heat: -52 - CUBE.pocket - 2 * CUBE.wall - ICON - 2 };
-  const x1 = bow.rail + CUBE.pocket / 2 + CUBE.wall + 3;
-  const x0 = stern.heat - CUBE.pocket / 2 - CUBE.wall - 3;
+  const trackY0 = railY + CUBE.pocket / 2 + CUBE.wall + 1.5;
+  const trackWide = TRACK_SIZE.y[1] - TRACK_SIZE.y[0] + 2 * SEAT;
+  const half = trackY0 + trackWide + 3;
+  const bow = { pocket: 37, rail: 37 + p.wide + CUBE.wall + CUBE.pocket / 2 };
+  // Astern of the side slots, the fixed subsystems' rails (their icons aft
+  // of them), and behind those the heat track folded in two rows of five.
+  const aftSlot = side.aft - Math.max(p.long, rowLength(capacity("side"))) / 2;
+  const rails = aftSlot - CUBE.wall - CUBE.pocket / 2;
+  const marksX = rails - CUBE.pocket / 2 - CUBE.wall - ICON / 2 - 1;
+  const heat = [marksX - ICON / 2 - 2 - CUBE.wall - CUBE.pocket / 2];
+  heat.push(heat[0] - PITCH);
+  // The tracks run from just fore of the fixed rails.
+  const trackX0 = rails + CUBE.pocket / 2 + CUBE.wall + 1;
+  const x1 = bow.rail + CUBE.pocket / 2 + CUBE.wall + 2;
+  const x0 = heat[1] - CUBE.pocket / 2 - CUBE.wall - 2;
 
   // The deck: the top octagon grown by the slope at the table, drawn in to it.
-  // Its corners are cut as far as the heat track along the stern allows.
-  const c = 12;
+  const c = 14;
   const rim = octagon(x0, x1, half, c);
   let body: Solid = taper(octagon(x0 - inset, x1 + inset, half + inset, c + inset * 0.4), top, SLOPE);
 
@@ -171,26 +181,23 @@ export function buildBase(): Solid {
   let y = -total / 2;
   fixed.forEach((f, i) => {
     const mid = y + groups[i] / 2;
-    cuts.push(...cubeRow(SUBSYSTEM_CONFIGS[f.type].maxEnergy, [stern.rails, mid], top, "y"));
-    marks.push({ icon: f.icon, at: [stern.rails - CUBE.pocket / 2 - CUBE.wall - ICON / 2 - 1, mid] });
+    cuts.push(...cubeRow(SUBSYSTEM_CONFIGS[f.type].maxEnergy, [rails, mid], top, "y"));
+    marks.push({ icon: f.icon, at: [marksX, mid] });
     y += groups[i] + gap;
   });
-  cuts.push(...cubeRow(MAX_HEAT, [stern.heat, 0], top, "y"));
-  marks.push({ icon: "heat", at: [stern.heat, rowLength(MAX_HEAT) / 2 + ICON / 2 + 2] });
-  // The slider tracks' seats along the flanks, flush with the deck: hull
-  // to port, fuel to starboard, each marked at its fore end.
+  const fold = MAX_HEAT / 2;
+  for (const x of heat) cuts.push(...cubeRow(fold, [x, 0], top, "y"));
+  marks.push({ icon: "heat", at: [(heat[0] + heat[1]) / 2, rowLength(fold) / 2 + ICON / 2 + 2] });
+  // The slider tracks' seats along the flanks, flush with the deck: hull to
+  // port, fuel to starboard (each track carries its own icon).
   for (const s of [-1, 1]) {
-    const yIn = s * trackY0;
-    const yOut = s * (trackY0 + trackWide + 2 * SEAT);
-    const xa = -TRACK_SIZE.length / 2 - SEAT;
-    const xb = TRACK_SIZE.length / 2 + SEAT;
+    const [ya, yb] = [s * trackY0, s * (trackY0 + trackWide)];
     cuts.push(
-      block([xa, Math.min(yIn, yOut), top - TRACK_SIZE.height], [xb, Math.max(yIn, yOut), top + 1])
+      block(
+        [trackX0, Math.min(ya, yb), top - TRACK_SIZE.height],
+        [trackX0 + TRACK_SIZE.length + 2 * SEAT, Math.max(ya, yb), top + 1]
+      )
     );
-    marks.push({
-      icon: s > 0 ? "damage" : "fuel",
-      at: [xb + ICON / 2 + 2, s * (trackY0 + trackWide / 2 + SEAT)],
-    });
   }
   // One cut at a time: a fuse of tools that do not touch yields nothing.
   for (const cut of cuts) body = subtract(body, cut);

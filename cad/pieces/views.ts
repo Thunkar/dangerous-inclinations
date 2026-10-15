@@ -8,9 +8,9 @@ import { buildStand, standOf } from "./stand.ts";
 export function showOnBase(hull: Hull): void {
   buildBase();
   buildStand(hull);
-  const { bed, at } = standOf(hull);
-  move(buildHull(hull), -at, 0, bed);
+  const { bed, at, head } = standOf(hull);
+  move(buildHull(hull), head - at, 0, bed);
   // What hangs below the hull prints turned over; turn it back under the hull.
   const below = buildBelow(hull);
-  if (below) move(turn(below, "x", 180), -at, 0, bed);
+  if (below) move(turn(below, "x", 180), head - at, 0, bed);
 }

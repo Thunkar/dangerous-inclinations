@@ -8,6 +8,7 @@
 import { subtract, fuse, sketch, plane, text, cut } from "fluidcad/core";
 import { block, prism, move, turn, section, grow, type Point, type Solid } from "../lib/solids.ts";
 import { SLIDER } from "../spec.ts";
+import { engrave, type IconName } from "../lib/icons.ts";
 
 const STEPS = SLIDER.steps;
 const PITCH = SLIDER.pitch;
@@ -68,7 +69,8 @@ function chamfer(points: Point[], i: number, d: number): Point[] {
   ];
 }
 
-export function buildTrack(): void {
+/** The track; `icon` (the game's own) engraved past the numbers' end says what it counts. */
+export function buildTrack(icon?: IconName): void {
   let bar: Solid = block([0, WIDTH.label, 0], [LENGTH, WIDTH.grooves, TOP]);
   bar = subtract(bar, move(section(dovetail(), LENGTH - 2 + 1), -1, 0, 0));
   for (let i = 0; i < STEPS; i++) {
@@ -95,6 +97,7 @@ export function buildTrack(): void {
     }
   });
   cut(0.6);
+  if (icon) engrave(icon, 6, [START + (STEPS - 1) * PITCH + 7, -7.6], TOP);
 }
 
 function slider(clearance: number): { solid: Solid; capTop: number } {
