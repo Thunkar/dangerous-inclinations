@@ -1,0 +1,4 @@
+import { part } from "fluidcad/core";
+import { buildHub } from "../../../pieces/well.ts";
+
+export const piece = part("Hub", () => buildHub("blackHole"));

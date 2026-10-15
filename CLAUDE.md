@@ -432,7 +432,10 @@ and the print scale) and `bell.ts` are the numbers both read.
 FluidCAD's booleans have three traps, all handled in `cad/lib/`: a solid
 must be built `.new()` (features, mirrors included, otherwise fuse into
 whatever they touch and leave the operand consumed); a fuse of solids that do
-not touch yields nothing, so a later operation on it fails; and one cut or
+not touch yields nothing, so a later operation on it fails (and a cut by
+several solids that do not touch cuts nothing: cut them one at a time); a
+flat face that only touches a round one along a line (a spoke's end on a
+rim) crashes the kernel, so such a piece stops a hair inside; and one cut or
 fuse across the whole hull can crash its kernel or run for ever. So the hull
 is built cut-then-fuse: each mesh's solid takes only the cuts whose box
 reaches it (a piece a cut would swallow is left out), then `unite` fuses
@@ -444,7 +447,8 @@ loft segment a loft, 21 seconds with the constant ones built as prisms in
 viewer left open rebuilds its part on every edit to `ui/src/ships/`. Check a part with
 `scripts/errors.mjs` (feature errors, which the export CLI does not print),
 `--list-shapes`, `scripts/islands.mjs` (separate bodies; a sealed magnet
-pocket shows as one), `scripts/slice.mjs`, `scripts/overhang.mjs` and
+pocket shows as one), `scripts/slice.mjs`, `scripts/overhang.mjs`,
+`scripts/compare.mjs` (how far one STL's surface is from another's) and
 `yarn shot`. `fluidcad export` exports whatever tab a running server shows,
 and a running server follows its workspace's tab, so `export` and `shot`
 run each server in a private workspace (`scripts/server.mjs`: a temporary
@@ -467,6 +471,23 @@ magnet drops in on edge at the pause and the layers above seal it. A mount
 face is vertical in the print, so its skin is perimeters and must be two
 walls: 0.7mm (0.6 gives one). `coupons/` are the
 test pieces that set the tolerances in `spec.ts`.
+
+The board is printed too (`pieces/well.ts`, `pieces/body.ts`, sizes in
+`spec.ts` `BOARD`, `WELLS` and `ORBIT_BODY`; migrated from the Onshape
+featurescripts that drew it first): each well a kit of separate rings with
+walled sectors and inlaid numbers (drawn from the font's own outlines,
+`lib/glyphs.ts`, their pockets grown 0.1 as Onshape's face offset grew
+them), a hub, six arms that lock the rings, lane markers in grooves in a band
+outside the outer ring, and the body on the hub's peg: a planet's dome in
+wavy bands (each boundary lofted as Onshape lofted it, between centripetal
+splines through the same samples, matched point to point by parameter), or
+the black hole's horizon and accretion disc with its streak inlays. A ring
+too big for the 235 mm bed is cut into segments on arm lines. `yarn board`
+writes a part file per piece (`parts/board/<well>/`, which `export` runs).
+Every piece was measured against the designer's Onshape exports
+(`scripts/compare.mjs`): within 0.045 mm everywhere on its surface, but for
+the black hole's ring exports, older and cut with 0.2 clearance round the
+numbers where the board now has the 0.1 of the planet's.
 
 ## The board has two renderers
 

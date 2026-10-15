@@ -15,7 +15,12 @@ const walk = (dir) =>
     if (statSync(p).isDirectory()) return walk(p);
     return f.endsWith(".part.js") && !f.endsWith(".view.part.js") ? [p] : [];
   });
-if (!named.length) execFileSync("node", ["scripts/pieces.mjs"], { stdio: "inherit" });
+if (!named.length) {
+  execFileSync("node", ["scripts/pieces.mjs"], { stdio: "inherit" });
+  execFileSync("node", ["--experimental-strip-types", "--no-warnings", "--import", "./scripts/ts-hooks.mjs", "scripts/board.ts"], {
+    stdio: "inherit",
+  });
+}
 const files = named.length
   ? named
   : ["coupons", "parts"].filter((d) => existsSync(d)).flatMap(walk);

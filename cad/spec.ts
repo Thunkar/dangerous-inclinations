@@ -100,3 +100,62 @@ export const FDM = {
   maxOverhangDegrees: 45,
   layer: 0.2,
 };
+
+/**
+ * The board: each gravity well as a kit of separate rings with walled,
+ * numbered sectors, a hub and radial arms that lock the rings in place, and
+ * the lane markers standing in grooves in a band outside the outer ring
+ * (`pieces/well.ts`; migrated from the Onshape featurescript orbitRings.fs,
+ * whose defaults these are but where the designer's print differs). Sectors
+ * are numbered from 0 and run clockwise, sector 0's start edge at 90 degrees.
+ */
+export const BOARD = {
+  /** Ring 1's centre line, ring to ring, and the gap between two rings. */
+  firstRadius: 70,
+  pitch: 22,
+  gap: 2,
+  thickness: 4,
+  sectors: 24,
+  startAngle: 90,
+  /** The walls on every sector edge and along both rims: trapezoids, foot to crest. */
+  wall: { height: 1.2, foot: 1.2, crest: 0.4 },
+  /** Inlaid numbers: their depth, the "0"'s height, and the pocket's clearance round them. */
+  number: { depth: 0.6, height: 7.5, clearance: 0.1, font: "fonts/OpenSans-Bold.ttf" },
+  /** The arms under the rings: how many, how wide, how tall, how far under the hub. */
+  arm: { count: 6, width: 6, height: 2, underHub: 15 },
+  /** The hub's peg the planet or black hole sits on. */
+  peg: { diameter: 8, height: 6 },
+  clearance: 0.1,
+  /** The bed a ring must fit on, or it is cut into segments on arm lines. */
+  bed: 235,
+  /** The lane markers' band outside the outer ring, its groove, and how proud the markers stand. */
+  lane: { band: 6, groove: 1.5, raise: 1.5 },
+};
+
+/** The wells: the black hole's five rings and a planet's four, and how big each hub is (0: as big as ring 1 allows). */
+export const WELLS = {
+  blackHole: { rings: 5, hubRadius: 0 },
+  planet: { rings: 4, hubRadius: 30 },
+} as const;
+
+/**
+ * The bodies that sit on a well's hub, over its peg (`pieces/body.ts`;
+ * migrated from the featurescript orbitBody.fs): a planet, a dome cut into wavy bands
+ * that key onto each other, and the black hole, a horizon standing on the peg
+ * through an accretion disc with swirl streaks cut through it, each with its
+ * inlay. The designer's print, where it differs from the featurescript's
+ * defaults: the horizon's radius, the disc and its streaks, the bands' tilt
+ * and their waves' amplitude.
+ */
+export const ORBIT_BODY = {
+  /** The planet's bore round the peg kept the featurescript's 0.2 clearance, not the board's 0.1. */
+  planet: { radius: 25, bands: 4, waves: 5, amplitude: 1, tilt: 5, seed: 1, clearance: 0.2 },
+  blackHole: {
+    radius: 30,
+    /** The horizon's centre above the hub. */
+    centre: 10,
+    disc: { outer: 57.5, thickness: 1.6 },
+    /** Rows of streaks, how many a row, the inner row's width, length round the disc (degrees) and infall, and the stagger. */
+    streaks: { rows: 2, perRow: 3, width: 3, length: 110, infall: 2, stagger: 40 },
+  },
+};

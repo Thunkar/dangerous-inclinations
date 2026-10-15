@@ -1,0 +1,4 @@
+import { part } from "fluidcad/core";
+import { buildBody } from "../../../pieces/body.ts";
+
+export const piece = part("Band 2", () => buildBody("band", 2));
