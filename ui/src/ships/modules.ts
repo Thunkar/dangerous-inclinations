@@ -1,6 +1,6 @@
 /**
- * The modules built outside the ship's own file: the shield comb, the
- * plasma projector and the ram compressor (the rebuilt ones are in `builds/`). Each is handed
+ * The modules built outside the ship's own file: the plasma projector and
+ * the ram compressor (the rebuilt ones are in `builds/`). Each is handed
  * the yard's tools and paints (`ModuleKit`) and the module's group, after the
  * shared shoe and base plate are on it. Module frame: +Y off the plate
  * (outboard on a flank, out of the nose on the bow), +X fore along the hull
@@ -20,6 +20,7 @@ import { laser } from './builds/laser'
 import { radiator } from './builds/radiator'
 import { railgun } from './builds/railgun'
 import { missiles } from './builds/missiles'
+import { shields } from './builds/shields'
 
 type Vec3 = [number, number, number]
 type Material = MeshStandardMaterial
@@ -74,9 +75,6 @@ export interface ModuleKit {
 /** `forward` is the bow mount, whose +Y runs out of the nose and X across it. */
 export type ModuleBuild = (kit: ModuleKit, p: Group, forward: boolean) => void
 
-type Station4 = [number, number, number, number]
-/** A loft station whose underside sits on y = base. */
-const sat = (x: number, h: number, w: number, base: number): Station4 => [x, h, w, base + h]
 /** A loft station whose belly sits on y = 0 (the loft lifted by its own half height). */
 const flat = (x: number, h: number, w: number): Station => [x, h, w, h]
 /** A loft station centred on the loft's axis. */
@@ -119,73 +117,6 @@ function duct(
     new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), b.sub(a).normalize())
   )
   return mesh
-}
-
-/**
- * A field comb: a faceted spine along the hull with a ladder of projector
- * vanes standing off it, each with a cyan strip sunk between pale lips along
- * its edge, between two capacitor blocks.
- */
-const comb: ModuleBuild = (kit, p) => {
-  const { add, box, plate, fin, m } = kit
-  plate(p, [1.64, 0.08, 1.06], [0, 0.26, 0], m.dark)
-  add(p, armoredSection([sat(-0.62, 0.1, 0.12, 0.3), sat(0.62, 0.1, 0.12, 0.3)]), m.hull)
-  // Dark insulator collars where the spine leaves the capacitors.
-  for (const x of [-0.53, 0.53])
-    add(p, armoredSection([sat(x - 0.04, 0.13, 0.16, 0.3), sat(x + 0.04, 0.13, 0.16, 0.3)]), m.dark)
-  // Capacitors at both ends, armoured on top, slatted on their faces.
-  for (const side of [-1, 1]) {
-    const cap = new Group()
-    cap.name = `shields_capacitor_${side}`
-    p.add(cap)
-    const [a, b] = side < 0 ? [-0.86, -0.6] : [0.6, 0.86]
-    add(cap, armoredSection([sat(a, 0.14, 0.36, 0.3), sat(b, 0.14, 0.36, 0.3)]), m.dark)
-    plate(cap, [0.24, 0.04, 0.6], [(a + b) / 2, 0.59, 0], m.pale)
-    for (let i = 0; i < 5; i++)
-      box(cap, [0.03, 0.18, 0.04], [side * 0.865, 0.44, -0.24 + i * 0.12], m.steel)
-    box(cap, [0.14, 0.025, 0.02], [(a + b) / 2, 0.5, 0.365], m.cyan)
-  }
-  const vanes = new Group()
-  vanes.name = 'shields_vanes'
-  p.add(vanes)
-  for (let i = 0; i < 5; i++) {
-    const x = -0.4 + i * 0.2
-    const h = 0.36 + 0.06 * (1 - Math.abs(i - 2) / 2)
-    // The clamp where the vane takes the spine.
-    add(
-      vanes,
-      armoredSection([sat(x - 0.06, 0.12, 0.15, 0.3), sat(x + 0.06, 0.12, 0.15, 0.3)]),
-      m.steel
-    )
-    // Each vane raked aft a little, so the comb leans like a row of teeth.
-    const vane = new Group()
-    vane.position.set(x, 0.31, 0)
-    vane.rotation.z = 0.18
-    vanes.add(vane)
-    fin(
-      vane,
-      [
-        [-0.3, 0],
-        [0.3, 0],
-        [0.48, 0.1],
-        [0.48, h - 0.14],
-        [0.34, h],
-        [-0.34, h],
-        [-0.48, h - 0.14],
-        [-0.48, 0.1],
-      ],
-      0.08,
-      m.pale,
-      [0, Math.PI / 2, 0]
-    )
-    // A cyan strip along the edge in a steel cap, and a slit through the
-    // blade under it.
-    box(vane, [0.05, 0.03, 0.7], [0, h + 0.005, 0], m.steel)
-    box(vane, [0.025, 0.02, 0.58], [0, h + 0.02, 0], m.cyan)
-    box(vane, [0.1, 0.02, 0.42], [0, h - 0.07, 0], m.cyan)
-  }
-  // The ladder's rails, tying the vanes at both edges.
-  for (const side of [-1, 1]) plate(vanes, [1.0, 0.07, 0.06], [0, 0.46, side * 0.44], m.steel)
 }
 
 /**
@@ -391,10 +322,10 @@ const REBUILT: Partial<Record<SubsystemType, ModuleBuild | undefined>> = {
   radiator,
   railgun,
   missiles,
+  shields,
 }
 
 export const MODULE_BUILDS: Partial<Record<SubsystemType, ModuleBuild>> = {
-  shields: comb,
   plasma_cannon: twinCoil,
   fuel_compressor: ramIntake,
   ...(Object.fromEntries(Object.entries(REBUILT).filter(([, b]) => b)) as Partial<
