@@ -13,12 +13,24 @@ import { Group } from 'three'
 import { armoredSection } from '../loft'
 import type { ModuleBuild } from '../modules'
 
+/**
+ * The whole radiator is drawn at full size and built at nine tenths of it,
+ * about the base plate's top (module y 0.22), so it is no bigger than the
+ * other modules.
+ */
+const SCALE = 0.9
+const PLATE_TOP = 0.22
 /** How far each panel is canted from lying flat on the hull. */
 const CANT = (55 * Math.PI) / 180
 const PANEL = { length: 1.83, thick: 0.08, width: 0.7, at: 0.5, out: 0.3 }
 
-export const radiator: ModuleBuild = (k, p) => {
+export const radiator: ModuleBuild = (k, module) => {
   const { dark, steel, copper, pale, red, cyan } = k.m
+  const p = new Group()
+  p.name = 'radiator'
+  p.scale.setScalar(SCALE)
+  p.position.y = PLATE_TOP * (1 - SCALE)
+  module.add(p)
   // The manifold: a faceted dark spine the panels hinge off, its copper
   // header laid along the top, a pale cap at each end with a red telltale.
   k.add(p, armoredSection([[-0.82, 0.085, 0.21, 0.3], [0.82, 0.085, 0.21, 0.3]]), dark)
