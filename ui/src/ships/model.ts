@@ -908,7 +908,7 @@ export function createShip(
         // bay, with a finned capacitor block at its after end, two clamped
         // coils, armour panels and an aiming box, and at its fore end a squat
         // hex emitter head facing outboard: a cyan core in a steel collar
-        // with three electrode prongs, braced by radiator vanes. No barrel:
+        // ringed by six electrode prongs, braced by radiator vanes. No barrel:
         // the burst goes out all round.
         const emitter = new Group()
         emitter.name = 'disruptor_emitter'
@@ -1046,8 +1046,8 @@ export function createShip(
         }
         // The head: a big hex block, a cyan slit in each forward face,
         // radiator vanes at its corners, and on top a steel collar round a
-        // cyan core with three electrode prongs standing out of it, each
-        // tipped cyan. Every piece is big enough to survive a print.
+        // cyan core with a short electrode prong at each of its six corners,
+        // each tipped cyan. Every piece is big enough to survive a print.
         const head = new Group()
         head.name = 'disruptor_head'
         head.position.x = 0.48
@@ -1077,11 +1077,11 @@ export function createShip(
         prism(head, 6, R + 0.02, 0.08, [0, H + 0.04, 0], steel, [0, 0, 0], R - 0.08)
         prism(head, 6, R - 0.08, 0.04, [0, H + 0.02, 0], dark)
         prism(head, 6, 0.14, 0.08, [0, H + 0.06, 0], cyan)
-        for (let i = 0; i < 3; i++) {
-          const a = Math.PI / 6 + (i * 2 * Math.PI) / 3
-          const [x, z] = [Math.cos(a) * 0.2, -Math.sin(a) * 0.2]
-          frustum(head, 6, 0.075, 0.045, 0.26, [x, H + 0.21, z], steel)
-          prism(head, 6, 0.055, 0.06, [x, H + 0.37, z], cyan)
+        for (let i = 0; i < 6; i++) {
+          const a = Math.PI / 6 + (i * Math.PI) / 3
+          const [x, z] = [Math.cos(a) * 0.24, -Math.sin(a) * 0.24]
+          frustum(head, 6, 0.075, 0.045, 0.16, [x, H + 0.16, z], steel)
+          prism(head, 6, 0.055, 0.06, [x, H + 0.27, z], cyan)
         }
         break
       }
