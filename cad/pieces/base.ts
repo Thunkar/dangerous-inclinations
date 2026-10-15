@@ -174,16 +174,15 @@ export function buildBase(): Solid {
     { type: "rotation", icon: "maneuvering_thrusters" },
     { type: "scoop", icon: "scoop" },
   ];
-  const gap = 4;
-  const groups = fixed.map((f) => rowLength(SUBSYSTEM_CONFIGS[f.type].maxEnergy));
-  const total = groups.reduce((a, b) => a + b, 0) + gap * (groups.length - 1);
+  // Spread across the stern: the engines and the scoop out at the flanks,
+  // the thrusters' one cube on the centre line, the middle left clear.
   const marks: { icon: IconName; at: Point }[] = [];
-  let y = -total / 2;
+  const outer = half - CUBE.wall - 1;
   fixed.forEach((f, i) => {
-    const mid = y + groups[i] / 2;
-    cuts.push(...cubeRow(SUBSYSTEM_CONFIGS[f.type].maxEnergy, [rails, mid], top, "y"));
+    const n = SUBSYSTEM_CONFIGS[f.type].maxEnergy;
+    const mid = (i - 1) * (outer - rowLength(n) / 2) * (i === 1 ? 0 : 1);
+    cuts.push(...cubeRow(n, [rails, mid], top, "y"));
     marks.push({ icon: f.icon, at: [marksX, mid] });
-    y += groups[i] + gap;
   });
   const fold = MAX_HEAT / 2;
   for (const x of heat) cuts.push(...cubeRow(fold, [x, 0], top, "y"));
