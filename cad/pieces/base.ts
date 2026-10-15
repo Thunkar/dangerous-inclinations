@@ -115,14 +115,15 @@ export function buildBase(): Solid {
   const trackWide = TRACK_SIZE.y[1] - TRACK_SIZE.y[0];
   const half = trackY0 + trackWide + 2 * SEAT + 4;
   const bow = { pocket: 46, rail: 46 + p.wide + CUBE.wall + CUBE.pocket / 2 };
-  // The heat track nearer the ship, where the deck is full width; the fixed
-  // subsystems' shorter rails at the stern, their icons between the two.
-  const stern = { heat: -52, rails: -52 - CUBE.pocket - 2 * CUBE.wall - ICON - 2 };
+  // The fixed subsystems' rails with the slots' (their icons aft of them),
+  // and the heat track behind, along the stern.
+  const stern = { rails: -52, heat: -52 - CUBE.pocket - 2 * CUBE.wall - ICON - 2 };
   const x1 = bow.rail + CUBE.pocket / 2 + CUBE.wall + 3;
-  const x0 = stern.rails - CUBE.pocket / 2 - CUBE.wall - 3;
+  const x0 = stern.heat - CUBE.pocket / 2 - CUBE.wall - 3;
 
   // The deck: the top octagon grown by the slope at the table, drawn in to it.
-  const c = 20;
+  // Its corners are cut as far as the heat track along the stern allows.
+  const c = 12;
   const deckTop = octagon(x0, x1, half, c);
   let body: Solid = taper(octagon(x0 - inset, x1 + inset, half + inset, c + inset * 0.4), top, SLOPE);
 
@@ -143,7 +144,7 @@ export function buildBase(): Solid {
   // The forward slot: across the bow, its rail ahead of it.
   modulePocket([bow.pocket + p.wide / 2, 0], true);
   cuts.push(...cubeRow(capacity("forward"), [bow.rail, 0], top, "y"));
-  // Astern: the heat track, then the fixed subsystems' rails across the ship, each marked.
+  // Astern: the fixed subsystems' rails across the ship, each marked, then heat.
   const fixed: { type: SubsystemType; icon: IconName }[] = [
     { type: "engines", icon: "thrusters" },
     { type: "rotation", icon: "maneuvering_thrusters" },
@@ -157,7 +158,7 @@ export function buildBase(): Solid {
   fixed.forEach((f, i) => {
     const mid = y + groups[i] / 2;
     cuts.push(...cubeRow(SUBSYSTEM_CONFIGS[f.type].maxEnergy, [stern.rails, mid], top, "y"));
-    marks.push({ icon: f.icon, at: [stern.rails + CUBE.pocket / 2 + CUBE.wall + ICON / 2 + 1, mid] });
+    marks.push({ icon: f.icon, at: [stern.rails - CUBE.pocket / 2 - CUBE.wall - ICON / 2 - 1, mid] });
     y += groups[i] + gap;
   });
   cuts.push(...cubeRow(MAX_HEAT, [stern.heat, 0], top, "y"));
