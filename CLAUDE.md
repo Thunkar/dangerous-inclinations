@@ -413,7 +413,7 @@ the print's frame (a rotation of the game's, never an axis swap, which would
 print the mirror image). So `pieces/hull.ts` calls `createShip` for any hull and prints
 what it draws, with only what printing needs added: every part grown by
 `FDM.join` (the game keeps overlays a hair off their walls) and thickened to
-`FDM.minFeature`; modules, mount shoes, bells, gimbal struts and the yard's
+`FDM.minFeature`; modules, bells, gimbal struts and the yard's
 mount highlights left off; the mount recesses and pause-sealed magnet slots
 cut at the game's own mount frames; sockets for the bells and the stand; the
 bed at the hull's keel (`HULL_INFO.keel`, where the game carries the bays'
@@ -421,10 +421,13 @@ ventral shoulders to, so the hull stands flat). What hangs below the keel
 (the shrike's blade, the mantis's arm fins) prints as a piece of its own,
 turned over onto its cut, and is glued on (filament pins where it is thick
 enough). Modules (`pieces/module.ts`) and bells (`pieces/bells.ts`)
-print on their own the same way; a module adds a 45-degree skirt from its
-foot to the base plate's edge (where the game draws the shoe), so the plate
-has no lip in the air. A change to a ship in the yard is a change
-to its print. `corvetteShape.ts` and `bell.ts` are the numbers both read.
+print on their own the same way, adding only the screw's countersink and
+pilot. The game draws the printed mount: a module stands on the foot's
+tenon with a 45-degree skirt from it to its base plate's edge (so the plate
+has no lip in the air), and a hull shows the foot's recess at each mount
+face (the print cuts it). A change to a ship in the yard is a change
+to its print. `corvetteShape.ts`, `mountShape.ts` (the foot, the mount face
+and the print scale) and `bell.ts` are the numbers both read.
 
 FluidCAD's booleans have three traps, all handled in `cad/lib/`: a solid
 must be built `.new()` (features, mirrors included, otherwise fuse into

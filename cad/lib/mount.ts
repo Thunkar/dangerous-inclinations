@@ -2,30 +2,13 @@
 // screw, and the hull's recess and sealed magnet pocket.
 import { sketch, circle, extrude, subtract, fuse } from "fluidcad/core";
 import { MOUNT } from "../spec.ts";
-import { prism, disc, grow, move, block, type Point, type Solid, type Vec } from "./solids.ts";
+import { footOutline as shared } from "../../ui/src/ships/mountShape.ts";
+import { prism, disc, move, block, type Point, type Solid, type Vec } from "./solids.ts";
 
 export type Mount = typeof MOUNT;
 
-/**
- * The foot's outline in the mount frame (x forward, y dorsal), anticlockwise:
- * a big chamfer forward, a small one aft, mirror-symmetric in y.
- */
-export function footOutline(m: Mount = MOUNT): Point[] {
-  const a = m.halfLength;
-  const b = m.halfHeight;
-  const n = m.noseChamfer;
-  const c = m.tailChamfer;
-  return [
-    [-a + c, -b],
-    [a - n, -b],
-    [a, -b + n],
-    [a, b - n],
-    [a - n, b],
-    [-a + c, b],
-    [-a, b - c],
-    [-a, -b + c],
-  ];
-}
+/** The foot's outline in the mount frame (x forward, y dorsal), anticlockwise: the game's. */
+export const footOutline = (): Point[] => shared();
 
 /**
  * The screw's pilot for the thread, from the mating face (z = 0) up, `depth`
@@ -52,7 +35,7 @@ export function countersinkTool(m: Mount = MOUNT): Solid {
  * drilled through whatever stands on it (`pilotTool`).
  */
 export function tenon(m: Mount = MOUNT, body = 5): Solid {
-  const t = prism(grow(footOutline(m), -m.clearance), m.recessDepth - 0.1 + body);
+  const t = prism(shared(-m.clearance), m.recessDepth - 0.1 + body);
   return subtract(t, countersinkTool(m));
 }
 
@@ -62,7 +45,7 @@ export function tenon(m: Mount = MOUNT, body = 5): Solid {
  * overshoot outward so it cuts cleanly through the face.
  */
 export function recessTool(m: Mount = MOUNT): Solid {
-  return move(prism(footOutline(m), m.recessDepth + m.recessReach), 0, 0, -m.recessDepth);
+  return move(prism(footOutline(), m.recessDepth + m.recessReach), 0, 0, -m.recessDepth);
 }
 
 /**

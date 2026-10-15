@@ -15,8 +15,8 @@ import { DEFAULT_SHIP_APPEARANCE, type Hull } from "@dangerous-inclinations/engi
 import { createShip, type ShipModel } from "../../ui/src/ships/model.ts";
 import { DEFAULT_CONFIG, MOUNTS as GAME_MOUNTS, type MountId } from "../../ui/src/ships/config.ts";
 import { placedSolids, type PlacedSolid } from "../../ui/src/ships/solid.ts";
-import { CORVETTE } from "../../ui/src/ships/corvetteShape.ts";
 import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
+import { mountFace } from "../../ui/src/ships/mountShape.ts";
 import { MANTIS_KEEL } from "../../ui/src/ships/mantis.ts";
 import { MOUNT, STAND, FDM, PRINT } from "../spec.ts";
 import { printFrame, placeSolid, placeBuilt, uniteAlong } from "../lib/kit.ts";
@@ -59,7 +59,7 @@ export function shipModel(hull: Hull): ShipModel {
 
 /**
  * What prints with the hull: not the modules (`module_<mount>_<type>`), the
- * mount shoes, the bells and their gimbal struts (they run into where a
+ * bells and their gimbal struts (they run into where a
  * printed bell plugs in), or the shipyard's mount highlights (a marker the
  * yard lights when a mount is picked, not part of the ship).
  */
@@ -68,7 +68,6 @@ const onHull = (p: PlacedSolid) =>
   !p.path.some(
     (n) =>
       n.startsWith("module_") ||
-      n === "mount_shoe" ||
       n.startsWith("drive_bell") ||
       n === "bell_gimbal"
   );
@@ -78,17 +77,6 @@ function inShip(object: Object3D, root: Object3D): Matrix4 {
   root.updateMatrixWorld(true);
   return root.matrixWorld.clone().invert().multiply(object.matrixWorld);
 }
-
-/**
- * Where the printed mount's face is along the game mount frame's outboard
- * axis, in hull units: the corvette's skin, 0.06 out on a flank and 0.01 in
- * at the bow. It is the same on every hull, because a module is one print for
- * every hull and its seat must be the same distance from the frame.
- */
-const FACE = (id: MountId) =>
-  id === "forward-0"
-    ? CORVETTE.core[CORVETTE.core.length - 1][0] - CORVETTE.mounts.bow
-    : CORVETTE.core[2][2] - CORVETTE.mounts.flank;
 
 /**
  * The printed mount's frame (x forward, y dorsal, z outboard, z = 0 the face,
@@ -105,7 +93,7 @@ function mountFrame(model: ShipModel, frame: Matrix4, id: MountId): Matrix4 {
   return frame
     .clone()
     .multiply(inShip(model.mounts.get(id)!.frame, model.root))
-    .multiply(new Matrix4().makeTranslation(0, FACE(id), 0))
+    .multiply(new Matrix4().makeTranslation(0, mountFace(id === "forward-0"), 0))
     .multiply(toGame)
     .multiply(new Matrix4().makeScale(1 / S, 1 / S, 1 / S));
 }

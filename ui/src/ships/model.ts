@@ -1,6 +1,6 @@
 /**
  * The shared modular corvette display model. +X is the bow, +Y is dorsal, port is -Z.
- * All mount-local modules point along +Y and share one keyed magnetic shoe.
+ * All mount-local modules point along +Y and stand on the printed mount's foot.
  * Named groups are deliberately a clean seam for eventual authored glTF parts.
  * These intersecting display meshes are NOT manufacturing solids.
  */
@@ -14,6 +14,7 @@ import {
   MeshStandardMaterial,
   Path,
   Shape,
+  ShapeGeometry,
   Vector3,
   Vector4,
 } from 'three'
@@ -32,6 +33,7 @@ import { bake, describe } from './solid'
 import { CORVETTE } from './corvetteShape'
 import { BELL_LENGTH, bellRadius } from './bell'
 import { MODULE_BASE, MODULE_BUILDS, type ModuleKit } from './modules'
+import { FOOT, MM_PER_UNIT, footOutline, mountFace } from './mountShape'
 
 type Station4 = [number, number, number, number]
 
@@ -800,53 +802,83 @@ export function createShip(
     }
   }
 
-  // Same paired magnet spacing and keyed interface on every mount.
-  const magnetRadius =
-    config.magnetMillimeters / (config.hullMillimeters / (8.5 * config.length)) / 2
-  const magnetSpacing = 0.46
-  const shoe = (p: Group, y: number, mat: Material, recessed: boolean) => {
-    if (boardDetail) return // Mount interfaces are enclosed on assembled board miniatures.
+  // The mount as it prints (`mountShape.ts`): a hull shows the foot's recess
+  // at its face (drawn as the dark outline it shows; the print cuts it), and
+  // a module stands on the foot's tenon, a 45-degree skirt flaring from it to
+  // the underside of its base plate.
+  const MM = 1 / MM_PER_UNIT
+  const footShape = (g: number) => {
     const shape = new Shape()
-    const w = 0.9,
-      d = 0.42,
-      c = 0.16
-    shape.moveTo(-w + c, -d)
-    shape.lineTo(w - c, -d)
-    shape.lineTo(w, -d + c)
-    shape.lineTo(w, d - c)
-    shape.lineTo(w - c, d)
-    shape.lineTo(0.17, d)
-    shape.lineTo(0.17, d - 0.14)
-    shape.lineTo(-0.17, d - 0.14)
-    shape.lineTo(-0.17, d)
-    shape.lineTo(-w + c, d)
-    shape.lineTo(-w, d - c)
-    shape.lineTo(-w, -d + c)
+    footOutline(g).forEach(([x, y], i) =>
+      i ? shape.lineTo(x * MM, y * MM) : shape.moveTo(x * MM, y * MM)
+    )
     shape.closePath()
-    for (const x of [-magnetSpacing, magnetSpacing]) {
-      const hole = new Path()
-      hole.absarc(x, 0, magnetRadius, 0, Math.PI * 2, true)
-      shape.holes.push(hole)
+    return shape
+  }
+  // The foot's outline lies in the mount's x (forward) and z (dorsal); a
+  // shape's y turns to -z, which the foot's symmetry allows.
+  const flat = new Matrix4().makeRotationX(-Math.PI / 2)
+  const recess = (frame: Group, forward: boolean) => {
+    if (boardDetail) return
+    const y = mountFace(forward)
+    const wall = -FOOT.recessDepth
+    const floor = describe(new ShapeGeometry(footShape(wall)), { kind: 'detail' })
+    floor.applyMatrix4(flat)
+    add(frame, floor, rubber, [0, y + 0.004, 0])
+    // Its walls, as a band as wide as the recess is deep, so the empty
+    // socket reads against the dark face round it.
+    const rim = footShape(0)
+    rim.holes.push(footShape(wall))
+    const edge = describe(new ShapeGeometry(rim), { kind: 'detail' })
+    edge.applyMatrix4(flat)
+    add(frame, edge, steel, [0, y + 0.004, 0])
+  }
+  /**
+   * A module's base: the foot's tenon, and its base plate (`size` its length
+   * and width, from y `underside` to `top`) with a skirt flaring at 45
+   * degrees from the skin to the plate's edge, so the plate has no lip in the
+   * air. Skirt and plate are one solid: grown for the print, they stay flush.
+   */
+  const base = (
+    p: Group,
+    forward: boolean,
+    [length, width]: [number, number],
+    underside: number,
+    top: number
+  ) => {
+    const skin = mountFace(forward) - p.position.y
+    if (!boardDetail) {
+      const thick = (FOOT.recessDepth - FOOT.clearance) * MM
+      const tenon = extrudeSolid(footShape(-FOOT.clearance), { depth: thick, bevelEnabled: false })
+      bake(tenon, flat)
+      add(p, tenon, dark, [0, skin - thick, 0]).name = 'mount_tenon'
     }
-    const geo = extrudeSolid(shape, { depth: 0.12, bevelEnabled: false, curveSegments: 20 })
-    bake(geo, new Matrix4().makeRotationX(-Math.PI / 2))
-    const meshes = [add(p, geo, mat, [0, y, 0])]
-    for (const x of [-magnetSpacing, magnetSpacing]) {
-      meshes.push(
-        cylinder(
-          p,
-          magnetRadius * 0.96,
-          magnetRadius * 0.96,
-          0.06,
-          [x, y + (recessed ? 0.045 : 0.06), 0],
-          steel
-        )
-      )
-      if (!resin) meshes.push(box(p, [magnetRadius * 0.6, 0.008, 0.025], [x, y + 0.078, 0], dark))
+    // The plate's outline (as `plate` draws one), drawn in by `inset`.
+    const ring = (inset: number): [number, number][] => {
+      const [a, b] = [length / 2 - inset, width / 2 - inset]
+      const c = Math.min(length, width) * 0.17 - inset * (2 - Math.SQRT2)
+      return [
+        [-a + c, -b],
+        [a - c, -b],
+        [a, -b + c],
+        [a, b - c],
+        [a - c, b],
+        [-a + c, b],
+        [-a, b - c],
+        [-a, -b + c],
+      ]
     }
-    // Key at one end prevents a 180-degree reversed module.
-    meshes.push(box(p, [0.27, 0.09, 0.1], [0, y + 0.12, -d + 0.1], dark))
-    for (const mesh of meshes) mesh.name = 'mount_shoe'
+    const bevel = 0.035
+    // Lofted along x through rings of [along the plate, across it], then
+    // turned so the loft runs outboard.
+    const solid = sectionLoft([
+      { x: skin, ring: ring(underside - skin) },
+      { x: underside, ring: ring(0) },
+      { x: top - bevel, ring: ring(0) },
+      { x: top, ring: ring(bevel) },
+    ])
+    bake(solid, new Matrix4().makeBasis(new Vector3(0, 1, 0), new Vector3(1, 0, 0), new Vector3(0, 0, -1)))
+    add(p, solid, hull)
   }
 
   const kit: ModuleKit = {
@@ -862,12 +894,12 @@ export function createShip(
     m: { hull, pale, dark, steel, rubber, copper, cyan, red },
   }
   const moduleGeometry = (p: Group, type: SubsystemType, forward: boolean) => {
-    shoe(p, 0, dark, false)
-    plate(
+    base(
       p,
-      [MODULE_BASE.length, MODULE_BASE.thickness, MODULE_BASE.width],
-      [0, MODULE_BASE.at, 0],
-      hull
+      forward,
+      [MODULE_BASE.length, MODULE_BASE.width],
+      MODULE_BASE.at - MODULE_BASE.thickness / 2,
+      MODULE_BASE.at + MODULE_BASE.thickness / 2
     )
     const build = MODULE_BUILDS[type]
     if (build) return build(kit, p, forward)
@@ -1270,8 +1302,8 @@ export function createShip(
     frame.scale.set(...scale)
     root.add(frame)
     plate(frame, [1.95, 0.13, 1.44], [0, -0.06, 0], dark)
-    shoe(frame, 0, steel, true)
     const forward = mount.group === 'forward'
+    recess(frame, forward)
     armoredCradle(frame, forward)
     const highlight = material('highlight', HULL_INK.steel, 0.4)
     for (const x of [-0.67, 0.67])
@@ -1329,8 +1361,7 @@ export function createShip(
       module.name = `module_${id}_${slot.unknown ? 'concealed' : (slot.type ?? 'empty')}`
       module.userData = { mountId: id, subsystem: slot.unknown ? 'concealed' : slot.type }
       if (slot.unknown) {
-        shoe(module, 0, dark, false)
-        plate(module, [1.64, 0.34, 1.16], [0, 0.25, 0], hull)
+        base(module, id === 'forward-0', [1.64, 1.16], 0.08, 0.42)
       } else if (slot.type) moduleGeometry(module, slot.type, id === 'forward-0')
       if (slot.broken && !slot.unknown && slot.type) {
         const clones = new Map<Material, Material>()

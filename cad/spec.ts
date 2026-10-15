@@ -9,48 +9,30 @@
  * works is the one written here.
  */
 
-import { CORVETTE } from "../ui/src/ships/corvetteShape.ts";
+import { FOOT, PRINT_LENGTH, MM_PER_UNIT } from "../ui/src/ships/mountShape.ts";
 
 /** Game units to millimetres: the corvette, bow to the bells' exit, prints at 80. */
-export const PRINT = {
-  corvetteLength: 80,
-  get mmPerUnit() {
-    return this.corvetteLength / CORVETTE.length;
-  },
-};
+export const PRINT = { corvetteLength: PRINT_LENGTH, mmPerUnit: MM_PER_UNIT };
 
 /**
  * The mount. Each module stands on a foot whose mating face carries a
  * ferrous M2x4 countersunk screw, flush; the hull has a shallow recess of the
- * foot's outline with a magnet sealed behind its floor. The hull prints in
- * one piece: each magnet pocket is a slot rising to a pause layer, the magnet
- * drops in on edge at the pause, and the layers above seal it. The outline points
- * forward (a big chamfer at the bow end, a small one aft) and is symmetric
- * dorsal to ventral, so one print of a module fits all four flank mounts
- * and its guns still face the bow.
+ * foot's outline with a magnet sealed behind its floor. The foot and the
+ * recess are the game's (`ui/src/ships/mountShape.ts`): the game draws them
+ * and the print takes them from it. The hull prints in one piece: each
+ * magnet pocket is a slot rising to a pause layer, the magnet drops in on
+ * edge at the pause, and the layers above seal it.
  *
  * Mount frame: x forward, y dorsal, the mating face at z = 0, outboard +z.
  */
 export const MOUNT = {
-  /**
-   * Half the foot's length (x) and height (y): 16 x 9, low enough to sink
-   * into the corvette's flank between its chamfers (10.3 mm at 80 mm).
-   */
-  halfLength: 8,
-  halfHeight: 4.5,
-  /** The chamfers: forward (the pointer) and aft. */
-  noseChamfer: 2.5,
-  tailChamfer: 1.5,
-  /** How deep the hull's recess is; the foot's tenon fills it less the gap. */
-  recessDepth: 1,
+  ...FOOT,
   /**
    * How far out of the mount face the recess is cut, so whatever stands over
    * the face in the foot's outline (a web under a bay shoulder) is notched
    * for the tenon on its way in.
    */
   recessReach: 3,
-  /** Gap all round between the tenon and the recess (printed: 0.1 seats). */
-  clearance: 0.1,
   /**
    * Plastic between the recess floor and the magnet. The face is vertical in
    * the print, so the skin is perimeters: 0.6 is a single wall, 0.7 is two

@@ -12,27 +12,15 @@ import {
   type SubsystemType,
 } from "@dangerous-inclinations/engine";
 import { createShip } from "../../ui/src/ships/model.ts";
-import { MODULE_BASE } from "../../ui/src/ships/modules.ts";
 import { DEFAULT_CONFIG, setModule, type MountId } from "../../ui/src/ships/config.ts";
 import { placedSolids, solidOf } from "../../ui/src/ships/solid.ts";
-import { CORVETTE } from "../../ui/src/ships/corvetteShape.ts";
+import { mountFace } from "../../ui/src/ships/mountShape.ts";
 import { MOUNT, FDM, PRINT } from "../spec.ts";
 import { placeSolid } from "../lib/kit.ts";
-import { block, grow, move, taper, turn, type Point, type Solid } from "../lib/solids.ts";
-import { pilotTool, tenon } from "../lib/mount.ts";
+import { block, move, type Solid } from "../lib/solids.ts";
+import { countersinkTool, pilotTool } from "../lib/mount.ts";
 
 const S = PRINT.mmPerUnit;
-
-/**
- * Where the module meets the hull, along the mount's outboard axis, in hull
- * units: the flank's skin for a module that fits a flank, the bow's for one
- * that fits only the bow.
- */
-function skinOf(id: MountId): number {
-  return id === "forward-0"
-    ? CORVETTE.core[CORVETTE.core.length - 1][0] - CORVETTE.mounts.bow
-    : CORVETTE.core[2][2] - CORVETTE.mounts.flank;
-}
 
 /**
  * Where solid runs along the vertical line at (x, y) in the print, as [from,
@@ -46,7 +34,7 @@ function spansAt(group: Object3D, frame: Matrix4, x: number, y: number): [number
   const [a, b, c] = [new Vector3(), new Vector3(), new Vector3()];
   group.traverse((o) => {
     const mesh = o as Mesh;
-    if (!mesh.isMesh || o.name === "mount_shoe" || solidOf(mesh.geometry)?.kind === "detail") return;
+    if (!mesh.isMesh || solidOf(mesh.geometry)?.kind === "detail") return;
     const m = frame.clone().multiply(toGroup).multiply(mesh.matrixWorld);
     const geometry = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry;
     const pos = geometry.getAttribute("position");
@@ -87,9 +75,8 @@ export function mountFor(type: SubsystemType): MountId {
 /**
  * The game's module for `type` in the mount it prints for, and the print's
  * frame: the game's mount frame (+X forward, +Y outboard, +Z dorsal) turned
- * a quarter about x so outboard is up, with the skin at the top of the
- * tenon, which stands on the bed. `body` is how far the tenon reaches above
- * the skin, into the middle of the base plate, whatever the mount's skin.
+ * a quarter about x so outboard is up, with the skin (the mount's face) at
+ * the top of the foot's tenon, which stands on the bed.
  */
 export function layout(type: SubsystemType) {
   const id = mountFor(type);
@@ -99,15 +86,15 @@ export function layout(type: SubsystemType) {
     type
   );
   const group = createShip(config).mounts.get(id)!.module;
-  const tenonThick = MOUNT.recessDepth - 0.1;
+  const tenonThick = MOUNT.recessDepth - MOUNT.clearance;
   // The module group stands off the mount frame; the skin is measured from the frame.
-  const skin = skinOf(id) - group.position.y;
+  const skin = mountFace(id === "forward-0") - group.position.y;
   const frame = new Matrix4()
     .makeTranslation(0, 0, tenonThick)
     .multiply(new Matrix4().makeScale(S, S, S))
     .multiply(new Matrix4().makeRotationX(Math.PI / 2))
     .multiply(new Matrix4().makeTranslation(0, -skin, 0));
-  return { group, frame, skin, tenonThick, body: (MODULE_BASE.at - skin) * S };
+  return { group, frame, tenonThick };
 }
 
 /**
@@ -117,13 +104,13 @@ export function layout(type: SubsystemType) {
  * shortest.
  */
 export function screwFor(type: SubsystemType): number {
-  const { group, frame, tenonThick, body } = layout(type);
+  const { group, frame } = layout(type);
   const wall = MOUNT.screw.pilot / 2 + 0.6;
   let top = Infinity;
   for (let k = 0; k < 12; k++) {
     const t = (k / 12) * Math.PI * 2;
     const spans = spansAt(group, frame, wall * Math.cos(t) + 1e-3, wall * Math.sin(t) + 2e-3);
-    top = Math.min(top, solidUp([[0, tenonThick + body], ...spans], 0));
+    top = Math.min(top, solidUp(spans, 0));
   }
   const cover = 0.8;
   const fits = Math.floor(top - cover - 0.6);
@@ -131,49 +118,30 @@ export function screwFor(type: SubsystemType): number {
 }
 
 /** Build the module for `type`, `dx` mm along x (to lay several out side by side). */
-export function buildModule(type: SubsystemType, dx = 0): void {
-  const { group, frame, skin, tenonThick, body } = layout(type);
-  // Each part above the skin: a part wholly below it is the shoe's business
-  // (the tenon replaces it), one across it is cut there. Then everything is
-  // fused at once with the tenon.
-  const above = (lo: number) => lo >= tenonThick - 0.01;
+export function buildModule(type: SubsystemType, dx = 0): Solid {
+  const { group, frame, tenonThick } = layout(type);
+  // The game's module as it is: the foot's tenon exactly (it seats in the
+  // hull's recess, so it is not grown), every other part grown and cut at the
+  // skin if it reaches below it. Then the screw's countersink and pilot.
   const parts = placedSolids(group)
-    .filter((p) => !p.path.includes("mount_shoe"))
     .map((p) => ({
       p,
+      tenon: p.path.includes("mount_tenon"),
       box: new Box3(new Vector3(...p.bounds[0]), new Vector3(...p.bounds[1])).applyMatrix4(frame),
     }))
-    .filter(({ box }) => box.max.z > tenonThick + 0.3)
-    .map(({ p, box }) => {
+    .filter(({ tenon, box }) => tenon || box.max.z > tenonThick + 0.3)
+    .map(({ p, tenon, box }) => {
+      if (tenon) return placeSolid(p, frame);
       const s = placeSolid(p, frame, { min: FDM.minFeature, grow: FDM.join });
-      if (!s || above(box.min.z - 1)) return s;
+      if (!s || box.min.z >= tenonThick + 0.99) return s;
       return subtract(s, block([-100, -100, -50], [100, 100, tenonThick]));
     })
     .filter((s): s is Solid => s !== null);
-  // Under the plate, where the game draws the shoe, a skirt flares out at 45
-  // degrees from the skin to the plate's edge, so the plate has no lip in the
-  // air: it is the plate's outline shrunk by its height at the skin.
-  const underside = tenonThick + (MODULE_BASE.at - MODULE_BASE.thickness / 2 - skin) * S;
-  const rise = underside - tenonThick;
-  const [hx, hy] = [(MODULE_BASE.length / 2) * S, (MODULE_BASE.width / 2) * S];
-  const c = Math.min(MODULE_BASE.length, MODULE_BASE.width) * 0.17 * S;
-  const plate: Point[] = [
-    [-hx + c, -hy],
-    [hx - c, -hy],
-    [hx, -hy + c],
-    [hx, hy - c],
-    [hx - c, hy],
-    [-hx + c, hy],
-    [-hx, hy - c],
-    [-hx, -hy + c],
-  ];
-  // Grown with the plate, which every printed part is (`FDM.join`).
-  const skirt = move(turn(taper(grow(plate, FDM.join), rise), "x", 180), 0, 0, underside);
   const piece = subtract(
-    fuse(...parts, skirt, tenon(MOUNT, body)),
+    subtract(fuse(...parts), countersinkTool(MOUNT)),
     pilotTool(MOUNT, screwFor(type) + 0.6)
   );
-  if (dx) move(piece, dx, 0, 0);
+  return dx ? move(piece, dx, 0, 0) : piece;
 }
 
 /**
@@ -188,7 +156,7 @@ export function envelopeOf(type: SubsystemType): { long: number; wide: number; t
   const box = new Box3();
   group.traverse((o) => {
     const mesh = o as Mesh;
-    if (!mesh.isMesh || o.name === "mount_shoe" || solidOf(mesh.geometry)?.kind === "detail") return;
+    if (!mesh.isMesh || solidOf(mesh.geometry)?.kind === "detail") return;
     if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
     box.union(mesh.geometry.boundingBox!.clone().applyMatrix4(frame.clone().multiply(toGroup).multiply(mesh.matrixWorld)));
   });

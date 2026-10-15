@@ -27,8 +27,6 @@ export interface ShipConfig {
   paint: string
   accent: string
   finish: Finish
-  hullMillimeters: number
-  magnetMillimeters: number
 }
 
 export const DEFAULT_CONFIG: ShipConfig = {
@@ -42,8 +40,6 @@ export const DEFAULT_CONFIG: ShipConfig = {
   paint: HULL_INK.paint,
   accent: HULL_INK.accent,
   finish: 'paint',
-  hullMillimeters: 60,
-  magnetMillimeters: 3,
 }
 
 export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
@@ -128,8 +124,6 @@ export function parseConfig(value: unknown): ShipConfig {
     beam: [0.8, 1.3],
     armor: [0.65, 1.4],
     engineSize: [0.75, 1.3],
-    hullMillimeters: [60, 100],
-    magnetMillimeters: [2, 4],
   } as const
   for (const key of Object.keys(ranges) as (keyof typeof ranges)[]) {
     const n = v[key]
