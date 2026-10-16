@@ -127,6 +127,39 @@ export function buildSpec(spec: SolidSpec, f: number): Solid | null {
       sketch("xy", () => outline(profile));
       return revolve("y").new();
     }
+    case "clipped": {
+      let s = buildSpec(spec.solid, f);
+      if (!s) return null;
+      if (spec.solid.bake) {
+        // The inner solid's own bake, its move at the build's scale.
+        const m = new Matrix4().fromArray(spec.solid.bake);
+        m.elements[12] *= f;
+        m.elements[13] *= f;
+        m.elements[14] *= f;
+        s = apply(s, decompose(m));
+      }
+      // Each plane's far side, one box at a time (a cut by several solids at once cuts nothing).
+      for (const { normal, at } of spec.planes) {
+        const n = new Vector3(...normal).normalize();
+        const u = new Vector3()
+          .crossVectors(n, Math.abs(n.z) < 0.9 ? new Vector3(0, 0, 1) : new Vector3(1, 0, 0))
+          .normalize();
+        const v = new Vector3().crossVectors(n, u);
+        const B = 1000;
+        const box = prism(
+          [
+            [-B, -B],
+            [B, -B],
+            [B, B],
+            [-B, B],
+          ],
+          B
+        );
+        const m = new Matrix4().makeBasis(u, v, n).setPosition(at[0] * f, at[1] * f, at[2] * f);
+        s = subtract(s, apply(box, decompose(m)));
+      }
+      return s;
+    }
     case "detail":
       return null;
   }
@@ -267,6 +300,15 @@ export function grown(spec: SolidSpec, g: number): SolidSpec {
           x: x + (i === 0 ? -g : i === all.length - 1 ? g : 0),
           ring: outward(ring, g),
         })),
+      };
+    case "clipped":
+      return {
+        ...spec,
+        solid: grown(spec.solid, g),
+        planes: spec.planes.map(({ normal, at }) => {
+          const n = new Vector3(...normal).normalize();
+          return { normal, at: [at[0] + n.x * g, at[1] + n.y * g, at[2] + n.z * g] };
+        }),
       };
     case "loft":
       return {

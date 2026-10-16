@@ -10,7 +10,8 @@
  */
 import { Group, Matrix4, MeshStandardMaterial, Object3D, Shape, Vector3 } from 'three'
 import { armoredSection, hollowSection, sectionLoft, type Station } from './loft'
-import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid, type Put } from './parts'
+import { boxSolid, cylinderSolid, extrudeSolid, torusSolid, type Put } from './parts'
+import { intakes } from './engines'
 import { bake } from './solid'
 import type { Vec3 } from './config'
 
@@ -324,9 +325,9 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
   drive()
   /**
    * One cluster at the V's point, built as the shrike's is but kept close to
-   * the core: a busy steel thrust plate, five bells (a big one in the middle, a
-   * smaller one in each corner), a short shroud with a pale lip and steel
-   * frames, and turbopumps on its roof feeding forward into the core.
+   * the core: a short shroud with a pale lip and steel frames, the intakes
+   * filling it (`engines.ts`), and turbopumps on its roof feeding forward
+   * into the core.
    */
   function drive() {
     const g = new Group()
@@ -379,36 +380,8 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     tube(aft, fore, H, W, skin, m.hull)
     tube(aft - 0.02, aft + 0.12, H + 0.02, W + 0.02, skin - 0.015, m.pale)
     tube(fore - 0.12, fore - 0.02, H + 0.04, W + 0.04, skin - 0.015, m.steel)
-    // The plate's furniture: seams between the bells, bolts round its edge.
-    for (const z of [-0.29, 0.29])
-      box([0.02, (H - skin) * 2 - 0.1, 0.025], [plate - 0.005, 0, z], m.dark, undefined, g)
-    for (let i = -4; i <= 4; i++)
-      for (const t of [-1, 1]) {
-        cylinder(
-          0.028,
-          0.03,
-          [plate - 0.005, t * (H - skin - 0.07), (i * (W - skin - 0.1)) / 4.4],
-          m.dark,
-          [0, 0, Math.PI / 2],
-          g
-        )
-        if (Math.abs(i) <= 2)
-          cylinder(
-            0.028,
-            0.03,
-            [plate - 0.005, (i * (H - skin - 0.1)) / 2.4, t * (W - skin - 0.07)],
-            m.dark,
-            [0, 0, Math.PI / 2],
-            g
-          )
-      }
-    delavalBells(put, m, g, plate, [
-      [0, 0, 0.62],
-      [0.42, -0.5, 0.36],
-      [0.42, 0.5, 0.36],
-      [-0.42, -0.5, 0.36],
-      [-0.42, 0.5, 0.36],
-    ])
+    // The intakes, which hide the plate.
+    intakes(put, m, g, plate, { x: aft, h: H - skin, w: W - skin })
     // Turbopumps on the shroud's roof, each feeding forward into the core.
     const roof = H + 0.02
     for (const z of [-0.42, 0.42]) {

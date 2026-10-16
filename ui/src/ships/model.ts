@@ -28,11 +28,11 @@ import { armoredSection, hollowSection, sectionLoft } from './loft'
 import { HULL_INFO } from './hulls'
 import { buildShrike } from './shrike'
 import { buildMantis } from './mantis'
-import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid } from './parts'
+import { boxSolid, cylinderSolid, extrudeSolid, torusSolid } from './parts'
 import { bake, describe } from './solid'
 import { CORVETTE } from './corvetteShape'
-import { BELL_LENGTH, bellRadius } from './bell'
 import { MODULE_BASE, MODULE_BUILDS, type ModuleKit } from './modules'
+import { intakes } from './engines'
 import { FOOT, MM_PER_UNIT, footOutline, mountFace } from './mountShape'
 
 type Station4 = [number, number, number, number]
@@ -519,45 +519,18 @@ export function createShip(
     const engineScale = config.engineSize
     // The engine block stands taller than the hull it pushes, above the deck line
     // and below the keel, so the drive is the first thing the silhouette says.
-    const sternWidth = CORVETTE.drive.sternWidth[config.engines] * engineScale
+    const sternWidth = CORVETTE.drive.sternWidth * engineScale
     const { fore: shroudFore, aft: shroudAft, skin } = CORVETTE.drive.shroud
-    const bells = CORVETTE.bells[config.engines]
-    // How high above the drive's axis the bells reach at x (drive units): the
-    // chamber where a printed bell plugs in, the bell's outside, and the
-    // gimbal ring and struts off the thrust plate, with a margin.
-    const bellTop = (x: number) =>
-      Math.max(
-        -Infinity,
-        ...bells.flatMap(([y, , scale]) => {
-          const plate = CORVETTE.drive.thrustPlate
-          const hang = plate + 0.09
-          const reach: number[] = []
-          const d = (hang - x) / scale
-          if (d >= -0.12 && d <= BELL_LENGTH)
-            reach.push((d <= 0.58 ? Math.max(0.3, bellRadius(d)) : bellRadius(d)) * scale)
-          if (Math.abs(x - plate) <= 0.03) reach.push(0.3 * scale + 0.1)
-          const strutEnd = hang - 0.2 * scale
-          if (x <= plate && x >= strutEnd) {
-            const t = (plate - x) / (plate - strutEnd)
-            reach.push(0.3 * scale + 0.1 + (0.22 * scale - 0.3 * scale - 0.1) * t + 0.022)
-          }
-          return reach.map(r => y + r + 0.04)
-        })
-      )
     // The block's full section, held from where the flare ends to the thrust
     // plate so the shroud behind it carries on at the same size, not smaller.
     // Its floor lies on the plane the ship stands on (`CORVETTE.bed`, the
     // bays' undersides), so nothing of the drive is below it, and its top
-    // where it would stand on the hull's axis; it is only taller when the
-    // bells need the room. The afterbody eases up from the core to meet it.
+    // where it would stand on the hull's axis. The afterbody eases up from
+    // the core to meet it.
     const [blockFore, blockAft] = CORVETTE.drive.block
     const bed = CORVETTE.bed
-    const axial =
-      (CORVETTE.drive.sternHeight[config.engines] + CORVETTE.drive.blockAdds[0]) * engineScale
-    let room = 0
-    for (let i = 0; i <= 24; i++)
-      room = Math.max(room, bellTop(shroudFore - ((shroudFore - shroudAft) * i) / 24))
-    const blockHeight = Math.max((axial - bed) / 2, (room + skin) * engineScale)
+    const axial = (CORVETTE.drive.sternHeight + CORVETTE.drive.blockAdds[0]) * engineScale
+    const blockHeight = (axial - bed) / 2
     const sternHeight = blockHeight - CORVETTE.drive.blockAdds[0] * engineScale
     const blockWidth = sternWidth + CORVETTE.drive.blockAdds[1] * engineScale
     const driveLift = Math.max(0, blockHeight + bed)
@@ -663,7 +636,7 @@ export function createShip(
     drive.position.set(driveOrigin, driveLift, 0)
     drive.scale.setScalar(engineScale)
     root.add(drive)
-    // Recessed dark thrust plate and a painted perimeter lip carry the bells.
+    // Recessed dark thrust plate and a painted perimeter lip carry the intakes.
     add(
       drive,
       armoredSection([
@@ -694,19 +667,10 @@ export function createShip(
         )
       }
     }
-    // The bells: the yard's de Laval nozzles (`parts.ts`), as on every hull,
-    // each with its gimbal pair off the thrust plate.
-    delavalBells(
-      (geometry, mat, pos, rot, parent = drive) => add(parent as Group, geometry, mat, pos, rot),
-      { dark, steel, cyan },
-      drive,
-      CORVETTE.drive.thrustPlate,
-      CORVETTE.bells[config.engines]
-    )
 
     // The engine room. A shroud carries the hull's own section on past the
-    // thrust plate, so the bells sit back inside armour instead of hanging off
-    // the stern. Everything that feeds a bell is out where it can be
+    // thrust plate, so the intakes sit back inside armour instead of hanging
+    // off the stern. Everything that feeds them is out where it can be
     // serviced: turbopumps on the roof, their feed lines running forward and
     // down into the block.
     const H = blockHeight / engineScale
@@ -714,22 +678,10 @@ export function createShip(
     const chamfer = Math.min(H, W) * 0.35
     const shroudLength = shroudFore - shroudAft
     const shroudX = (shroudFore + shroudAft) / 2
-    // The roof's inside slopes down to the thrust plate as steeply as the
-    // bells hung under it allow, up to 45 degrees, so it is no flat ceiling
-    // when the hull prints belly down; every bell, its chamber and its gimbal
-    // stay clear of the slope.
     const ceiling = H - skin
-    const clearOf = bellTop
-    let drop = shroudLength
-    for (let i = 0; i < 24; i++) {
-      const x = shroudFore - (shroudLength * i) / 24
-      const above = ceiling - (drop * (x - shroudAft)) / shroudLength
-      if (above < clearOf(x))
-        drop = Math.max(0, ((ceiling - clearOf(x)) * shroudLength) / (x - shroudAft))
-    }
     // The shroud: one shell in the hull's own clipped section, `skin` thick
-    // all round, its inside roof sloping down to the thrust plate by `drop`.
-    // Dark panels lie on its outer chamfers and pale ones on its flanks.
+    // all round, its roof resting on the intakes it covers. Dark panels lie
+    // on its outer chamfers and pale ones on its flanks.
     add(
       drive,
       hollowSection(
@@ -738,9 +690,17 @@ export function createShip(
         [H, W, 0],
         [H, W, 0],
         [ceiling, W - skin, 0],
-        [ceiling - drop / 2, W - skin, -drop / 2]
+        [ceiling, W - skin, 0]
       ),
       hull
+    )
+    // The intakes (`engines.ts`), as on every hull.
+    intakes(
+      (geometry, mat, pos, rot, parent = drive) => add(parent as Group, geometry, mat, pos, rot),
+      { dark, steel, cyan, copper },
+      drive,
+      CORVETTE.drive.thrustPlate,
+      { x: shroudAft, h: ceiling, w: W - skin }
     )
     const panel = 0.03
     for (const s of [-1, 1]) {
@@ -880,7 +840,10 @@ export function createShip(
       { x: top - bevel, ring: ring(0) },
       { x: top, ring: ring(bevel) },
     ])
-    bake(solid, new Matrix4().makeBasis(new Vector3(0, 1, 0), new Vector3(1, 0, 0), new Vector3(0, 0, -1)))
+    bake(
+      solid,
+      new Matrix4().makeBasis(new Vector3(0, 1, 0), new Vector3(1, 0, 0), new Vector3(0, 0, -1))
+    )
     add(p, solid, hull)
   }
 
@@ -1393,7 +1356,7 @@ export function createShip(
   update(config, options.slots)
   const nozzles: Vector3[] = []
   root.traverse(object => {
-    if (object.name.startsWith('drive_bell_'))
+    if (object.name.startsWith('drive_nozzle_'))
       nozzles.push(object.localToWorld(new Vector3(0, 1.1, 0)))
   })
   if (options.detail === 'board') {

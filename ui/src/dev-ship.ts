@@ -1,10 +1,12 @@
 /**
  * One ship from the yard, with no server and no React: `dev-ship.html?hull=
- * corvette&view=iso` (views: iso, side, top, front, rear, bottom, below). The reference the
+ * corvette&view=iso` (views: iso, side, top, front, rear, aft, quarter, profile,
+ * bottom, below). The reference the
  * printed pieces in `cad/` are drawn against. `module=<subsystem>` fits it
  * in every mount that takes it (`module=none` empties them), `focus=<mount>`
  * (side-0, forward-0, ...) frames that mount close up instead of the whole
- * ship, and `zoom=<n>` brings the camera n times closer.
+ * ship (`focus=drive` its intakes), and `zoom=<n>` brings the camera n times
+ * closer.
  */
 import {
   AmbientLight,
@@ -30,7 +32,7 @@ const params = new URLSearchParams(location.search)
 const hull = (params.get('hull') ?? 'corvette') as Hull
 const view = params.get('view') ?? 'iso'
 const fitted = params.get('module') as SubsystemType | 'none' | null
-const focus = params.get('focus') as MountId | null
+const focus = params.get('focus') as MountId | 'drive' | null
 const zoom = Number(params.get('zoom') ?? 1)
 
 const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
@@ -54,8 +56,14 @@ const ship = createShip(config)
 scene.add(ship.root)
 ship.root.updateMatrixWorld(true)
 
-const frame = focus ? ship.mounts.get(focus)?.frame : undefined
-const box = new Box3().setFromObject(frame ?? ship.root)
+const frame = focus && focus !== 'drive' ? ship.mounts.get(focus as MountId)?.frame : undefined
+// `focus=drive` frames the intakes: whatever the nozzles hang in.
+let drive: import('three').Object3D | undefined
+if (focus === 'drive')
+  ship.root.traverse(
+    o => (drive ??= o.name.startsWith('drive_nozzle_') ? (o.parent ?? undefined) : undefined)
+  )
+const box = new Box3().setFromObject(frame ?? drive ?? ship.root)
 const centre = box.getCenter(new Vector3())
 const size = frame ? 3.2 : box.getSize(new Vector3()).length()
 const directions: Record<string, Vector3> = {
@@ -64,6 +72,9 @@ const directions: Record<string, Vector3> = {
   top: new Vector3(0, 1, 0.0001),
   front: new Vector3(1, 0, 0),
   rear: new Vector3(-1, 0.25, 0.4),
+  aft: new Vector3(-1, 0.02, 0.0001),
+  quarter: new Vector3(-1, 0.25, 0.75),
+  profile: new Vector3(-0.75, -0.18, 0.64),
   bottom: new Vector3(0.0001, -1, 0),
   below: new Vector3(1, -0.8, 1.2),
 }

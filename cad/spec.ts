@@ -11,7 +11,7 @@
 
 import { FOOT, PRINT_LENGTH, MM_PER_UNIT } from "../ui/src/ships/mountShape.ts";
 
-/** Game units to millimetres: the corvette, bow to the bells' exit, prints at 80. */
+/** Game units to millimetres: the corvette prints 80 long. */
 export const PRINT = { corvetteLength: PRINT_LENGTH, mmPerUnit: MM_PER_UNIT };
 
 /**

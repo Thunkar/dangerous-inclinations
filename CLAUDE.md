@@ -149,8 +149,8 @@ ui/src/components/board/  model.ts (useBoardModel: all either renderer draws),
                         svg/ (the flat board), three/ (the WebGL board)
 ui/src/ships/           model.ts (createShip: the 3D ship, shipyard and board alike),
                         hulls.ts (the hulls a player picks: mounts, framing, board fit),
-                        shrike.ts, mantis.ts, loft.ts (the clipped-section lofts), parts.ts (the
-                        de Laval bells), modules.ts (the kit, the plasma projector and
+                        shrike.ts, mantis.ts, loft.ts (the clipped-section lofts), engines.ts
+                        (the drive every hull carries), modules.ts (the kit, the plasma projector and
                         the ram compressor), builds/ (the other modules, one a file),
                         mounts.ts (slot names per hull),
                         ShipMark (the flat mark)
@@ -413,21 +413,29 @@ the print's frame (a rotation of the game's, never an axis swap, which would
 print the mirror image). So `pieces/hull.ts` calls `createShip` for any hull and prints
 what it draws, with only what printing needs added: every part grown by
 `FDM.join` (the game keeps overlays a hair off their walls) and thickened to
-`FDM.minFeature`; modules, bells, gimbal struts and the yard's
-mount highlights left off; the mount recesses and pause-sealed magnet slots
-cut at the game's own mount frames; sockets for the bells and the stand; the
+`FDM.minFeature`; modules and the yard's mount highlights left off; the
+mount recesses and pause-sealed magnet slots cut at the game's own mount
+frames; a socket for the stand; the
 bed at the hull's keel (`HULL_INFO.keel`, where the game carries the bays'
 ventral shoulders to, so the hull stands flat). What hangs below the keel
 (the shrike's blade, the mantis's arm fins) prints as a piece of its own,
 turned over onto its cut, and is glued on (filament pins where it is thick
-enough). Modules (`pieces/module.ts`) and bells (`pieces/bells.ts`)
-print on their own the same way, adding only the screw's countersink and
-pilot. The game draws the printed mount: a module stands on the foot's
+enough). Modules (`pieces/module.ts`) print on their own the same way,
+adding only the screw's countersink and pilot. The drive prints with the
+hull (`ships/engines.ts`): pairs of raked intakes filling the shroud, an
+F-15's intake and its mirror above it, every face that looks down at 45
+degrees and every pair standing on a block on the floor or the pair below,
+so it needs no supports: three triangular cooling channels on each wall,
+sized to the box. Its splayed walls and divider print as extrusions cut by
+their planes (`clipped` in `solid.ts`) and its teeth as prisms square to
+their own axes, every face flat; and the print fuses each pair (`intake_<n>`)
+on its own before the hull, because one fuse of a few hundred small
+overlapping pieces with the rest of the hull runs for many minutes. The game draws the printed mount: a module stands on the foot's
 tenon with a 45-degree skirt from it to its base plate's edge (so the plate
 has no lip in the air), and a hull shows the foot's recess at each mount
 face (the print cuts it). A change to a ship in the yard is a change
 to its print. `corvetteShape.ts`, `mountShape.ts` (the foot, the mount face
-and the print scale) and `bell.ts` are the numbers both read.
+and the print scale) are the numbers both read.
 
 FluidCAD's booleans have three traps, all handled in `cad/lib/`: a solid
 must be built `.new()` (features, mirrors included, otherwise fuse into

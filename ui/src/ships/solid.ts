@@ -66,6 +66,13 @@ export type SolidSpec =
      * same number of points each, joined point to point.
      */
     | { kind: 'sections'; sections: { x: number; ring: V2[] }[] }
+    /**
+     * `solid` (with its own bake) less whatever lies on the far side of each
+     * plane (the side its `normal` points to, from `at`): a wedge or a cut
+     * prism with every face flat, which the print fuses far faster than the
+     * same shape lofted.
+     */
+    | { kind: 'clipped'; solid: SolidSpec; planes: { normal: V3; at: V3 }[] }
     /** `LatheGeometry`: the [radius, y] profile turned round y. */
     | { kind: 'lathe'; profile: V2[] }
     /** Finer than any print: drawn by the game, left off the print (cooling tubes, glow discs). */

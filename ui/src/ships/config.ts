@@ -23,7 +23,6 @@ export interface ShipConfig {
   beam: number
   armor: number
   engineSize: number
-  engines: 1 | 3 | 5
   paint: string
   accent: string
   finish: Finish
@@ -36,7 +35,6 @@ export const DEFAULT_CONFIG: ShipConfig = {
   beam: 1,
   armor: 1,
   engineSize: 1,
-  engines: 3,
   paint: HULL_INK.paint,
   accent: HULL_INK.accent,
   finish: 'paint',
@@ -133,9 +131,6 @@ export function parseConfig(value: unknown): ShipConfig {
     }
     next[key] = n
   }
-  if (v.engines !== 1 && v.engines !== 3 && v.engines !== 5)
-    throw new Error('Invalid engine cluster.')
-  next.engines = v.engines
   for (const key of ['paint', 'accent'] as const) {
     if (typeof v[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(v[key]))
       throw new Error('Invalid paint color.')

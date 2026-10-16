@@ -9,7 +9,7 @@
 export type Station = readonly [number, number, number]
 
 export const CORVETTE = {
-  /** Bow to the bells' exit, the length the print scale is set by. */
+  /** The length the print scale is set by: the corvette is this long at 80 mm. */
   length: 8.5,
 
   /** The armoured core, aft to fore. */
@@ -73,37 +73,20 @@ export const CORVETTE = {
   },
 
   /**
-   * The drive: its origin's x, the block's section by cluster size (half
-   * height and half width before the 0.08 / 0.03 the block adds), the block
+   * The drive: its origin's x, the block's section (half height and half
+   * width before the 0.08 / 0.03 the block adds), the block
    * held from origin - 0.78 to origin - 0.22, the thrust plate and the shroud
    * behind it (both in the drive's own x, from the origin).
    */
   drive: {
     origin: -3.13,
-    sternHeight: { 1: 1.16, 3: 1.1, 5: 1.28 } as Record<1 | 3 | 5, number>,
-    sternWidth: { 1: 1.12, 3: 1.5, 5: 1.5 } as Record<1 | 3 | 5, number>,
+    sternHeight: 1.1,
+    sternWidth: 1.5,
     blockAdds: [0.08, 0.03] as const,
     block: [-0.78, -0.22] as const,
     thrustPlate: -0.825,
     shroud: { fore: -0.8, aft: -1.52, skin: 0.14 },
   },
-
-  /** The bells on the thrust plate: [y, z, scale] by cluster size (the bell itself is `parts.ts`). */
-  bells: {
-    1: [[0, 0, 1.6]],
-    3: [
-      [0, 0, 1.15],
-      [0, -0.99, 0.79],
-      [0, 0.99, 0.79],
-    ],
-    5: [
-      [0, 0, 1.15],
-      [0, -0.99, 0.79],
-      [0, 0.99, 0.79],
-      [-0.83, 0, 0.6],
-      [0.83, 0, 0.6],
-    ],
-  } as Record<1 | 3 | 5, readonly (readonly [number, number, number])[]>,
 
   /**
    * The fixed fuel scoop on the ventral bow: plate size and centre. It reaches

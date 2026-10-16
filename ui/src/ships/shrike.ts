@@ -1,8 +1,8 @@
 /**
  * The shrike: a tall chassis that carries the flank mounts in one column,
  * plated as the corvette is, with a raked chin intake under a sunken bow and a
- * cockpit over it, a crest above, a swept blade below, and five de Laval bells
- * in a shroud at the stern. +X is the bow, +Y dorsal, port is -Z; the mounts
+ * cockpit over it, a crest above, a swept blade below, and the intakes in a
+ * shroud at the stern. +X is the bow, +Y dorsal, port is -Z; the mounts
  * themselves are placed by `SHRIKE_MOUNTS` (hulls.ts).
  */
 import {
@@ -16,7 +16,8 @@ import {
   Vector3,
 } from 'three'
 import { armoredSection, hollowSection, type Station } from './loft'
-import { boxSolid, cylinderSolid, delavalBells, extrudeSolid, torusSolid, type Put } from './parts'
+import { boxSolid, cylinderSolid, extrudeSolid, torusSolid, type Put } from './parts'
+import { intakes } from './engines'
 import { bake, solidOf } from './solid'
 import type { Vec3 } from './config'
 
@@ -267,9 +268,8 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
 
 /**
  * The stern: a block standing proud of the chassis as the corvette's drive
- * stands proud of its hull, a busy thrust plate, five bells (a big one in the
- * middle, one in each corner) and a shroud that covers the corner bells,
- * its flanks carried on aft on the same line beside the centre bell.
+ * stands proud of its hull, a shroud carrying its section on aft, and the
+ * intakes filling it (`engines.ts`).
  */
 function stern(
   body: Group,
@@ -334,8 +334,7 @@ function stern(
     ]),
     m.dark
   )
-  // The thrust plate, set into the end of the block: bare metal, so the
-  // bells read against it rather than against a black hole.
+  // The thrust plate, set into the end of the block, the intakes standing on it.
   at(
     armoredSection([
       [-1.18, H - skin - 0.01, W - skin - 0.01],
@@ -377,16 +376,6 @@ function stern(
       0.6
     )
   }
-  // The plate's furniture: panel seams between the bells, bolts round its edge.
-  for (const y of [-0.54, 0.54])
-    box([0.02, 0.03, (W - skin) * 2 - 0.1], [-1.19, y, 0], m.dark, undefined, g)
-  for (const z of [-0.6, 0.6]) box([0.02, 0.9, 0.03], [-1.19, 0, z], m.dark, undefined, g)
-  const bolt = (y: number, z: number) =>
-    at(cylinderSolid(0.035, 0.035, 0.03, 6), m.dark, [-1.195, y, z], [0, 0, Math.PI / 2])
-  for (let i = -4; i <= 4; i++)
-    for (const s of [-1, 1]) bolt(s * (H - skin - 0.09), (i * (W - skin - 0.1)) / 4.4)
-  for (let i = -7; i <= 7; i++)
-    for (const s of [-1, 1]) bolt((i * (H - skin - 0.1)) / 7.6, s * (W - skin - 0.09))
   // One turbopump on each flank, feeding forward into the block, and one
   // conduit carried aft along the shroud below it.
   for (const s of [-1, 1]) {
@@ -400,12 +389,6 @@ function stern(
     pipe([-0.92, -0.6, s * (W + 0.07)], [aft + 0.2, -0.6, s * (W + 0.07)], 0.05, m.copper, g)
     box([0.14, 0.16, 0.14], [aft + 0.2, -0.6, s * (W + 0.06)], m.steel, undefined, g)
   }
-  // Five bells: a big one in the middle, a smaller one in each corner.
-  delavalBells(put, m, g, -1.19, [
-    [0, 0, 0.95],
-    [1.08, -0.5, 0.5],
-    [1.08, 0.5, 0.5],
-    [-1.08, -0.5, 0.5],
-    [-1.08, 0.5, 0.5],
-  ])
+  // The intakes, which hide the plate.
+  intakes(put, m, g, -1.19, { x: aft, h: H - skin, w: W - skin })
 }

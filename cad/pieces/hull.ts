@@ -1,15 +1,15 @@
-// A ship's hull, at 80 mm bow to bells for the corvette (the others at the
-// same scale), printed in one piece belly down. It is the game's own ship:
+// A ship's hull, at 80 mm long for the corvette (the others at the same
+// scale), printed in one piece belly down, its drive with it. It is the game's own ship:
 // `createShip` builds it, every mesh is rebuilt as a solid (lib/kit.ts) and
 // the solids are fused. What the print changes is only what printing needs,
 // each said where it is done: parts thinner than a nozzle can draw are
-// thickened, the modules, the mount shoes and the bells are left off (they
-// print on their own), the bed is the hull's flat bottom, the mounts are cut
-// to the printed interface with their magnets sealed at a pause, and the bells
-// and the stand get sockets. Anything that hangs below the bed (the shrike's
+// thickened, the modules and the mount shoes are left off (they print on
+// their own), the bed is the hull's flat bottom, the mounts are cut to the
+// printed interface with their magnets sealed at a pause, and the stand gets
+// a socket. Anything that hangs below the bed (the shrike's
 // blade, the mantis's fins) prints as a piece of its own, upside down on the
 // cut, and is glued on.
-import { subtract } from "fluidcad/core";
+import { fuse, subtract } from "fluidcad/core";
 import { Box3, Matrix4, Vector3, type Object3D } from "three";
 import { DEFAULT_SHIP_APPEARANCE, type Hull } from "@dangerous-inclinations/engine";
 import { createShip, type ShipModel } from "../../ui/src/ships/model.ts";
@@ -58,19 +58,13 @@ export function shipModel(hull: Hull): ShipModel {
 }
 
 /**
- * What prints with the hull: not the modules (`module_<mount>_<type>`), the
- * bells and their gimbal struts (they run into where a
- * printed bell plugs in), or the shipyard's mount highlights (a marker the
- * yard lights when a mount is picked, not part of the ship).
+ * What prints with the hull: not the modules (`module_<mount>_<type>`) or
+ * the shipyard's mount highlights (a marker the yard lights when a mount is
+ * picked, not part of the ship).
  */
 const onHull = (p: PlacedSolid) =>
   p.material !== "highlight" &&
-  !p.path.some(
-    (n) =>
-      n.startsWith("module_") ||
-      n.startsWith("drive_bell") ||
-      n === "bell_gimbal"
-  );
+  !p.path.some((n) => n.startsWith("module_"));
 
 /** An object's matrix relative to the ship's root. */
 function inShip(object: Object3D, root: Object3D): Matrix4 {
@@ -147,6 +141,8 @@ interface Piece {
   box: Box3;
   reach: Box3;
   make: () => Solid | null;
+  /** The drive's pair this piece belongs to (`intake_<n>`), fused on its own first. */
+  pair?: string;
 }
 
 function piecesOf(model: ShipModel, frame: Matrix4): Piece[] {
@@ -158,6 +154,7 @@ function piecesOf(model: ShipModel, frame: Matrix4): Piece[] {
         box,
         reach: box.clone().expandByScalar(1),
         make: () => placeSolid(p, frame, { min: FDM.minFeature, grow: FDM.join }),
+        pair: p.path.find((n) => /^intake_\d+$/.test(n)),
       };
     });
 }
@@ -208,16 +205,30 @@ function cutAndUnite(pieces: Piece[], cuts: Cut[]): Solid {
       let s = p.make();
       if (!s) return null;
       for (const c of cuts) if (c.box.intersectsBox(p.reach)) s = subtract(s, c.make());
-      return { s, box: p.box };
+      return { s, box: p.box, pair: p.pair };
     })
-    .filter((p): p is { s: Solid; box: Box3 } => p !== null);
+    .filter((p): p is { s: Solid; box: Box3; pair: string | undefined } => p !== null);
+  // Each of the drive's pairs fused on its own first: a pair is a couple of
+  // hundred small pieces lying in and on each other, which one fuse with the
+  // rest of the hull takes minutes over and a fuse of their own a second.
+  const pairs = new Map<string, { s: Solid; box: Box3 }[]>();
+  const loose: { s: Solid; box: Box3 }[] = [];
+  for (const p of made) {
+    if (p.pair) pairs.set(p.pair, [...(pairs.get(p.pair) ?? []), p]);
+    else loose.push(p);
+  }
+  for (const group of pairs.values())
+    loose.push({
+      s: fuse(...group.map((p) => p.s)),
+      box: group.reduce((b, p) => b.union(p.box), new Box3()),
+    });
   const volume = (b: Box3) =>
     b
       .getSize(new Vector3())
       .toArray()
       .reduce((a, n) => a * n, 1);
-  const core = made.reduce((best, p, i) => (volume(p.box) > volume(made[best].box) ? i : best), 0);
-  return uniteAlong(made, core);
+  const core = loose.reduce((best, p, i) => (volume(p.box) > volume(loose[best].box) ? i : best), 0);
+  return uniteAlong(loose, core);
 }
 
 function pinCuts(hull: Hull, up: boolean): Cut[] {
@@ -236,8 +247,8 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): Solid {
   const frame = printFrame(HULL_PRINT[hull].bed);
   const pieces = piecesOf(model, frame);
 
-  // The cuts: each mount's recess and sealed magnet slot, a socket in the
-  // thrust plate for each bell, the stand's socket, the pins for a piece
+  // The cuts: each mount's recess and sealed magnet slot, the stand's
+  // socket, the pins for a piece
   // glued on below, and the bed (whatever hangs below it prints on its own).
   const cuts: Cut[] = [];
   for (const { id } of GAME_MOUNTS) {
@@ -260,29 +271,6 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): Solid {
     });
     cuts.push({ box, make: () => placeBuilt(pocketTool(mount, rise), m) });
   }
-  // The bell's chamber (radius 0.3 of a bell, from 0.12 ahead of where it
-  // hangs to 0.58 behind, out through whatever plate or shroud the hull
-  // hangs it in), grown by the tenon's clearance.
-  model.root.traverse((o) => {
-    if (!/^drive_bell_\d+$/.test(o.name)) return;
-    const bell = inShip(o, model.root).multiply(new Matrix4().makeTranslation(0, 0.23, 0));
-    const scale = new Vector3().setFromMatrixScale(bell).x;
-    const r = 0.3 + MOUNT.clearance / (S * scale);
-    const placed: PlacedSolid = {
-      spec: { kind: "cylinder", top: r, bottom: r, height: 0.7, sides: 48, thetaStart: 0 },
-      matrix: bell.toArray(),
-      material: "",
-      path: [o.name, "socket"],
-      bounds: [
-        [-r, -0.35, -r],
-        [r, 0.35, r],
-      ],
-    };
-    cuts.push({
-      box: boxOf(placed.bounds, frame.clone().multiply(bell)),
-      make: () => placeSolid(placed, frame)!,
-    });
-  });
   const socket = HULL_PRINT[hull].socket;
   if (socket) cuts.push(...socketCuts(socket.x * S, socket.peg, socket.depth));
   cuts.push(...pinCuts(hull, true));
