@@ -481,7 +481,9 @@ them), a hub, six arms that lock the rings, lane markers in grooves in a band
 outside the outer ring, and the body on the hub's peg: a planet's dome in
 wavy bands (each boundary lofted as Onshape lofted it, between centripetal
 splines through the same samples, matched point to point by parameter), or
-the black hole's horizon and accretion disc with its streak inlays. A ring
+the black hole's horizon and accretion disc with its streak inlays; and the
+ship token (`pieces/token.ts`, a chamfered slab the kernel's own chamfer
+cannot cut, built as lofts between the outlines at each height). A ring
 too big for the 235 mm bed is cut into segments on arm lines. `yarn board`
 writes a part file per piece (`parts/board/<well>/`, which `export` runs).
 Every piece was measured against the designer's Onshape exports
