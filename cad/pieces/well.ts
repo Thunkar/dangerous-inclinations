@@ -312,22 +312,51 @@ export function buildLane(kind: WellKind, l: number): Solid {
   );
 }
 
-/** Every part of a well, with its name and the call that builds it. */
-export function partsOf(kind: WellKind): { name: string; file: string; call: string }[] {
-  const w = wellOf(kind);
-  const out: { name: string; file: string; call: string }[] = [];
-  for (let i = 0; i < w.n; i++)
+/** A part file: its folder under parts/board/, its file, its name and the call that builds it. */
+export interface BoardPart {
+  dir: string;
+  file: string;
+  name: string;
+  call: string;
+}
+
+/** How many wells of each kind a board has: the black hole and three planets. */
+export const BOARD_WELLS: Record<WellKind, number> = { blackHole: 1, planet: 3 };
+
+/**
+ * Every distinct piece of the board, each once, with how many to print in its
+ * name. Rings that every well has alike (the inner ones, until a ring is a
+ * well's outer one or differs in its cut) are shared; a ring's numbers are the
+ * same 0 to 23 whatever the ring, so one set, laid out as ring 1's, serves
+ * every ring; a well's arms are one arm turned, and so are its lanes.
+ */
+export function boardParts(): BoardPart[] {
+  const wells = (Object.keys(BOARD_WELLS) as WellKind[]).map(wellOf);
+  const count = (kinds: WellKind[], each = 1) => kinds.reduce((n, k) => n + BOARD_WELLS[k] * each, 0);
+  const kinds = wells.map((w) => w.kind);
+  // A ring is shared while every well has it, none carries it as its outer
+  // ring (the lane band), and it is cut into the same segments.
+  const shared = (i: number) =>
+    wells.every((w) => i < w.n - 1 && w.segments[i] === wells[0].segments[i] && w.inner[i] === wells[0].inner[i]);
+  const out: BoardPart[] = [];
+  const ring = (dir: string, kind: WellKind, i: number, copies: number) => {
+    const w = wellOf(kind);
     for (let j = 0; j < w.segments[i]; j++) {
       const name = w.segments[i] === 1 ? `Ring ${i + 1}` : `Ring ${i + 1}.${j + 1}`;
-      const file = name.toLowerCase().replace(" ", "-");
-      out.push({ name, file, call: `buildRing("${kind}", ${i}, ${j})` });
-      out.push({ name: `${name} numbers`, file: `${file}-numbers`, call: `buildNumbers("${kind}", ${i}, ${j})` });
+      out.push({ dir, file: name.toLowerCase().replace(" ", "-"), name: `${name} (print ${copies})`, call: `buildRing("${kind}", ${i}, ${j})` });
     }
-  out.push({ name: "Hub", file: "hub", call: `buildHub("${kind}")` });
-  for (let j = 0; j < B.arm.count; j++) out.push({ name: `Arm ${j + 1}`, file: `arm-${j + 1}`, call: `buildArm("${kind}", ${j})` });
-  w.lanes.forEach((lane, l) => {
-    const name = `Lane ${lane.first}-${lane.first + lane.count - 1} ${lane.name}`;
-    out.push({ name, file: `lane-${lane.first}-${lane.first + lane.count - 1}`, call: `buildLane("${kind}", ${l})` });
-  });
+  };
+  const first = wells[0].kind;
+  for (let i = 0; shared(i); i++) ring("shared", first, i, count(kinds));
+  const rings = wells.reduce((n, w) => n + w.n * BOARD_WELLS[w.kind], 0);
+  out.push({ dir: "shared", file: "numbers", name: `Numbers 0-23 (print ${rings}: a set to a ring)`, call: `buildNumbers("${first}", 0, 0)` });
+  for (const w of wells) {
+    const k = w.kind;
+    const per = BOARD_WELLS[k];
+    for (let i = 0; i < w.n; i++) if (!shared(i)) ring(k, k, i, per);
+    out.push({ dir: k, file: "hub", name: `Hub (print ${per})`, call: `buildHub("${k}")` });
+    out.push({ dir: k, file: "arm", name: `Arm (print ${per * B.arm.count})`, call: `buildArm("${k}", 0)` });
+    out.push({ dir: k, file: "lane", name: `Lane marker (print ${per * w.lanes.length})`, call: `buildLane("${k}", 0)` });
+  }
   return out;
 }

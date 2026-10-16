@@ -22,6 +22,7 @@ import { Matrix4, Vector3 } from "three";
 import { BOARD, ORBIT_BODY } from "../spec.ts";
 import { prism, move, outline, type Point, type Solid } from "../lib/solids.ts";
 import { placeBuilt } from "../lib/kit.ts";
+import { BOARD_WELLS } from "./well.ts";
 
 const rad = (d: number) => (d * Math.PI) / 180;
 /** Where every body stands: on the hub's top. */
@@ -311,19 +312,18 @@ export function buildInlays(): void {
   }
 }
 
-/** Every body piece of a well, with its name and the call that builds it. */
-export const BODIES: Record<"blackHole" | "planet", { name: string; file: string; call: string }[]> = {
-  planet: Array.from({ length: P.bands }, (_, k) => ({
-    name: `Band ${k + 1}`,
+/** Every body piece, each once, with how many to print in its name (a planet's once for each planet). */
+export const BODIES: { dir: "blackHole" | "planet"; file: string; name: string; call: string }[] = [
+  ...Array.from({ length: P.bands }, (_, k) => ({
+    dir: "planet" as const,
     file: `band-${k + 1}`,
+    name: `Band ${k + 1} (print ${BOARD_WELLS.planet})`,
     call: `buildBody("band", ${k + 1})`,
   })),
-  blackHole: [
-    { name: "Horizon", file: "horizon", call: `buildBody("horizon")` },
-    { name: "Accretion disc", file: "accretion-disc", call: `buildBody("disc")` },
-    { name: "Streak inlay", file: "streak-inlay", call: `buildBody("inlays")` },
-  ],
-};
+  { dir: "blackHole", file: "horizon", name: "Horizon", call: `buildBody("horizon")` },
+  { dir: "blackHole", file: "accretion-disc", name: "Accretion disc", call: `buildBody("disc")` },
+  { dir: "blackHole", file: "streak-inlay", name: `Streak inlays (all ${S.rows * S.perRow})`, call: `buildBody("inlays")` },
+];
 
 /** The piece by name, for the part files. */
 export function buildBody(piece: "band" | "horizon" | "disc" | "inlays", n = 0): Solid | void {

@@ -485,7 +485,11 @@ the black hole's horizon and accretion disc with its streak inlays; and the
 ship token (`pieces/token.ts`, a chamfered slab the kernel's own chamfer
 cannot cut, built as lofts between the outlines at each height). A ring
 too big for the 235 mm bed is cut into segments on arm lines. `yarn board`
-writes a part file per piece (`parts/board/<well>/`, which `export` runs).
+writes a part file for every distinct piece, once, with how many to print in
+its name (`export` runs it): `parts/board/shared/` for the rings every well
+has alike and the one set of numbers 0 to 23 every ring takes, and
+`parts/board/blackHole/` and `planet/` for the rest, an arm and a lane
+marker standing for a well's six arms and its lanes.
 Every piece was measured against the designer's Onshape exports
 (`scripts/compare.mjs`): within 0.045 mm everywhere on its surface, but for
 the black hole's ring exports, older and cut with 0.2 clearance round the

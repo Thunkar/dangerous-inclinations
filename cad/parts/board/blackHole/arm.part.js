@@ -1,4 +1,4 @@
 import { part } from "fluidcad/core";
 import { buildArm } from "../../../pieces/well.ts";
 
-export const piece = part("Arm 1", () => buildArm("planet", 0));
+export const piece = part("Arm (print 6)", () => buildArm("blackHole", 0));
