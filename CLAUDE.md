@@ -426,11 +426,17 @@ hull (`ships/engines.ts`): pairs of raked intakes filling the shroud, an
 F-15's intake and its mirror above it, every face that looks down at 45
 degrees and every pair standing on a block on the floor or the pair below,
 so it needs no supports: three triangular cooling channels on each wall,
-sized to the box. Its splayed walls and divider print as extrusions cut by
-their planes (`clipped` in `solid.ts`) and its teeth as prisms square to
-their own axes, every face flat; and the print fuses each pair (`intake_<n>`)
+sized to the box. It fills the shroud's clipped bore: what reaches the
+bore's 45-degree corner cuts is cut on them, and the boxes at the drive's
+floor and roof open out at 45 to the shroud's mouth, solid down to the
+shroud, which so rests on the drive with no bridge. Its pieces are convex
+solids drawn from their bounding planes (`hullOf` in `engines.ts`) and
+printed as extrusions or prisms cut by those planes (`clipped` in
+`solid.ts`), every face flat; and the print fuses each pair (`intake_<n>`)
 on its own before the hull, because one fuse of a few hundred small
-overlapping pieces with the rest of the hull runs for many minutes. The game draws the printed mount: a module stands on the foot's
+overlapping pieces with the rest of the hull runs for many minutes. The
+board draws ships at `detail: 'board'` (merged, pieces under 0.16 left off);
+`dev-ship.html?detail=board` shows a ship that way. The game draws the printed mount: a module stands on the foot's
 tenon with a 45-degree skirt from it to its base plate's edge (so the plate
 has no lip in the air), and a hull shows the foot's recess at each mount
 face (the print cuts it). A change to a ship in the yard is a change

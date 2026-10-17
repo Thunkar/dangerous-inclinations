@@ -34,6 +34,8 @@ const view = params.get('view') ?? 'iso'
 const fitted = params.get('module') as SubsystemType | 'none' | null
 const focus = params.get('focus') as MountId | 'drive' | null
 const zoom = Number(params.get('zoom') ?? 1)
+// `aim=<n>` moves the camera's target up by n half heights of what it frames (-1 the bottom, 1 the top).
+const aim = Number(params.get('aim') ?? 0)
 
 const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true })
 renderer.setPixelRatio(devicePixelRatio)
@@ -52,19 +54,28 @@ if (fitted && fitted !== 'none')
   for (const mount of MOUNTS)
     if (canInstallInSlot(fitted, mount.group)) config = setModule(config, mount.id, fitted)
 if (fitted === 'none') for (const mount of MOUNTS) config = setModule(config, mount.id, null)
-const ship = createShip(config)
+// `detail=board` builds the ship as the board does: merged, small pieces left off.
+const ship = createShip(config, false, { detail: params.get('detail') === 'board' ? 'board' : 'hero' })
 scene.add(ship.root)
 ship.root.updateMatrixWorld(true)
 
 const frame = focus && focus !== 'drive' ? ship.mounts.get(focus as MountId)?.frame : undefined
-// `focus=drive` frames the intakes: whatever the nozzles hang in.
-let drive: import('three').Object3D | undefined
-if (focus === 'drive')
-  ship.root.traverse(
-    o => (drive ??= o.name.startsWith('drive_nozzle_') ? (o.parent ?? undefined) : undefined)
+// `focus=drive` frames the intakes: whatever the nozzles hang in (found on a
+// full-detail ship, since the board's merge leaves no groups to find).
+let drive: Box3 | undefined
+if (focus === 'drive') {
+  const hero = createShip(config)
+  hero.root.updateMatrixWorld(true)
+  let group: import('three').Object3D | undefined
+  hero.root.traverse(
+    o => (group ??= o.name.startsWith('drive_nozzle_') ? (o.parent?.parent ?? undefined) : undefined)
   )
-const box = new Box3().setFromObject(frame ?? drive ?? ship.root)
+  if (group) drive = new Box3().setFromObject(group)
+  hero.dispose()
+}
+const box = drive ?? new Box3().setFromObject(frame ?? ship.root)
 const centre = box.getCenter(new Vector3())
+centre.y += (aim * (box.max.y - box.min.y)) / 2
 const size = frame ? 3.2 : box.getSize(new Vector3()).length()
 const directions: Record<string, Vector3> = {
   iso: new Vector3(1, 0.8, 1.2),
@@ -75,6 +86,7 @@ const directions: Record<string, Vector3> = {
   aft: new Vector3(-1, 0.02, 0.0001),
   quarter: new Vector3(-1, 0.25, 0.75),
   profile: new Vector3(-0.75, -0.18, 0.64),
+  under: new Vector3(-1, -0.75, 0.3),
   bottom: new Vector3(0.0001, -1, 0),
   below: new Vector3(1, -0.8, 1.2),
 }

@@ -697,7 +697,7 @@ export function createShip(
     // The intakes (`engines.ts`), as on every hull.
     intakes(
       (geometry, mat, pos, rot, parent = drive) => add(parent as Group, geometry, mat, pos, rot),
-      { dark, steel, cyan, copper },
+      { dark, steel, cyan, copper, hull },
       drive,
       CORVETTE.drive.thrustPlate,
       { x: shroudAft, h: ceiling, w: W - skin }

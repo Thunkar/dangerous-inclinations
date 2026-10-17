@@ -23,12 +23,11 @@ import {
   type MeshStandardMaterial,
   type Object3D,
 } from 'three'
-import { sectionLoft } from './loft'
-import { cylinderSolid, extrudeSolid, type Put } from './parts'
+import { extrudeSolid, type Put } from './parts'
 import { bake, describe, solidOf, type SolidSpec } from './solid'
 
 type Mat = MeshStandardMaterial
-type Ink = Record<'dark' | 'steel' | 'cyan', Mat> & Partial<Record<'copper', Mat>>
+type Ink = Record<'dark' | 'steel' | 'cyan' | 'hull', Mat> & Partial<Record<'copper', Mat>>
 type P2 = [number, number]
 
 /** The shroud's open end, in the drive's frame: its x, and its inside's half height and half width. */
@@ -55,14 +54,65 @@ const area = (poly: P2[]) =>
     return s + p[0] * q[1] - q[0] * p[1]
   }, 0) / 2
 
+/** A half-space: the points p with n . p <= d. */
+interface Half {
+  n: Vector3
+  d: number
+}
+
+/**
+ * The convex solid the half-spaces bound, as a mesh: its corners are where
+ * three of the planes meet inside all the others, and each plane's face is
+ * the corners on it, in order round it, facing out.
+ */
+function hullOf(halves: Half[]): BufferGeometry {
+  const eps = 1e-7
+  const corners: Vector3[] = []
+  for (let i = 0; i < halves.length; i++)
+    for (let j = i + 1; j < halves.length; j++)
+      for (let k = j + 1; k < halves.length; k++) {
+        const [a, b, c] = [halves[i], halves[j], halves[k]]
+        const bc = b.n.clone().cross(c.n)
+        const det = a.n.dot(bc)
+        if (Math.abs(det) < 1e-9) continue
+        const p = bc
+          .multiplyScalar(a.d)
+          .add(c.n.clone().cross(a.n).multiplyScalar(b.d))
+          .add(a.n.clone().cross(b.n).multiplyScalar(c.d))
+          .divideScalar(det)
+        if (
+          halves.every(h => h.n.dot(p) <= h.d + eps) &&
+          !corners.some(q => q.distanceTo(p) < 1e-6)
+        )
+          corners.push(p)
+      }
+  const positions: number[] = []
+  for (const { n, d } of halves) {
+    const on = corners.filter(p => Math.abs(n.dot(p) - d) < 1e-6)
+    if (on.length < 3) continue
+    const mid = on.reduce((m, p) => m.add(p), new Vector3()).divideScalar(on.length)
+    const u = on[0].clone().sub(mid).normalize()
+    const v = n.clone().cross(u)
+    const angle = (p: Vector3) => Math.atan2(p.clone().sub(mid).dot(v), p.clone().sub(mid).dot(u))
+    on.sort((p, q) => angle(p) - angle(q))
+    for (let i = 1; i + 1 < on.length; i++)
+      positions.push(...on[0].toArray(), ...on[i].toArray(), ...on[i + 1].toArray())
+  }
+  const geo = new BufferGeometry()
+  geo.setAttribute('position', new Float32BufferAttribute(positions, 3))
+  geo.computeVertexNormals()
+  return geo
+}
+
 /**
  * The intakes, on a thrust plate at `plate` (+X forward) in the shroud whose
  * mouth is `mouth`. Per box (the lower; the upper is its mirror), in [d aft,
  * v up] from the block's back face and the pair's middle: a chin up at 45 to
  * the bottom lip, a mouth raked back to the splitter's tip, and a ramp at 45
- * under the splitter. Two frames step back into the mouth, a vane on its
- * corners stands across it, the side walls splay in to the glowing face and
- * a divider stands down the middle, all three toothed with cooling channels.
+ * under the splitter. Two frames step back into the mouth, the side walls
+ * splay in to the glowing face and a divider stands down the middle, all
+ * three toothed with cooling channels, and a vane carries the centre
+ * channel across the face.
  */
 export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mouth: Mouth) {
   // Each pair is a group of its own (`intake_<n>`), which the print fuses on its own first.
@@ -73,7 +123,8 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
   // One column of pairs, stacked as the shroud's height allows.
   const cols = 1
   const rows = Math.max(1, Math.round(half / mouth.w))
-  const gap = 0.1
+  // The outer walls stand against the shroud's (a hair inside, so the two never share a plane).
+  const gap = 0.004
   const cw = mouth.w / cols
   const hw = cw - gap / 2
   const H = half / rows
@@ -90,10 +141,33 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
   const ramp = (d: number) => -(D + t) + d
   const bottom: P2 = [c, -H + c]
   const FRAMES = 2
+  // How far the inner frame's raked edge stands back from the mouth's.
+  const SETBACK = 0.05 * FRAMES
+  // A wall stands on each of the bore's cuts inside an outer box, as thick
+  // as the outer walls, and what stands in the cavity stops on it.
+  const CORNER = tw
   // Trim stands this far off the face it lies on, so the two never share a plane.
   const E = 0.002
   /** A point moved out along the normal n by `by`. */
   const off = ([d, v]: P2, [nd, nv]: P2, by = E): P2 => [d + nd * by, v + nv * by]
+  // The shroud's bore is the hull's clipped section (`loft.ts`), its corners
+  // cut at 45. The drive's shell (block, outer walls, roof and floor) is cut
+  // on those cuts, so it fills the bore; a wall stands on each cut inside an
+  // outer box, and everything inside the boxes stops on that wall.
+  const chamfer = Math.min(mouth.h, mouth.w) * 0.35
+  const bore: Half[] = [1, -1].flatMap(sy =>
+    [1, -1].map(sz => ({
+      n: new Vector3(0, sy, sz).normalize(),
+      d: (mouth.h + mouth.w - chamfer) / Math.SQRT2,
+    }))
+  )
+  /** The bore's cuts (moved in by `inset`) that points cross. */
+  const crossed = (pts: Vector3[], inset = 0) =>
+    bore.map(b => ({ n: b.n, d: b.d - inset })).filter(b => pts.some(p => b.n.dot(p) > b.d + 1e-6))
+  const toSpec = ({ n, d }: Half) => ({
+    normal: n.toArray(),
+    at: n.clone().multiplyScalar(d).toArray(),
+  })
 
   /** A side profile pulled across z0..z1, upside down if `flip`, d measured aft of `from`. */
   const across = (
@@ -103,20 +177,29 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
     z0: number,
     z1: number,
     flip = false,
-    from = face
+    from = face,
+    inset = 0
   ) => {
     let pts = prof.map(([d, v]) => [from - d, y + (flip ? -v : v)] as P2)
     if (area(pts) < 0) pts = [...pts].reverse()
     const shape = new Shape()
     pts.forEach(([a, b], i) => (i ? shape.lineTo(a, b) : shape.moveTo(a, b)))
     shape.closePath()
-    put(
-      extrudeSolid(shape, { depth: z1 - z0, bevelEnabled: false }),
-      mat,
-      [0, 0, z0],
-      undefined,
-      parent
+    const solid = extrudeSolid(shape, { depth: z1 - z0, bevelEnabled: false })
+    const cut = crossed(
+      pts.flatMap(([a, b]) => [new Vector3(a, b, z0), new Vector3(a, b, z1)]),
+      inset
     )
+    if (!cut.length) {
+      put(solid, mat, [0, 0, z0], undefined, parent)
+      return
+    }
+    // Cut by the bore: drawn from its faces, printed as the extrusion less the cuts.
+    bake(solid, new Matrix4().makeTranslation(0, 0, z0))
+    const geo = hullOf([...sides(pts), ...slab(z0, z1), ...cut])
+    describe(geo, { kind: 'clipped', solid: solidOf(solid)!, planes: cut.map(toSpec) })
+    solid.dispose()
+    put(geo, mat, undefined, undefined, parent)
   }
   /**
    * The print's description of a straight prism through `ring` (points in
@@ -140,23 +223,38 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
     geo.dispose()
     return spec
   }
-  /** A convex polyhedron from its faces (each a convex polygon), every face turned outward. */
-  const polyhedron = (faces: Vector3[][]): BufferGeometry => {
-    const tris = faces.flatMap(f => f.slice(1, -1).map((_, i) => [f[0], f[i + 1], f[i + 2]]))
-    const volume = tris.reduce((v, [a, b, c]) => v + a.dot(new Vector3().crossVectors(b, c)) / 6, 0)
-    const positions = tris.flatMap(([a, b, c]) =>
-      (volume < 0 ? [a, c, b] : [a, b, c]).flatMap(p => p.toArray())
-    )
-    const geo = new BufferGeometry()
-    geo.setAttribute('position', new Float32BufferAttribute(positions, 3))
-    geo.computeVertexNormals()
-    return geo
-  }
-  /** The pair's outline with its raked edge set back by `back`, its foot lifted by `lift`. */
-  const outline = (back: number, lift = 0): P2[] => {
-    const b: P2 = [bottom[0] - back, bottom[1] - back + lift]
+  /** The half-spaces bounding a convex polygon in xy (anticlockwise), pulled along z. */
+  const sides = (pts: P2[]): Half[] =>
+    pts.map((p, i) => {
+      const q = pts[(i + 1) % pts.length]
+      const n = new Vector3(q[1] - p[1], p[0] - q[0], 0).normalize()
+      return { n, d: n.x * p[0] + n.y * p[1] }
+    })
+  const slab = (z0: number, z1: number): Half[] => [
+    { n: new Vector3(0, 0, 1), d: z1 },
+    { n: new Vector3(0, 0, -1), d: -z0 },
+  ]
+  // How deep the shroud runs past the glowing face (a hair short of its
+  // mouth, so nothing ends on the shroud's own end).
+  const mouthD = plate - mouth.x - base - 0.01
+  /**
+   * Where a box's raked mouth starts, in the lower box's frame: the chin's
+   * lip, or, for a box at the drive's floor or roof (`outer`), the shroud's
+   * mouth, the box's floor falling to it at 45 from the face so the shroud
+   * rests on the drive all the way.
+   */
+  const lipOf = (outer: boolean): P2 => (outer ? [mouthD, -H] : bottom)
+  /**
+   * The pair's outline with its raked edge set back by `back`, its foot
+   * lifted by `lift`; `low` and `high` say whether its lower and upper boxes
+   * are at the drive's floor and roof.
+   */
+  const outline = (back: number, lift = 0, low = false, high = false): P2[] => {
+    const at = (outer: boolean): P2 =>
+      outer ? [mouthD - back, -H + lift] : [bottom[0] - back, bottom[1] - back + lift]
+    const [b, u] = [at(low), at(high)]
     const tip: P2 = [D - back, ramp(D - back)]
-    return [[0, -H + lift], b, tip, [tip[0], -tip[1]], [b[0], -b[1]], [0, H - lift]]
+    return [[0, -H + lift], b, tip, [tip[0], -tip[1]], [u[0], -u[1]], [0, H - lift]]
   }
   const glow = (y: number, z: number, w: number, h: number) =>
     put(
@@ -175,6 +273,9 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
       parent = new Group()
       parent.name = `intake_${i * rows + j}`
       drive.add(parent)
+      const outerOf = (flip: boolean) => (flip ? j === rows - 1 : j === 0) && mouthD > c + 0.01
+      const [low, high] = [outerOf(false), outerOf(true)]
+      const shape = (back: number, lift = 0) => outline(back, lift, low, high)
       // The block the pair stands on.
       if (base > 0)
         across(
@@ -193,13 +294,14 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
         )
       // The outer walls, each with a steel seam where the block ends and a
       // steel lip on its raked edges, both a hair proud.
-      const n = Math.hypot(D - c, -t - bottom[1])
-      const out: P2 = [(-t - bottom[1]) / n, -(D - c) / n]
       const under: P2 = [Math.SQRT1_2, -Math.SQRT1_2]
       for (const side of [-1, 1]) {
         const z0 = side < 0 ? z - hw : z + hw - tw
-        across(ink.dark, outline(0), y, z0, z0 + tw)
+        across(ink.dark, shape(0), y, z0, z0 + tw)
         for (const flip of [false, true]) {
+          const lip = lipOf(outerOf(flip))
+          const n = Math.hypot(D - lip[0], -t - lip[1])
+          const out: P2 = [(-t - lip[1]) / n, -(D - lip[0]) / n]
           across(
             ink.steel,
             [off([0, -H], under), off([0.03, -H + 0.03], under), [0.03, 0], [0, 0]],
@@ -211,10 +313,10 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
           across(
             ink.steel,
             [
-              off(bottom, out),
+              off(lip, out),
               off([D, -t], out),
               [D - 0.05 * out[0], -t - 0.05 * out[1]],
-              [c - 0.05 * out[0], bottom[1] - 0.05 * out[1]],
+              [lip[0] - 0.05 * out[0], lip[1] - 0.05 * out[1]],
             ],
             y,
             z0 - 0.005,
@@ -223,23 +325,32 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
           )
         }
       }
-      // Over the top pair, the shroud's roof rests on a wedge whose underside
-      // carries the upper box's 45 on to the shroud's mouth (a hair short, so
-      // its end does not lie on the shroud's), so no stretch of roof hangs in
-      // the air.
-      const mouthD = plate - mouth.x - base - 0.01
-      if (j === rows - 1 && mouthD > 0)
-        across(
-          ink.dark,
-          [
-            [0, H],
-            [mouthD, H],
-            [mouthD, H - mouthD],
-          ],
-          y,
-          z - hw,
-          z + hw
-        )
+      // A wall on each of the bore's cuts the pair reaches, its edge on the mouth's rake.
+      {
+        const pts = shape(0).map(([d, v]): P2 => [face - d, y + v])
+        const ccw = area(pts) < 0 ? [...pts].reverse() : pts
+        const corners = ccw.flatMap(([a, b]) => [
+          new Vector3(a, b, z - hw),
+          new Vector3(a, b, z + hw),
+        ])
+        for (const cut of crossed(corners, CORNER)) {
+          const shell = { n: cut.n, d: cut.d + CORNER }
+          const back = { n: cut.n.clone().negate(), d: -cut.d }
+          const shape = new Shape()
+          ccw.forEach(([a, b], i) => (i ? shape.lineTo(a, b) : shape.moveTo(a, b)))
+          shape.closePath()
+          const solid = extrudeSolid(shape, { depth: 2 * hw, bevelEnabled: false })
+          bake(solid, new Matrix4().makeTranslation(0, 0, z - hw))
+          const geo = hullOf([...sides(ccw), ...slab(z - hw, z + hw), shell, back])
+          describe(geo, {
+            kind: 'clipped',
+            solid: solidOf(solid)!,
+            planes: [shell, back].map(toSpec),
+          })
+          solid.dispose()
+          put(geo, ink.dark, undefined, undefined, parent)
+        }
+      }
       // The splitter the two boxes share, its tip capped in steel.
       across(
         ink.dark,
@@ -273,43 +384,79 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
       for (let b = 1; b <= FRAMES; b++)
         for (const s of [-1, 1]) {
           const zj = s < 0 ? z - inner + (b - 1) * 0.03 : z + inner - b * 0.03
-          across(b % 2 ? ink.steel : ink.dark, outline(0.05 * b, k / 2), y, zj, zj + 0.03)
+          across(
+            b % 2 ? ink.steel : ink.dark,
+            shape(0.05 * b, k / 2),
+            y,
+            zj,
+            zj + 0.03,
+            false,
+            face,
+            CORNER
+          )
         }
       for (const flip of [false, true]) {
         const sign = flip ? -1 : 1
-        // The chin, up at 45 from the block to the bottom lip, its lip in steel.
-        across(
-          ink.dark,
-          [[0, -H], bottom, [c, bottom[1] + k], [0, -H + k]],
-          y,
-          z - inner,
-          z + inner,
-          flip
-        )
-        across(
-          ink.steel,
-          // The chin's own section moved out a hair along its 45, so every
-          // face stands off the chin's and stays at 45.
-          (
+        // A box at the drive's floor or roof opens out to the shroud: its
+        // floor falls at 45 from the face to the shroud's mouth, solid down to
+        // the shroud, which so rests on the drive all the way (no bridge);
+        // it has no lip and no frame sills on that side. Any other box has a
+        // chin up at 45 from the block to its bottom lip, the lip in steel.
+        const outer = outerOf(flip)
+        const lip = lipOf(outer)
+        // On the floor the fill ends a little short on an upright face: the
+        // print grows a sharp corner there past the shroud's end, where it
+        // would hang (under the roof it grows upward and does no harm).
+        const short = flip ? 0 : 0.04
+        if (outer)
+          across(
+            ink.dark,
             [
-              [c - 0.04, bottom[1] - 0.04],
-              bottom,
-              [c, bottom[1] + k],
-              [c - 0.04, bottom[1] - 0.04 + k],
-            ] as P2[]
-          ).map(([d, v]): P2 => [d + E, v - E]),
-          y,
-          z - hw - E,
-          z + hw + E,
-          flip
-        )
+              [0, -H],
+              [mouthD - short, -H],
+              ...(short ? [[mouthD - short, -H + short] as P2] : []),
+              [0, -H + mouthD],
+            ],
+            y,
+            z - hw,
+            z + hw,
+            flip
+          )
+        else
+          across(
+            ink.dark,
+            [[0, -H], bottom, [c, bottom[1] + k], [0, -H + k]],
+            y,
+            z - inner,
+            z + inner,
+            flip
+          )
+        if (!outer)
+          across(
+            ink.steel,
+            // The chin's own section moved out a hair along its 45, so every
+            // face stands off the chin's and stays at 45.
+            (
+              [
+                [c - 0.04, bottom[1] - 0.04],
+                bottom,
+                [c, bottom[1] + k],
+                [c - 0.04, bottom[1] - 0.04 + k],
+              ] as P2[]
+            ).map(([d, v]): P2 => [d + E, v - E]),
+            y,
+            z - hw - E,
+            z + hw + E,
+            flip
+          )
         // A sill on the chin and a header under the ramp for each frame (no
-        // sill where the chin is shorter than the frame is set back).
+        // sill on the drive's floor or roof, nor where the chin is shorter
+        // than the frame is set back).
         for (let b = 1; b <= FRAMES; b++) {
           const [back, e] = [0.05 * b, 0.025 * b]
           const zIn = inner - b * 0.03
           const mat = b % 2 ? ink.steel : ink.dark
-          if (c - back > 0.01)
+          if (!outer && c - back > 0.01)
             across(
               mat,
               [
@@ -321,7 +468,9 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
               y,
               z - zIn,
               z + zIn,
-              flip
+              flip,
+              face,
+              CORNER
             )
           across(
             mat,
@@ -334,28 +483,36 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
             y,
             z - zIn,
             z + zIn,
-            flip
+            flip,
+            face,
+            CORNER
           )
         }
         // The block's face glows between the frames' sill and header.
         const wIn = inner - FRAMES * 0.03
-        const g0 = -H + k + 0.025 * FRAMES + 0.01
+        const g0 = outer ? -H + mouthD + 0.01 : -H + k + 0.025 * FRAMES + 0.01
         const g1 = ramp(0) - 0.025 * FRAMES - 0.01
         // Cooling channels up each side wall, which splays in to the face so
         // it looks aft (its face upright, its top and bottom on the ceiling's
         // and the floor's 45s), and up both sides of a divider down the
         // middle: triangular teeth, as many on every hull.
-        const sill = (dd: number) => g0 - 0.01 + dd
+        // The cavity's floor: up at 45 on a chin, down at 45 on an outer box.
+        const fall = outer ? -1 : 1
+        const sill = (dd: number) => g0 - 0.01 + fall * dd
         const header = (dd: number) => g1 + 0.01 + dd
         const Y = (vv: number) => y + sign * vv
-        // The inner jamb's raked edge: at depth d the cavity's walls hold
+        // The inner frame's raked edge: at depth d the cavity's walls hold
         // only above vMin(d), so each wall is clipped to it, from where it
         // crosses the floor (kink) to where it meets the ceiling (shut).
-        const slope = (-t - bottom[1]) / (D - c)
-        const vMin = (dd: number) => bottom[1] + (dd + 0.1 - c) * slope - 0.1
+        const lipBack: P2 = outer
+          ? [lip[0] - SETBACK, lip[1]]
+          : [lip[0] - SETBACK, lip[1] - SETBACK]
+        const tipBack: P2 = [D - SETBACK, ramp(D - SETBACK)]
+        const slope = (tipBack[1] - lipBack[1]) / (tipBack[0] - lipBack[0])
+        const vMin = (dd: number) => lipBack[1] + (dd - lipBack[0]) * slope
         const shut = (header(0) - vMin(0)) / (slope - 1) - 0.005
-        const kink = (sill(0) - vMin(0)) / (slope - 1)
-        const depths = kink > 0 && kink < shut ? [0, kink, shut] : [0, shut]
+        const kink = (sill(0) - vMin(0)) / (slope - fall)
+        const depths = kink > 0.005 && kink < shut - 0.005 ? [0, kink, shut] : [0, shut]
         const T = (dd: number) => SPLAY * Math.max(0, 1 - dd / shut)
         // The teeth spread evenly up the wall, each a quarter of it wide, with
         // equal gaps between them and at both ends.
@@ -365,31 +522,20 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
         const footOf = (q: number) => sill(0) + gapV + q * (pitch + gapV)
         const rib = 0.6 * pitch
         const spread = ((pitch / 2) * SINK) / rib
-        /** A loft through stations [d, v0, v1, z0, z1], aft first. */
-        const loft = (st: [number, number, number, number, number][]) =>
-          sectionLoft(
-            [...st]
-              .sort((p, q) => q[0] - p[0])
-              .map(([dd, v0, v1, z0, z1]) => {
-                const ring: P2[] = [
-                  [Y(v0), z0],
-                  [Y(v1), z0],
-                  [Y(v1), z1],
-                  [Y(v0), z1],
-                ]
-                return { x: face - dd, ring: area(ring) < 0 ? ring.reverse() : ring }
-              })
-          )
-        // The inner jamb's raked edge as a plane (it holds z), its normal aft
+        // The inner frame's raked edge as a plane (it holds z), its normal aft
         // into the mouth: the walls, the divider and the teeth all end on it.
-        const rakeAt = new Vector3(face - (c - 0.1), Y(bottom[1] - 0.1), 0)
-        const along = new Vector3(-(D - c), sign * (-t - bottom[1]), 0).normalize()
+        const rakeAt = new Vector3(face - lipBack[0], Y(lipBack[1]), 0)
+        const along = new Vector3(
+          -(tipBack[0] - lipBack[0]),
+          sign * (tipBack[1] - lipBack[1]),
+          0
+        ).normalize()
         const rakeN = new Vector3(along.y, -along.x, 0)
         if (rakeN.x > 0) rakeN.negate()
         /**
          * The teeth up a wall whose face is at zFace(d), standing off it
          * towards `into`, each running with the floor's 45 from the glowing
-         * face to the inner jamb's raked edge, cut on it.
+         * face to the inner frame's raked edge, cut on it.
          */
         const teeth = (zFace: (dd: number) => number, into: number) => {
           for (let q = 0; q < CHANNELS; q++) {
@@ -403,31 +549,39 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
               new Vector3(face - dd, Y(v0 + pitch / 2 + dd), zFace(dd) + into * rib),
             ]
             const start = ring(0)
-            const w = ring(1)[0].sub(start[0]).normalize()
+            // Along the wall's own slope, which holds only as far as `shut`
+            // (a side wall's splay is spent there).
+            const w = ring(shut)[0].sub(start[0]).normalize()
             const reach = start.map(p => rakeAt.clone().sub(p).dot(rakeN) / w.dot(rakeN))
             if (Math.min(...reach) < 0.01) continue
             const end = start.map((p, i) => p.clone().addScaledVector(w, reach[i]))
-            const geo = polyhedron([
-              start,
-              [...end].reverse(),
-              ...[0, 1, 2].map(i => {
-                const j = (i + 1) % 3
-                return [start[i], end[i], end[j], start[j]]
-              }),
-            ])
+            // Bounded by its three sides (each holding the axis), the face
+            // it starts on, the rake and whatever of the bore it reaches.
+            const mid = start[0].clone().add(start[1]).add(start[2]).divideScalar(3)
+            const flanks = [0, 1, 2].map(i => {
+              const [a, b] = [start[i], start[(i + 1) % 3]]
+              const n = b.clone().sub(a).cross(w).normalize()
+              if (n.dot(mid.clone().sub(a)) > 0) n.negate()
+              return { n, d: n.dot(a) }
+            })
+            const rake: Half = { n: rakeN, d: rakeN.dot(rakeAt) }
+            const cut = crossed([...start, ...end], CORNER)
+            const geo = hullOf([...flanks, { n: new Vector3(1, 0, 0), d: face }, rake, ...cut])
             describe(geo, {
               kind: 'clipped',
               solid: prismSpec(start, w, Math.max(...reach) + 0.02),
-              planes: [{ normal: rakeN.toArray(), at: rakeAt.toArray() }],
+              planes: [rake, ...cut].map(toSpec),
             })
             put(geo, ink.steel, undefined, undefined, parent)
           }
         }
         // The wall's side view: from the face to `shut`, between the floor
-        // (or the jamb's edge) and the ceiling.
+        // (or the inner frame's edge) and the ceiling.
         const band: P2[] = [
           ...depths.map((dd): P2 => [face - dd, Y(Math.max(sill(dd), vMin(dd)))]),
-          ...[...depths].reverse().map((dd): P2 => [face - dd, Y(header(dd))]),
+          // The ceiling is one straight line: its two ends only (a corner
+          // between parallel edges would break the print's grow).
+          ...[shut, 0].map((dd): P2 => [face - dd, Y(header(dd))]),
         ]
         /**
          * A wedge in that band whose sides run from z0(d) to z1(d), both
@@ -435,39 +589,37 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
          * and cut by the planes its sides lie on (every face flat).
          */
         const wedge = (z0: (dd: number) => number, z1: (dd: number) => number) => {
-          const geo = loft(
-            depths.map((dd): [number, number, number, number, number] => [
-              dd,
-              Math.max(sill(dd), vMin(dd)),
-              header(dd),
-              z0(dd),
-              z1(dd),
-            ])
-          )
           // A side z = zs(d) as a plane, its normal away from the wedge (`out`, +1 or -1 in z).
-          const plane = (zs: (dd: number) => number, out: number) => {
+          const plane = (zs: (dd: number) => number, out: number): Half => {
             const dz = (zs(shut) - zs(0)) / shut
-            return {
-              normal: [out * dz, 0, out] as [number, number, number],
-              at: [face, y, zs(0)] as [number, number, number],
-            }
+            const n = new Vector3(out * dz, 0, out).normalize()
+            return { n, d: n.dot(new Vector3(face, y, zs(0))) }
           }
           const lo = Math.min(z0(0), z0(shut), z1(0), z1(shut))
           const hi = Math.max(z0(0), z0(shut), z1(0), z1(shut))
           const [low, high] = z0(0) < z1(0) ? [z0, z1] : [z1, z0]
+          const outline = area(band) < 0 ? [...band].reverse() : band
+          const tilted = [plane(low, -1), plane(high, 1)].filter(({ n }) => Math.abs(n.x) > 1e-9)
+          const cut = crossed(
+            depths.flatMap(dd =>
+              [Math.max(sill(dd), vMin(dd)), header(dd)].flatMap(v =>
+                [z0(dd), z1(dd)].map(zz => new Vector3(face - dd, Y(v), zz))
+              )
+            ),
+            CORNER
+          )
+          const geo = hullOf([...sides(outline), ...slab(lo, hi), ...tilted, ...cut])
           describe(geo, {
             kind: 'clipped',
             solid: {
               kind: 'extrude',
-              outline: area(band) < 0 ? [...band].reverse() : band,
+              outline,
               holes: [],
               depth: hi - lo,
               bevel: null,
               bake: new Matrix4().makeTranslation(0, 0, lo).toArray(),
             },
-            planes: [plane(low, -1), plane(high, 1)].filter(
-              ({ normal }) => Math.abs(normal[0]) > 1e-9
-            ),
+            planes: [...tilted, ...cut].map(toSpec),
           })
           put(geo, ink.dark, undefined, undefined, parent)
         }
@@ -490,20 +642,25 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
         )
         for (const side of [-1, 1]) teeth(dd => z + side * thick(dd), side)
         // The vane: the centre channel carried across the glowing face, from
-        // the points where that channel meets it, standing off it half its
-        // width so both its faces are at 45, its ends in the side walls.
+        // the points where that channel meets it, its tip on the channel's
+        // own tip line (up at 45 as it leaves the face). A quarter of its
+        // width proud is as far as that tip may stand: further, and its upper
+        // face, which the upper box's mirror turns under, falls below 45.
         const vane = footOf(Math.floor(CHANNELS / 2))
+        const proud = pitch / 4
         across(
           ink.steel,
           [
             [0, vane],
-            [pitch / 2, vane + pitch / 2],
+            [proud, vane + pitch / 2 + proud],
             [0, vane + pitch],
           ],
           y,
           z - wIn + 0.005,
           z + wIn - 0.005,
-          flip
+          flip,
+          face,
+          CORNER
         )
         glow(y + (sign * (g0 + g1)) / 2, z, 2 * (wIn - SPLAY), g1 - g0)
         const g = new Group()
@@ -514,33 +671,4 @@ export function intakes(put: Put, ink: Ink, drive: Object3D, plate: number, mout
         parent.add(g)
       }
     }
-  parent = drive
-  // Copper conduits up the plate between the columns and outside them, floor
-  // to roof, each with junction boxes whose undersides are at 45.
-  const yMid = (roof - mouth.h) / 2
-  for (let i = 0; i <= cols; i++) {
-    const z = -mouth.w + 2 * cw * i + (i === 0 ? 0.03 : i === cols ? -0.03 : 0)
-    put(
-      cylinderSolid(0.03, 0.03, mouth.h + roof, 10),
-      ink.copper ?? ink.steel,
-      [plate - 0.03, yMid, z],
-      undefined,
-      parent
-    )
-    for (const yb of [yMid + half * 0.45, yMid - half * 0.3])
-      across(
-        ink.steel,
-        [
-          [0, yb - 0.07],
-          [0.07, yb],
-          [0.07, yb + 0.09],
-          [0, yb + 0.09],
-        ],
-        0,
-        z - 0.05,
-        z + 0.05,
-        false,
-        plate
-      )
-  }
 }
