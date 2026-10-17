@@ -2,18 +2,17 @@
 // into the base's socket (keyed, so the ship faces the bow), a column, and
 // at its top what holds that hull. The corvette takes a peg in the socket
 // under its core; the shrike's blade hangs where a peg would go, so its
-// stand grips the blade's flat bottom; the mantis's keel is too narrow for
-// a peg of the corvette's size, so its stand cradles the keel in a 60-degree
-// V with a slim peg up its middle. Each stands its
+// stand grips the blade's flat bottom; the mantis's belly stands on its head
+// with the keel fin under the core dropped into a slot. Each stands its
 // hull high enough to clear the base: the mantis's arms over the side slots'
 // pockets with a hand's room under them.
 import { subtract, fuse } from "fluidcad/core";
 import type { Hull } from "@dangerous-inclinations/engine";
 import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
 import { SHRIKE_BLADE } from "../../ui/src/ships/shrike.ts";
-import { MANTIS_KEEL } from "../../ui/src/ships/mantis.ts";
+import { MANTIS_FIN } from "../../ui/src/ships/mantis.ts";
 import { FDM, PRINT } from "../spec.ts";
-import { block, prism, move, section, taper, turn, type Point, type Solid } from "../lib/solids.ts";
+import { block, prism, move, taper, turn, type Point, type Solid } from "../lib/solids.ts";
 import { Box3, Vector3 } from "three";
 import { placedSolids } from "../../ui/src/ships/solid.ts";
 import { printFrame } from "../lib/kit.ts";
@@ -28,6 +27,10 @@ const FIT = 0.15;
 
 /** How far the shrike's blade hangs below its keel, mm. */
 const BLADE_DROP = (HULL_INFO.shrike.keel - SHRIKE_BLADE.bottom) * S;
+/** How far the mantis's keel fin hangs below its keel, mm. */
+const FIN_DROP = (HULL_INFO.mantis.keel - MANTIS_FIN.bottom) * S;
+/** The mantis stand's head under the belly, mm: its length, its width (the column's) and its floor under the slot. */
+const BELLY = { long: 14, wide: COLUMN.wide, floor: 3 };
 
 /** The middle of the hull's length as it prints (mm, its print's x), modules and all. */
 function middleOf(hull: Hull): number {
@@ -50,9 +53,10 @@ export function standOf(hull: Hull): { bed: number; at: number; head: number } {
     case "corvette":
       return { bed: 34, at: HULL_PRINT.corvette.socket!.x * S, head: 0 };
     case "mantis": {
-      // Held at its keel under the core, at the stern: the column leans aft
-      // to centre the ship, no more than 45 degrees over its height.
-      const at = HULL_PRINT.mantis.socket!.x * S;
+      // Held under the core along the fin's leading edge, aft of the
+      // ship's middle: the column leans aft to centre the ship, no more than
+      // 45 degrees over its height.
+      const at = ((MANTIS_FIN.fore + MANTIS_FIN.lead) / 2) * S;
       return { bed: 54, at, head: at - middleOf(hull) };
     }
     case "shrike":
@@ -115,30 +119,22 @@ export function buildStand(hull: Hull): Solid {
     case "corvette":
       return fuse(tenon, column(bed), peg(hull, bed));
     case "mantis": {
-      // A cradle under the keel, a V as steep as the keel's sides.
-      const depth = 3;
-      const cradle = { long: 22, wide: 16, below: 4 };
-      let top: Solid = head(
-        [hx - cradle.long / 2, hx + cradle.long / 2],
-        [-cradle.wide / 2, cradle.wide / 2],
-        bed - cradle.below,
-        bed + depth
+      // A head the belly stands on, flat at the keel, with a slot through
+      // it the fin drops into, open at both ends.
+      const half = (MANTIS_FIN.band * S) / 2 + FDM.join + FIT;
+      const z0 = bed - FIN_DROP - BELLY.floor;
+      const top = head(
+        [hx - BELLY.long / 2, hx + BELLY.long / 2],
+        [-BELLY.wide / 2, BELLY.wide / 2],
+        z0,
+        bed
       );
-      const w0 = MANTIS_KEEL.foot * S + FDM.join + FIT;
-      const w1 = w0 + (depth + 1) / Math.tan(Math.PI / 3);
-      const groove = section(
-        [
-          [-w0, bed],
-          [w0, bed],
-          [w1, bed + depth + 1],
-          [-w1, bed + depth + 1],
-        ],
-        cradle.long + 2
+      const slot = block(
+        [hx - BELLY.long / 2 - 1, -half, bed - FIN_DROP - FIT],
+        [hx + BELLY.long / 2 + 1, half, bed + 1]
       );
-      top = subtract(top, move(groove, hx - cradle.long / 2 - 1, 0, 0));
-      // And a peg up into the keel, so the ship cannot pitch onto its arms.
-      const rise = (cradle.long - COLUMN.long) / 2;
-      return fuse(tenon, column(bed - cradle.below - rise), top, move(peg(hull, bed), hx, 0, 0));
+      const rise = (BELLY.long - COLUMN.long) / 2;
+      return fuse(tenon, column(z0 - rise), subtract(top, slot));
     }
     case "shrike": {
       // A block with a slot the blade's bottom drops into.

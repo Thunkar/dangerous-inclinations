@@ -55,7 +55,7 @@ const area = (poly: P2[]) =>
   }, 0) / 2
 
 /** A half-space: the points p with n . p <= d. */
-interface Half {
+export interface Half {
   n: Vector3
   d: number
 }
@@ -65,7 +65,7 @@ interface Half {
  * three of the planes meet inside all the others, and each plane's face is
  * the corners on it, in order round it, facing out.
  */
-function hullOf(halves: Half[]): BufferGeometry {
+export function hullOf(halves: Half[]): BufferGeometry {
   const eps = 1e-7
   const corners: Vector3[] = []
   for (let i = 0; i < halves.length; i++)

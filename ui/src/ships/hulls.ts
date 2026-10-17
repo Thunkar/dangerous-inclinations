@@ -123,7 +123,7 @@ export const SHRIKE_MOUNTS: Record<MountId, MountPose> = {
  */
 export const MANTIS_MOUNTS: Record<MountId, MountPose> = {
   'forward-0': {
-    position: [-1.43, 0.5, 0],
+    position: [-1.43, 0.02, 0],
     rotation: [-Math.PI / 2, 0, -Math.PI / 2],
     scale: [1, 1, 1],
     normal: [1, 0, 0],

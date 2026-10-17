@@ -418,7 +418,7 @@ mount recesses and pause-sealed magnet slots cut at the game's own mount
 frames; a socket for the stand; the
 bed at the hull's keel (`HULL_INFO.keel`, where the game carries the bays'
 ventral shoulders to, so the hull stands flat). What hangs below the keel
-(the shrike's blade, the mantis's arm fins) prints as a piece of its own,
+(the shrike's blade, the mantis's arm fins and the fin under its core) prints as a piece of its own,
 turned over onto its cut, and is glued on (filament pins where it is thick
 enough). Modules (`pieces/module.ts`) print on their own the same way,
 adding only the screw's countersink and pilot. The drive prints with the

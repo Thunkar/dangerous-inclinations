@@ -17,7 +17,6 @@ import { DEFAULT_CONFIG, MOUNTS as GAME_MOUNTS, type MountId } from "../../ui/sr
 import { placedSolids, type PlacedSolid } from "../../ui/src/ships/solid.ts";
 import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
 import { mountFace } from "../../ui/src/ships/mountShape.ts";
-import { MANTIS_KEEL } from "../../ui/src/ships/mantis.ts";
 import { MOUNT, STAND, FDM, PRINT } from "../spec.ts";
 import { printFrame, placeSolid, placeBuilt, uniteAlong } from "../lib/kit.ts";
 import { block, disc, move, taper, turn, type Solid, type Vec } from "../lib/solids.ts";
@@ -29,9 +28,9 @@ const S = PRINT.mmPerUnit;
  * Each hull's print: `bed` is its flat bottom (game y, `HULL_INFO.keel`);
  * `socket` where the stand's peg goes in (x), how wide the peg is and how
  * deep the socket, for a hull whose stand has a peg (`pieces/stand.ts`: the
- * shrike's grips its blade instead); `pins` the x of the filament pins that
- * locate a piece glued on below the bed (none where the piece is too thin
- * to take one).
+ * shrike's grips its blade and the mantis's its keel fin instead); `pins`
+ * the x of the filament pins that locate a piece glued on below the bed
+ * (none where the piece is too thin to take one).
  */
 export const HULL_PRINT: Record<
   Hull,
@@ -44,11 +43,11 @@ export const HULL_PRINT: Record<
   },
   // The blade hangs below the keel plates, over where a socket would go.
   shrike: { bed: HULL_INFO.shrike.keel, socket: null, pins: [-0.2, 0.9] },
-  // The keel under the core is 4 mm wide at its foot: a slim peg, at its middle.
+  // The stand grips the keel fin under the core, as the shrike's its blade.
   // The arm fins hang below the arms, too thin for pins.
   mantis: {
     bed: HULL_INFO.mantis.keel,
-    socket: { x: (MANTIS_KEEL.aft + MANTIS_KEEL.fore) / 2, peg: 2.6, depth: 5 },
+    socket: null,
     pins: [],
   },
 };

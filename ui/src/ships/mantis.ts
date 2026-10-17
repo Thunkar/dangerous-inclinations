@@ -26,32 +26,44 @@ const ARM_Z = 1.7
 const ARM_W = 0.45
 const ARM_H = 0.8
 const ARM_AFT = -2.1
-/** The core at the V's point: its size, where it ends aft and how far it rides above the arms. */
+/** The core at the V's point: its size and where it ends aft. */
 const CORE_W = 0.75
 const CORE_H = 0.85
 const CORE_AFT = -3.8
-export const CORE_RAISE = 0.5
 /** The arms' undersides, where the ship stands on its keel. */
 const KEEL = -ARM_H
+/**
+ * Every part of the core stands on the plane the arms stand on, so the three
+ * bodies print on the bed together and nothing of the core hangs over it: its
+ * underside goes a hair below the arms' (the print's bed cuts it flat).
+ */
+const FLOOR = KEEL - 0.03
+/** The lift that stands a section of half height h on the floor. */
+const onFloor = (h: number) => h + FLOOR
+const R = onFloor(CORE_H)
+/** The stern block the core climbs to aft, as the shrike's: the drive's shroud carries its section on. */
+const STERN_H = 1.25
+const STERN_W = 0.95
+/** Where the climb starts (behind the bow face, under the citadel) and where the block stands full height. */
+const CLIMB = -1.95
+const STERN_FORE = -3.4
 
 /**
- * The keel under the core: its top (the core's flat underside) and the
- * half widths there and at its foot on the keel plane, its sides at 60
- * degrees, and where it runs: from inside the shroud's aft band to past the
- * scoop. What a display stand cradles.
+ * The keel fin under the core, swept aft and cut square: its root on the
+ * core's belly, its bottom, the x of its root's ends and of its bottom's,
+ * and its thickness and the pale band's down its leading edge. What hangs
+ * below the bed prints apart and is glued on, and a display stand grips it.
  */
-export const MANTIS_KEEL = (() => {
-  const top = CORE_RAISE - CORE_H + 0.01
-  const flat = CORE_W - Math.min(CORE_H, CORE_W) * 0.35
-  return {
-    top,
-    flat,
-    foot: flat - (top - KEEL) / Math.tan(Math.PI / 3),
-    aft: CORE_AFT - 0.53,
-    fore: -1.52,
-    keel: KEEL,
-  }
-})()
+export const MANTIS_FIN = {
+  root: FLOOR + 0.02,
+  bottom: R - 1.42,
+  fore: -1.85,
+  lead: -3.15,
+  trail: -3.6,
+  aft: -4.15,
+  thick: 0.09,
+  band: 0.13,
+}
 
 export function buildMantis(body: Group, put: Put, m: MantisInk) {
   const section = (s: Station[], mat: Mat, pos?: Vec3, rot?: Vec3) =>
@@ -91,76 +103,123 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     return put(geo, mat, [0, 0, z], rot)
   }
 
-  // The core at the point of the V, riding above the arms. The bow mount
-  // stands on its forward face, where the braces meet it, so the forward
-  // module rides deep in the U and high between the arms.
-  const R = CORE_RAISE
+  // The core at the point of the V, on the bed with the arms, climbing aft
+  // behind the citadel to the stern block the drive hangs on, as the
+  // shrike's does. The bow mount stands on its forward face, where the
+  // braces meet it, so the forward module rides deep in the U.
   section(
     [
-      [CORE_AFT, 0.8, 0.7, R],
-      [CORE_AFT + 0.25, CORE_H, CORE_W, R],
+      [CORE_AFT, STERN_H - 0.05, STERN_W - 0.05, onFloor(STERN_H - 0.05)],
+      [CORE_AFT + 0.2, STERN_H, STERN_W, onFloor(STERN_H)],
+      [STERN_FORE, STERN_H, STERN_W, onFloor(STERN_H)],
+      [CLIMB, CORE_H, CORE_W, R],
       [-1.75, CORE_H, CORE_W, R],
-      [-1.45, 0.72, 0.7, R],
+      [-1.45, 0.72, 0.7, onFloor(0.72)],
     ],
     m.hull
   )
+  // The climb, read off the core's stations: its half height and width, its
+  // top and its corner cut at x.
+  const along = (x: number) => Math.min(1, Math.max(0, (CLIMB - x) / (CLIMB - STERN_FORE)))
+  const hAt = (x: number) => CORE_H + (STERN_H - CORE_H) * along(x)
+  const wAt = (x: number) => CORE_W + (STERN_W - CORE_W) * along(x)
+  const topAt = (x: number) => onFloor(hAt(x)) + hAt(x)
+  const cutAt = (x: number) => Math.min(hAt(x), wAt(x)) * 0.35
+  /** A strip laid along the core through `xs`, its [y, z] ring at each. */
+  const strip = (xs: number[], ring: (x: number) => [number, number][], mat: Mat) =>
+    put(sectionLoft(xs.map(x => ({ x, ring: ring(x) }))), mat)
+  const lengthwise = [-1.75, CLIMB, STERN_FORE, CORE_AFT + 0.2]
+  const pitch = Math.atan((topAt(STERN_FORE) - topAt(CLIMB)) / (CLIMB - STERN_FORE))
   for (const s of [-1, 1]) {
-    // Cheek plates either side of the bow mount, as the corvette's.
-    slab([0.7, 0.3, 0.12], [-1.75, R + 0.05, s * 0.79], m.pale)
-    // Chines canted over the core's edges above and below.
-    slab([1.9, 0.13, 0.3], [-2.75, R + 0.72, s * 0.62], m.pale, [s * 0.68, 0, 0])
-    slab([1.9, 0.12, 0.28], [-2.75, R - 0.72, s * 0.62], m.pale, [-s * (Math.PI / 4), 0, 0])
-    // Armour laid in steps down the flanks, and vents behind it.
-    slab([1.5, 0.62, 0.08], [-2.85, R, s * 0.78], m.pale)
-    slab([0.9, 0.36, 0.08], [-2.7, R + 0.04, s * 0.84], m.hull)
-    for (let i = 0; i < 4; i++) box([0.05, 0.42, 0.03], [-3.75 + i * 0.1, R, s * 0.77], m.dark)
-  }
-  // The keel: the core's belly carried down to the arms' undersides, from
-  // the drive's aft end to the scoop, in the hull's own paint. Its sides
-  // leave the core's flat underside where the core's lower chamfers end and
-  // close in at 60 degrees to a flat on the plane the ship prints on (and
-  // the keel fin is glued to), so nothing of the raised core hangs over the
-  // bed and nothing of the keel faces down.
-  {
-    const { top, flat, foot, aft, fore } = MANTIS_KEEL
-    const ring: [number, number][] = [
-      [top, -flat],
-      [top, flat],
-      [KEEL, foot],
-      [KEEL, -foot],
-    ]
-    put(
-      sectionLoft([
-        // Inside the shroud's pale aft band, so its end is on no face of the shroud's.
-        { x: aft, ring },
-        // Past the scoop's face, so no face of the scoop lies on its end.
-        { x: fore, ring },
-      ]),
+    // Cheek plates either side of the bow mount, as the corvette's, carried
+    // down to the bed so they do not hang off the flank.
+    slab([0.7, R + 0.2 - FLOOR, 0.12], [-1.75, (R + 0.2 + FLOOR) / 2, s * 0.79], m.pale)
+    // Under the bow collar's upper plate, where it reaches back over the
+    // core's corner cut, a gusset from the core's flank out to the collar's
+    // cheek at 45 degrees, so the plate has something under it.
+    strip(
+      [-2.1, -1.45],
+      () => [
+        [0.7, s * 0.6],
+        [0.7, s * 0.93],
+        [0.37, s * 0.6],
+      ],
       m.hull
     )
+    // And under the collar's cheek, where the lower plate narrows aft, a foot
+    // down to the bed.
+    box([0.47, 0.19, 0.16], [-1.82, FLOOR + 0.095, s * 0.97], m.hull)
+    // Chines laid on the core's upper corner cuts, from the bow up the
+    // climb to the drive, standing a hair off them.
+    strip(
+      lengthwise,
+      x => {
+        const [top, w, c] = [topAt(x), wAt(x), cutAt(x)]
+        const on = (t: number, out: number): [number, number] => [
+          top - t * c + out,
+          s * (w - c + t * c + out),
+        ]
+        return [on(0.15, 0.01), on(0.85, 0.01), on(0.85, 0.06), on(0.15, 0.06)]
+      },
+      m.pale
+    )
+    // An armour plate down each flank along the climb, its foot cut at 45
+    // degrees so nothing of it hangs, and a darker plate stepped on it.
+    for (const [lo, hi, out, mat] of [
+      [FLOOR + 0.18, 0.12, 0.05, m.pale],
+      [FLOOR + 0.36, 0.3, 0.1, m.hull],
+    ] as const)
+      strip(
+        [CLIMB - 0.1, STERN_FORE],
+        x => {
+          const w = wAt(x) + 0.005
+          const up = topAt(x) - cutAt(x) - hi
+          return [
+            [lo, s * w],
+            [up, s * w],
+            [up, s * (w + out)],
+            [lo + out, s * (w + out)],
+          ]
+        },
+        mat
+      )
   }
-  // The fixed scoop under the core's forward face.
-  slab([0.8, 0.2, 0.6], [-2.0, R - 0.9, 0], m.steel)
-  box([0.1, 0.15, 0.46], [-1.6, R - 0.9, 0], m.rubber)
-  for (const z of [-0.16, -0.05, 0.05, 0.16]) box([0.12, 0.13, 0.03], [-1.55, R - 0.9, z], m.pale)
-  // The command citadel on the core: a raised pale block with an armoured
-  // slit and its windows looking forward over the bow module.
+  // A spine up the climb from the citadel to the drive, and either side of
+  // it heat-sink louvres laid on the slope.
   section(
-    [
-      [-3.1, 0.08, 0.5],
-      [-2.85, 0.3, 0.56],
-      [-2.0, 0.3, 0.48],
-      [-1.6, 0.08, 0.4],
-    ],
-    m.pale,
-    [0, R + CORE_H + 0.06, 0]
+    lengthwise.slice(1).map(x => [x, 0.07, 0.13, topAt(x) - 0.03] as Station),
+    m.steel
+  )
+  for (const z of [-0.3, 0.3]) {
+    for (let i = 0; i < 5; i++) {
+      const x = -2.85 - i * 0.11
+      box([0.05, 0.05, 0.3], [x, topAt(x) + 0.01, z], m.dark, [0, 0, -pitch])
+    }
+  }
+  // The fixed scoop at the foot of the core's forward face, under the bow module.
+  slab([0.3, 0.2, 0.6], [-1.35, FLOOR + 0.1, 0], m.steel)
+  box([0.06, 0.15, 0.46], [-1.19, FLOOR + 0.1, 0], m.rubber)
+  for (const z of [-0.16, -0.05, 0.05, 0.16]) box([0.06, 0.13, 0.03], [-1.17, FLOOR + 0.1, z], m.pale)
+  // The command citadel on the core, ahead of the climb: a raised pale
+  // block with an armoured slit and its windows looking forward over the
+  // bow module.
+  section(
+    (
+      [
+        [-2.75, 0.08, 0.5],
+        [-2.55, 0.3, 0.56],
+        [-2.0, 0.3, 0.48],
+        [-1.6, 0.08, 0.4],
+      ] as const
+    ).map(([x, h, w]) => [x, h, w, topAt(x) + 0.06] as Station),
+    m.pale
   )
   box([0.045, 0.14, 0.56], [-1.77, R + CORE_H + 0.27, 0], m.rubber, [0, 0, 0.42])
   for (const z of [-0.2, 0, 0.2])
     box([0.05, 0.052, 0.13], [-1.74, R + CORE_H + 0.28, z], m.cyan, [0, 0, 0.42])
   // A keel fin beneath the core, swept aft and cut square, with the pale band
   // down its leading edge.
-  const banded = (points: [number, number][], thickness: number) => {
+  const banded = (points: [number, number][], thickness: number, proud: number) => {
     fin(points, thickness, 0, m.hull)
     const [root, lead] = points
     fin(
@@ -170,44 +229,51 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
         [lead[0] - 0.18, lead[1]],
         [root[0] - 0.28, root[1]],
       ],
-      thickness + 0.04,
+      thickness + proud,
       0,
       m.pale
     )
   }
-  banded(
-    [
-      [-1.85, R - CORE_H + 0.02],
-      [-3.15, R - 1.42],
-      [-3.6, R - 1.42],
-      [-4.15, R - CORE_H + 0.02],
-    ],
-    0.09
-  )
+  {
+    const { root, bottom, fore, lead, trail, aft, thick, band } = MANTIS_FIN
+    banded(
+      [
+        [fore, root],
+        [lead, bottom],
+        [trail, bottom],
+        [aft, root],
+      ],
+      thick,
+      band - thick
+    )
+  }
 
   for (const s of [-1, 1] as const) arm(s)
   function arm(s: -1 | 1) {
     const z = s * ARM_Z
     section(
       [
-        [ARM_AFT, 0.7, 0.4],
+        [ARM_AFT, 0.7, 0.4, 0.7 - ARM_H],
         [ARM_AFT + 0.25, ARM_H, ARM_W],
         [3.3, ARM_H, ARM_W],
       ],
       m.hull,
       [0, 0, z]
     )
-    // The brace that closes the V: from the arm's aft end in to the core.
-    // It climbs as it goes, so the core rides above the arms.
+    // The brace that closes the V: from the arm's aft end in to the core,
+    // its back where it always was and its underside carried down to the
+    // bed, so nothing of it hangs between the arm and the core.
     const from = new Vector3(ARM_AFT + 0.35, 0, z)
-    const to = new Vector3(CORE_AFT + 0.6, CORE_RAISE, s * 0.35)
+    const to = new Vector3(CORE_AFT + 0.6, 0, s * 0.35)
     const run = to.clone().sub(from)
     const length = run.length()
     const mid = from.clone().add(to).multiplyScalar(0.5).toArray() as Vec3
+    const deep = (0.66 - KEEL + 0.02) / 2
+    const lift = 0.66 - deep
     const brace = section(
       [
-        [-length / 2, 0.66, 0.38],
-        [length / 2, 0.66, 0.38],
+        [-length / 2, deep, 0.38, lift],
+        [length / 2, deep, 0.38, lift],
       ],
       m.hull,
       mid
@@ -225,7 +291,7 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     // and along the inboard side.
     for (const t of [-1, 1]) {
       const edge = z + t * 0.37
-      slab([4.9, 0.13, 0.28], [0.5, 0.66, edge], m.pale, [t * 0.68, 0, 0])
+      slab([4.9, 0.13, 0.28], [0.5, 0.66, edge], m.pale, [t * (Math.PI / 4), 0, 0])
       slab([4.9, 0.12, 0.24], [0.5, -0.66, edge], m.pale, [-t * (Math.PI / 4), 0, 0])
     }
     // A rib standing proud between the flank mounts, where the loads come in.
@@ -332,10 +398,10 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
   function drive() {
     const g = new Group()
     g.name = 'stern_drive'
-    g.position.y = CORE_RAISE
+    g.position.y = onFloor(STERN_H)
     body.add(g)
-    const H = 0.82
-    const W = 0.88
+    const H = STERN_H
+    const W = STERN_W
     const skin = 0.12
     const plate = CORE_AFT - 0.04
     const fore = CORE_AFT + 0.05
@@ -357,8 +423,8 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
       )
     put(
       armoredSection([
-        [CORE_AFT + 0.1, CORE_H + 0.025, CORE_W + 0.025],
-        [CORE_AFT + 0.14, CORE_H + 0.025, CORE_W + 0.025],
+        [CORE_AFT + 0.1, H + 0.025, W + 0.025],
+        [CORE_AFT + 0.14, H + 0.025, W + 0.025],
       ]),
       m.dark,
       undefined,
@@ -400,9 +466,10 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
           [0, Math.PI / 2, 0],
           g
         )
-      box([0.22, 0.05, 0.2], [aft + 0.28, roof + 0.025, z], m.steel, undefined, g)
-      pipe([aft + 0.46, roof + 0.13, z], [CORE_AFT + 0.3, roof + 0.13, z], 0.035, m.copper, g)
-      pipe([CORE_AFT + 0.3, roof + 0.13, z], [CORE_AFT + 0.3, CORE_H, z], 0.035, m.copper, g)
+      // The pad it sits on, as long as the pump and as wide, so nothing of it hangs.
+      box([0.44, roof + 0.05 - (H - 0.01), 0.26], [aft + 0.28, (roof + 0.05 + H - 0.01) / 2, z], m.steel, undefined, g)
+      // Its feed laid on the roof, half sunk in it, so it does not hang.
+      pipe([aft + 0.46, H + 0.01, z], [CORE_AFT + 0.45, H + 0.01, z], 0.035, m.copper, g)
     }
   }
 }
