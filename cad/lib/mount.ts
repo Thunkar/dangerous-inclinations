@@ -1,5 +1,5 @@
 // The mount every module shares: the foot's outline, the module's tenon and
-// screw, and the hull's recess and sealed magnet pocket.
+// screw, and the hull's recess, magnet pocket and the plug that closes it.
 import { sketch, circle, extrude, subtract, fuse } from "fluidcad/core";
 import { MOUNT } from "../spec.ts";
 import { footOutline as shared } from "../../ui/src/ships/mountShape.ts";
@@ -49,35 +49,65 @@ export function recessTool(m: Mount = MOUNT): Solid {
 }
 
 /**
- * The magnet's pocket behind the recess floor, in the mount frame: a disc on
- * edge with a slot reaching `rise` from its centre along y to the print's
- * pause layer (negative for a mount whose frame has its dorsal side down).
- * The print pauses where the slot ends, the magnet drops in, and the layers
- * above seal it.
+ * The magnet's pocket behind the recess floor, in the mount frame: a slot
+ * of the magnet's section on edge, from `drop` along y (past the bed, where
+ * the magnet goes in) up to a roof whose two sides run at 45 degrees and
+ * touch the magnet's circle, so nothing in it faces the bed and the magnet
+ * slid up it seats in the roof's V. `drop` is negative for a mount whose
+ * frame has its dorsal side up in the print.
  */
-export function pocketTool(m: Mount = MOUNT, rise = 0): Solid {
-  const d = m.magnet.diameter + m.magnetClearance;
+export function pocketTool(m: Mount = MOUNT, drop: number): Solid {
+  const r = (m.magnet.diameter + m.magnetClearance) / 2;
   const t = m.magnet.thickness + m.magnetClearance;
   const front = -m.recessDepth - m.skin;
-  const round = move(disc(d, t), 0, 0, front - t);
-  if (!rise) return round;
-  return fuse(
-    round,
-    block([-d / 2, Math.min(0, rise), front - t], [d / 2, Math.max(0, rise), front])
-  );
+  const up = -Math.sign(drop);
+  const outline: Point[] = [
+    [-r, drop],
+    [r, drop],
+    [r, up * r * (Math.SQRT2 - 1)],
+    [0, up * r * Math.SQRT2],
+    [-r, up * r * (Math.SQRT2 - 1)],
+  ];
+  return move(prism(up > 0 ? outline : [...outline].reverse(), t), 0, 0, front - t);
+}
+
+/** The roof's apex over the magnet's centre (mm): what the pocket reaches beyond it. */
+export function pocketApex(m: Mount = MOUNT): number {
+  return ((m.magnet.diameter + m.magnetClearance) / 2) * Math.SQRT2;
+}
+
+/**
+ * Where a magnet slid up into its roof sits, above the pocket's centre: the
+ * pocket's circle is the magnet's grown by the clearance, and the roof's V
+ * touches the smaller circle higher.
+ */
+export function seatRise(m: Mount = MOUNT): number {
+  return (m.magnetClearance / 2) * Math.SQRT2;
+}
+
+/**
+ * A plug or spacer for a pocket's slot, `length` long: the slot's section
+ * less the fit all round, as it prints, lying on its broad face with its
+ * length along x (every face square to the bed).
+ */
+export function plugTool(m: Mount = MOUNT, length: number): Solid {
+  const w = m.magnet.diameter + m.magnetClearance - 2 * m.plugFit.side;
+  const t = m.magnet.thickness + m.magnetClearance - 2 * m.plugFit.side;
+  return block([0, -w / 2, 0], [length, w / 2, t]);
 }
 
 /** The mount's box in its own frame, recess and pocket with its slot: [min, max]. */
-export function socketBounds(m: Mount = MOUNT, rise = 0): [Vec, Vec] {
-  const r = (m.magnet.diameter + m.magnetClearance) / 2;
+export function socketBounds(m: Mount = MOUNT, drop = 0): [Vec, Vec] {
+  const apex = pocketApex(m);
   const deep = m.recessDepth + m.skin + m.magnet.thickness + m.magnetClearance;
+  const [lo, hi] = drop < 0 ? [drop, apex] : [-apex, drop];
   return [
-    [-m.halfLength, Math.min(-m.halfHeight, -r, rise), -deep],
-    [m.halfLength, Math.max(m.halfHeight, r, rise), m.recessReach],
+    [-m.halfLength, Math.min(-m.halfHeight, lo), -deep],
+    [m.halfLength, Math.max(m.halfHeight, hi), m.recessReach],
   ];
 }
 
 /** Both of the hull's tools for a mount. */
-export function socketTools(m: Mount = MOUNT, rise = 0): { recess: Solid; pocket: Solid } {
-  return { recess: recessTool(m), pocket: pocketTool(m, rise) };
+export function socketTools(m: Mount = MOUNT, drop: number): { recess: Solid; pocket: Solid } {
+  return { recess: recessTool(m), pocket: pocketTool(m, drop) };
 }

@@ -19,9 +19,12 @@ export const PRINT = { corvetteLength: PRINT_LENGTH, mmPerUnit: MM_PER_UNIT };
  * ferrous M2x4 countersunk screw, flush; the hull has a shallow recess of the
  * foot's outline with a magnet sealed behind its floor. The foot and the
  * recess are the game's (`ui/src/ships/mountShape.ts`): the game draws them
- * and the print takes them from it. The hull prints in one piece: each
- * magnet pocket is a slot rising to a pause layer, the magnet drops in on
- * edge at the pause, and the layers above seal it.
+ * and the print takes them from it. The hull prints in one piece with no
+ * pause: each magnet's pocket is a slot from the bed up to a 45-degree roof
+ * the magnet seats in, the magnet slides up it on edge from under the hull,
+ * and a plug printed apart closes the slot behind it, flush with the bed
+ * (where two magnets stand in one column, one slot takes both and a spacer
+ * goes between them).
  *
  * Mount frame: x forward, y dorsal, the mating face at z = 0, outboard +z.
  */
@@ -41,6 +44,14 @@ export const MOUNT = {
   skin: 0.7,
   /** Added to the magnet's diameter and thickness for its pocket (printed: 0.2 fits). */
   magnetClearance: 0.2,
+  /**
+   * Taken off the slot's section for a plug or spacer, all round, so it
+   * slides in to be glued; and taken off its length, so a stack of magnets
+   * and plugs is never forced against the roof. Plugs of a hull within
+   * `share` of each other are all cut to the shortest, so a hull prints
+   * fewer lengths (its magnet sits that much under its roof).
+   */
+  plugFit: { side: 0.1, length: 0.1, share: 0.3 },
   /** A 6x2 neodymium disc, always sealed inside the plastic. */
   magnet: { diameter: 6, thickness: 2 },
   screw: {
@@ -65,21 +76,6 @@ export const CUBE = {
   pocketDepth: 3,
   /** Plastic between two pockets in a row; the cubes stand 5 mm proud, so fingers still get round them. */
   wall: 1.2,
-};
-
-/**
- * The hull and fuel sliders: a dovetail with a sprung tongue that clicks a
- * ridge into a groove at every step (coupons/slider.part.js).
- */
-export const SLIDER = {
-  steps: 11,
-  /** Step to step, and the numbers' height: 6 and 4.8 since the base (7 and 5.5 before). */
-  pitch: 6,
-  numberSize: 4.8,
-  /** The dovetail's gap on each flank as drawn; 0 slides (the designer's print). */
-  clearance: 0,
-  /** How far the ridge sits in the track once the tongue has lifted the slider onto the dovetail. */
-  engage: 0.55,
 };
 
 /**

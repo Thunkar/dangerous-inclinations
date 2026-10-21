@@ -25,13 +25,24 @@ type Mat = MeshStandardMaterial
 export type ShrikeInk = Record<'hull' | 'pale' | 'dark' | 'steel' | 'copper' | 'cyan' | 'red', Mat>
 
 /**
- * The blade's flat bottom (y, and x aft and fore), its thickness, and how far
- * aft of its leading edge the pale band runs: what a display stand grips.
+ * The blade's flat bottom (y, and x aft and fore), its thickness, how far
+ * aft of its leading edge the pale band runs and how much thicker the band
+ * is: what a display stand grips.
  */
 /** The keel plates' undersides, the bed the hull prints on (`HULL_INFO.shrike.keel`). */
 const SHRIKE_KEEL = -1.27
 
-export const SHRIKE_BLADE = { bottom: -4.85, aft: -2.0, fore: -0.35, thick: 0.5, band: 0.34 }
+export const SHRIKE_BLADE = {
+  bottom: -4.85,
+  aft: -2.0,
+  fore: -0.35,
+  thick: 0.5,
+  band: 0.34,
+  proud: 0.05,
+  /** Where its leading edge meets the hull, and the crank in its trailing edge: [x, y]. */
+  root: [2.05, -0.76] as [number, number],
+  crank: [-0.95, -2.9] as [number, number],
+}
 
 /** The half-spaces of a convex polygon in [y, z], each side's plane running along X. */
 function sidesOf(poly: [number, number][]): Half[] {
@@ -177,8 +188,10 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
   {
     const top = 0.52
     const floor = SHRIKE_KEEL - 0.02
-    // The keel's half width, and the flare's at the top: the collar plate's.
-    const keel = 0.3
+    // The keel's half width (wide enough for the bow magnet's slot to run
+    // down it to the bed with two walls either side), and the flare's at the
+    // top: the collar plate's.
+    const keel = 0.42
     const flare = 1.04
     const knee = top - (flare - keel)
     const [aft, front, k] = [1.2, 2.8, 0.34]
@@ -350,7 +363,7 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
     const band = SHRIKE_BLADE.band
     fin(
       [proud(root), proud(lead), [lead[0] - band, lead[1]], [root[0] - band * 1.5, root[1]]],
-      thickness + 0.05,
+      thickness + SHRIKE_BLADE.proud,
       0,
       m.pale
     )
@@ -361,10 +374,9 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
   box([0.1, 0.08, 0.1], [-1.3, 4.39, 0], m.red)
   // The blade, the bigger: from under the chin to a flat bottom below the
   // column, its trailing edge cranked.
-  const { bottom, aft, fore, thick } = SHRIKE_BLADE
-  const root: [number, number] = [2.05, -0.76]
+  const { bottom, aft, fore, thick, root, crank } = SHRIKE_BLADE
   const lead: [number, number] = [fore, bottom]
-  sweptFin(root, lead, [aft, bottom], [-0.7, -1.0], thick, [], [[-0.95, -2.9]])
+  sweptFin(root, lead, [aft, bottom], [-0.7, -1.0], thick, [], [crank])
 
   stern(body, put, m, { slab, box, pipe, fin, hollow })
 }

@@ -5,8 +5,9 @@
 // each said where it is done: parts thinner than a nozzle can draw are
 // thickened, the modules and the mount shoes are left off (they print on
 // their own), the bed is the hull's flat bottom, the mounts are cut to the
-// printed interface with their magnets sealed at a pause, and the stand gets
-// a socket. Anything that hangs below the bed (the shrike's
+// printed interface with a slot up to each magnet from the bed (the magnet
+// slides in from under the hull and a plug printed apart closes it), and the
+// stand gets a socket. Anything that hangs below the bed (the shrike's
 // blade, the mantis's fins) prints as a piece of its own, upside down on the
 // cut, and is glued on.
 import { fuse, subtract } from "fluidcad/core";
@@ -20,7 +21,7 @@ import { mountFace } from "../../ui/src/ships/mountShape.ts";
 import { MOUNT, STAND, FDM, PRINT } from "../spec.ts";
 import { printFrame, placeSolid, placeBuilt, uniteAlong } from "../lib/kit.ts";
 import { block, disc, move, taper, turn, type Solid, type Vec } from "../lib/solids.ts";
-import { recessTool, pocketTool, socketBounds, type Mount } from "../lib/mount.ts";
+import { recessTool, pocketTool, plugTool, seatRise, socketBounds, type Mount } from "../lib/mount.ts";
 
 const S = PRINT.mmPerUnit;
 
@@ -28,27 +29,36 @@ const S = PRINT.mmPerUnit;
  * Each hull's print: `bed` is its flat bottom (game y, `HULL_INFO.keel`);
  * `socket` where the stand's peg goes in (x), how wide the peg is and how
  * deep the socket, for a hull whose stand has a peg (`pieces/stand.ts`: the
- * shrike's grips its blade and the mantis's its keel fin instead); `pins`
- * the x of the filament pins that locate a piece glued on below the bed
- * (none where the piece is too thin to take one).
+ * mantis's grips its keel fin instead); `pins` the x of the filament pins
+ * that locate a piece glued on below the bed (none where the piece is too
+ * thin to take one); `carried` when the stand carries what hangs below
+ * the bed itself (the shrike's blade), so the hull sits on it on filament
+ * pins with no glue.
  */
 export const HULL_PRINT: Record<
   Hull,
-  { bed: number; socket: { x: number; peg: number; depth: number } | null; pins: number[] }
+  {
+    bed: number;
+    socket: { x: number; peg: number; depth: number } | null;
+    pins: number[];
+    carried: boolean;
+  }
 > = {
   corvette: {
     bed: HULL_INFO.corvette.keel,
     socket: { x: -0.4, peg: STAND.peg, depth: STAND.depth },
     pins: [],
+    carried: false,
   },
-  // The blade hangs below the keel plates, over where a socket would go.
-  shrike: { bed: HULL_INFO.shrike.keel, socket: null, pins: [-0.2, 0.9] },
+  // The blade is the stand's: the hull sits on it on the filament pins.
+  shrike: { bed: HULL_INFO.shrike.keel, socket: null, pins: [-0.2, 0.9], carried: true },
   // The stand grips the keel fin under the core, as the shrike's its blade.
   // The arm fins hang below the arms, too thin for pins.
   mantis: {
     bed: HULL_INFO.mantis.keel,
     socket: null,
     pins: [],
+    carried: false,
   },
 };
 
@@ -91,25 +101,69 @@ function mountFrame(model: ShipModel, frame: Matrix4, id: MountId): Matrix4 {
     .multiply(new Matrix4().makeScale(1 / S, 1 / S, 1 / S));
 }
 
-/** The layer a magnet centred at height z (mm) pauses before: its slot ends on the line below it. */
-function pauseFor(z: number): number {
-  const top = z + (MOUNT.magnet.diameter + MOUNT.magnetClearance) / 2;
-  return Math.ceil(top / FDM.layer - 1e-9) * FDM.layer;
+/** A magnet's centre in the print (mm), behind its mount's recess floor. */
+function magnetAt(m: Matrix4, mount: Mount = MOUNT): Vector3 {
+  const t = mount.magnet.thickness + mount.magnetClearance;
+  return new Vector3(0, 0, -mount.recessDepth - mount.skin - t / 2).applyMatrix4(m);
 }
 
-/** The layers a hull's print pauses before, one for each height its magnets sit at. */
-export function pausesOf(hull: Hull): number[] {
+/** What closes a hull's magnet slots, bottom up in each: a plug from the bed, then a spacer between two magnets in one slot. */
+export interface Plug {
+  length: number;
+  spacer: boolean;
+}
+
+/**
+ * The plugs and spacers a hull's slots take. Magnets whose slots run up
+ * the same line (the shrike's two flank mounts a side) share one slot: the
+ * top magnet seats in its roof and each below it stands on what is under it.
+ */
+export function plugsOf(hull: Hull, mount: Mount = MOUNT): Plug[] {
   const model = shipModel(hull);
   const frame = printFrame(HULL_PRINT[hull].bed);
-  const at = new Set(
-    GAME_MOUNTS.map(
-      ({ id }) =>
-        +(
-          pauseFor(new Vector3().setFromMatrixPosition(mountFrame(model, frame, id)).z) + FDM.layer
-        ).toFixed(2)
-    )
-  );
-  return [...at].sort((a, b) => a - b);
+  const columns = new Map<string, number[]>();
+  for (const { id } of GAME_MOUNTS) {
+    const c = magnetAt(mountFrame(model, frame, id), mount);
+    const key = `${c.x.toFixed(1)},${c.y.toFixed(1)}`;
+    columns.set(key, [...(columns.get(key) ?? []), c.z]);
+  }
+  const r = mount.magnet.diameter / 2;
+  const plugs: Plug[] = [];
+  for (const heights of columns.values()) {
+    const zs = [...heights].sort((a, b) => a - b);
+    zs[zs.length - 1] += seatRise(mount);
+    let under = 0;
+    zs.forEach((z, i) => {
+      plugs.push({ length: +(z - r - under - mount.plugFit.length).toFixed(2), spacer: i > 0 });
+      under = z + r;
+    });
+  }
+  plugs.sort((a, b) => a.length - b.length);
+  // Lengths a hair apart are one length: each takes the shortest of its run.
+  for (const kind of [false, true]) {
+    let base: number | undefined;
+    for (const p of plugs.filter((p) => p.spacer === kind)) {
+      if (base === undefined || p.length - base > mount.plugFit.share) base = p.length;
+      p.length = base;
+    }
+  }
+  return plugs;
+}
+
+/** The plugs' names for a part's title: how many of each length. */
+export function plugNames(hull: Hull): string {
+  const count = new Map<string, number>();
+  for (const { length, spacer } of plugsOf(hull)) {
+    const name = `${length.toFixed(1)} mm${spacer ? " spacer" : ""}`;
+    count.set(name, (count.get(name) ?? 0) + 1);
+  }
+  return [...count].map(([name, n]) => `${n}x ${name}`).join(", ");
+}
+
+/** A hull's plugs and spacers as one print: lying side by side, 3 mm apart. */
+export function buildPlugs(hull: Hull, mount: Mount = MOUNT): void {
+  const pitch = mount.magnet.diameter + mount.magnetClearance + 3;
+  plugsOf(hull, mount).forEach(({ length }, i) => move(plugTool(mount, length), 0, i * pitch, 0));
 }
 
 /** Something to cut, where it can reach in the print (mm). */
@@ -252,11 +306,11 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): Solid {
   const cuts: Cut[] = [];
   for (const { id } of GAME_MOUNTS) {
     const m = mountFrame(model, frame, id);
-    // The slot rises to its pause, whichever way the mount frame's y points in the print.
+    // The slot runs down to the bed and 1 mm past it, whichever way the
+    // mount frame's y points in the print.
     const up = Math.sign(new Vector3(0, 1, 0).transformDirection(m).z) || 1;
-    const centre = new Vector3().setFromMatrixPosition(m).z;
-    const rise = up * (pauseFor(centre) - centre);
-    const box = boxOf(socketBounds(mount, rise), m);
+    const drop = -up * (magnetAt(m, mount).z + 1);
+    const box = boxOf(socketBounds(mount, drop), m);
     // A piece inside the recess's box, seen in the mount's own frame.
     const local = m.clone().invert();
     const recess = new Box3(
@@ -268,7 +322,7 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): Solid {
       make: () => placeBuilt(recessTool(mount), m),
       swallows: (b) => recess.containsBox(b.clone().applyMatrix4(local)),
     });
-    cuts.push({ box, make: () => placeBuilt(pocketTool(mount, rise), m) });
+    cuts.push({ box, make: () => placeBuilt(pocketTool(mount, drop), m) });
   }
   const socket = HULL_PRINT[hull].socket;
   if (socket) cuts.push(...socketCuts(socket.x * S, socket.peg, socket.depth));

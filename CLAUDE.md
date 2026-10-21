@@ -414,13 +414,14 @@ print the mirror image). So `pieces/hull.ts` calls `createShip` for any hull and
 what it draws, with only what printing needs added: every part grown by
 `FDM.join` (the game keeps overlays a hair off their walls) and thickened to
 `FDM.minFeature`; modules and the yard's mount highlights left off; the
-mount recesses and pause-sealed magnet slots cut at the game's own mount
+mount recesses and the magnet slots cut at the game's own mount
 frames; a socket for the stand; the
 bed at the hull's keel (`HULL_INFO.keel`, where the game carries the bays'
 ventral shoulders to, so the hull stands flat). What hangs below the keel
-(the shrike's blade, the mantis's arm fins and the fin under its core) prints as a piece of its own,
+(the mantis's arm fins and the fin under its core) prints as a piece of its own,
 turned over onto its cut, and is glued on (filament pins where it is thick
-enough). Modules (`pieces/module.ts`) print on their own the same way,
+enough); the shrike's blade is the top of its stand instead, and the hull
+sits on it on filament pins in the holes both share, unglued. Modules (`pieces/module.ts`) print on their own the same way,
 adding only the screw's countersink and pilot. The drive prints with the
 hull (`ships/engines.ts`): pairs of raked intakes filling the shroud, an
 F-15's intake and its mirror above it, every face that looks down at 45
@@ -460,8 +461,7 @@ loft segment a loft, 21 seconds with the constant ones built as prisms in
 `lib/kit.ts`). `scripts/timing.mjs` says where a build's time goes, and a
 viewer left open rebuilds its part on every edit to `ui/src/ships/`. Check a part with
 `scripts/errors.mjs` (feature errors, which the export CLI does not print),
-`--list-shapes`, `scripts/islands.mjs` (separate bodies; a sealed magnet
-pocket shows as one), `scripts/slice.mjs`, `scripts/overhang.mjs`,
+`--list-shapes`, `scripts/islands.mjs` (separate bodies), `scripts/slice.mjs`, `scripts/overhang.mjs`,
 `scripts/compare.mjs` (how far one STL's surface is from another's) and
 `yarn shot`. `fluidcad export` exports whatever tab a running server shows,
 and a running server follows its workspace's tab, so `export` and `shot`
@@ -474,14 +474,26 @@ The designer's constraints: 6x2 magnets are **sealed in plastic**,
 never exposed (small children); each module
 holds a ferrous M2 countersunk screw (4 mm, or up to 6 where the module's
 plastic allows: its part's name says how long) and sticks to one magnet per mount;
-**one module print fits all four flank mounts**, so the foot and every module
-are symmetric dorsal to ventral and point forward; hidden modules sit upside
-down in base pockets held by shape alone (angled to keep the base thin);
-energy cubes (8.1mm) sit on a rail beside each slot, heat on a track; hull and
-fuel are sliders; missiles come from a shared pile; a broken subsystem is
+**one module print fits all four flank mounts**, so every module is
+symmetric dorsal to ventral and the foot is symmetric both ways (it does not
+key which way a module faces); a hidden module lies on its side on a wall
+mount in a bay at the base's edge (`pieces/bay.ts`, the hull's recess and
+magnet slot), boxed in under a door (the box's front and roof) whose hinge
+runs under the module: knuckles joined by 45-degree cones in conical
+sockets, printed in place with the door open flat on the bed, so the door
+folds out over the edge and lies on the table; energy cubes (8.1mm) stand
+in continuous channels ticked at each cube, one per slot beside its bay,
+the fixed subsystems' and the heat track's astern and in the bow's corners;
+hull and fuel have no track on the base (the designer is replacing that
+accounting); missiles come from a shared pile; a broken subsystem is
 taken off the ship and the base. Hulls print in one
-piece, not split: each magnet pocket is a slot rising to a pause layer, the
-magnet drops in on edge at the pause and the layers above seal it. A mount
+piece, not split, with no pause: each magnet's pocket is a slot from the bed
+up to a 45-degree roof the magnet seats in, the magnet slides up it on edge
+from under the hull, and a plug printed apart (`parts/plugs/`, lying flat)
+is glued in behind it, flush with the bed. Two magnets in one column (the
+shrike's flank pair a side) share a slot, with a spacer between them, and
+the shrike's chin keel is wide enough for the bow magnet's slot to run down
+it. A mount
 face is vertical in the print, so its skin is perimeters and must be two
 walls: 0.7mm (0.6 gives one). `coupons/` are the
 test pieces that set the tolerances in `spec.ts`.

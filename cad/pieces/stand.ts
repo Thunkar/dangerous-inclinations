@@ -1,11 +1,13 @@
 // Each hull's display stand, printed on its own, upright: a tenon that plugs
 // into the base's socket (keyed, so the ship faces the bow), a column, and
 // at its top what holds that hull. The corvette takes a peg in the socket
-// under its core; the shrike's blade hangs where a peg would go, so its
-// stand grips the blade's flat bottom; the mantis's belly stands on its head
-// with the keel fin under the core dropped into a slot. Each stands its
-// hull high enough to clear the base: the mantis's arms over the side slots'
-// pockets with a hand's room under them.
+// under its core; the shrike's stand carries its blade, and the hull sits on
+// it on filament pins, unglued; the mantis's belly
+// stands on its head with the keel fin under the core dropped into a slot.
+// Every hull's keel stands level with the top of the shrike's blade, with a
+// hand's room over the deck to move cubes, and the corvette's and the mantis's
+// columns lean to put the ship's middle over the deck's (the socket is aft of
+// it).
 import { subtract, fuse } from "fluidcad/core";
 import type { Hull } from "@dangerous-inclinations/engine";
 import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
@@ -16,14 +18,29 @@ import { block, prism, move, taper, turn, type Point, type Solid } from "../lib/
 import { Box3, Vector3 } from "three";
 import { placedSolids } from "../../ui/src/ships/solid.ts";
 import { printFrame } from "../lib/kit.ts";
-import { HULL_PRINT, shipModel } from "./hull.ts";
-import { SOCKET, socketOutline, deckTop } from "./base.ts";
+import { HULL_PRINT, buildBelow, shipModel } from "./hull.ts";
+import { SOCKET, socketOutline, socketTaper, deckTop, deckMiddle } from "./base.ts";
 
 const S = PRINT.mmPerUnit;
 /** The column, inside the socket's outline. */
 const COLUMN = { long: 12, wide: 8 };
 /** Room round what a stand holds, beyond the print's own growth. */
 const FIT = 0.15;
+
+/** How far the shrike's blade's bottom stands off the deck, mm: its edges run on down to it. */
+const BLADE_RISE = 8;
+
+/**
+ * Where the shrike's blade's leading or trailing edge is at game height y
+ * (game x), its straight edges carried on below the blade's bottom: the
+ * leading edge from the root to its foot, the trailing edge from its foot to
+ * the crank.
+ */
+function bladeEdge(edge: "lead" | "trail", y: number): number {
+  const { bottom, aft, fore, root, crank } = SHRIKE_BLADE;
+  const [x0, [x1, y1]] = edge === "lead" ? [fore, root] : [aft, crank];
+  return x0 + ((y - bottom) * (x1 - x0)) / (y1 - bottom);
+}
 
 /** How far the shrike's blade hangs below its keel, mm. */
 const BLADE_DROP = (HULL_INFO.shrike.keel - SHRIKE_BLADE.bottom) * S;
@@ -45,35 +62,34 @@ function middleOf(hull: Hull): number {
  * How each hull stands: its keel's height above the table, where along the
  * ship (mm, the hull print's x) the stand meets it, and how far along the
  * base's x the stand's head stands from the socket (its column leaning to
- * get there), so the ship is centred over the base.
+ * get there), so the ship is centred over the deck.
  */
 export function standOf(hull: Hull): { bed: number; at: number; head: number } {
   const deck = deckTop();
+  // The shrike's blade's bottom 8 mm off the deck, its edges carried on down
+  // to the deck, and the socket under the middle of what reaches it. Every
+  // other hull's keel is level with the top of that blade, high enough for
+  // fingers to move cubes under it.
+  const y = HULL_INFO.shrike.keel - (BLADE_RISE + BLADE_DROP) / S;
+  const bed = deck + BLADE_RISE + BLADE_DROP;
+  // The column leans forward or aft to put the ship's middle over the deck's.
+  const centred = (at: number) => ({ bed, at, head: deckMiddle() + at - middleOf(hull) });
   switch (hull) {
     case "corvette":
-      return { bed: 34, at: HULL_PRINT.corvette.socket!.x * S, head: 0 };
-    case "mantis": {
-      // Held under the core along the fin's leading edge, aft of the
-      // ship's middle: the column leans aft to centre the ship, no more than
-      // 45 degrees over its height.
-      const at = ((MANTIS_FIN.fore + MANTIS_FIN.lead) / 2) * S;
-      return { bed: 54, at, head: at - middleOf(hull) };
-    }
+      // The peg in the socket under its core.
+      return centred(HULL_PRINT.corvette.socket!.x * S);
+    case "mantis":
+      // Held under the core along the fin's leading edge.
+      return centred(((MANTIS_FIN.fore + MANTIS_FIN.lead) / 2) * S);
     case "shrike":
-      // The blade's bottom 8 mm off the deck, gripped at its middle (the
-      // pale band along its leading edge left out of the grip).
-      return {
-        bed: deck + 8 + BLADE_DROP,
-        at: ((SHRIKE_BLADE.aft + SHRIKE_BLADE.fore - SHRIKE_BLADE.band) / 2) * S,
-        head: 0,
-      };
+      return { bed, at: ((bladeEdge("lead", y) + bladeEdge("trail", y)) / 2) * S, head: 0 };
   }
 }
 
-/** The peg up into the hull's socket from its keel at `bed`, 0.5 short of the socket's depth. */
-function peg(hull: Hull, bed: number): Solid {
+/** The peg up into the hull's socket from its keel at `bed`, at x, 0.5 short of the socket's depth. */
+function peg(hull: Hull, bed: number, x: number): Solid {
   const { peg: side, depth } = HULL_PRINT[hull].socket!;
-  return block([-side / 2, -side / 2, bed - 0.01], [side / 2, side / 2, bed + depth - 0.5]);
+  return block([x - side / 2, -side / 2, bed - 0.01], [x + side / 2, side / 2, bed + depth - 0.5]);
 }
 
 /**
@@ -100,7 +116,7 @@ function head([x0, x1]: [number, number], [y0, y1]: [number, number], z0: number
 export function buildStand(hull: Hull): Solid {
   const deck = deckTop();
   const { bed, at, head: hx } = standOf(hull);
-  const tenon = move(prism(socketOutline(), SOCKET.depth - 0.3 + 0.01), 0, 0, deck - SOCKET.depth + 0.3);
+  const tenon = socketTaper(socketOutline(-SOCKET.fit), deck + 0.01, SOCKET.depth - SOCKET.room + 0.01);
   // The column, from the socket to the head, leaning to it if the head stands off the socket.
   const column = (to: number) => {
     if (!hx) return block([-COLUMN.long / 2, -COLUMN.wide / 2, deck], [COLUMN.long / 2, COLUMN.wide / 2, to + 0.01]);
@@ -117,7 +133,7 @@ export function buildStand(hull: Hull): Solid {
   };
   switch (hull) {
     case "corvette":
-      return fuse(tenon, column(bed), peg(hull, bed));
+      return fuse(tenon, column(bed), peg(hull, bed, hx));
     case "mantis": {
       // A head the belly stands on, flat at the keel, with a slot through
       // it the fin drops into, open at both ends.
@@ -137,27 +153,53 @@ export function buildStand(hull: Hull): Solid {
       return fuse(tenon, column(z0 - rise), subtract(top, slot));
     }
     case "shrike": {
-      // A block with a slot the blade's bottom drops into.
+      // The blade is the stand's, and the hull sits on it on filament pins in
+      // the holes both share, unglued. Its edges run on straight down to the
+      // deck, the pale band with them, and it grows out of a collar on the
+      // socket: out at 45 degrees from the tenon and back in at 45 to the
+      // blade, so nothing about it is a box and nothing hangs.
       const bottom = bed - BLADE_DROP;
-      const depth = 5;
-      const slot = {
-        x0: SHRIKE_BLADE.aft * S - at,
-        x1: (SHRIKE_BLADE.fore - SHRIKE_BLADE.band) * S - at,
-        half: (SHRIKE_BLADE.thick * S) / 2 + FDM.join + FIT,
-      };
-      const [gx, gy]: [[number, number], [number, number]] = [
-        [Math.min(slot.x0 - 2, -COLUMN.long / 2), Math.max(slot.x1 + 2, COLUMN.long / 2)],
-        [-slot.half - 2.5, slot.half + 2.5],
+      const half = (SHRIKE_BLADE.thick * S) / 2 + FDM.join;
+      const band = ((SHRIKE_BLADE.thick + SHRIKE_BLADE.proud) * S) / 2 + FDM.join;
+      const blade = move(turn(buildBelow("shrike")!, "x", 180), -at, 0, bed);
+      // Stand x of an edge at stand height z.
+      const edge = (e: "lead" | "trail", z: number) =>
+        bladeEdge(e, HULL_INFO.shrike.keel + (z - bed) / S) * S - at;
+      const top = bottom + 0.6;
+      const out = 0.9;
+      // The web stands on the collar's widest course: where the leading edge
+      // runs out past it, its foot comes back in under it at 45 degrees, and
+      // at the top it reaches a little past the blade's own bottom.
+      const z0 = deck + out;
+      const reach = SOCKET.long / 2 - SOCKET.fit + out - 0.15;
+      const lead0 = edge("lead", z0);
+      const foot = Math.min(lead0, reach);
+      const meet = (lead0 - foot) / (1 - (edge("lead", z0 + 1) - lead0));
+      const sheet = (pts: Point[], t: number) => move(turn(prism(pts, 2 * t), "x", 90), 0, t, 0);
+      const fore = (back: number): Point[] => [
+        [back, z0],
+        [foot, z0],
+        ...(meet > 0 ? [[foot + meet, z0 + meet] as Point] : []),
+        [edge("lead", top) + 0.3, top],
       ];
-      const grip = head(gx, gy, bottom - 3, bottom + depth);
-      const cut = block([slot.x0, -slot.half, bottom], [slot.x1, slot.half, bottom + depth + 1]);
-      const rise = Math.max(gx[1] - gx[0] - COLUMN.long, gy[1] - gy[0] - COLUMN.wide) / 2;
-      return fuse(tenon, column(bottom - 3 - rise), subtract(grip, cut));
+      const web = sheet([[edge("trail", z0), z0], ...fore(0).slice(1), [edge("trail", top) - 0.5, top]], half);
+      const strip = sheet(
+        [...fore(lead0 - SHRIKE_BLADE.band * S), [edge("lead", top) - SHRIKE_BLADE.band * S, top]],
+        band
+      );
+      // The collar: the tenon's outline grown out at 45 degrees by `out`,
+      // then drawn back in at 45 till it is no wider than the blade.
+      const grown = socketOutline(out - SOCKET.fit);
+      const mirrored = grown.map(([x, yy]): Point => [x, -yy]);
+      const under = move(turn(taper(mirrored, out), "x", 180), 0, 0, deck + out);
+      const rise = SOCKET.wide / 2 - SOCKET.fit + out - half;
+      const over = move(taper(grown, rise), 0, 0, deck + out - 0.01);
+      return fuse(tenon, under, over, web, strip, blade);
     }
   }
 }
 
 /** The stand for `hull` as it prints: upright, its tenon on the bed. */
 export function printStand(hull: Hull): Solid {
-  return move(buildStand(hull), 0, 0, -(deckTop() - SOCKET.depth + 0.3));
+  return move(buildStand(hull), 0, 0, -(deckTop() - SOCKET.depth + SOCKET.room));
 }

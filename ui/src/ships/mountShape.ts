@@ -12,18 +12,19 @@ export const PRINT_LENGTH = 80
 export const MM_PER_UNIT = PRINT_LENGTH / CORVETTE.length
 
 /**
- * The foot, in the mount's frame (x forward, y dorsal): 16 x 9, a big
- * chamfer at the bow end (the pointer) and a small one aft, symmetric dorsal
- * to ventral, so one print of a module fits all four flank mounts and its
- * guns still face the bow. A hull takes it in a recess `recessDepth` deep; the
+ * The foot, in the mount's frame (x forward, y dorsal): 16 x 9 with the same
+ * 45-degree chamfer at every corner, symmetric fore to aft as well as dorsal
+ * to ventral. One print of a module fits all four flank mounts; the foot
+ * does not say which way a module faces (an outline with a bigger chamfer
+ * forward looked as if it did, and took a module either way round all the
+ * same), so the player points the guns. A hull takes it in a recess `recessDepth` deep; the
  * module's tenon is the outline less `clearance`, `recessDepth - clearance`
  * thick, so it seats on the recess's rim with that gap below it.
  */
 export const FOOT = {
   halfLength: 8,
   halfHeight: 4.5,
-  noseChamfer: 2.5,
-  tailChamfer: 1.5,
+  chamfer: 2.5,
   recessDepth: 1,
   clearance: 0.1,
 }
@@ -37,14 +38,13 @@ export function footOutline(g = 0): [number, number][] {
   const a = FOOT.halfLength + g
   const b = FOOT.halfHeight + g
   const k = g * (2 - Math.SQRT2)
-  const n = FOOT.noseChamfer + k
-  const c = FOOT.tailChamfer + k
+  const c = FOOT.chamfer + k
   return [
     [-a + c, -b],
-    [a - n, -b],
-    [a, -b + n],
-    [a, b - n],
-    [a - n, b],
+    [a - c, -b],
+    [a, -b + c],
+    [a, b - c],
+    [a - c, b],
     [-a + c, b],
     [-a, b - c],
     [-a, -b + c],

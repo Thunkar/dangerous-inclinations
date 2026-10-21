@@ -1,4 +1,4 @@
 import { part } from "fluidcad/core";
-import { buildStub, PAUSE_BEFORE } from "../pieces/mountStub.ts";
+import { buildStub, PLUG } from "../pieces/mountStub.ts";
 
-export const stub = part(`Mount stub (pause before Z ${PAUSE_BEFORE})`, buildStub);
+export const stub = part(`Mount stub (magnets in from below, then glue in two ${PLUG} mm plugs)`, buildStub);
