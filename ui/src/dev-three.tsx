@@ -12,7 +12,8 @@
  * `?shots=1` fires a round of plasma and disruptor shots over it, again and
  * again (`fixtureShots`), so the guns' effects can be watched on either board;
  * `&slow=10` plays them ten times slower, and with `?preset=auto` the camera
- * films them close up.
+ * films them close up. `?me=p3` makes that seat yours, so `preset=follow`
+ * frames its well (p3 is moored at Alpha's station).
  */
 import { createRoot } from 'react-dom/client'
 import { Box, CssBaseline, ThemeProvider } from '@mui/material'
@@ -28,8 +29,12 @@ import {
 } from './components/board/three/dev/fixtureModel'
 import type { BoardModel } from './components/board/model'
 
-const base = createFixtureModel()
 const params = new URLSearchParams(window.location.search)
+const fixture = createFixtureModel()
+const me = params.get('me')
+const base: BoardModel = me
+  ? { ...fixture, ships: fixture.ships.map(ship => ({ ...ship, isMe: ship.playerId === me })) }
+  : fixture
 const flat = params.get('board') === 'svg'
 const shooting = params.has('shots')
 const slow = Number(params.get('slow') ?? 1) || 1

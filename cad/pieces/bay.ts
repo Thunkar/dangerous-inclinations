@@ -33,9 +33,17 @@ const SKIN = 1.2;
  * less what reaches below it, down the hole over the magnet (bayOf).
  */
 const DOOR = { front: 2, screw: 6, over: 0 };
-/** The hole down the wall's top to the magnet, to push it out with a pin; the door's screw sits in its mouth. */
-const PUSH = { diameter: 3 };
-/** The room round the door's screw (radius 1, its thread) as it swings out of the hole, and under its tip. */
+/**
+ * The cone under the roof round the screw where it reaches below the roof,
+ * so none of it shows bare: its radius at the roof and at the screw's tip,
+ * which is flush with its blunt end and still meets the magnet. Each section
+ * is a teardrop pointed the way that is down when the door prints open
+ * (forward, closed), so the cone's underside stands at 45 degrees there.
+ */
+const CONE_UNDER = { root: 1.9, end: 1.45 };
+/** The room round the cone in the hole over the magnet, which a pin also pushes the magnet out through. */
+const PUSH = { room: 0.3 };
+/** The room round the cone as it swings out of the hole, and under its end. */
 const SCREW_ROOM = 0.4;
 /** Behind the recess floor: the skin, the magnet's slot and plastic behind it. */
 const BACK = 1.6;
@@ -231,21 +239,33 @@ export function bayBase(): Solid {
 export function bayPush(): Solid {
   const b = bayOf();
   const top = b.inside.top;
-  const hole = move(disc(PUSH.diameter, top - b.push.z + 1), 0, b.push.y, b.push.z);
-  // The screw's path as the door opens: a slot as wide as the screw and
-  // its room, its front a slope along the line its tip's front edge takes
-  // from shut to clear of the wall, moved out by the room.
+  const { root, end } = CONE_UNDER;
+  const hole = move(disc(2 * (root + PUSH.room), top - b.push.z + 1), 0, b.push.y, b.push.z);
+  // The cone's path as the door opens: a slot as wide as the cone and its
+  // room, its front a slope leaning as the cone's end's point swings, set
+  // out far enough that every point of the cone's front edge stays behind
+  // it all the way until it is clear of the wall, then moved out by the room.
   const tip = b.roof.under - b.roof.reach;
-  const front: Point = [b.push.y + 1, tip];
-  let out = front;
-  for (let deg = 0; out[1] < top + 0.5 && deg < 90; deg += 0.5) {
+  const turned = ([py, pz]: Point, deg: number): Point => {
     const a = (-deg * Math.PI) / 180;
-    const [dy, dz] = [front[0] - b.axis.y, front[1] - b.axis.z];
-    out = [b.axis.y + dy * Math.cos(a) - dz * Math.sin(a), b.axis.z + dy * Math.sin(a) + dz * Math.cos(a)];
-  }
-  const lean = (out[0] - front[0]) / (out[1] - front[1]);
-  const slope = (z: number) => front[0] + SCREW_ROOM * Math.hypot(1, lean) + (z - tip) * lean;
-  const [floor, back] = [tip - SCREW_ROOM, b.push.y - 1 - SCREW_ROOM];
+    const [dy, dz] = [py - b.axis.y, pz - b.axis.z];
+    return [b.axis.y + dy * Math.cos(a) - dz * Math.sin(a), b.axis.z + dy * Math.sin(a) + dz * Math.cos(a)];
+  };
+  const edge = Array.from({ length: 9 }, (_, i): Point => {
+    const t = i / 8;
+    return [b.push.y + (end + (root - end) * t) * Math.SQRT2, tip + t * b.roof.reach];
+  });
+  let out = edge[0];
+  for (let deg = 0; out[1] < top + 0.5 && deg < 90; deg += 0.5) out = turned(edge[0], deg);
+  const lean = (out[0] - edge[0][0]) / (out[1] - edge[0][1]);
+  let reach = -Infinity;
+  for (let deg = 0; deg <= 90; deg += 0.5)
+    for (const p of edge) {
+      const [py, pz] = turned(p, deg);
+      if (pz < top + 1) reach = Math.max(reach, py - (pz - tip) * lean);
+    }
+  const slope = (z: number) => reach + SCREW_ROOM * Math.hypot(1, lean) + (z - tip) * lean;
+  const [floor, back] = [tip - SCREW_ROOM, b.push.y - root - SCREW_ROOM];
   const path = across(
     [
       [back, floor],
@@ -253,8 +273,8 @@ export function bayPush(): Solid {
       [slope(top + 1), top + 1],
       [back, top + 1],
     ],
-    -1 - SCREW_ROOM,
-    1 + SCREW_ROOM
+    -root - SCREW_ROOM,
+    root + SCREW_ROOM
   );
   return fuse(hole, path);
 }
@@ -344,10 +364,25 @@ function doorClosed(): Solid {
     door = fuse(door, part);
   }
   // The screw over the magnet: its countersink flush with the roof's top and
-  // its pilot down through the roof, a teardrop pointed the way that is up
-  // when the door prints open (back, closed), so its roof is no bridge.
+  // its pilot down through the roof and the cone under it, a teardrop
+  // pointed the way that is up when the door prints open (back, closed), so
+  // its roof is no bridge.
   const head = move(turn(countersinkTool(MOUNT), "x", 180), 0, b.push.y, b.roof.top + 0.01);
   door = subtract(door, head);
+  // The cone round the screw below the roof, from the roof down to its tip,
+  // narrowing as it goes: drawn mirrored and turned over, so it narrows
+  // downward with its point forward.
+  const { root, end } = CONE_UNDER;
+  const draft = (Math.atan((root - end) / b.roof.reach) * 180) / Math.PI;
+  const tear = (r: number): Point[] => [
+    ...Array.from({ length: 19 }, (_, i): Point => {
+      const a = ((135 + (270 * i) / 18) * Math.PI) / 180;
+      return [r * Math.cos(a), -r * Math.sin(a)];
+    }),
+    [0, -r * Math.SQRT2],
+  ];
+  const sleeve = turn(taper(anticlockwise(tear(root)), b.roof.reach + 0.01, draft), "x", 180);
+  door = fuse(door, move(sleeve, 0, b.push.y, b.roof.under + 0.01));
   const pr = MOUNT.screw.pilot / 2;
   const pilot: Point[] = [
     ...Array.from({ length: 19 }, (_, i): Point => {
@@ -358,7 +393,7 @@ function doorClosed(): Solid {
   ];
   return subtract(
     door,
-    move(prism(anticlockwise(pilot), b.roof.top - b.roof.under + 2), 0, b.push.y, b.roof.under - 1)
+    move(prism(anticlockwise(pilot), b.roof.top - b.roof.under + b.roof.reach + 2), 0, b.push.y, b.roof.under - b.roof.reach - 1)
   );
 }
 

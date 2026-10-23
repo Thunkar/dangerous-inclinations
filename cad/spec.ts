@@ -37,6 +37,11 @@ export const MOUNT = {
    */
   recessReach: 3,
   /**
+   * How far the bow mount's recess is raised at its top in the print: its
+   * roof is a bridge, and a bridge sags, so a module there went in tight.
+   */
+  bowSag: 0.2,
+  /**
    * Plastic between the recess floor and the magnet. The face is vertical in
    * the print, so the skin is perimeters: 0.6 is a single wall, 0.7 is two
    * (the designer's print), and two walls are the seal.

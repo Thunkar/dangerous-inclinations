@@ -40,6 +40,7 @@ import { DASHED_RING_FRAGMENT, DASHED_RING_VERTEX } from '../shaders/dashedRing'
 import { usePointerDrag } from '../usePointerDrag'
 import {
   LAYER,
+  berthWorld,
   elevationAt,
   facingYaw,
   interpolateWorld,
@@ -150,6 +151,7 @@ const THRUST: Record<MoveKind, number> = {
   burn: 1,
   jump: 1,
   recoil: 0.12,
+  ride: 0,
 }
 
 /** Ease with no corner at either end: the shape of a jump, not of a slide. */
@@ -358,16 +360,22 @@ function ShipMesh({
 
   /**
    * Where the hull stands at rest: its sector, moved out along the radius by
-   * its share of the crowd standing in that sector. `crowdOffset` is the flat
-   * board's too, so two hulls part by the same amount on either board.
+   * its share of the crowd standing in that sector (`crowdOffset` is the flat
+   * board's too, so two hulls part by the same amount on either board); or,
+   * moored, on its station's berth, which only this board draws.
    */
+  const berth = useMemo(
+    () => (ship.berth === null ? null : berthWorld(ship.position, ship.berth, ship.facing)),
+    [ship.position, ship.berth, ship.facing]
+  )
   const resting = useMemo(
     () =>
+      berth?.at ??
       toWorld(
         radialPoint(ship.position, crowdOffset(ship.crowd)),
         elevationAt(ship.position) + LAYER.token
       ),
-    [ship.position, ship.crowd]
+    [berth, ship.position, ship.crowd]
   )
   /**
    * That nudge on its own, so a slide can ease into its slot over the beat it
@@ -379,8 +387,8 @@ function ShipMesh({
     [resting, ship.position]
   )
   const restingYaw = useMemo(
-    () => facingYaw(ship.position, ship.facing),
-    [ship.position, ship.facing]
+    () => berth?.yaw ?? facingYaw(ship.position, ship.facing),
+    [berth, ship.position, ship.facing]
   )
 
   /**
@@ -444,6 +452,12 @@ function ShipMesh({
         lean = JUMP_ROLL * Math.sin(Math.PI * crossing)
         thrust = (raw < JUMP_CHARGE ? raw / JUMP_CHARGE : Math.max(0.4, speed)) * move.thrust
         streak = speed
+      } else if (motion.kind === 'ride') {
+        // Carried round on its berth: the station's slide, the berth's place on it all the way.
+        const t = slideProgress(raw)
+        interpolateWorld(motion.from, ship.position, t, LAYER.token, scratch)
+        node.position.copy(scratch).add(slot)
+        heading.rotation.y = restingYaw
       } else {
         // The same ease-in-out-quad the SVG board slides tokens with.
         const t = slideProgress(raw)

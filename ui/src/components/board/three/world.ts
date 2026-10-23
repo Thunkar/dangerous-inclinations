@@ -25,6 +25,7 @@
 import { BufferAttribute, BufferGeometry, Vector3 } from 'three'
 import type { Facing, GravityWellId, Position } from '@dangerous-inclinations/engine'
 import { SECTORS_PER_RING, getGravityWell } from '@dangerous-inclinations/engine'
+import { STATION_BERTHS } from '../../../ships/station'
 import {
   BOARD_BOUNDS,
   HOME_VIEW_RADIUS,
@@ -96,10 +97,10 @@ export const LAYER = {
 } as const
 
 /**
- * How high above its terrace the tallest thing on the board stands: a hull, a
- * lane badge, a float. The camera frames this much headroom and no more.
+ * How high above its terrace the tallest thing on the board stands: a hull
+ * moored on a station's berth, a lane badge, a float. The camera frames this much headroom and no more.
  */
-export const BOARD_RELIEF = 42
+export const BOARD_RELIEF = 56
 
 /**
  * The funnel, in numbers.
@@ -406,6 +407,40 @@ export function yawFromHeading(heading: number): number {
 export function facingYaw(position: Position, facing: Facing): number {
   return yawFromHeading(facingAngle(position, facing))
 }
+
+/**
+ * A station's yaw on the board: the yard's model has +X along the ring, so it
+ * is turned the way a ship facing prograde is, and its berths come round
+ * with it.
+ */
+export function stationYaw(position: Position): number {
+  return facingYaw(position, 'prograde')
+}
+
+/**
+ * Where a ship moored on berth `index` of the station at `position` stands,
+ * on the clamp's floor, and its yaw: tangent to the station, whichever way
+ * of the two is nearer the way the ship faces, so the hull still says it.
+ */
+export function berthWorld(
+  position: Position,
+  index: number,
+  facing: Facing,
+  out = new Vector3()
+): { at: Vector3; yaw: number } {
+  const berth = STATION_BERTHS[index]
+  const turn = stationYaw(position)
+  out
+    .set(berth.x, berth.y, berth.z)
+    .applyAxisAngle(UP, turn)
+    .add(positionWorld(position, LAYER.token))
+  const along = turn - berth.heading
+  const wanted = facingYaw(position, facing)
+  const gap = Math.atan2(Math.sin(wanted - along), Math.cos(wanted - along))
+  return { at: out, yaw: Math.abs(gap) > Math.PI / 2 ? along + Math.PI : along }
+}
+
+const UP = new Vector3(0, 1, 0)
 
 /**
  * One sector as a surface patch between two radii, hugging the funnel so it

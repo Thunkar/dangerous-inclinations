@@ -162,6 +162,7 @@ export function createOverlayFixtureModel(options: OverlayFixtureOptions = {}): 
     hitPoints: [8, 10, 5][index],
     maxHitPoints: 10,
     heat: [2, 0, 4][index],
+    berth: null,
     // Three seats, three sectors: nobody here is in anybody's way.
     crowd: { index: 0, count: 1 },
     // Vagrant's Escort marker rides on Kestrel.

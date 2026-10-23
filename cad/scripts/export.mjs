@@ -1,7 +1,10 @@
 // Export every printable: `yarn export [file.part.js ...]` writes
 // out/<path>.step (PrusaSlicer opens STEP, exact geometry) and out/<path>.stl
-// for each part file under coupons/ and parts/ (one piece a file; the
-// `.view.part.js` files lay several out for the viewer and are skipped).
+// for each part file under parts/ (out/corvette/corvette-hull.stl for
+// parts/corvette/corvette-hull.part.js: a folder per hull, the base, the
+// modules, the board and the tokens) and under coupons/ (out/coupons/), one
+// piece a file; the `.view.part.js` files lay several out for the viewer and
+// are skipped. Out holds printables only: pictures go to shots/.
 // Each file gets a server of its own (server.mjs), so an open viewer is safe.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
@@ -28,7 +31,7 @@ for (const file of files) {
   const out = join(
     "out",
     relative(".", file)
-      .replace(/^(coupons|parts)\//, "")
+      .replace(/^parts\//, "")
       .replace(/\.part\.js$/, "")
   );
   mkdirSync(dirname(out), { recursive: true });

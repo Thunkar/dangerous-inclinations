@@ -152,7 +152,8 @@ ui/src/ships/           model.ts (createShip: the 3D ship, shipyard and board al
                         shrike.ts, mantis.ts, loft.ts (the clipped-section lofts), engines.ts
                         (the drive every hull carries), modules.ts (the kit, the plasma projector and
                         the ram compressor), builds/ (the other modules, one a file),
-                        mounts.ts (slot names per hull),
+                        mounts.ts (slot names per hull), station.ts (the station,
+                        board and print alike),
                         ShipMark (the flat mark)
 ```
 
@@ -185,8 +186,8 @@ yarn workspace @dangerous-inclinations/engine balance --quick   # balance regres
 yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.md  # the standing benchmark page
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal
 yarn cad                                                          # FluidCAD viewer for cad/ (localhost:3100; build the engine first)
-yarn workspace @dangerous-inclinations/cad export                 # every printable to cad/out/*.step + .stl
-yarn workspace @dangerous-inclinations/cad shot coupons/mount.part.js iso-ftr top   # PNGs of a part, headless
+yarn workspace @dangerous-inclinations/cad export                 # every printable to cad/out/<folder>/*.step + .stl
+yarn workspace @dangerous-inclinations/cad shot coupons/mount.part.js iso-ftr top   # PNGs of a part, headless, to cad/shots/
 node scripts/shot.mjs '/' shot.png                    # photograph the running UI (needs `yarn dev`; PLAYER_ID + ?game=<id> for a seat)
 DOCKERHUB_USER=<you> scripts/deploy.sh               # build + push both images, restart the stack on the NAS (Dockerfile, deploy/)
 ```
@@ -400,7 +401,12 @@ the magnets, the cubes, the scale, the FDM limits) as pure data; capacities
 come from the engine (`SUBSYSTEM_CONFIGS`, `MAX_HEAT`). Each piece's geometry
 is a TypeScript module in `cad/pieces/`, and a `.part.js` (the only extension
 FluidCAD's viewer opens) is a few lines that call it; `yarn workspace
-@dangerous-inclinations/cad typecheck` checks it all.
+@dangerous-inclinations/cad typecheck` checks it all. `parts/` has a folder
+for each hull with everything it prints (`mantis/`: `mantis-hull`,
+`mantis-plugs`, `mantis-stand`, `mantis-fins`, and the `.view` that sets
+it on the base), then `base/`, `modules/`, `board/` and `tokens/` (the
+ship, missile and wreck tokens and the station); `export` mirrors it in
+`out/`, with the coupons in `out/coupons/`, and pictures go to `shots/`.
 
 **The printed ships are the game's ships.** Every geometry the yard
 (`ui/src/ships/`) creates carries a description of the solid it is
@@ -417,11 +423,13 @@ what it draws, with only what printing needs added: every part grown by
 mount recesses and the magnet slots cut at the game's own mount
 frames; a socket for the stand; the
 bed at the hull's keel (`HULL_INFO.keel`, where the game carries the bays'
-ventral shoulders to, so the hull stands flat). What hangs below the keel
-(the mantis's arm fins and the fin under its core) prints as a piece of its own,
-turned over onto its cut, and is glued on (filament pins where it is thick
-enough); the shrike's blade is the top of its stand instead, and the hull
-sits on it on filament pins in the holes both share, unglued. Modules (`pieces/module.ts`) print on their own the same way,
+ventral shoulders to, so the hull stands flat). What hangs below the keel prints apart: the shrike's blade is the top of
+its stand, and the hull sits on it on filament pins in the holes both
+share, unglued; the mantis's keel fin is the top of its stand too, its
+tongue in a slit in the core, unglued, and its arm fins print flat, each
+with a tongue along its root that slides into a slit in the arm and is
+glued (`slitFins` in `pieces/hull.ts`: the slits' roofs a steep V, so a
+canted fin's still prints). Modules (`pieces/module.ts`) print on their own the same way,
 adding only the screw's countersink and pilot. The drive prints with the
 hull (`ships/engines.ts`): pairs of raked intakes filling the shroud, an
 F-15's intake and its mirror above it, every face that looks down at 45
@@ -489,7 +497,7 @@ accounting); missiles come from a shared pile; a broken subsystem is
 taken off the ship and the base. Hulls print in one
 piece, not split, with no pause: each magnet's pocket is a slot from the bed
 up to a 45-degree roof the magnet seats in, the magnet slides up it on edge
-from under the hull, and a plug printed apart (`parts/plugs/`, lying flat)
+from under the hull, and a plug printed apart (`<hull>-plugs`, lying flat)
 is glued in behind it, flush with the bed. Two magnets in one column (the
 shrike's flank pair a side) share a slot, with a spacer between them, and
 the shrike's chin keel is wide enough for the bow magnet's slot to run down
@@ -509,7 +517,20 @@ wavy bands (each boundary lofted as Onshape lofted it, between centripetal
 splines through the same samples, matched point to point by parameter), or
 the black hole's horizon and accretion disc with its streak inlays; and the
 ship token (`pieces/token.ts`, a chamfered slab the kernel's own chamfer
-cannot cut, built as lofts between the outlines at each height). A ring
+cannot cut, built as lofts between the outlines at each height; `slab`
+draws any outline that way). The missile token (`pieces/missile.ts`) is
+the game's missile from above, small enough that a salvo's four lie
+abreast in black hole ring 1's sectors, printed by each player in their
+colour; the wreck token (`pieces/wreck.ts`) is the ship token cracked
+across its middle notch, the bow knocked askew and the keel holding the
+halves low down. The station (`pieces/station.ts`) is printed from the
+yard's (`ui/src/ships/station.ts`) as the hulls are: a spindle on a foot
+in its sector, a habitat drum, three finned radiators canted at 55
+degrees and three arms climbing to clamps a ship token drops into, so
+lifting the station to advance it carries its moored ships; one piece,
+upright, every face that looks down at 50 degrees (a print reads 45 as an
+overhang). The 3D board draws the same model and stands a moored hull
+on its berth (`world.berthWorld`; `ShipToken.berth`). A ring
 too big for the 235 mm bed is cut into segments on arm lines. `yarn board`
 writes a part file for every distinct piece, once, with how many to print in
 its name (`export` runs it): `parts/board/shared/` for the rings every well
@@ -554,7 +575,9 @@ every beat; the rest of the table reads `useAnimationControls`, `useDice` and
 (`board/three/dev/fixtureModel.ts`), which is how board work is checked.
 `ui/dev-ship.html?hull=corvette&view=iso|side|top|front|rear` draws one ship
 from the yard the same way, the reference the printed hulls are drawn
-against.
+against; `ui/dev-station.html?view=iso|low|top|radiator&ships=1` draws the
+station, a corvette on each berth. `dev-three.html?preset=follow&me=p3`
+frames Alpha, where the fixture moors a seat.
 
 ## Settled: do not re-propose without measuring
 

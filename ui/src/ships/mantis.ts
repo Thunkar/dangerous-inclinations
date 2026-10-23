@@ -51,8 +51,8 @@ const STERN_FORE = -3.4
 /**
  * The keel fin under the core, swept aft and cut square: its root on the
  * core's belly, its bottom, the x of its root's ends and of its bottom's,
- * and its thickness and the pale band's down its leading edge. What hangs
- * below the bed prints apart and is glued on, and a display stand grips it.
+ * and its thickness and the pale band's down its leading edge. It prints as
+ * the top of the display stand, slid into a slit in the core.
  */
 export const MANTIS_FIN = {
   root: FLOOR + 0.02,
@@ -61,8 +61,27 @@ export const MANTIS_FIN = {
   lead: -3.15,
   trail: -3.6,
   aft: -4.15,
+  thick: 0.4,
+  band: 0.44,
+}
+
+/**
+ * The fin under each arm, swept aft and cut square: its outline in (x, y)
+ * (root fore, leading edge's foot, trailing edge's foot, root aft), how
+ * thick it is, and how far it is canted outboard (radians, about x through
+ * the arm's centre line at y = 0). It prints apart, slid into a slit in
+ * the arm and glued.
+ */
+export const MANTIS_ARM_FIN = {
+  points: [
+    [2.7, -0.72],
+    [0.25, -1.75],
+    [-0.45, -1.75],
+    [-1.7, -0.72],
+  ] as [number, number][],
   thick: 0.09,
-  band: 0.13,
+  cant: 0.22,
+  z: ARM_Z,
 }
 
 export function buildMantis(body: Group, put: Put, m: MantisInk) {
@@ -370,10 +389,9 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     for (const x of [-0.8, 0.7, 2.0, 2.8]) box([0.14, 0.8, 0.1], [x, 0, inboard], m.steel)
     // A fin beneath, swept aft and cut square, canted a little outboard, with
     // a pale band down its leading edge standing a hair proud of it.
-    const cant: Vec3 = [-s * 0.22, 0, 0]
-    const root: [number, number] = [2.7, -0.72]
-    const lead: [number, number] = [0.25, -1.75]
-    fin([root, lead, [-0.45, -1.75], [-1.7, -0.72]], 0.09, z, m.hull, cant)
+    const cant: Vec3 = [-s * MANTIS_ARM_FIN.cant, 0, 0]
+    const [root, lead] = MANTIS_ARM_FIN.points
+    fin(MANTIS_ARM_FIN.points, MANTIS_ARM_FIN.thick, z, m.hull, cant)
     fin(
       [
         [root[0] + 0.015, root[1] + 0.005],

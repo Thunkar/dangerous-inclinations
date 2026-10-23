@@ -47,19 +47,31 @@ interface Side {
   chamfered: boolean;
 }
 
-/** The whole outline, clockwise from the stern's port corner, and its sides. */
-function sides(): Side[] {
+/** A closed outline, clockwise (the inside on the right), and which of its sides are chamfered: side i runs from pts[i] to pts[i + 1]. */
+export interface Plan {
+  pts: Point[];
+  chamfered: boolean[];
+}
+
+/** The ship token's plan: the port half and its mirror, clockwise from the stern's port corner. */
+export function shipPlan(): Plan {
   const pts: Point[] = [...PORT, ...[...PORT].reverse().map(([x, y]) => [x, -y] as Point)];
+  // Port sides by index; a starboard side is the mirror of port side (2 * PORT.length - 2 - i).
+  const chamfered = pts.map((_, i) => {
+    const port = i < PORT.length - 1 ? i : i >= PORT.length && i < 2 * PORT.length - 1 ? 2 * PORT.length - 2 - i : -1;
+    return CHAMFERED.includes(port);
+  });
+  return { pts, chamfered };
+}
+
+function sides({ pts, chamfered }: Plan): Side[] {
   const n = pts.length;
   return pts.map((p, i) => {
     const q = pts[(i + 1) % n];
     const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
     const d: Point = [(q[0] - p[0]) / l, (q[1] - p[1]) / l];
-    // Clockwise: the inside is on the right.
     const nn: Point = [d[1], -d[0]];
-    // Port sides by index; a starboard side is the mirror of port side (2 * PORT.length - 2 - i).
-    const port = i < PORT.length - 1 ? i : i >= PORT.length && i < 2 * PORT.length - 1 ? 2 * PORT.length - 2 - i : -1;
-    return { d, n: nn, c: nn[0] * p[0] + nn[1] * p[1], chamfered: CHAMFERED.includes(port) };
+    return { d, n: nn, c: nn[0] * p[0] + nn[1] * p[1], chamfered: chamfered[i] };
   });
 }
 
@@ -87,9 +99,8 @@ function lengthAt(active: Side[], i: number, inset: number): number {
  * chamfer): one at each inset where a side shrinks away, taken a hair before
  * it goes and again just after, without it.
  */
-function stages(): { inset: number; outline: Point[] }[] {
-  const full = TOKEN.chamfer;
-  let active = sides();
+function stages(plan: Plan, full: number): { inset: number; outline: Point[] }[] {
+  let active = sides(plan);
   let at = 0;
   const out: { inset: number; outline: Point[] }[] = [{ inset: 0, outline: outlineAt(active, 0) }];
   for (;;) {
@@ -118,11 +129,8 @@ function stages(): { inset: number; outline: Point[] }[] {
 }
 
 /** One chamfered band, bottom (z from 0) or top (z to the thickness). */
-function band(top: boolean): Solid[] {
-  const t = TOKEN.thickness;
-  const d = TOKEN.chamfer;
+function band(s: { inset: number; outline: Point[] }[], t: number, d: number, top: boolean): Solid[] {
   const z = (inset: number) => (top ? t - d + inset : d - inset);
-  const s = stages();
   const pieces: Solid[] = [];
   for (let k = 0; k + 1 < s.length; k++) {
     if (s[k].inset === s[k + 1].inset) continue;
@@ -136,9 +144,13 @@ function band(top: boolean): Solid[] {
   return pieces;
 }
 
+/** A slab of `plan`, `t` thick, its chamfered sides cut at 45 degrees by `d` top and bottom. */
+export function slab(plan: Plan, t: number, d: number): Solid {
+  const s = stages(plan, d);
+  const middle = move(prism(s[0].outline, t - 2 * d), 0, 0, d);
+  return fuse(middle, ...band(s, t, d, false), ...band(s, t, d, true));
+}
+
 export function buildToken(): Solid {
-  const t = TOKEN.thickness;
-  const d = TOKEN.chamfer;
-  const middle = move(prism(stages()[0].outline, t - 2 * d), 0, 0, d);
-  return fuse(middle, ...band(false), ...band(true));
+  return slab(shipPlan(), TOKEN.thickness, TOKEN.chamfer);
 }

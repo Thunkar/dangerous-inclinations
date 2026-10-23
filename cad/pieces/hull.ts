@@ -7,9 +7,9 @@
 // their own), the bed is the hull's flat bottom, the mounts are cut to the
 // printed interface with a slot up to each magnet from the bed (the magnet
 // slides in from under the hull and a plug printed apart closes it), and the
-// stand gets a socket. Anything that hangs below the bed (the shrike's
-// blade, the mantis's fins) prints as a piece of its own, upside down on the
-// cut, and is glued on.
+// stand gets a socket. Anything that hangs below the bed prints as a piece
+// of its own: the shrike's blade and the mantis's keel fin top their stands,
+// and the mantis's arm fins print flat and slide into slits in the arms.
 import { fuse, subtract } from "fluidcad/core";
 import { Box3, Matrix4, Vector3, type Object3D } from "three";
 import { DEFAULT_SHIP_APPEARANCE, type Hull } from "@dangerous-inclinations/engine";
@@ -17,11 +17,30 @@ import { createShip, type ShipModel } from "../../ui/src/ships/model.ts";
 import { DEFAULT_CONFIG, MOUNTS as GAME_MOUNTS, type MountId } from "../../ui/src/ships/config.ts";
 import { placedSolids, type PlacedSolid } from "../../ui/src/ships/solid.ts";
 import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
+import { MANTIS_ARM_FIN, MANTIS_FIN } from "../../ui/src/ships/mantis.ts";
 import { mountFace } from "../../ui/src/ships/mountShape.ts";
 import { MOUNT, STAND, FDM, PRINT } from "../spec.ts";
 import { printFrame, placeSolid, placeBuilt, uniteAlong } from "../lib/kit.ts";
-import { block, disc, move, taper, turn, type Solid, type Vec } from "../lib/solids.ts";
-import { recessTool, pocketTool, plugTool, seatRise, socketBounds, type Mount } from "../lib/mount.ts";
+import {
+  block,
+  disc,
+  move,
+  prism,
+  section,
+  taper,
+  turn,
+  type Point,
+  type Solid,
+  type Vec,
+} from "../lib/solids.ts";
+import {
+  recessTool,
+  pocketTool,
+  plugTool,
+  seatRise,
+  socketBounds,
+  type Mount,
+} from "../lib/mount.ts";
 
 const S = PRINT.mmPerUnit;
 
@@ -52,13 +71,14 @@ export const HULL_PRINT: Record<
   },
   // The blade is the stand's: the hull sits on it on the filament pins.
   shrike: { bed: HULL_INFO.shrike.keel, socket: null, pins: [-0.2, 0.9], carried: true },
-  // The stand grips the keel fin under the core, as the shrike's its blade.
-  // The arm fins hang below the arms, too thin for pins.
+  // The keel fin under the core is the stand's, as the shrike's blade is,
+  // and the hull sits on it by the fin's tongue in a slit; the arm fins
+  // slide into slits of their own and are glued (`slitFins`).
   mantis: {
     bed: HULL_INFO.mantis.keel,
     socket: null,
     pins: [],
-    carried: false,
+    carried: true,
   },
 };
 
@@ -72,8 +92,7 @@ export function shipModel(hull: Hull): ShipModel {
  * picked, not part of the ship).
  */
 const onHull = (p: PlacedSolid) =>
-  p.material !== "highlight" &&
-  !p.path.some((n) => n.startsWith("module_"));
+  p.material !== "highlight" && !p.path.some((n) => n.startsWith("module_"));
 
 /** An object's matrix relative to the ship's root. */
 function inShip(object: Object3D, root: Object3D): Matrix4 {
@@ -105,6 +124,27 @@ function mountFrame(model: ShipModel, frame: Matrix4, id: MountId): Matrix4 {
 function magnetAt(m: Matrix4, mount: Mount = MOUNT): Vector3 {
   const t = mount.magnet.thickness + mount.magnetClearance;
   return new Vector3(0, 0, -mount.recessDepth - mount.skin - t / 2).applyMatrix4(m);
+}
+
+/**
+ * Where each magnet's slot opens in the bed (mm, the print's x and y): the
+ * magnet's outline seen from below, as wide as the slot is cut.
+ */
+function magnetSlots(hull: Hull, mount: Mount = MOUNT): Box3[] {
+  const model = shipModel(hull);
+  const frame = printFrame(HULL_PRINT[hull].bed);
+  const a = (mount.magnet.diameter + mount.magnetClearance) / 2;
+  const b = (mount.magnet.thickness + mount.magnetClearance) / 2;
+  const z = -mount.recessDepth - mount.skin - b;
+  return GAME_MOUNTS.map(({ id }) => {
+    const m = mountFrame(model, frame, id);
+    const box = new Box3();
+    for (const x of [-a, a])
+      for (const dz of [-b, b]) box.expandByPoint(new Vector3(x, 0, z + dz).applyMatrix4(m));
+    box.min.z = -FAR;
+    box.max.z = FAR;
+    return box;
+  });
 }
 
 /** What closes a hull's magnet slots, bottom up in each: a plug from the bed, then a spacer between two magnets in one slot. */
@@ -280,7 +320,10 @@ function cutAndUnite(pieces: Piece[], cuts: Cut[]): Solid {
       .getSize(new Vector3())
       .toArray()
       .reduce((a, n) => a * n, 1);
-  const core = loose.reduce((best, p, i) => (volume(p.box) > volume(loose[best].box) ? i : best), 0);
+  const core = loose.reduce(
+    (best, p, i) => (volume(p.box) > volume(loose[best].box) ? i : best),
+    0
+  );
   return uniteAlong(loose, core);
 }
 
@@ -292,6 +335,205 @@ function pinCuts(hull: Hull, up: boolean): Cut[] {
       box: boxOf([lo, hi], new Matrix4()),
       make: () => move(disc(PIN.diameter, PIN.depth + 0.01), x * S, 0, up ? -0.01 : -PIN.depth),
     };
+  });
+}
+
+/**
+ * A flat fin that hangs below the bed and slides into a slit in the hull:
+ * its outline in the game's (x, y), its thickness, its cant (radians about
+ * x, through y = 0) and its z, as the yard draws it. It prints with a
+ * tongue along its root that reaches up into the slit.
+ */
+export interface SlitFin {
+  points: [number, number][];
+  thick: number;
+  cant: number;
+  z: number;
+  /** How far its tongue reaches up into the hull (mm), the room its slit leaves round the fin's thickness, and the tongue's own play in it. */
+  deep: number;
+  room: number;
+  play: number;
+}
+
+/**
+ * A fin's tongue (how deep it reaches and the room round it are the fin's
+ * own: a glued fin's are looser than one the hull only sits on): how far
+ * into the fin it starts, how far short of the fin's
+ * ends at the bed it stops, the slit roof's half-angle off the fin's plane
+ * (steep enough that a canted fin's slit still has a roof that prints), the
+ * wall it leaves round a magnet's slot (the tongue steps over the plug, and
+ * the fin is glued across the plug's foot), and its shortest run.
+ */
+const TONGUE = { into: 0.5, end: 0.8, roof: 30, clear: 1.2, shortest: 3 };
+
+/** The fins that slide into slits: under the arms (glued) and the keel (the stand's). */
+export function slitFins(hull: Hull): { arms: SlitFin[]; keel: SlitFin | null } {
+  if (hull !== "mantis") return { arms: [], keel: null };
+  const { points, thick, cant, z } = MANTIS_ARM_FIN;
+  const { root, bottom, fore, lead, trail, aft } = MANTIS_FIN;
+  return {
+    // Glued: a loose slit takes the glue.
+    arms: [-1, 1].map((s) => ({ points, thick, cant: -s * cant, z: s * z, deep: 3, room: 0.1, play: 0.1 })),
+    keel: {
+      points: [
+        [fore, root],
+        [lead, bottom],
+        [trail, bottom],
+        [aft, root],
+      ],
+      // The slit is the one printed hulls have, cut for a fin 0.09 thick;
+      // the fin under it is the stand's and as thick as the game draws it,
+      // and the hull sits on its root. Its tongue plays less in the slit
+      // than a glued fin's.
+      thick: 0.09,
+      cant: 0,
+      z: 0,
+      deep: 3,
+      room: 0.1,
+      play: 0.05,
+    },
+  };
+}
+
+/** A fin's own frame, in mm (x along the ship, y up its plane, z through it), into the hull's print. */
+function finFrame(hull: Hull, f: SlitFin): Matrix4 {
+  return printFrame(HULL_PRINT[hull].bed)
+    .multiply(new Matrix4().makeTranslation(0, 0, f.z))
+    .multiply(new Matrix4().makeRotationX(f.cant))
+    .multiply(new Matrix4().makeScale(1 / S, 1 / S, 1 / S));
+}
+
+/**
+ * Where a fin meets the hull, in its own frame (mm): the bed's height up its
+ * plane, the height its tongue starts at (inside the fin, which may stop a
+ * hair under the bed), the tongue's ends along it and the fin's printed
+ * thickness.
+ */
+function tongueOf(hull: Hull, f: SlitFin) {
+  const pts = f.points.map(([x, y]): Point => [x * S, y * S]);
+  const bed = (HULL_INFO[hull].keel * S) / Math.cos(f.cant);
+  const top = Math.max(...pts.map(([, y]) => y));
+  const at = Math.min(bed, top - 0.01);
+  const xs: number[] = [];
+  pts.forEach((a, i) => {
+    const b = pts[(i + 1) % pts.length];
+    if ((a[1] - at) * (b[1] - at) <= 0 && a[1] !== b[1])
+      xs.push(a[0] + ((at - a[1]) * (b[0] - a[0])) / (b[1] - a[1]));
+  });
+  const thick = f.thick * S + 2 * FDM.join;
+  // Along the root, less the stretches where a magnet's slot opens under
+  // the slit (with a wall round it).
+  const slit = new Box3()
+    .expandByPoint(new Vector3(-FAR, bed, -thick / 2 - 1).applyMatrix4(finFrame(hull, f)))
+    .expandByPoint(
+      new Vector3(FAR, bed + f.deep, thick / 2 + 1).applyMatrix4(finFrame(hull, f))
+    );
+  let spans: [number, number][] = [[Math.min(...xs) + TONGUE.end, Math.max(...xs) - TONGUE.end]];
+  for (const slot of magnetSlots(hull)) {
+    if (slot.max.y < slit.min.y || slot.min.y > slit.max.y) continue;
+    const [lo, hi] = [slot.min.x - TONGUE.clear, slot.max.x + TONGUE.clear];
+    spans = spans.flatMap(([a, b]): [number, number][] =>
+      hi <= a || lo >= b
+        ? [[a, b]]
+        : (
+            [
+              [a, lo],
+              [hi, b],
+            ] as [number, number][]
+          ).filter(([p, q]) => q > p)
+    );
+  }
+  spans = spans.filter(([a, b]) => b - a >= TONGUE.shortest);
+  return { pts, bed, from: at - TONGUE.into, spans, thick };
+}
+
+/** The tongue, in the fin's own frame: strips along the root from inside the fin up into the hull, filling its slit but for the tongue's play. */
+function tongueSolids(hull: Hull, f: SlitFin): Solid[] {
+  const t = tongueOf(hull, f);
+  const grow = f.room - f.play;
+  const half = t.thick / 2 + grow;
+  return t.spans.map(([x0, x1]) => block([x0 - grow, t.from, -half], [x1 + grow, t.bed + f.deep + grow, half]));
+}
+
+/** The slits a fin's tongue slides into, cut in the hull: each strip and its room, open at the bed, its roof a V. */
+function slitCuts(hull: Hull, f: SlitFin): Cut[] {
+  const t = tongueOf(hull, f);
+  const w = t.thick / 2 + f.room;
+  const [lo, hi] = [t.bed - 1.5, t.bed + f.deep + f.room];
+  const apex = hi + w / Math.tan((TONGUE.roof * Math.PI) / 180);
+  const m = finFrame(hull, f);
+  return t.spans.map(([a, b]) => {
+    const [x0, x1] = [a - f.room, b + f.room];
+    return {
+      box: boxOf(
+        [
+          [x0, lo, -w],
+          [x1, apex, w],
+        ],
+        m
+      ),
+      make: () =>
+        placeBuilt(
+          move(
+            section(
+              [
+                [lo, -w],
+                [hi, -w],
+                [apex, 0],
+                [hi, w],
+                [lo, w],
+              ],
+              x1 - x0
+            ),
+            x0,
+            0,
+            0
+          ),
+          m
+        ),
+    };
+  });
+}
+
+/** The keel fin under the hull as the stand carries it: the game's fin, band and all, below the bed, and its tongue. */
+export function buildKeelFin(hull: Hull): Solid | null {
+  const fin = slitFins(hull).keel;
+  if (!fin) return null;
+  const frame = printFrame(HULL_PRINT[hull].bed);
+  const pieces = piecesOf(shipModel(hull), frame).filter(
+    (p) => p.box.max.z < 0.5 && p.box.min.z < -2 && Math.abs((p.box.min.y + p.box.max.y) / 2) < 5
+  );
+  const blade = cutAndUnite(pieces, [
+    {
+      box: boxOf(ABOVE, new Matrix4()),
+      make: () => block(...ABOVE),
+      swallows: (b) => b.min.z >= -1.3,
+    },
+  ]);
+  return fuse(blade, ...tongueSolids(hull, fin).map((s) => placeBuilt(s, finFrame(hull, fin))));
+}
+
+/** A fin cut at the bed with its tongue, lying flat in its own frame (the fin's plane on the bed). */
+function flatFin(hull: Hull, f: SlitFin): Solid {
+  const t = tongueOf(hull, f);
+  const plate = subtract(
+    move(prism(t.pts, t.thick), 0, 0, -t.thick / 2),
+    block([-200, t.bed, -10], [200, 200, 10])
+  );
+  return fuse(plate, ...tongueSolids(hull, f));
+}
+
+/** The arm fins under the hull where they are glued, tongues in their slits: for the viewer. */
+export function placeArmFins(hull: Hull): Solid[] {
+  return slitFins(hull).arms.map((f) => placeBuilt(flatFin(hull, f), finFrame(hull, f)));
+}
+
+/** The arm fins as they print: lying flat side by side, tongue and all. */
+export function buildArmFins(hull: Hull): Solid[] {
+  return slitFins(hull).arms.map((f, i) => {
+    const t = tongueOf(hull, f);
+    // Flat: its own z (the thickness) up from the bed.
+    return move(flatFin(hull, f), 0, i * 14 - Math.min(...t.pts.map(([, y]) => y)), t.thick / 2);
   });
 }
 
@@ -317,9 +559,14 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): Solid {
       new Vector3(-mount.halfLength, -mount.halfHeight, -mount.recessDepth),
       new Vector3(mount.halfLength, mount.halfHeight, mount.recessReach + 1)
     );
+    // The bow's recess is cut again a sag higher: its roof prints as a bridge.
+    const sag = id === "forward-0" ? mount.bowSag : 0;
     cuts.push({
-      box,
-      make: () => placeBuilt(recessTool(mount), m),
+      box: box.clone().expandByVector(new Vector3(0, 0, sag)),
+      make: () => {
+        const cut = placeBuilt(recessTool(mount), m);
+        return sag ? fuse(cut, move(placeBuilt(recessTool(mount), m), 0, 0, sag)) : cut;
+      },
       swallows: (b) => recess.containsBox(b.clone().applyMatrix4(local)),
     });
     cuts.push({ box, make: () => placeBuilt(pocketTool(mount, drop), m) });
@@ -327,6 +574,8 @@ export function buildHull(hull: Hull, mount: Mount = MOUNT): Solid {
   const socket = HULL_PRINT[hull].socket;
   if (socket) cuts.push(...socketCuts(socket.x * S, socket.peg, socket.depth));
   cuts.push(...pinCuts(hull, true));
+  const { arms, keel } = slitFins(hull);
+  for (const fin of [...arms, ...(keel ? [keel] : [])]) cuts.push(...slitCuts(hull, fin));
   cuts.push({
     box: boxOf(BELOW, new Matrix4()),
     make: () => block(...BELOW),

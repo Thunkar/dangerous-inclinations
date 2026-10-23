@@ -37,6 +37,7 @@ import { useRoutePlanOptional } from '../../context/RoutePlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { TABLE } from '../../theme'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
+import { STATION_BERTHS } from '../../ships/station'
 import {
   crowdOffset,
   facingAngle,
@@ -64,6 +65,13 @@ export interface ShipToken {
    * `geometry.crowdOffset` turns it into the radial nudge each board applies.
    */
   crowd: { index: number; count: number }
+  /**
+   * The station berth a moored ship rides on (its place in the crowd on the
+   * station's sector), or null: off a station, or one more than it has
+   * berths, when it stands in its crowd's place instead. Only the 3D board
+   * draws berths; the flat one keeps the crowd.
+   */
+  berth: number | null
   /**
    * The Escort markers sitting on this ship, one per marking player, in seat
    * order: public, face-up on the table (RULES §Missions, Escort).
@@ -119,16 +127,20 @@ export interface StationMarker {
    * item from a player, once per game (`PlayerView.soldAt`).
    */
   soldBy: StationSeller[]
+  /** Set while the station makes its step; renderers interpolate. */
+  motion?: WreckMotion
 }
 
 export function stationMarkers(
   stations: readonly Station[],
-  sellers: ReadonlyArray<StationSeller & { soldAt: readonly string[] }> = []
+  sellers: ReadonlyArray<StationSeller & { soldAt: readonly string[] }> = [],
+  motions: Readonly<Record<string, WreckMotion>> = {}
 ): StationMarker[] {
   return stations.map(station => ({
     id: station.id,
     planetId: station.planetId,
     position: stationPosition(station),
+    motion: motions[station.id],
     soldBy: sellers
       .filter(s => s.soldAt.includes(station.planetId))
       .map(({ playerId, name, color }) => ({ playerId, name, color })),
@@ -333,7 +345,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
         ids.includes(p.id) ? [{ playerId: p.id, name: p.name, color: getPlayerColor(index) }] : []
       )
     }
-    const tokens = view.players.flatMap<Omit<ShipToken, 'crowd'>>((player, index) => {
+    const tokens = view.players.flatMap<Omit<ShipToken, 'crowd' | 'berth'>>((player, index) => {
       const live = overlay?.ships[player.id]
       const publicShip = player.ship
       if (!live && !publicShip) return []
@@ -362,11 +374,18 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     })
     // Sharing is read off the resting positions, never off a slide: a token
     // half-way round the ring still belongs to the sector it is heading for.
+    const moorings = (overlay?.stations ?? view.stations).map(stationPosition)
     return tokens.map(token => {
       const sharing = tokens.filter(other => samePosition(other.position, token.position))
-      return { ...token, crowd: { index: sharing.indexOf(token), count: sharing.length } }
+      const index = sharing.indexOf(token)
+      const moored = moorings.some(at => samePosition(at, token.position))
+      return {
+        ...token,
+        crowd: { index, count: sharing.length },
+        berth: moored && index < STATION_BERTHS.length ? index : null,
+      }
     })
-  }, [view.players, overlay])
+  }, [view.players, view.stations, overlay])
 
   /**
    * A token per wreck, numbered among the wrecks on its sector and told how
@@ -436,9 +455,10 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
           name: p.name,
           color: getPlayerColor(index),
           soldAt: p.soldAt,
-        }))
+        })),
+        overlay?.stationMotions
       ),
-    [liveStations, view.players]
+    [liveStations, view.players, overlay?.stationMotions]
   )
   const liveMissiles = overlay?.missiles ?? view.missiles
   /**

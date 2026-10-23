@@ -69,8 +69,8 @@ const SEATS: FixtureSeat[] = [
   },
   {
     // Moored at Alpha's station, which is the one arrangement the board has to
-    // get right that no other fixture shows: a hull parked under the station's
-    // deck rather than beside it.
+    // get right that no other fixture shows: a hull riding on a berth's
+    // clamp rather than standing in its sector.
     playerId: 'p3',
     name: 'Vagrant',
     position: ALPHA_BERTH,
@@ -146,7 +146,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     playerId === 'p1'
       ? ['p2', 'p5'].map(id => ({ playerId: id, name: nameOf(id), color: colorOf(id) }))
       : []
-  const tokens: Omit<ShipToken, 'crowd' | 'escorts'>[] = [
+  const tokens: Omit<ShipToken, 'crowd' | 'escorts' | 'berth'>[] = [
     {
       playerId: 'p1',
       name: 'Aurora',
@@ -243,6 +243,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
       ...token,
       escorts: escortsOn(token.playerId),
       crowd: { index: sharing.indexOf(token), count: sharing.length },
+      berth: samePosition(token.position, ALPHA_BERTH) ? sharing.indexOf(token) : null,
     }
   })
 

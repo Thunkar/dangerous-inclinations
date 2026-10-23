@@ -2,8 +2,8 @@
 // into the base's socket (keyed, so the ship faces the bow), a column, and
 // at its top what holds that hull. The corvette takes a peg in the socket
 // under its core; the shrike's stand carries its blade, and the hull sits on
-// it on filament pins, unglued; the mantis's belly
-// stands on its head with the keel fin under the core dropped into a slot.
+// it on filament pins, unglued; the mantis's stand carries its keel fin, and
+// the hull sits on it by the fin's tongue in a slit in the core, unglued.
 // Every hull's keel stands level with the top of the shrike's blade, with a
 // hand's room over the deck to move cubes, and the corvette's and the mantis's
 // columns lean to put the ship's middle over the deck's (the socket is aft of
@@ -14,18 +14,16 @@ import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
 import { SHRIKE_BLADE } from "../../ui/src/ships/shrike.ts";
 import { MANTIS_FIN } from "../../ui/src/ships/mantis.ts";
 import { FDM, PRINT } from "../spec.ts";
-import { block, prism, move, taper, turn, type Point, type Solid } from "../lib/solids.ts";
+import { block, prism, move, section, taper, turn, type Point, type Solid } from "../lib/solids.ts";
 import { Box3, Vector3 } from "three";
 import { placedSolids } from "../../ui/src/ships/solid.ts";
 import { printFrame } from "../lib/kit.ts";
-import { HULL_PRINT, buildBelow, shipModel } from "./hull.ts";
+import { HULL_PRINT, buildBelow, buildKeelFin, shipModel } from "./hull.ts";
 import { SOCKET, socketOutline, socketTaper, deckTop, deckMiddle } from "./base.ts";
 
 const S = PRINT.mmPerUnit;
 /** The column, inside the socket's outline. */
 const COLUMN = { long: 12, wide: 8 };
-/** Room round what a stand holds, beyond the print's own growth. */
-const FIT = 0.15;
 
 /** How far the shrike's blade's bottom stands off the deck, mm: its edges run on down to it. */
 const BLADE_RISE = 8;
@@ -44,10 +42,8 @@ function bladeEdge(edge: "lead" | "trail", y: number): number {
 
 /** How far the shrike's blade hangs below its keel, mm. */
 const BLADE_DROP = (HULL_INFO.shrike.keel - SHRIKE_BLADE.bottom) * S;
-/** How far the mantis's keel fin hangs below its keel, mm. */
-const FIN_DROP = (HULL_INFO.mantis.keel - MANTIS_FIN.bottom) * S;
-/** The mantis stand's head under the belly, mm: its length, its width (the column's) and its floor under the slot. */
-const BELLY = { long: 14, wide: COLUMN.wide, floor: 3 };
+/** The mantis stand's web under its keel fin: how thick it is where it stands on the column, mm. */
+const WEB = { thick: 6 };
 
 /** The middle of the hull's length as it prints (mm, its print's x), modules and all. */
 function middleOf(hull: Hull): number {
@@ -92,24 +88,9 @@ function peg(hull: Hull, bed: number, x: number): Solid {
   return block([x - side / 2, -side / 2, bed - 0.01], [x + side / 2, side / 2, bed + depth - 0.5]);
 }
 
-/**
- * A block [x0, x1] x [y0, y1] from z0 to z1 that the column carries: under
- * it a flare at 45 degrees down to the column, so it has no shelf to print.
- */
-function head([x0, x1]: [number, number], [y0, y1]: [number, number], z0: number, z1: number): Solid {
-  const rise = Math.max(x1 - x0 - COLUMN.long, y1 - y0 - COLUMN.wide) / 2;
-  const outline: Point[] = [
-    [x0, y0],
-    [x1, y0],
-    [x1, y1],
-    [x0, y1],
-  ];
-  // Turned over about x the flare would land at -y; it is symmetric in y, and
-  // its outline is centred on (cx, 0) before the turn.
-  const cx = (x0 + x1) / 2;
-  const centred: Point[] = outline.map(([x, y]) => [x - cx, y]);
-  const flare = move(turn(taper(centred, rise), "x", 180), cx, 0, z0 + 0.01);
-  return fuse(flare, block([x0, y0, z0], [x1, y1, z1]));
+/** A sheet in the (x, z) plane, `t` either side of y = 0. */
+function sheet(pts: Point[], t: number): Solid {
+  return move(turn(prism(pts, 2 * t), "x", 90), 0, t, 0);
 }
 
 /** The stand for `hull`, in the base's frame: its axis on z, the deck at deckTop(). */
@@ -117,16 +98,16 @@ export function buildStand(hull: Hull): Solid {
   const deck = deckTop();
   const { bed, at, head: hx } = standOf(hull);
   const tenon = socketTaper(socketOutline(-SOCKET.fit), deck + 0.01, SOCKET.depth - SOCKET.room + 0.01);
-  // The column, from the socket to the head, leaning to it if the head stands off the socket.
-  const column = (to: number) => {
-    if (!hx) return block([-COLUMN.long / 2, -COLUMN.wide / 2, deck], [COLUMN.long / 2, COLUMN.wide / 2, to + 0.01]);
+  // The column, from the socket up to `to`, leaning to stand under x there.
+  const column = (to: number, x = hx) => {
+    if (!x) return block([-COLUMN.long / 2, -COLUMN.wide / 2, deck], [COLUMN.long / 2, COLUMN.wide / 2, to + 0.01]);
     const rise = to + 0.01 - deck;
-    if (Math.abs(hx) > rise) throw new Error(`The ${hull} stand leans past 45 degrees`);
+    if (Math.abs(x) > rise) throw new Error(`The ${hull} stand leans past 45 degrees`);
     const profile: Point[] = [
       [-COLUMN.long / 2, 0],
       [COLUMN.long / 2, 0],
-      [COLUMN.long / 2 + hx, rise],
-      [-COLUMN.long / 2 + hx, rise],
+      [COLUMN.long / 2 + x, rise],
+      [-COLUMN.long / 2 + x, rise],
     ];
     // Drawn in (x, z) and pulled along y: a quarter turn about x stands it up.
     return move(turn(prism(profile, COLUMN.wide), "x", 90), 0, COLUMN.wide / 2, deck);
@@ -135,22 +116,46 @@ export function buildStand(hull: Hull): Solid {
     case "corvette":
       return fuse(tenon, column(bed), peg(hull, bed, hx));
     case "mantis": {
-      // A head the belly stands on, flat at the keel, with a slot through
-      // it the fin drops into, open at both ends.
-      const half = (MANTIS_FIN.band * S) / 2 + FDM.join + FIT;
-      const z0 = bed - FIN_DROP - BELLY.floor;
-      const top = head(
-        [hx - BELLY.long / 2, hx + BELLY.long / 2],
-        [-BELLY.wide / 2, BELLY.wide / 2],
-        z0,
-        bed
+      // The keel fin is the stand's, and the hull sits on it by the fin's
+      // tongue in a slit in the core, unglued. Under the fin's swept leading
+      // edge a web in the fin's plane reaches down at 50 degrees, thickening
+      // as it goes, to a ridge on the column, which leans to stand under it.
+      const shift = hx - at;
+      const fin = move(buildKeelFin("mantis")!, shift, 0, bed);
+      const X = (x: number) => x * S + shift;
+      const Z = (y: number) => bed + (y - HULL_INFO.mantis.keel) * S;
+      const { fore, lead, trail, root, bottom, band } = MANTIS_FIN;
+      const F: Point = [X(fore), Z(root)];
+      const L: Point = [X(lead), Z(bottom)];
+      const T: Point = [X(trail), Z(bottom)];
+      const xc = (L[0] + T[0]) / 2;
+      const front = xc + COLUMN.long / 2 - 0.5;
+      const ridge = F[1] - (F[0] - front) / Math.tan((40 * Math.PI) / 180);
+      const thin = (band * S) / 2 + FDM.join;
+      const thick = WEB.thick / 2;
+      let web = sheet([F, [front, ridge], [T[0], ridge], T, L], thick + 1);
+      const slope = (Math.atan((thick - thin) / (F[1] - ridge)) * 180) / Math.PI;
+      for (const s of [-1, 1]) {
+        const away = block([-200, s > 0 ? 0 : -200, -200], [200, s > 0 ? 200 : 0, 200]);
+        web = subtract(web, move(turn(away, "x", s * slope), 0, s * thin, F[1]));
+      }
+      // The column's top is a ridge as wide as the web where it stands, its sides at 45 degrees.
+      const eave = ridge - (COLUMN.wide / 2 - thick);
+      const roof = move(
+        section(
+          [
+            [-COLUMN.wide / 2, eave - 0.01],
+            [COLUMN.wide / 2, eave - 0.01],
+            [thick, ridge + 0.01],
+            [-thick, ridge + 0.01],
+          ],
+          COLUMN.long
+        ),
+        xc - COLUMN.long / 2,
+        0,
+        0
       );
-      const slot = block(
-        [hx - BELLY.long / 2 - 1, -half, bed - FIN_DROP - FIT],
-        [hx + BELLY.long / 2 + 1, half, bed + 1]
-      );
-      const rise = (BELLY.long - COLUMN.long) / 2;
-      return fuse(tenon, column(z0 - rise), subtract(top, slot));
+      return fuse(tenon, column(eave, xc), roof, web, fin);
     }
     case "shrike": {
       // The blade is the stand's, and the hull sits on it on filament pins in
@@ -175,7 +180,6 @@ export function buildStand(hull: Hull): Solid {
       const lead0 = edge("lead", z0);
       const foot = Math.min(lead0, reach);
       const meet = (lead0 - foot) / (1 - (edge("lead", z0 + 1) - lead0));
-      const sheet = (pts: Point[], t: number) => move(turn(prism(pts, 2 * t), "x", 90), 0, t, 0);
       const fore = (back: number): Point[] => [
         [back, z0],
         [foot, z0],

@@ -204,6 +204,7 @@ export function RoutePlannerTool() {
           position: from,
           facing,
           crowd: { index: 0, count: 1 },
+          berth: null,
           escorts: [],
           isActive: true,
           isMe: true,

@@ -21,7 +21,13 @@ import type {
   Subsystem,
   WeaponType,
 } from '@dangerous-inclinations/engine'
-import { BURN_COSTS, HOME_RING, positionOf, samePosition } from '@dangerous-inclinations/engine'
+import {
+  BURN_COSTS,
+  HOME_RING,
+  positionOf,
+  samePosition,
+  stationPosition,
+} from '@dangerous-inclinations/engine'
 import { TABLE } from '../design/tokens'
 import { BASE_CRIT, SENSOR_CRIT } from '../site/numbers'
 import { weaponReach } from '../components/board/reach'
@@ -199,14 +205,15 @@ export interface ShipMotion {
   /**
    * What set the ship moving. A jump can be read off the wells, but a burn
    * and a coast end up in the same sector by different means: the 3D board
-   * flares an engine for one and not the other.
+   * flares an engine for one and not the other. A ride is a moored ship
+   * carried round by its station's step, on its berth the whole way.
    */
-  kind: 'coast' | 'burn' | 'jump' | 'recoil'
+  kind: 'coast' | 'burn' | 'jump' | 'recoil' | 'ride'
   start: number
   duration: number
 }
 
-/** A wreck drifting with the stations' step: it slides along its ring from `from`. */
+/** A wreck drifting with the stations' step, or a station making it: it slides along its ring from `from`. */
 export interface WreckMotion {
   from: Position
   start: number
@@ -238,6 +245,8 @@ export interface BoardOverlay {
   missiles: Missile[]
   stations: Station[]
   wrecks: { id: string; position: Position; motion?: WreckMotion }[]
+  /** Each station's slide in the step it last made, by id. */
+  stationMotions: Record<string, WreckMotion>
   /** Carrier id to the ids of the players whose Escort markers sit on it. */
   escorts: Record<string, string[]>
 }
@@ -353,6 +362,7 @@ export function snapshotOf(view: GameView): BoardOverlay {
     ships,
     missiles: view.missiles,
     stations: view.stations,
+    stationMotions: {},
     wrecks: view.wrecks.map(w => ({
       id: w.id,
       position: positionOf(w),
@@ -913,6 +923,25 @@ export function eventToBeat(
         float(event.playerId, SKIPPED[event.action], 'miss', FLOAT.short)
         return BEAT.small
       case 'stations_moved': {
+        // The stations slide a step along their rings, carrying their berths.
+        const before = new Map(board.stations.map(st => [st.id, st]))
+        board.stationMotions = Object.fromEntries(
+          next.stations.flatMap(st => {
+            const was = before.get(st.id)
+            return was && was.sector !== st.sector
+              ? [
+                  [
+                    st.id,
+                    {
+                      from: stationPosition(was),
+                      start: clock.now,
+                      duration: BEAT.move / clock.tempo,
+                    },
+                  ],
+                ]
+              : []
+          })
+        )
         board.stations = next.stations
         // Wrecks drift in the same step, each by its own ring's speed: they
         // slide along the ring to where the event says they are.
@@ -935,7 +964,7 @@ export function eventToBeat(
         // along with it rather than letting them snap at the end.
         for (const riderId of event.riders) {
           const rider = next.players.find(p => p.id === riderId)?.ship
-          if (rider) moveShip(riderId, positionOf(rider), 'coast')
+          if (rider) moveShip(riderId, positionOf(rider), 'ride')
         }
         return event.riders.length > 0 || drifting ? BEAT.move : BEAT.small
       }

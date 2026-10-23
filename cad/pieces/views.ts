@@ -2,7 +2,7 @@
 import type { Hull } from "@dangerous-inclinations/engine";
 import { move, turn } from "../lib/solids.ts";
 import { buildBase } from "./base.ts";
-import { HULL_PRINT, buildBelow, buildHull } from "./hull.ts";
+import { HULL_PRINT, buildBelow, buildHull, placeArmFins } from "./hull.ts";
 import { buildStand, standOf } from "./stand.ts";
 
 export function showOnBase(hull: Hull, doors = 0): void {
@@ -13,4 +13,6 @@ export function showOnBase(hull: Hull, doors = 0): void {
   // What hangs below the hull prints turned over (unless the stand carries it); turn it back under the hull.
   const below = HULL_PRINT[hull].carried ? null : buildBelow(hull);
   if (below) move(turn(below, "x", 180), head - at, 0, bed);
+  // Fins glued into slits stand in them.
+  for (const fin of placeArmFins(hull)) move(fin, head - at, 0, bed);
 }
