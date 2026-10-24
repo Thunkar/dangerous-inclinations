@@ -5,7 +5,7 @@
 #   docker build --target server -t dangerous-inclinations-server .
 #   docker build --target web    -t dangerous-inclinations-web .
 
-ARG NODE_IMAGE=node:24-bookworm-slim
+ARG NODE_IMAGE=node:24.22.1-bookworm-slim
 
 # --- dependencies and build ---------------------------------------------------
 FROM ${NODE_IMAGE} AS build
