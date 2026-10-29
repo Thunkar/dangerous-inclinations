@@ -10,7 +10,7 @@
  */
 import { Group, Matrix4, MeshStandardMaterial, Object3D, Shape, Vector3 } from 'three'
 import { armoredSection, hollowSection, sectionLoft, type Station } from './loft'
-import { boxSolid, cylinderSolid, extrudeSolid, torusSolid, type Put } from './parts'
+import { GRILLE, boxSolid, cylinderSolid, extrudeSolid, torusSolid, type Put } from './parts'
 import { intakes } from './engines'
 import { bake } from './solid'
 import type { Vec3 } from './config'
@@ -319,8 +319,7 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
     for (const y of [-0.3, 0, 0.3]) box([0.24, 0.06, 0.06], [0.3, y, face + s * 0.06], m.dark)
     // The arm's tip: a nacelle front, tapering to the intake on top and at
     // the sides. The taper is the intake's own wall, so the mouth starts where
-    // it ends: a pale lip, a dark lining, a recessed back face and vanes
-    // running into it. Thrusters outboard and a nav light, red to port, the
+    // it ends: a pale lip, a dark lining and the shrike's grille. Thrusters outboard and a nav light, red to port, the
     // fuel teal to starboard.
     {
       const tip = (x: number, h: number, w: number, lift: number) => [x, h, w, lift] as const
@@ -364,20 +363,32 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
         m.dark,
         [0, 0, z]
       )
+      // The grille, the shrike's (GRILLE): the bore filled to the grille's
+      // back, its depth behind the lip's face, and louvre teeth base to base
+      // up it.
+      const face = front[0] + 0.06
+      const grille = face - GRILLE.depth
       section(
         [
           [back[0] + 0.01, mouth.h, mouth.w, mouth.y],
-          [back[0] + 0.04, mouth.h, mouth.w, mouth.y],
+          [grille, mouth.h, mouth.w, mouth.y],
         ],
         m.dark,
         [0, 0, z]
       )
-      for (const dy of [-0.16, -0.08, 0, 0.08, 0.16])
-        box(
-          [front[0] - back[0] - 0.06, 0.018, mouth.w * 2 - 0.06],
-          [(back[0] + front[0]) / 2 + 0.02, mouth.y + dy, z],
-          m.steel
-        )
+      const { tooth } = GRILLE
+      const inside = mouth.h - 0.025
+      const across = 2 * (mouth.w - 0.025)
+      for (let yc = mouth.y - inside + tooth; yc + tooth <= mouth.y + inside + 1e-6; yc += 2 * tooth) {
+        const louvre = new Shape()
+        louvre.moveTo(grille - 0.01, yc - tooth)
+        louvre.lineTo(grille + tooth, yc)
+        louvre.lineTo(grille - 0.01, yc + tooth)
+        louvre.closePath()
+        const geo = extrudeSolid(louvre, { depth: across, bevelEnabled: false })
+        bake(geo, new Matrix4().makeTranslation(0, 0, -across / 2))
+        put(geo, m.steel, [0, 0, z])
+      }
     }
     box([0.42, 0.2, 0.1], [2.9, -0.3, z + s * 0.42], m.dark)
     for (const dx of [-0.1, 0.1])

@@ -16,7 +16,7 @@ import {
   Vector3,
 } from 'three'
 import { armoredSection, hollowSection, sectionLoft, type Station } from './loft'
-import { boxSolid, cylinderSolid, extrudeSolid, torusSolid, type Put } from './parts'
+import { GRILLE, boxSolid, cylinderSolid, extrudeSolid, torusSolid, type Put } from './parts'
 import { hullOf, intakes, type Half } from './engines'
 import { bake, describe, solidOf, type SolidSpec } from './solid'
 import type { Vec3 } from './config'
@@ -196,9 +196,7 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
     const knee = top - (flare - keel)
     const [aft, front, k] = [1.2, 2.8, 0.34]
     const lip = 0.05
-    const depth = 0.2
-    // The louvres' teeth: how far each stands off the grille's back (half its base).
-    const tooth = 0.08
+    const { depth, tooth } = GRILLE
     const half = (x: number, y: number, z: number, d: number): Half => {
       const n = new Vector3(x, y, z)
       const l = n.length()
@@ -295,9 +293,8 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
     // the face down to the grille's back.
     const roofAt = top - lip - (front + k * lip)
     pieces([face(0.002), behind(depth + 0.01), half(1, -1, 0, -roofAt)], m.pale)
-    // The louvres: triangular teeth standing on the grille's back, base to
-    // base up the whole recess, both faces at 45 degrees, so each prints as
-    // a solid ridge rather than a slat too thin to keep.
+    // The louvres (GRILLE): teeth standing on the grille's back, base to
+    // base up the whole recess.
     for (let yc = SHRIKE_KEEL + lip + tooth; yc < top - lip; yc += 2 * tooth) {
       const tip = front + k * (top - yc) - depth + tooth
       pieces(

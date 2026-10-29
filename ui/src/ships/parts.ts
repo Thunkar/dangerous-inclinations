@@ -28,6 +28,15 @@ export type Put = (
   parent?: Object3D
 ) => Mesh
 
+/**
+ * The yard's grille, as the shrike's chin and the mantis's arm tips wear it:
+ * a recess `depth` behind its face with louvres across it, triangular teeth
+ * base to base standing `tooth` off its back (half their base), both faces at
+ * 45 degrees, so each prints as a solid ridge rather than a slat too thin to
+ * keep.
+ */
+export const GRILLE = { depth: 0.2, tooth: 0.08 }
+
 /** A box, described; with a `radius`, its edges rounded (`RoundedBoxGeometry`). */
 export function boxSolid(size: Vec3, radius?: number): BufferGeometry {
   const geometry =
