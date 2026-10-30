@@ -160,3 +160,12 @@ export const ORBIT_BODY = {
     streaks: { rows: 2, perRow: 3, width: 3, length: 110, infall: 2, stagger: 40 },
   },
 };
+
+/**
+ * The marks on the markers and item tokens (`pieces/markers/`): how deep
+ * every mark is debossed, the top face's and the bed face's alike (the crate
+ * and data tokens carry Piracy's skull in the bed face, over bridges). A
+ * first guess; `coupons/marker-depth` prints 0.4, 0.6, 0.8 and 1.0 (one to
+ * four notches), and the depth that reads best and prints clean goes here.
+ */
+export const MARKER = { depth: 0.8 };

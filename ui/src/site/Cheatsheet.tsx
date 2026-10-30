@@ -15,7 +15,7 @@
  * one side, or four fronts and then four backs for a duplex printer, and
  * nothing else on the page prints. The loadout cards follow it
  * (`loadouts/`), one per preset, and print nine to a page from their own
- * button.
+ * button; then the mission decks (`missions/`), both piles, double-sided.
  */
 import { useState } from 'react'
 import { Box } from '@mui/material'
@@ -49,6 +49,8 @@ import { CHEATSHEET } from '../text/cheatsheet'
 import { LOADOUT_CARDS } from '../text/loadoutCards'
 import { LoadoutSection } from './loadouts/LoadoutSection'
 import { LOADOUT_CSS } from './loadouts/loadoutStyles'
+import { MissionDeckSection } from './missions/MissionDeckSection'
+import { MISSION_DECK_CSS } from './missions/missionDeckStyles'
 import { rich } from '../utils/rich'
 
 const T = CHEATSHEET
@@ -64,6 +66,7 @@ const STYLE = `
 ${CARD_PAGE_CSS}
 ${CARD_CSS}
 ${LOADOUT_CSS}
+${MISSION_DECK_CSS}
 `
 
 const CONTENTS: Array<{ id: string; label: string }> = (
@@ -341,6 +344,7 @@ export function Cheatsheet() {
 
       <PrintCard />
       <LoadoutSection />
+      <MissionDeckSection />
       <SiteFooter />
     </Box>
   )

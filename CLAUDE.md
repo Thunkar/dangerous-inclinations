@@ -140,7 +140,9 @@ ui/src/                 context/ (game, animation, plan, boardMode, navigation),
 ui/src/site/            routes.ts (the four sections), Landing, Tools, Cheatsheet,
                         turn.ts (the turn, stated once), numbers.ts, poster.tsx,
                         guide/ (the cheatsheet's sections), card/ (the printed card),
-                        loadouts/ (the twelve loadout cards),
+                        loadouts/ (the twelve loadout cards), missions/ (the mission
+                        decks and their backs), PosterArt.tsx (the landing picture,
+                        also the decks' back),
                         tools/ (RoutePlannerTool + OrbitalWindows, windows.ts,
                         windowDiagrams.tsx; HeatTrackerTool, heatMat.ts; DiceTool)
 ui/src/design/          tokens.ts (the dark table), press.ts (paper, ink, red: all printed matter)
@@ -389,7 +391,16 @@ shrike does not have), and a black bar with the missions it is kept with
 (`presetSecondaries`, the bots' own table read backwards) and one line on
 how to fly it. Everything on it is read from the engine's presets, so a
 preset that changes changes its card; the line is the designer's, in the text
-file. The two prints on the page are exclusive (`body[data-printing]`).
+file.
+
+**The mission decks** (`ui/src/site/missions/`, words in
+`text/missionDeck.ts`) follow on `/card`: both piles for six seats
+(`buildPrimaryDeck`, `buildSecondaryDeck`), 63x88mm, nine to an A4 page,
+fronts then backs with a long- or short-edge flip. A front is the game's own
+`MissionCard`, scaled to the stock. A back is the landing page's picture
+(`PosterArt.tsx`) cropped on the hole, ink for the primaries and paper for
+the secondaries, with the pile's points ("2 points", "1 point") along the
+wedge. The three prints on the page are exclusive (`body[data-printing]`).
 
 ## The printed pieces
 
@@ -492,8 +503,8 @@ sockets, printed in place with the door open flat on the bed, so the door
 folds out over the edge and lies on the table; energy cubes (8.1mm) stand
 in continuous channels ticked at each cube, one per slot beside its bay,
 the fixed subsystems' and the heat track's astern and in the bow's corners;
-hull and fuel have no track on the base (the designer is replacing that
-accounting); missiles come from a shared pile; a broken subsystem is
+hull and fuel have no track on the base (each is a d10 beside it);
+missiles come from a shared pile; a broken subsystem is
 taken off the ship and the base. Hulls print in one
 piece, not split, with no pause: each magnet's pocket is a slot from the bed
 up to a 45-degree roof the magnet seats in, the magnet slides up it on edge
@@ -523,7 +534,12 @@ the game's missile from above, small enough that a salvo's four lie
 abreast in black hole ring 1's sectors, printed by each player in their
 colour; the wreck token (`pieces/wreck.ts`) is the ship token cracked
 across its middle notch, the bow knocked askew and the keel holding the
-halves low down. The station (`pieces/station.ts`) is printed from the
+halves low down. The table's markers (`pieces/markers/`, engraved
+`MARKER.depth` deep, set by `coupons/marker-depth`) are the Home marker (a
+house tile), the Escort marker (a stencil shield), the crate and data
+tokens (a hex and an octagon, the loot skull on the bed face, so a seized
+item is the same token turned over) and the sale chips (a disc with the
+planet's letter, six a planet in its colour, kept by the seller). The station (`pieces/station.ts`) is printed from the
 yard's (`ui/src/ships/station.ts`) as the hulls are: a spindle on a foot
 in its sector, a habitat drum, three finned radiators canted at 55
 degrees and three arms climbing to clamps a ship token drops into, so

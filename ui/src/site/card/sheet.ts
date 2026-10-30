@@ -64,14 +64,30 @@ function place(face: Face, at: { x: number; y: number }, rotated = false): Place
   return { face, x: at.x, y: at.y, width: CARD_WIDTH_MM, height: CARD_HEIGHT_MM, rotated }
 }
 
-/** Behind a front when the sheet turns over on its long (vertical) edge. */
+/** Behind a front when the sheet turns over on its long (vertical) edge. A back is its front's size. */
 export function behindLongEdge(front: Rect): PlacedFace {
-  return place('back', { x: SHEET_WIDTH_MM - front.x - front.width, y: front.y })
+  const { width, height } = front
+  return {
+    face: 'back',
+    x: SHEET_WIDTH_MM - front.x - width,
+    y: front.y,
+    width,
+    height,
+    rotated: false,
+  }
 }
 
 /** Behind a front when the sheet turns over on its short (horizontal) edge. */
 export function behindShortEdge(front: Rect): PlacedFace {
-  return place('back', { x: front.x, y: SHEET_HEIGHT_MM - front.y - front.height }, true)
+  const { width, height } = front
+  return {
+    face: 'back',
+    x: front.x,
+    y: SHEET_HEIGHT_MM - front.y - height,
+    width,
+    height,
+    rotated: true,
+  }
 }
 
 /** The pages a mode prints, each a list of the faces on it. */
