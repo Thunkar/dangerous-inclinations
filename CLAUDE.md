@@ -78,7 +78,7 @@ sells or pumps fuel with the escort in its well, and comes back if either
 ship dies) and salvage (a destroyed ship leaves a
 wreck that drifts with the stations; `salvage` is an action in the sequence:
 while on its sector, take its black box, data filed anywhere; a wreck goes
-down once the turn's actions are over, so a kill is salvaged on a later turn)). A visit does one thing: load the crates waiting
+down the moment its ship dies, so fire, then salvage takes your own kill's black box)). A visit does one thing: load the crates waiting
 there, or sell one item; and each station buys from each player once per
 game: a Deliver crate, one piece of data, one loot item or a Tanker's fuel
 (`dock_sale` names it, "load" or "none"; the default is the sale that scores
