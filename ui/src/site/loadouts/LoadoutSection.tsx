@@ -1,12 +1,15 @@
 /**
  * The loadout cards on the cheatsheet page: the twelve presets on screen in
  * their roles, at true size behind a transform, and the A4 pages they print
- * on (`sheet.ts`), hidden until this section's button prints them.
+ * on, hidden until this section's button prints them. They take the mission
+ * decks' back (`missions/backs.tsx`) on ink with nothing on the wedge, and
+ * print double-sided as the decks do (`missions/sheet.ts`).
  *
  * The page prints the player card by default. This button marks the body
  * `data-printing="loadouts"` for the length of its print, and the stylesheet
  * (`loadoutStyles.ts`) shows only these pages while it is set.
  */
+import { useState } from 'react'
 import { Box } from '@mui/material'
 import PrintIcon from '@mui/icons-material/Print'
 import { PRESETS_BY_ROLE } from '@dangerous-inclinations/engine'
@@ -17,18 +20,24 @@ import { COLUMN } from '../guide/parts'
 import { INK } from '../diagram'
 import { SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from '../card/cardStyles'
 import { cropMarks } from '../card/sheet'
+import { Segments } from '../tools/controls'
+import { CardBack } from '../missions/backs'
+import { deckPages, type Flip } from '../missions/sheet'
 import { LOADOUT_CARDS } from '../../text/loadoutCards'
 import { rich } from '../../utils/rich'
 import { LoadoutCard } from './LoadoutCard'
 import { roleInk } from './presets'
-import { LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM, loadoutPages } from './sheet'
+import { LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM } from './sheet'
 
 const T = LOADOUT_CARDS.section
 
 /** The roles in the order a first game meets them: the hunt, the scan, the haul. */
 const ROLES: BotRole[] = ['hunter', 'interceptor', 'hauler']
 const PRESETS = ROLES.flatMap(role => PRESETS_BY_ROLE[role])
-const PAGES = loadoutPages(PRESETS)
+
+function Back() {
+  return <CardBack className="di-lo-card" ground="ink" />
+}
 
 /** The fonts must be in before the sheets are laid out, as for the player card. */
 function printLoadouts() {
@@ -42,10 +51,10 @@ function printLoadouts() {
   })
 }
 
-function LoadoutSheets() {
+function LoadoutSheets({ flip }: { flip: Flip }) {
   return (
     <div className="di-lo-sheets">
-      {PAGES.map((cards, page) => (
+      {deckPages(PRESETS, flip).map((cards, page) => (
         <div key={page} className="di-page">
           <svg
             className="di-marks"
@@ -69,10 +78,10 @@ function LoadoutSheets() {
           {cards.map(slot => (
             <div
               key={slot.card}
-              className="di-lo-slot"
+              className={slot.rotated ? 'di-lo-slot di-turned' : 'di-lo-slot'}
               style={{ left: `${slot.x}mm`, top: `${slot.y}mm` }}
             >
-              <LoadoutCard id={slot.card} />
+              {slot.face === 'front' ? <LoadoutCard id={slot.card} /> : <Back />}
             </div>
           ))}
         </div>
@@ -82,6 +91,7 @@ function LoadoutSheets() {
 }
 
 export function LoadoutSection() {
+  const [flip, setFlip] = useState<Flip>('long')
   return (
     <Box
       component="section"
@@ -102,17 +112,49 @@ export function LoadoutSection() {
             {rich(T.lede, { width: LOADOUT_WIDTH_MM, height: LOADOUT_HEIGHT_MM })}
           </Body>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mt: 3 }}>
+            <Segments
+              value={flip}
+              options={(['long', 'short'] as const).map(value => ({
+                value,
+                label: T.flips[value],
+              }))}
+              onChange={setFlip}
+            />
             <Slab tone="red" onClick={printLoadouts}>
               <PrintIcon sx={{ fontSize: 20 }} />
               {T.print}
             </Slab>
           </Box>
           <Body size="0.92rem" color={PRESS.inkSoft} sx={{ maxWidth: '62ch', mt: 1.5 }}>
-            {rich(T.printNote, { pages: PAGES.length })}
+            {rich(T.printNote, {
+              pages: deckPages(PRESETS, flip).length,
+              edge: T.edges[flip],
+            })}
           </Body>
         </Box>
 
         <div className="di-lo-rows">
+          <Box sx={{ mt: { xs: 3, sm: 4 } }}>
+            <Box
+              component="h3"
+              sx={{
+                m: 0,
+                mb: 1.5,
+                fontFamily: FONT_DISPLAY,
+                fontWeight: 600,
+                fontSize: '1.3rem',
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+              }}
+            >
+              {T.back}
+            </Box>
+            <div className="di-lo-row">
+              <div className="di-lo-frame">
+                <Back />
+              </div>
+            </div>
+          </Box>
           {ROLES.map(role => (
             <Box key={role} sx={{ mt: { xs: 3, sm: 4 } }}>
               <Box
@@ -146,7 +188,7 @@ export function LoadoutSection() {
             </Box>
           ))}
         </div>
-        <LoadoutSheets />
+        <LoadoutSheets flip={flip} />
       </Box>
     </Box>
   )

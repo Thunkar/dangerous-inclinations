@@ -122,6 +122,7 @@ export const LOADOUT_CSS = `
 /* The printed pages: hidden on screen, every card at scale 1 in print. */
 .di-lo-sheets { display: none; --lo-zoom: 1; }
 .di-lo-slot { position: absolute; width: ${LOADOUT_WIDTH_MM}mm; height: ${LOADOUT_HEIGHT_MM}mm; }
+.di-lo-slot.di-turned { transform: rotate(180deg); }
 
 @media print {
   .di-lo-rows { display: none !important; }

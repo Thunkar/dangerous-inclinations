@@ -61,8 +61,12 @@ export const LOADOUT_CARDS = {
       interceptor: 'Interceptors',
       hauler: 'Haulers',
     } satisfies Record<BotRole, string>,
+    /** Over the back every card shares. */
+    back: 'Back',
     print: 'Print',
+    flips: { long: 'Long-edge flip', short: 'Short-edge flip' },
     printNote:
-      '{pages} A4 pages, nine cards to a page, fronts only. Print in colour at actual size and cut along the marks.',
+      '{pages} A4 pages, nine cards to a page, fronts then backs. Print both sides in colour at actual size, flipping on the {edge} edge, and cut along the marks.',
+    edges: { long: 'long', short: 'short' },
   },
 } as const

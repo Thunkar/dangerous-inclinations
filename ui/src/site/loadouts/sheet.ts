@@ -3,8 +3,8 @@
  *
  * Nine cards to a page, three columns by three rows, centred, with the player
  * card's gutter between them and its crop marks (`card/sheet.ts`) on every
- * trim line outside the faces. Fronts only: the cards have no back, so a page
- * is simply the next nine in order and the last page holds what is left.
+ * trim line outside the faces. A page is the next nine in order and the last
+ * page holds what is left; `missions/sheet.ts` puts each page's backs behind it.
  */
 import { SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from '../card/cardStyles'
 import { GUTTER_MM, type Rect } from '../card/sheet'

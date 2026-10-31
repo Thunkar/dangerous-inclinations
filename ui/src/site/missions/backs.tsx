@@ -1,8 +1,9 @@
 /**
- * The backs of the two mission piles: the same on every card of a pile, and
- * the two piles told apart at a glance. The landing page's picture
- * (`PosterArt.tsx`) cropped close on the hole, on ink for the primaries and
- * on paper for the secondaries, with the pile's points riding the wedge.
+ * The back every printed card shares: the landing page's picture
+ * (`PosterArt.tsx`) cropped close on the hole. The mission piles are told
+ * apart at a glance, on ink for the primaries and on paper for the
+ * secondaries, with the pile's points riding the wedge; the loadout cards
+ * take the ink back with nothing on the wedge.
  */
 import type { CSSProperties } from 'react'
 import { fill } from '@dangerous-inclinations/engine'
@@ -14,14 +15,37 @@ import { PILE_POINTS, type Pile } from './decks'
 
 const B = MISSION_DECK.back
 
-const GROUND: Record<Pile, { bg: string; fg: string }> = {
-  primary: { bg: PRESS.ink, fg: PRESS.paper },
-  secondary: { bg: PRESS.paper, fg: PRESS.ink },
+type Ground = 'ink' | 'paper'
+
+const GROUND: Record<Ground, { bg: string; fg: string }> = {
+  ink: { bg: PRESS.ink, fg: PRESS.paper },
+  paper: { bg: PRESS.paper, fg: PRESS.ink },
 }
+
+const PILE_GROUND: Record<Pile, Ground> = { primary: 'ink', secondary: 'paper' }
 
 /** A pile's back: the same on every card of it. */
 export function Back({ pile }: { pile: Pile }) {
-  const g = GROUND[pile]
+  return (
+    <CardBack
+      className="di-mc-card di-mc-back"
+      ground={PILE_GROUND[pile]}
+      label={fill(B[pile], { points: PILE_POINTS[pile] })}
+    />
+  )
+}
+
+/** A card's back on `ground`, `label` along the wedge if it has one; `className` sizes it. */
+export function CardBack({
+  className,
+  ground,
+  label,
+}: {
+  className: string
+  ground: Ground
+  label?: string
+}) {
+  const g = GROUND[ground]
   const width = 330
   const height = (width * 88) / 63
   const { x: cx, y: cy } = POSTER_HOLE
@@ -45,7 +69,7 @@ export function Back({ pile }: { pile: Pile }) {
     whiteSpace: 'nowrap',
   }
   return (
-    <div className="di-mc-card di-mc-back" style={{ background: g.bg }}>
+    <div className={className} style={{ background: g.bg }}>
       <svg
         viewBox={[cx - width / 2, cy - height / 2, width, height].join(' ')}
         preserveAspectRatio="xMidYMid slice"
@@ -53,18 +77,20 @@ export function Back({ pile }: { pile: Pile }) {
         aria-hidden
       >
         <PosterShapes line={g.fg} stamp={false} />
-        <text
-          transform={`translate(${cx + along * Math.cos(rad)} ${cy - along * Math.sin(rad)}) rotate(-${BAND_ANGLE})`}
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontFamily={FONT_DISPLAY}
-          fontWeight={700}
-          fontSize={44}
-          letterSpacing={1}
-          fill={PRESS.paper}
-        >
-          {fill(B[pile], { points: PILE_POINTS[pile] }).toUpperCase()}
-        </text>
+        {label && (
+          <text
+            transform={`translate(${cx + along * Math.cos(rad)} ${cy - along * Math.sin(rad)}) rotate(-${BAND_ANGLE})`}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontFamily={FONT_DISPLAY}
+            fontWeight={700}
+            fontSize={44}
+            letterSpacing={1}
+            fill={PRESS.paper}
+          >
+            {label.toUpperCase()}
+          </text>
+        )}
       </svg>
       <div style={game}>{B.game}</div>
     </div>

@@ -382,7 +382,8 @@ shrinks to hide that (`.di-card > *` never shrinks, so overflow shows).
 **The loadout cards** (`ui/src/site/loadouts/`, words in `text/loadoutCards.ts`)
 are the twelve bot presets as cards for a first game, on the `/card` page
 after the player card: 63x88mm, the mission cards' size, nine to an A4 page,
-fronts only, in colour. Each is a poster: the role's family ink (hunter red,
+in colour, double-sided with the mission decks' back on ink and nothing on
+the wedge. Each is a poster: the role's family ink (hunter red,
 interceptor violet, hauler teal, as their primaries) in a stripe with the
 name up it, the insignia top right (the role's badge shape with the preset's
 signature subsystem in it), the bow large, the flanks as Port and Starboard
