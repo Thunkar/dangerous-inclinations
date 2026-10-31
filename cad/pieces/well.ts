@@ -15,7 +15,8 @@
 import { subtract, fuse, sketch, plane, extrude, revolve, cylinder } from "fluidcad/core";
 import { BOARD, WELLS } from "../spec.ts";
 import { prism, move, turn, section, outline, type Point, type Solid } from "../lib/solids.ts";
-import { outlines, glyphOutlines, flatten, grow, area, box, drawContours, drawPolygons, type Contour } from "../lib/glyphs.ts";
+import { box, drawContours, drawPolygons, type Contour } from "../lib/glyphs.ts";
+import { numberContours, numberPockets } from "../lib/numbers.ts";
 
 export type WellKind = keyof typeof WELLS;
 
@@ -137,23 +138,13 @@ function notched(w: Well, solid: Solid): Solid {
 
 // ---- Numbers --------------------------------------------------------------
 
-/** The font size at which a "0" stands `number.height` tall. */
-let fontSize = 0;
-function size(): number {
-  if (!fontSize) {
-    const [lo, hi] = box(outlines(B.number.font, "0", 1));
-    fontSize = B.number.height / (hi[1] - lo[1]);
-  }
-  return fontSize;
-}
-
 /**
  * Sector s's number on ring i: its outlines and where each point of them
  * goes. The label's box is centred on the ring's centre line at the sector's
  * middle, its top toward the centre of the well.
  */
 function label(w: Well, i: number, s: number): { contours: Contour[]; place: (p: Point) => Point } {
-  const contours = outlines(B.number.font, String(s), size());
+  const contours = numberContours(String(s));
   const [lo, hi] = box(contours);
   const [cx, cy] = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2];
   const mid = middle(s);
@@ -180,13 +171,8 @@ function sectorsOf(w: Well, i: number, j: number): number[] {
 function pocketed(w: Well, i: number, ring: Solid): Solid {
   for (let s = 0; s < B.sectors; s++) {
     const { place } = label(w, i, s);
-    for (const glyph of glyphOutlines(B.number.font, String(s), size())) {
-      const flat = glyph.map((c) => flatten(c));
-      // The outline with the most area is the glyph's outside: the material
-      // lies to one side of it, the same side of every contour in the font.
-      const outside = flat.reduce((a, b) => (Math.abs(area(b)) > Math.abs(area(a)) ? b : a));
-      const away = area(outside) < 0 ? 1 : -1;
-      const polys = flat.map((poly) => grow(poly, B.number.clearance, away).map(place));
+    for (const glyph of numberPockets(String(s))) {
+      const polys = glyph.map((poly) => poly.map(place));
       sketch(plane("xy", { offset: TOP - B.number.depth }), () => drawPolygons(polys, (p) => p));
       ring = subtract(ring, extrude(B.number.depth + 1).new());
     }

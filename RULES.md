@@ -9,7 +9,7 @@ A game of orbital manoeuvre, heat management and hidden objectives for 2–6 pla
 ## Components
 
 - The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 4 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
-- Per player: a ship token, a Home marker, a loadout with 1 forward slot and 4 side slots, a small screen for your cards, a supply of energy cubes, a heat track (10) on the loadout, and two d10s beside it that show your hull and your fuel.
+- Per player: a ship token, a Home marker, a loadout with 1 forward slot and 4 side slots, a small screen for your cards, a supply of energy cubes, a heat track (10) on the loadout, and a hull die and a fuel die beside it, each a d10 numbered 1 to 10 on its own stand. When your tank is empty, lift the fuel die off its stand: the stand reads 0.
 - Subsystems: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles, plasma cannon, disruptor. Take as many copies of a subsystem as you have slots it fits: two shields, four lasers, anything goes. Subsystems are double-sided: face-down shows only the slot type.
 - Two decks of mission cards (primaries and secondaries), crate tokens and data tokens (each with a loot face on its back), wreck tokens, Escort markers, missile tokens, station tokens, sale chips (six in each planet's colour), one d10.
 

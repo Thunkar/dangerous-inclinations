@@ -503,7 +503,7 @@ sockets, printed in place with the door open flat on the bed, so the door
 folds out over the edge and lies on the table; energy cubes (8.1mm) stand
 in continuous channels ticked at each cube, one per slot beside its bay,
 the fixed subsystems' and the heat track's astern and in the bow's corners;
-hull and fuel have no track on the base (each is a d10 beside it);
+hull and fuel have no track on the base (each is a d10 on a stand beside it);
 missiles come from a shared pile; a broken subsystem is
 taken off the ship and the base. Hulls print in one
 piece, not split, with no pause: each magnet's pocket is a slot from the bed
@@ -539,7 +539,16 @@ halves low down. The table's markers (`pieces/markers/`, engraved
 house tile), the Escort marker (a stencil shield), the crate and data
 tokens (a hex and an octagon, the loot skull on the bed face, so a seized
 item is the same token turned over) and the sale chips (a disc with the
-planet's letter, six a planet in its colour, kept by the seller). The station (`pieces/station.ts`) is printed from the
+planet's letter, six a planet in its colour, kept by the seller). The hull
+and fuel dice (`pieces/dice/`, `DICE` in `spec.ts`) are d10s numbered 1 to
+10, as square as they are tall (the designer's pick of the proportions), in
+two halves split at the equator that print on the cut face with no
+supports: a 10 mm steel ball glued in the centre, two filament pins that
+fit the halves one way only, and the board's own number inlays
+(`lib/numbers.ts`, shared with `well.ts`) glued into pockets. Each die sits
+on a kite stand with a sealed magnet under its pocket that pulls on the
+ball; the fuel stand's pocket holds a 0, which shows when an empty tank
+lifts the die off. The station (`pieces/station.ts`) is printed from the
 yard's (`ui/src/ships/station.ts`) as the hulls are: a spindle on a foot
 in its sector, a habitat drum, three finned radiators canted at 55
 degrees and three arms climbing to clamps a ship token drops into, so

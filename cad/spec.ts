@@ -169,3 +169,54 @@ export const ORBIT_BODY = {
  * four notches), and the depth that reads best and prints clean goes here.
  */
 export const MARKER = { depth: 0.8 };
+
+/**
+ * The hull and fuel dice (`pieces/dice/`): a pentagonal trapezohedron per
+ * counter, never rolled, a steel ball sealed in its centre, standing on a
+ * stand with a magnet sealed under the pocket the die's bottom face drops
+ * into. The die prints as two halves split at its equator, each on its cut
+ * face, pinned with filament and glued round the ball.
+ */
+export const DICE = {
+  /** The steel ball, and what its cavity adds to its diameter. */
+  ball: { diameter: 10, clearance: 0.2 },
+  /**
+   * Pole height over the ring's radius (h / r). 1.25 left a long empty tail
+   * over the number; under 0.95 the other pole's kite tips overhang past 45
+   * at the bed. The designer chose 1.0 from a sheet of 0.65, 0.8 and 1.0.
+   */
+  proportion: 1.0,
+  /**
+   * Centre to face, the smallest at this proportion that keeps every rule:
+   * the numbers set it (the board's inlays, a "0" 7.5 tall, "10" with its
+   * margin to its kite and clear of the seam), and d10.ts checks every wall
+   * and places the pins.
+   */
+  inradius: 9.9,
+  /** The least plastic between the cavity and a numeral's floor, and round a pin hole. */
+  wall: { numbers: 1.6, pins: 1.2 },
+  /** 1.75 filament pins, a hole each side of the cut. */
+  pin: { hole: 1.9, depth: 2.5 },
+  /**
+   * Numbers (BOARD.number's inlays): their pockets' least margin to their
+   * kite's edges, and the groove engraved under 6 and 9 (MARKER.depth deep),
+   * its height and the plastic between it and the pocket above.
+   */
+  numeral: { margin: 1, bar: 0.8, gap: 0.8 },
+  stand: {
+    /** How deep the die's face sits, and what the pocket adds to the face across (0.1 a side, as a tenon). */
+    pocketDepth: 1.2,
+    clearance: 0.2,
+    /** Plastic between the pocket floor and the magnet: thin, since the pull falls fast with distance. */
+    seal: 0.6,
+    /** 6x2 magnets stacked under the pocket (MOUNT.magnet), and the plug under them. */
+    magnets: 1,
+    plug: 1.6,
+    chamfer: 0.8,
+    /** Plastic round the pocket's rim and round the icon, to the stand's edge, at the top. */
+    rim: 2,
+    /** The icon on the stand's top, beyond the pocket's long tail, and its gap to the pocket. */
+    icon: 9,
+    iconGap: 1.5,
+  },
+};
