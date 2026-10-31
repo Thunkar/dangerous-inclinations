@@ -164,11 +164,11 @@ export const ORBIT_BODY = {
 /**
  * The marks on the markers and item tokens (`pieces/markers/`): how deep
  * every mark is debossed, the top face's and the bed face's alike (the crate
- * and data tokens carry Piracy's skull in the bed face, over bridges). A
- * first guess; `coupons/marker-depth` prints 0.4, 0.6, 0.8 and 1.0 (one to
- * four notches), and the depth that reads best and prints clean goes here.
+ * and data tokens carry Piracy's skull in the bed face, over bridges).
+ * `coupons/marker-depth` prints 0.4, 0.6, 0.8 and 1.0 (one to four
+ * notches); the designer's print read best at 0.6.
  */
-export const MARKER = { depth: 0.8 };
+export const MARKER = { depth: 0.6 };
 
 /**
  * The hull and fuel dice (`pieces/dice/`): a pentagonal trapezohedron per
@@ -212,6 +212,12 @@ export const DICE = {
     /** 6x2 magnets stacked under the pocket (MOUNT.magnet), and the plug under them. */
     magnets: 1,
     plug: 1.6,
+    /**
+     * Taken off the plug's diameter, all round. A round slot printed upright
+     * comes out true, so MOUNT.plugFit's 0.1 (set on the hulls' slots) left the
+     * designer's plug loose; `coupons/stand-plug` prints 0.1, 0.05, 0 and -0.05.
+     */
+    plugFit: 0,
     chamfer: 0.8,
     /** Plastic round the pocket's rim and round the icon, to the stand's edge, at the top. */
     rim: 2,

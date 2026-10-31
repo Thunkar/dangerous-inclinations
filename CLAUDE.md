@@ -531,9 +531,10 @@ the black hole's horizon and accretion disc with its streak inlays; and the
 ship token (`pieces/token.ts`, a chamfered slab the kernel's own chamfer
 cannot cut, built as lofts between the outlines at each height; `slab`
 draws any outline that way). The missile token (`pieces/missile.ts`) is
-the game's missile from above, small enough that a salvo's four lie
-abreast in black hole ring 1's sectors, printed by each player in their
-colour; the wreck token (`pieces/wreck.ts`) is the ship token cracked
+the game's missile from above, and a salvo is one token
+(`pieces/salvo.ts`): 2, 3 or 4 missiles abreast on a tail bar, swapped
+down as missiles are shot down, the 4 still fitting black hole ring 1's
+sectors nose prograde; three of each size a player, in their colour; the wreck token (`pieces/wreck.ts`) is the ship token cracked
 across its middle notch, the bow knocked askew and the keel holding the
 halves low down. The table's markers (`pieces/markers/`, engraved
 `MARKER.depth` deep, set by `coupons/marker-depth`) are the Home marker (a
@@ -549,7 +550,14 @@ fit the halves one way only, and the board's own number inlays
 (`lib/numbers.ts`, shared with `well.ts`) glued into pockets. Each die sits
 on a kite stand with a sealed magnet under its pocket that pulls on the
 ball; the fuel stand's pocket holds a 0, which shows when an empty tank
-lifts the die off. The station (`pieces/station.ts`) is printed from the
+lifts the die off (`coupons/stand-plug` sets the plug's fit). The token
+holder (`pieces/holder.ts`, `parts/holder/`) keeps what comes and goes in
+play: a pool tray for crates, data, wrecks and sale chips, its height
+following each bin so only the wreck bin stands tall, and a caddy a player
+in their colour for their salvo tokens and Escort markers; every bin's
+floor runs up into a cove at its front, so a fingertip slides a token out.
+Ship tokens, stations and Home markers stay on the board and have no place
+in it. The station (`pieces/station.ts`) is printed from the
 yard's (`ui/src/ships/station.ts`) as the hulls are: a spindle on a foot
 in its sector, a habitat drum, three finned radiators canted at 55
 degrees and three arms climbing to clamps a ship token drops into, so

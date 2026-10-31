@@ -21,7 +21,7 @@ import { BOARD, DICE, MARKER, MOUNT } from "../../spec.ts";
 import { iconLoops } from "../../lib/icons.ts";
 import { box, drawContours, grow as offset } from "../../lib/glyphs.ts";
 import { numberContours, numberPockets } from "../../lib/numbers.ts";
-import { prism, move, disc, grow, distinct, type Point, type Solid } from "../../lib/solids.ts";
+import { prism, move, disc, block, grow, distinct, type Point, type Solid } from "../../lib/solids.ts";
 import { chamferedSlab, regular } from "../markers/common.ts";
 import { cutGlyph, type Element } from "../markers/glyphs.ts";
 import { die, beyond, restingFrame, buildDie, buildDieInlays } from "./d10.ts";
@@ -192,9 +192,35 @@ export function buildStand(counter: Counter): Solid {
 }
 
 /** The plug that closes a stand's magnet slot: the slot's section less the fit all round, its length less the fit. */
-export function buildPlug(): Solid {
-  const { side, length } = MOUNT.plugFit;
-  return disc(MOUNT.magnet.diameter + MOUNT.magnetClearance - 2 * side, DICE.stand.plug - length);
+export function buildPlug(side = DICE.stand.plugFit): Solid {
+  return disc(MOUNT.magnet.diameter + MOUNT.magnetClearance - 2 * side, DICE.stand.plug - MOUNT.plugFit.length);
+}
+
+/** The fits `coupons/stand-plug` tries, one to four notches. */
+export const PLUG_FITS = [0.1, 0.05, 0, -0.05];
+
+/**
+ * The plug fit test piece: a block with the stand's magnet slot, cut from the
+ * bed as the stand cuts it, and a plug at each of `PLUG_FITS` beside it, its
+ * notches across its top. The fit that slides in snug and holds goes into
+ * `DICE.stand.plugFit`.
+ */
+export function buildPlugCoupon(): void {
+  const slot = MOUNT.magnet.diameter + MOUNT.magnetClearance;
+  const { roof } = heights("hull");
+  const side = slot + 6;
+  const holder = subtract(block([0, 0, 0], [side, side, roof + 1]), move(disc(slot, roof + 1), side / 2, side / 2, -1));
+  const t = DICE.stand.plug - MOUNT.plugFit.length;
+  const plugs = PLUG_FITS.map((fit, i) => {
+    let plug = move(buildPlug(fit), side + 6 + i * (slot + 3), side / 2, 0);
+    const x = side + 6 + i * (slot + 3);
+    for (let k = 0; k <= i; k++) {
+      const y = side / 2 - 2.25 + k * 1.5;
+      plug = subtract(plug, block([x - 4, y, t - 0.4], [x + 4, y + 0.6, t + 1]));
+    }
+    return plug;
+  });
+  void [holder, ...plugs];
 }
 
 /** The 0 inlaid in the fuel stand's floor (viewer only). */
