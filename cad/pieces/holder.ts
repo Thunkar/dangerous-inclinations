@@ -10,9 +10,10 @@
 // with no overhang. The tray's height follows each bin: every bin stands on
 // the same thin floor, so the deep wreck bin rises above a low shell and no
 // solid is left under the shallow bins (every face looks up or stands
-// vertical; nothing to bridge). A bin's floor carries the mark of what lives in it,
-// engraved MARKER.depth deep (the crate, the data dish, the hull, a planet's
-// letter, the Escort shield), read when it is empty.
+// vertical; nothing to bridge). The bins in a row all run the row's length.
+// A bin's floor carries the token that lives in it, engraved MARKER.depth
+// deep: drawn round as a groove with its face as the token carries it, a
+// salvo's missiles sunk whole, a sale chip's planet letter; read when empty.
 //
 // Counts for six players (RULES.md, engine/src/game/missions/missionDeck.ts):
 // crates 6, one a Deliver primary and a player keeps one primary; data 14,
@@ -28,17 +29,17 @@
 // Escort markers.
 import { color, remove, translate, subtract, fuse, sketch, plane, extrude } from "fluidcad/core";
 import { BOARD, MARKER } from "../spec.ts";
-import { outlines, box, flatten, drawPolygons } from "../lib/glyphs.ts";
-import { section, move, turn, type Point, type Solid } from "../lib/solids.ts";
+import { outlines, box, flatten, drawPolygons, grow, area } from "../lib/glyphs.ts";
+import { section, move, turn, prism, type Point, type Solid } from "../lib/solids.ts";
 import { slab } from "./token.ts";
-import { chamferedSlab } from "./markers/common.ts";
-import { cutGlyph, placed, type GlyphName } from "./markers/glyphs.ts";
-import { buildCrateToken } from "./markers/crate.ts";
-import { buildDataToken } from "./markers/data.ts";
-import { buildEscortMarker } from "./markers/escort.ts";
+import { chamferedSlab, regular, clippedRect } from "./markers/common.ts";
+import { cutGlyph, placed, type Element } from "./markers/glyphs.ts";
+import { buildCrateToken, CRATE } from "./markers/crate.ts";
+import { buildDataToken, DATA } from "./markers/data.ts";
+import { buildEscortMarker, ESCORT } from "./markers/escort.ts";
 import { buildSaleChip, PLANET_LETTERS, type Planet } from "./markers/sale.ts";
-import { buildWreckToken } from "./wreck.ts";
-import { buildSalvo, footprint, SALVO } from "./salvo.ts";
+import { buildWreckToken, wreckOutlines } from "./wreck.ts";
+import { buildSalvo, footprint, salvoOutlines, SALVO } from "./salvo.ts";
 
 export const HOLDER = {
   /** Walls between bins, the tray's rim, the floor under the deepest bin and the slab's chamfer. */
@@ -72,12 +73,12 @@ const TOKENS: Record<Exclude<Kind, "salvo">, { size: Point; t: number; centre: P
   escort: { size: [17.46, 20], t: 3, centre: [0, 0] },
 };
 
-/** A bin: what it holds (a salvo bin, which size), its grid (columns, rows, layers), and the mark in its floor. */
+/** A bin: what it holds (a salvo bin, which size; a chip bin, which planet) and its grid (columns, rows, layers). */
 interface Bin {
   kind: Kind;
   n?: number;
   grid: [number, number, number];
-  mark?: { glyph: GlyphName } | { planet: Planet };
+  planet?: Planet;
 }
 
 /** A bin's token as it lies: a salvo's footprint turned nose to the back (+y). */
@@ -101,10 +102,10 @@ function measure(bin: Bin) {
 
 /** The pool every layout shares: crates, data, wrecks, and a slot of sale chips for each planet. */
 const POOL: Bin[] = [
-  { kind: "crate", grid: [2, 2, 2], mark: { glyph: "crate" } },
-  { kind: "data", grid: [4, 2, 2], mark: { glyph: "intercept" } },
-  { kind: "wreck", grid: [2, 4, 2], mark: { glyph: "hull" } },
-  ...(Object.keys(PLANET_LETTERS) as Planet[]).map((planet): Bin => ({ kind: "chip", grid: [1, 2, 3], mark: { planet } })),
+  { kind: "crate", grid: [2, 2, 2] },
+  { kind: "data", grid: [4, 2, 2] },
+  { kind: "wreck", grid: [2, 4, 2] },
+  ...(Object.keys(PLANET_LETTERS) as Planet[]).map((planet): Bin => ({ kind: "chip", grid: [1, 2, 3], planet })),
 ];
 
 /**
@@ -114,14 +115,15 @@ const POOL: Bin[] = [
  */
 const salvoBin = (n: number): Bin => ({ kind: "salvo", n, grid: n === 1 ? [3, 1, 1] : [2, 1, 2] });
 const CADDY: Bin[][] = [
-  [salvoBin(2), salvoBin(1), { kind: "escort", grid: [1, 1, 2], mark: { glyph: "escort" } }],
+  [salvoBin(2), salvoBin(1), { kind: "escort", grid: [1, 1, 2] }],
   [salvoBin(4), salvoBin(3)],
 ];
 
-/** Bins placed in rows, front (y small) to back: each bin's front-left inner corner. */
+/** Bins placed in rows, front (y small) to back: each bin's front-left inner corner, and its length, the row's longest. */
 interface Placed {
   bin: Bin;
   at: Point;
+  d: number;
 }
 
 /** Lay rows of bins left to right, front row first; the tray's outer size and height. */
@@ -133,12 +135,11 @@ function lay(rows: Bin[][]): { bins: Placed[]; size: Point; height: number } {
   let deepest = 0;
   for (const row of rows) {
     let x = rim;
-    let length = 0;
+    const length = Math.max(...row.map((bin) => measure(bin).d));
     for (const bin of row) {
       const m = measure(bin);
-      bins.push({ bin, at: [x, y] });
+      bins.push({ bin, at: [x, y], d: length });
       x += m.w + wall;
-      length = Math.max(length, m.d);
       deepest = Math.max(deepest, m.depth);
     }
     width = Math.max(width, x - wall + rim);
@@ -148,8 +149,8 @@ function lay(rows: Bin[][]): { bins: Placed[]; size: Point; height: number } {
 }
 
 /** The bin's cavity from the tray's top down: a section in y-z, its front cove in facets, pulled along x. */
-function cavity({ bin, at: [x, y] }: Placed, top: number): Solid {
-  const { w, d, depth, r } = measure(bin);
+function cavity({ bin, at: [x, y], d }: Placed, top: number): Solid {
+  const { w, depth, r } = measure(bin);
   const floor = top - depth;
   const arc = Array.from({ length: HOLDER.facets + 1 }, (_, i): Point => {
     const a = ((i / HOLDER.facets) * Math.PI) / 2;
@@ -160,22 +161,64 @@ function cavity({ bin, at: [x, y] }: Placed, top: number): Solid {
   return move(section(profile, w), x, y, 0);
 }
 
-/** Cut the bin's mark into its floor, centred on the floor behind the cove. */
-function marked(s: Solid, { bin, at: [x, y] }: Placed, top: number): Solid {
-  if (!bin.mark) return s;
-  const { w, d, depth, r } = measure(bin);
+/** The token a bin holds in plan as it lies there: its outlines and its face. */
+function tokenPlan({ kind, n = 1 }: Bin): { polys: Point[][]; face: Element[] } {
+  switch (kind) {
+    case "crate":
+      return { polys: [regular(6, CRATE.flats / 2 / Math.cos(Math.PI / 6), 90)], face: placed("crate", CRATE.mark) };
+    case "data":
+      return { polys: [clippedRect(DATA.size, DATA.size, DATA.clip)], face: placed("intercept", DATA.mark) };
+    case "wreck":
+      return { polys: wreckOutlines(), face: [] };
+    case "escort": {
+      const [rim, hull] = placed("escort", ESCORT.tall);
+      return { polys: [rim.outer], face: [hull] };
+    }
+    case "salvo":
+      return { polys: salvoOutlines(n).map((p) => p.map(([x, y]): Point => [-y, x])), face: [] };
+    case "chip":
+      return { polys: [], face: [] };
+  }
+}
+
+/** The groove a token is drawn with, and the most its drawing is enlarged past the token's size. */
+const LINE = 0.8;
+const ENLARGE = 1.4;
+
+/**
+ * Cut the bin's mark into its floor, centred on the floor behind the cove: a
+ * sale chip's planet letter, or the token drawn as a groove with its face
+ * engraved as the token carries it (a salvo's missiles, too thin to draw
+ * round, sunk whole).
+ */
+function marked(s: Solid, { bin, at: [x, y], d }: Placed, top: number): Solid {
+  const { w, depth, r } = measure(bin);
   const floor = top - depth;
   const centre: Point = [x + w / 2, y + (r + d) / 2];
-  const size = Math.min(w, d - r) * 0.55;
-  if ("glyph" in bin.mark) return cutGlyph(s, placed(bin.mark.glyph, Math.min(size, 16), centre), floor - MARKER.depth, floor + 1);
-  // A planet's letter, from the board's font, as the sale chip carries it.
-  const letter = PLANET_LETTERS[bin.mark.planet];
-  const [lo, hi] = box(outlines(BOARD.number.font, letter, 1));
-  const k = Math.min(size, 10) / Math.max(hi[0] - lo[0], hi[1] - lo[1]);
-  const polys = outlines(BOARD.number.font, letter, k).map((c) => flatten(c));
-  const [cx, cy] = [((lo[0] + hi[0]) / 2) * k, ((lo[1] + hi[1]) / 2) * k];
-  sketch(plane("xy", { offset: floor - MARKER.depth }), () => drawPolygons(polys, ([u, v]): Point => [u - cx + centre[0], v - cy + centre[1]]));
-  return subtract(s, extrude(MARKER.depth + 1).new());
+  const [z0, z1] = [floor - MARKER.depth, floor + 1];
+  if (bin.planet) {
+    // A planet's letter, from the board's font, as the sale chip carries it.
+    const letter = PLANET_LETTERS[bin.planet];
+    const [lo, hi] = box(outlines(BOARD.number.font, letter, 1));
+    const k = Math.min(Math.min(w, d - r) * 0.55, 10) / Math.max(hi[0] - lo[0], hi[1] - lo[1]);
+    const polys = outlines(BOARD.number.font, letter, k).map((c) => flatten(c));
+    const [cx, cy] = [((lo[0] + hi[0]) / 2) * k, ((lo[1] + hi[1]) / 2) * k];
+    sketch(plane("xy", { offset: z0 }), () => drawPolygons(polys, ([u, v]): Point => [u - cx + centre[0], v - cy + centre[1]]));
+    return subtract(s, extrude(MARKER.depth + 1).new());
+  }
+  const plan = tokenPlan(bin);
+  const all = plan.polys.flat();
+  const [lo, hi] = [0, 1].map((m) => [0, 1].map((i) => (m ? Math.max : Math.min)(...all.map((p) => p[i])))) as [Point, Point];
+  const c: Point = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2];
+  // Most of the floor, never smaller than the token nor past ENLARGE times it.
+  const k = Math.min(ENLARGE, Math.max(1, (Math.min(w, d - r) * 0.6) / Math.max(hi[0] - lo[0], hi[1] - lo[1])));
+  const f = ([u, v]: Point): Point => [centre[0] + (u - c[0]) * k, centre[1] + (v - c[1]) * k];
+  for (const poly of plan.polys.map((p) => p.map(f))) {
+    let cut = move(prism(poly, z1 - z0), 0, 0, z0);
+    if (bin.kind !== "salvo") cut = subtract(cut, move(prism(grow(poly, -LINE, area(poly) < 0 ? 1 : -1), z1 - z0 + 2), 0, 0, z0 - 1));
+    s = subtract(s, cut);
+  }
+  return cutGlyph(s, plan.face.map((e) => ({ outer: e.outer.map(f), holes: e.holes.map((h) => h.map(f)) })), z0, z1);
 }
 
 /** A tray of bins laid in rows: a chamfered slab, as tall as its deepest bin, with each bin cut and marked. */
@@ -281,7 +324,7 @@ function fill({ bin, at: [x, y] }: Placed, top: number, count: number, colour: s
   const { size: [tx, ty], t, centre } = tokenSize(bin);
   const { depth, r } = measure(bin);
   const g = HOLDER.gap;
-  const base = tokenOf(bin, bin.mark && "planet" in bin.mark ? bin.mark.planet : undefined);
+  const base = tokenOf(bin, bin.planet);
   for (let i = 0; i < count; i++) {
     const layer = Math.floor(i / (cols * rows));
     const c = i % cols;
@@ -299,7 +342,7 @@ function fillAll(placedBins: { bin: Placed; top: number }[], at: Point, player?:
     const k = p.bin.kind;
     const colour = (player !== undefined && PLAYER_COLOURS[player]) || TRAY_COLOUR;
     if (k === "salvo" || k === "escort") fill(p, top, k === "salvo" ? COUNTS.salvo : COUNTS.escort, colour, at);
-    else if (k === "chip" && p.bin.mark && "planet" in p.bin.mark) fill(p, top, COUNTS.chip, PLANET_COLOURS[p.bin.mark.planet], at);
+    else if (k === "chip" && p.bin.planet) fill(p, top, COUNTS.chip, PLANET_COLOURS[p.bin.planet], at);
     else fill(p, top, COUNTS[k], KIND_COLOURS[k] ?? TRAY_COLOUR, at);
   }
 }

@@ -555,8 +555,9 @@ holder (`pieces/holder.ts`, `parts/holder/`) keeps what comes and goes in
 play: a pool tray for crates, data, wrecks and sale chips, its height
 following each bin so only the wreck bin stands tall, and a caddy a player
 in their colour for their salvo tokens and Escort markers; every bin's
-floor runs up into a cove at its front, so a fingertip slides a token out.
-Ship tokens, stations and Home markers stay on the board and have no place
+floor runs up into a cove at its front, so a fingertip slides a token out,
+and carries the token that lives in it drawn as a groove (a salvo's
+missiles sunk whole). Ship tokens, stations and Home markers stay on the board and have no place
 in it. The station (`pieces/station.ts`) is printed from the
 yard's (`ui/src/ships/station.ts`) as the hulls are: a spindle on a foot
 in its sector, a habitat drum, three finned radiators canted at 55

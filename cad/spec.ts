@@ -215,9 +215,10 @@ export const DICE = {
     /**
      * Taken off the plug's diameter, all round. A round slot printed upright
      * comes out true, so MOUNT.plugFit's 0.1 (set on the hulls' slots) left the
-     * designer's plug loose; `coupons/stand-plug` prints 0.1, 0.05, 0 and -0.05.
+     * designer's plug loose; of `coupons/stand-plug`'s 0.1, 0.05, 0 and -0.05,
+     * the -0.05 (four notches, the plug 0.1 over the slot) is the one that holds.
      */
-    plugFit: 0,
+    plugFit: -0.05,
     chamfer: 0.8,
     /** Plastic round the pocket's rim and round the icon, to the stand's edge, at the top. */
     rim: 2,

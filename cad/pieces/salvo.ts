@@ -70,6 +70,13 @@ export function footprint(n: number): Point[] {
   return hull([...abreast(n).flatMap((o) => plan.map(([x, y]): Point => [x + o[0], y + o[1]])), ...barOutline(n)]);
 }
 
+/** The token in plan, nose +x: each missile's outline, and the tail bar's for two or more. */
+export function salvoOutlines(n: number): Point[][] {
+  const plan = missilePlan().pts;
+  const missiles = abreast(n).map((o) => plan.map(([x, y]): Point => [x + o[0], y + o[1]]));
+  return n === 1 ? missiles : [...missiles, barOutline(n)];
+}
+
 /** A salvo token of n missiles, nose +x, on the bed: the missile token for one. */
 export function buildSalvo(n: number): Solid {
   if (n === 1) return buildMissileToken();

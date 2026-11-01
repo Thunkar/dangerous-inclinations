@@ -47,6 +47,18 @@ function halves(): { stern: Plan; bow: Plan } {
   return { stern, bow };
 }
 
+/** The token's two halves in plan as it lies, the bow knocked as buildWreckToken knocks it. */
+export function wreckOutlines(): Point[][] {
+  const { stern, bow } = halves();
+  const [hx, hy] = CRACK[0];
+  const a = (KNOCK.degrees * Math.PI) / 180;
+  const knock = ([x, y]: Point): Point => {
+    const [u, v] = [x - hx, y - hy];
+    return [u * Math.cos(a) - v * Math.sin(a) + hx - KNOCK.back, u * Math.sin(a) + v * Math.cos(a) + hy];
+  };
+  return [stern.pts, bow.pts.map(knock)];
+}
+
 export function buildWreckToken(): Solid {
   const { stern, bow } = halves();
   const [t, d] = [TOKEN.thickness, TOKEN.chamfer];
