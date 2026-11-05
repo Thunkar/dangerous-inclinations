@@ -2,8 +2,9 @@
 // top. The die's bottom face drops into a pocket the die's own shape (its
 // face, and its neighbours' faces as they rise, all grown by half the
 // clearance; they lean out, so a square-walled kite would catch them), and a
-// 6x2 magnet lies flat under the pocket floor, under the ball, sealed. It is
-// loaded from the bed into a slot with a flat roof (a 6.2 bridge) and a plug
+// 10x3 magnet lies flat under the pocket floor, sealed, under the die's
+// centre, where the die's loose ball comes to rest over it. It is loaded
+// from the bed into a slot with a flat roof (a 10.2 bridge) and a plug
 // printed apart is glued in behind it, flush with the bed.
 //
 // The fuel stand's floor carries a 0, read when the empty tank's die is
@@ -13,18 +14,22 @@
 // and its magnet that much lower; both take the same plug.
 //
 // The stand is a chamfered slab, a kite plinth: the pocket's rim grown and
-// stretched over the icon, which is engraved on top past the pocket's long
-// tail (the one place the die does not overhang).
+// stretched over the icon, inlaid on top past the pocket's long tail (the one
+// place the die does not overhang). The icon, the 0 and the die's numbers are
+// one set of inlays printed apart in the die's accent (`buildInlaySet`): the
+// icon grown by `iconGrow` so its thinnest stroke prints as a piece, its
+// pocket by the numbers' clearance on top of that.
 import { subtract, color, sketch, plane, extrude } from "fluidcad/core";
 import { Vector3 } from "three";
-import { BOARD, DICE, MARKER, MOUNT } from "../../spec.ts";
+import { BOARD, DICE, MOUNT } from "../../spec.ts";
+import { TABLE } from "../../../ui/src/design/tokens.ts";
 import { iconLoops } from "../../lib/icons.ts";
-import { box, drawContours, grow as offset } from "../../lib/glyphs.ts";
+import { box, drawContours, drawPolygons, grow as offset, area as signedArea } from "../../lib/glyphs.ts";
 import { numberContours, numberPockets } from "../../lib/numbers.ts";
 import { prism, move, disc, block, grow, distinct, type Point, type Solid } from "../../lib/solids.ts";
 import { chamferedSlab, regular } from "../markers/common.ts";
 import { cutGlyph, type Element } from "../markers/glyphs.ts";
-import { die, beyond, restingFrame, buildDie, buildDieInlays } from "./d10.ts";
+import { die, beyond, restingFrame, buildDie, buildDieInlays, buildDieNumbers } from "./d10.ts";
 
 export type Counter = "hull" | "fuel";
 const ICON = { hull: "damage", fuel: "fuel" } as const;
@@ -32,7 +37,7 @@ const ICON = { hull: "damage", fuel: "fuel" } as const;
 /** The magnet slot's roof, the pocket floor and the stand's top, from the bed. */
 export function heights(counter: Counter) {
   const s = DICE.stand;
-  const roof = s.plug + s.magnets * MOUNT.magnet.thickness + MOUNT.magnetClearance;
+  const roof = s.plug + s.magnet.thickness + MOUNT.magnetClearance;
   const floor = roof + s.seal + (counter === "fuel" ? BOARD.number.depth : 0);
   return { roof, floor, top: floor + s.pocketDepth };
 }
@@ -159,7 +164,7 @@ const quarter = ([x, y]: Point): Point => [-y, x];
 
 export function buildStand(counter: Counter): Solid {
   const { roof, floor, top } = heights(counter);
-  const { chamfer, icon, pocketDepth } = DICE.stand;
+  const { chamfer, pocketDepth } = DICE.stand;
   let s = chamferedSlab(outline(counter), top, chamfer);
   // The pocket: a slab over the floor cut by every face plane that reaches it.
   const { planes, around, rim } = pocket(counter);
@@ -170,17 +175,10 @@ export function buildStand(counter: Counter): Solid {
   }
   s = subtract(s, tool);
   // The magnet's slot, from the bed to its flat roof.
-  s = subtract(s, move(disc(MOUNT.magnet.diameter + MOUNT.magnetClearance, roof + 1), 0, 0, -1));
+  s = subtract(s, move(disc(DICE.stand.magnet.diameter + MOUNT.magnetClearance, roof + 1), 0, 0, -1));
   const [ix, iy] = iconAt(rim);
-  // A traced outline can cross itself where the tracer started (damage's
-  // does); offset by nothing, it comes back untangled.
-  const loops = iconLoops(ICON[counter], icon).map((l) =>
-    offset(distinct(l), 0, 1).map((p): Point => {
-      const [x, y] = quarter(p);
-      return [x + ix, y + iy];
-    })
-  );
-  s = cutGlyph(s, regions(loops), top - MARKER.depth, top + 1);
+  const at = (e: Element): Element => ({ outer: e.outer.map(([x, y]) => [x + ix, y + iy]), holes: e.holes.map((h) => h.map(([x, y]) => [x + ix, y + iy])) });
+  s = cutGlyph(s, iconRegions(counter, DICE.stand.iconGrow + BOARD.number.clearance).map(at), top - BOARD.number.depth, top + 1);
   if (counter === "fuel") {
     // The board's 0, its box centred over the magnet.
     const [lo, hi] = box(numberContours("0"));
@@ -191,9 +189,23 @@ export function buildStand(counter: Counter): Solid {
   return s;
 }
 
+/**
+ * The stand's icon as filled regions, read the way the stand's top reads,
+ * centred on the origin, every edge moved `d` away from the icon's material.
+ */
+function iconRegions(counter: Counter, d: number): Element[] {
+  // A traced outline can cross itself where the tracer started (damage's
+  // does); offset by nothing, it comes back untangled.
+  const loops = iconLoops(ICON[counter], DICE.stand.icon).map((l) => offset(distinct(l), 0, 1).map(quarter));
+  const depth = loops.map((l, i) => loops.filter((o, j) => j !== i && within(o, l[0])).length);
+  // An outline's material is its inside and a hole's its outside: grow each away from it.
+  const grown = loops.map((l, i) => offset(l, d, signedArea(l) > 0 === (depth[i] % 2 === 1) ? 1 : -1));
+  return regions(grown);
+}
+
 /** The plug that closes a stand's magnet slot: the slot's section less the fit all round, its length less the fit. */
 export function buildPlug(side = DICE.stand.plugFit): Solid {
-  return disc(MOUNT.magnet.diameter + MOUNT.magnetClearance - 2 * side, DICE.stand.plug - MOUNT.plugFit.length);
+  return disc(DICE.stand.magnet.diameter + MOUNT.magnetClearance - 2 * side, DICE.stand.plug - MOUNT.plugFit.length);
 }
 
 /** The fits `coupons/stand-plug` tries, one to four notches. */
@@ -206,7 +218,7 @@ export const PLUG_FITS = [0.1, 0.05, 0, -0.05];
  * `DICE.stand.plugFit`.
  */
 export function buildPlugCoupon(): void {
-  const slot = MOUNT.magnet.diameter + MOUNT.magnetClearance;
+  const slot = DICE.stand.magnet.diameter + MOUNT.magnetClearance;
   const { roof } = heights("hull");
   const side = slot + 6;
   const holder = subtract(block([0, 0, 0], [side, side, roof + 1]), move(disc(slot, roof + 1), side / 2, side / 2, -1));
@@ -223,6 +235,25 @@ export function buildPlugCoupon(): void {
   void [holder, ...plugs];
 }
 
+/**
+ * A die's inlays, printed flat in its accent: its numbers 1 to 10, and below
+ * them its stand's icon (and the fuel stand's 0). Each is a solid of its own.
+ */
+export function buildInlaySet(counter: Counter): void {
+  buildDieNumbers();
+  const row = -2 * 14 - 2;
+  for (const e of iconRegions(counter, DICE.stand.iconGrow)) {
+    sketch(plane("xy"), () => drawPolygons([e.outer, ...e.holes], ([x, y]): Point => [x + DICE.stand.icon / 2, y + row]));
+    extrude(BOARD.number.depth).new();
+  }
+  if (counter === "fuel") {
+    const contours = numberContours("0");
+    const [lo, hi] = box(contours);
+    sketch(plane("xy"), () => drawContours(contours, ([x, y]): Point => [x - (lo[0] + hi[0]) / 2 + 14 + DICE.stand.icon / 2, y - (lo[1] + hi[1]) / 2 + row]));
+    extrude(BOARD.number.depth).new();
+  }
+}
+
 /** The 0 inlaid in the fuel stand's floor (viewer only). */
 export function buildZeroInlay(): Solid {
   const contours = numberContours("0");
@@ -236,15 +267,25 @@ export function buildZeroInlay(): Solid {
 /** A stand with its die on it and their inlays, `top` showing, at `at`; `top` null leaves the die off (viewer only). */
 export function showOnStand(counter: Counter, top: number | null, at: Point = [0, 0]): void {
   const [x, y] = at;
-  color(STAND_COLOUR, move(buildStand(counter), x, y, 0));
-  if (counter === "fuel") color(INLAY_COLOUR, move(buildZeroInlay(), x, y, 0));
+  const accent = ACCENT[counter];
+  color(BODY_COLOUR, move(buildStand(counter), x, y, 0));
+  const { top: z } = heights(counter);
+  const [ix, iy] = iconAt(pocket(counter).rim);
+  for (const e of iconRegions(counter, DICE.stand.iconGrow)) {
+    sketch(plane("xy", { offset: z - BOARD.number.depth + 0.02 }), () => drawPolygons([e.outer, ...e.holes], ([u, v]): Point => [u + ix + x, v + iy + y]));
+    color(accent, extrude(BOARD.number.depth).new());
+  }
+  if (counter === "fuel") color(accent, move(buildZeroInlay(), x, y, 0));
   if (top === null) return;
   const floor = heights(counter).floor;
-  for (const half of buildDie(top, floor)) color(DIE_COLOUR, move(half, x, y, 0));
-  for (const inlay of buildDieInlays(top, floor)) color(INLAY_COLOUR, move(inlay, x, y, 0));
+  for (const half of buildDie(top, floor)) color(BODY_COLOUR, move(half, x, y, 0));
+  for (const inlay of buildDieInlays(top, floor)) color(accent, move(inlay, x, y, 0));
 }
 
-/** The viewer's colours: the stand's, the die's and the inlays'. */
-const STAND_COLOUR = "#c43a2c";
-const DIE_COLOUR = "#e8dfc8";
-const INLAY_COLOUR = "#1d1d1b";
+/**
+ * The viewer's colours: the dice and stands black, each die's inlays in its
+ * counter's colour on the table (cad/colours.ts reads the same; it is not
+ * imported here, since its planets pull the engine into the CAD server).
+ */
+const BODY_COLOUR = "#2b2b2d";
+const ACCENT: Record<Counter, string> = { hull: TABLE.hull, fuel: TABLE.fuel };

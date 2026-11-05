@@ -2,14 +2,18 @@
 // hand and never rolled. Poles on z, the upper ring's corners at 72i and
 // z0, the lower ring's at 72i + 36 and -z0, z0 solved so each kite is flat;
 // opposite faces are parallel, so the die stands as tall as twice its
-// inradius on any face. A steel ball sealed in its centre is what the
-// stand's magnet holds.
+// inradius on any face. It is hollow, a smaller die inside it, and a steel
+// ball loose in the hollow rolls onto whichever face is down, where the
+// stand's magnet holds it through that face's wall alone.
 //
 // It prints as two halves split at z = 0 (a regular decagon), each on its
 // cut face, so every outer face looks up: the odd pole's half as it stands,
-// the even pole's turned over. The ball sits in a cylinder with a
-// 45-degree roof in each half, and two 1.75 filament pins in holes both
-// halves share line them up.
+// the even pole's turned over. The hollow's walls are the numbers' pockets
+// and the plastic under them (DICE.wall.numbers), its ceilings lean as the
+// faces do (42 degrees off vertical in the print), and its apex is cut flat
+// under each pole's flat, leaving the plastic a vice presses on. A key ring
+// printed apart sits in a groove round the seam in both halves and lines them
+// up all the way round (DICE.seam).
 //
 // Numbers 1 to 10 are inlays, the board's own (lib/numbers.ts: a "0" 7.5
 // tall, 0.6 thick, in pockets grown 0.1), printed in a contrasting colour
@@ -24,27 +28,28 @@
 // of vertical, so a second cut along a line 45 degrees off vertical takes
 // that ledge away (it opens the pocket's top edge by under 0.1).
 //
+// Each pole is cut flat (DICE.poleFlat), so a vice presses the halves
+// together pole to pole while the glue sets.
+//
 // The die is as small as the numbers allow: "10" with 1.0 to its kite's
-// edges and clear of the seam, 1.6 under every pocket floor to the cavity, and the pin holes 1.2
-// from the cavity, the faces and the pockets, where the pins are placed by
-// a search (d10.ts `pins`). The holes are 144 degrees apart, so the halves
-// go together one way only and no 72-degree step leaves the pins in holes.
-import { sketch, plane, extrude, subtract } from "fluidcad/core";
+// edges and clear of the seam. The groove is placed by a search (`groove`)
+// for the most plastic between it and the faces, the hollow and the
+// pockets; a block bridging it at one place, which the key's opening takes,
+// makes the halves go together one way only.
+import { sketch, plane, extrude, subtract, common, fuse } from "fluidcad/core";
 import { Matrix4, Vector3 } from "three";
 import { BOARD, DICE, MARKER } from "../../spec.ts";
 import { box, drawContours } from "../../lib/glyphs.ts";
 import { numberContours, numberPockets } from "../../lib/numbers.ts";
 import { placeBuilt } from "../../lib/kit.ts";
-import { prism, move, turn, outline, type Point, type Solid } from "../../lib/solids.ts";
-import { lathe, regular } from "../markers/common.ts";
+import { prism, taper, move, turn, outline, type Point, type Solid } from "../../lib/solids.ts";
+import { regular } from "../markers/common.ts";
 
 const rad = (deg: number) => (deg * Math.PI) / 180;
 
 /** The values round the odd pole, face k's normal at 36 + 72k, and round the even pole, face j's at 72j. */
 const ODD = [1, 7, 9, 5, 3];
 const EVEN = [2, 6, 8, 10, 4];
-/** The second pin hole's angle from the first: not 180, nor a multiple of 72. */
-const PIN_SPREAD = 144;
 
 export interface Face {
   value: number;
@@ -113,6 +118,15 @@ export function die(): Die {
   };
 }
 
+/**
+ * The height of the poles' flats: where the pyramid of five kites round a
+ * pole is DICE.poleFlat across its pentagon's flats.
+ */
+export function poleFlat(d: Die = die()): number {
+  const corner = DICE.poleFlat / 2 / Math.cos(rad(36));
+  return d.h - (corner / d.r) * (d.h - d.z0);
+}
+
 /** The far side of the plane through `at` with outward normal `n`: a box to subtract. */
 export function beyond(n: Vector3, at: Vector3): Solid {
   const u = new Vector3().crossVectors(n, Math.abs(n.z) < 0.9 ? new Vector3(0, 0, 1) : new Vector3(1, 0, 0)).normalize();
@@ -130,21 +144,13 @@ export function beyond(n: Vector3, at: Vector3): Solid {
   return placeBuilt(box, new Matrix4().makeBasis(u, v, n).setPosition(at));
 }
 
-/** The ball's cavity: its radius, the height of its straight wall, and its roof's apex. */
-export function cavity() {
-  const R = (DICE.ball.diameter + DICE.ball.clearance) / 2;
-  // A 45-degree roof that touches the cavity's own circle: the ball, smaller by the clearance, never reaches it.
-  const wall = R * (Math.SQRT2 - 1);
-  return { R, wall, apex: wall + R };
+/** The hollow's inradius: the die's, less the deepest cut and the plastic under it. */
+export function hollow(d: Die = die()): number {
+  return d.inradius - Math.max(BOARD.number.depth, MARKER.depth) - DICE.wall.numbers;
 }
 
-/** The most n . p reaches over the cavity, for a face whose normal leans `nz` out of the cut. */
-function cavityReach(n: Vector3): number {
-  const { R, wall, apex } = cavity();
-  // The cavity's furthest points are the rim at the top of its straight wall and its roof's apex.
-  return Math.max(Math.hypot(n.x, n.y) * R + Math.abs(n.z) * wall, Math.abs(n.z) * apex);
-}
-
+/** The plastic left under each pole's flat, over the hollow's roof. */
+const CAP = 2;
 
 /** A face-frame point (u right, v up from `mid`) on the face, in the die's frame. */
 const onFace = (f: Face, [u, v]: Point) => f.mid.clone().addScaledVector(f.right, u).addScaledVector(f.up, v);
@@ -248,58 +254,142 @@ function pocketSamples(d: Die): Vector3[] {
   return out;
 }
 
-/** The walls round one pin hole at (x, y): to the cavity, to the faces and to the pockets. */
-function holeWalls(d: Die, samples: Vector3[], [x, y]: Point) {
-  const { hole, depth } = DICE.pin;
-  const rh = hole / 2;
-  const profile: Point[] = [[0, 0], [rh, 0], [rh, depth], [0, depth + rh]];
-  let pocket = Infinity;
-  for (const q of samples) {
-    if (Math.abs(q.z) > depth + rh + 2 || Math.abs(q.x - x) > rh + 2 || Math.abs(q.y - y) > rh + 2) continue;
-    pocket = Math.min(pocket, outside(profile, [Math.hypot(q.x - x, q.y - y), Math.abs(q.z)]));
-  }
-  // A face reaches furthest into a hole on its own side of the cut: the hole's top rim, or its tip.
-  const face = Math.min(
-    ...d.faces.map((f) => {
-      const [nh, nz] = [Math.hypot(f.n.x, f.n.y), Math.abs(f.n.z)];
-      const c = f.n.x * x + f.n.y * y;
-      return d.inradius - Math.max(c + nh * rh + nz * depth, c + nz * (depth + rh));
-    })
-  );
-  return { cavity: Math.hypot(x, y) - rh - cavity().R, face, pocket: Math.min(pocket, 99) };
+/** What the ball, at rest on any face, keeps clear of the seam's ring. */
+const BALL_CLEAR = 0.3;
+
+/** The decagon's apothem through a point: the largest of its reaches along the faces' horizontal normals. */
+function apothem(d: Die, [x, y]: Point): number {
+  return Math.max(...d.faces.map((f) => (f.n.x * x + f.n.y * y) / Math.hypot(f.n.x, f.n.y)));
 }
 
-const pinCache = new Map<string, { radius: number; angles: number[]; at: Point[] }>();
+/**
+ * The seam ring's inner edge, a decagon square to the faces: `seam.ring` in
+ * from the hollow's at the cut, straight up to the ring's top, then out at
+ * 45 degrees in the print until it meets the wall, so the groove has
+ * plastic over it on every side (the hollow widens above the cut on half of
+ * them).
+ */
+const ringEdge = (d: Die) => (hollow(d) - DICE.seam.ring) / Math.hypot(d.faces[0].n.x, d.faces[0].n.y);
 
 /**
- * The pin holes: a pair PIN_SPREAD apart, at the angle and radius (searched
- * in steps of 1 degree and 0.05) that leave the thinnest of their walls the
- * thickest, no nearer the cavity than its wall.
+ * How far the ball, at rest on any face, keeps from the seam's ring: every
+ * point of the ring and its roof (sampled 0.2 apart) against every resting
+ * ball.
  */
-export function pins(d: Die = die()): { radius: number; angles: number[]; at: Point[] } {
-  const key = `${d.r}:${d.h}`;
-  const hit = pinCache.get(key);
-  if (hit) return hit;
-  const samples = pocketSamples(d);
-  const rh = DICE.pin.hole / 2;
-  const inner = cavity().R + DICE.wall.pins + rh;
-  const at = (deg: number, r: number): Point => [r * Math.cos(rad(deg)), r * Math.sin(rad(deg))];
-  const thinnest = (p: Point) => {
-    const w = holeWalls(d, samples, p);
-    return Math.min(w.cavity, w.face, w.pocket);
-  };
-  let best = { wall: -Infinity, radius: inner, angle: 0 };
-  for (let radius = inner; radius <= inner + 1.5; radius += 0.05) {
-    const ring = Array.from({ length: 360 }, (_, a) => thinnest(at(a, radius)));
-    for (let a = 0; a < 360; a++) {
-      const wall = Math.min(ring[a], ring[(a + PIN_SPREAD) % 360]);
-      if (wall > best.wall + 1e-9) best = { wall, radius, angle: a };
-    }
+function seamClear(d: Die): number {
+  const R = DICE.ball.diameter / 2;
+  const H = hollow(d);
+  const { height } = DICE.seam;
+  const balls = d.faces.map((f) => f.n.clone().multiplyScalar(H - R));
+  let clear = Infinity;
+  for (let x = -d.r; x <= d.r; x += 0.2)
+    for (let y = -d.r; y <= d.r; y += 0.2)
+      for (let z = 0; z <= height + DICE.seam.ring; z += 0.2) {
+        const m = Math.max(...d.faces.map((f) => f.n.x * x + f.n.y * y + f.n.z * z));
+        if (m > H || apothem(d, [x, y]) < ringEdge(d) + Math.max(0, z - height)) continue;
+        for (const c of balls) clear = Math.min(clear, Math.hypot(x - c.x, y - c.y, z - c.z) - R);
+      }
+  return clear;
+}
+
+/**
+ * The seam's decagon at apothem `a`: its sides square to the faces'
+ * horizontal normals, as the equator's are.
+ */
+function decagon(d: Die, a: number): Point[] {
+  const az = d.faces.map((f) => Math.atan2(f.n.y, f.n.x)).sort((p, q) => p - q);
+  return az.map((t, k) => {
+    const next = k + 1 < az.length ? az[k + 1] : az[0] + 2 * Math.PI;
+    const mid = (t + next) / 2;
+    const r = a / Math.cos((next - t) / 2);
+    return [r * Math.cos(mid), r * Math.sin(mid)];
+  });
+}
+
+/** Where the groove's block stands: across the side square to the first face's normal. */
+const blockAngle = (d: Die) => Math.atan2(d.faces[0].n.y, d.faces[0].n.x);
+
+/**
+ * The plastic left round a groove whose middle is at apothem `a` (in the
+ * odd half; the even half is its mirror): to the faces, the land, the
+ * hollow with its ring, and the pockets, at points round its walls and
+ * across its roof.
+ */
+function grooveWalls(d: Die, a: number, samples: Vector3[]): number {
+  const { land, height, groove } = DICE.seam;
+  const { width: g, depth } = groove;
+  const H = hollow(d);
+  const pts: Vector3[] = [];
+  const { mouth } = groove;
+  // Its walls, its mouth's chamfer at the cut, and its peaked roof.
+  const at: [number, number][] = [
+    [a - g / 2 - mouth, 0], [a + g / 2 + mouth, 0],
+    ...[mouth, depth / 2, depth].flatMap((z): [number, number][] => [[a - g / 2, z], [a + g / 2, z]]),
+    [a - g / 4, depth + g / 4], [a + g / 4, depth + g / 4], [a, depth + g / 2],
+  ];
+  for (const [apothem, z] of at) {
+    const poly = decagon(d, apothem);
+    poly.forEach((p, k) => {
+      const q = poly[(k + 1) % poly.length];
+      for (let t = 0; t < 1; t += 0.05) pts.push(new Vector3(p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1]), z));
+    });
   }
-  const angles = [best.angle, (best.angle + PIN_SPREAD) % 360];
-  const out = { radius: best.radius, angles, at: angles.map((a) => at(a, best.radius)) };
-  pinCache.set(key, out);
-  return out;
+  let wall = Infinity;
+  for (const p of pts) {
+    // Out to a face, or the land below its top.
+    for (const f of d.faces) {
+      wall = Math.min(wall, d.inradius - f.n.dot(p));
+      const nh = Math.hypot(f.n.x, f.n.y);
+      if (f.n.z > 0 && p.z <= land) wall = Math.min(wall, (d.inradius - f.n.z * land) / nh - (f.n.x * p.x + f.n.y * p.y) / nh);
+    }
+    // In to the hollow: no nearer than the die's hollow, nor than the ring's
+    // edge (its prism, or the cone of its roof above its top).
+    const e = apothem(d, [p.x, p.y]) - ringEdge(d);
+    const edge = Math.min(e, Math.max((e - (p.z - height)) / Math.SQRT2, height - p.z));
+    wall = Math.min(wall, Math.max(Math.max(...d.faces.map((f) => f.n.dot(p) - H)), edge));
+    for (const q of samples) if (Math.abs(q.z - p.z) < 3) wall = Math.min(wall, q.distanceTo(p));
+  }
+  return wall;
+}
+
+const grooveCache = new Map<string, { apothem: number; wall: number }>();
+
+/** The groove's middle: the apothem, in steps of 0.05, that leaves the most plastic round it. */
+export function groove(d: Die = die()): { apothem: number; wall: number } {
+  const key = `${d.r}:${d.h}`;
+  const hit = grooveCache.get(key);
+  if (hit) return hit;
+  const samples = pocketSamples(d).filter((q) => Math.abs(q.z) < 4);
+  let best = { apothem: 0, wall: -Infinity };
+  for (let a = ringEdge(d); a < d.inradius / 0.7; a += 0.05) {
+    const wall = grooveWalls(d, a, samples);
+    if (wall > best.wall) best = { apothem: a, wall };
+  }
+  grooveCache.set(key, best);
+  return best;
+}
+
+/** The groove's block, or the key's opening: a strip across the seam's sides at `blockAngle`, `long` along them. */
+function across(d: Die, long: number, height: number, t = blockAngle(d)): Solid {
+  const [u, v] = [[Math.cos(t), Math.sin(t)], [-Math.sin(t), Math.cos(t)]];
+  const [r0, r1] = [groove(d).apothem - 3, groove(d).apothem + 3];
+  const at = (r: number, s: number): Point => [r * u[0] + s * v[0], r * u[1] + s * v[1]];
+  return prism([at(r0, -long / 2), at(r1, -long / 2), at(r1, long / 2), at(r0, long / 2)], height);
+}
+
+/**
+ * The key ring, flat on the bed: the groove less `clearance` across, as tall
+ * as both grooves up to where its corners meet their peaked roofs, less
+ * `end` at each end, open where the block bridges the groove.
+ */
+export function buildKey(): Solid {
+  const d = die();
+  const { width, depth, gap, clearance: c, end } = DICE.seam.groove;
+  const { apothem: a } = groove(d);
+  // A corner `c` in from the groove's wall meets the 45-degree roof `c` above the wall's top.
+  const h = 2 * (depth + c - end);
+  let key = subtract(prism(decagon(d, a + width / 2 - c), h), move(prism(decagon(d, a - width / 2 + c), h + 2), 0, 0, -1));
+  return subtract(key, move(across(d, gap + 2 * c, h + 2), 0, 0, -1));
 }
 
 /**
@@ -332,20 +422,25 @@ function pocketTools(f: Face, polys: Point[][], depth: number, d: Die, printUp: 
 export function buildHalf(odd: boolean, pose: "print" | "die" = "print"): Solid {
   const d = die();
   const w = walls(d);
-  if (w.numbers < DICE.wall.numbers || Math.min(w.pinToCavity, w.pinToFace, w.pinToPocket) < DICE.wall.pins - 1e-6)
+  if (w.ballRoom < 0 || w.ballToSeam < BALL_CLEAR || w.round < DICE.wall.groove - 1e-6)
     throw new Error(`d10: a wall is too thin: ${JSON.stringify(w)}`);
   const sign = odd ? 1 : -1;
   let s = prism(regular(10, d.r + 3), d.h + 1);
   if (!odd) s = move(s, 0, 0, -d.h - 1);
   // One plane at a time: a cut by several solids at once cuts nothing.
   for (const f of d.faces) s = subtract(s, beyond(f.n, f.n.clone().multiplyScalar(d.inradius)));
-  // The cavity and the holes, from 1 under the cut up to their roofs (mirrored for the even half).
-  const turned = (profile: Point[]) => lathe(profile.map(([r, z]): Point => [r, sign * z]));
-  const { R, wall } = cavity();
-  s = subtract(s, turned([[0, -1], [R, -1], [R, wall], [0, wall + R]]));
-  const rh = DICE.pin.hole / 2;
-  for (const [x, y] of pins(d).at)
-    s = subtract(s, move(turned([[0, -1], [rh, -1], [rh, DICE.pin.depth], [0, DICE.pin.depth + rh]]), x, y, 0));
+  s = subtract(s, beyond(new Vector3(0, 0, sign), new Vector3(0, 0, sign * poleFlat(d))));
+  // The equator's knife edge (each half's faces meet its cut at 48 degrees)
+  // stood up as a vertical land `seam.land` tall: it prints as perimeters,
+  // not a feather a first layer flares, and gives the halves an edge to meet on.
+  const { land, height } = DICE.seam;
+  const slab = (top: number) => move(prism(regular(10, d.r + 3), top + 1), 0, 0, odd ? -1 : -top);
+  for (const f of d.faces) {
+    if (f.n.z * sign <= 0) continue;
+    const nh = Math.hypot(f.n.x, f.n.y);
+    const v = new Vector3(f.n.x / nh, f.n.y / nh, 0);
+    s = subtract(s, common(slab(land), beyond(v, v.clone().multiplyScalar((d.inradius - Math.abs(f.n.z) * land) / nh))));
+  }
   // Every face's pockets on this half's side of the seam.
   const printUp = new Vector3(0, 0, sign);
   for (const f of d.faces) {
@@ -359,6 +454,38 @@ export function buildHalf(odd: boolean, pose: "print" | "die" = "print"): Solid 
       for (const tool of pocketTools(f, polys, depth, d, printUp)) s = subtract(s, tool);
     }
   }
+  // The hollow, cut after the pockets (cut before them, the half takes the
+  // kernel over ten minutes): the die's shape moved in to `hollow`, from 1
+  // under the cut, its apex cut flat CAP under the pole's flat (a ceiling
+  // under 7 across, bridged).
+  let tool = move(prism(regular(10, d.r + 3), d.h + 2), 0, 0, odd ? -1 : -d.h - 1);
+  for (const f of d.faces) tool = subtract(tool, beyond(f.n, f.n.clone().multiplyScalar(hollow(d))));
+  const cap = poleFlat(d) - CAP;
+  tool = subtract(tool, move(prism(regular(10, d.r + 3), d.h), 0, 0, odd ? cap : -cap - d.h));
+  // The seam's ring: everything outside a decagon `seam.ring` in from the
+  // hollow's edge at the cut, `seam.height` up from it, then outside that
+  // decagon widening at 45 degrees (the ring's roof), so the halves meet on
+  // a wide face and the groove has plastic round it (the ball keeps clear).
+  const big = regular(10, d.r + 3);
+  let keep = subtract(move(prism(big, height + 1), 0, 0, -1), move(prism(decagon(d, ringEdge(d)), height + 3), 0, 0, -2));
+  keep = fuse(keep, subtract(move(prism(big, d.h), 0, 0, height), move(taper(decagon(d, ringEdge(d)), d.h, -45), 0, 0, height)));
+  tool = subtract(tool, odd ? keep : turn(keep, "x", 180));
+  s = subtract(s, tool);
+  // The key's groove, up from the cut: its walls, a 45-degree peak for a
+  // roof (a flat roof is a bridge that sags onto the key), and its mouth
+  // chamfered so a first layer's flare does not narrow it; less the block
+  // that bridges it at one place. Built for the odd half and turned over for
+  // the even, with its block placed where the turn brings it back.
+  const { width: g, depth, gap, mouth } = DICE.seam.groove;
+  const { apothem: a } = groove(d);
+  const band = (outer: Solid, inner: Solid) => subtract(outer, inner);
+  const slot = (t: number) => {
+    let tool = band(move(prism(decagon(d, a + g / 2), depth + 1), 0, 0, -1), move(prism(decagon(d, a - g / 2), depth + 3), 0, 0, -2));
+    tool = fuse(tool, band(move(taper(decagon(d, a + g / 2), g / 2), 0, 0, depth), move(taper(decagon(d, a - g / 2), g / 2 + 1, -45), 0, 0, depth)));
+    tool = fuse(tool, band(move(taper(decagon(d, a + g / 2 + mouth + 1), mouth + 1), 0, 0, -1), move(taper(decagon(d, a - g / 2 - mouth - 1), mouth + 2, -45), 0, 0, -1)));
+    return subtract(tool, move(across(d, gap, depth + g + 3, t), 0, 0, -1));
+  };
+  s = subtract(s, odd ? slot(blockAngle(d)) : turn(slot(-blockAngle(d)), "x", 180));
   return pose === "print" && !odd ? turn(s, "x", 180) : s;
 }
 
@@ -422,30 +549,12 @@ function inside(polys: Point[][], [x, y]: Point): boolean {
   return odd;
 }
 
-/** How far a point is outside a convex polygon (0 inside). */
-function outside(poly: Point[], q: Point): number {
-  if (inside([poly], q)) return 0;
-  return Math.min(
-    ...poly.map((a, i) => {
-      const b = poly[(i + 1) % poly.length];
-      const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
-      const t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy)));
-      return Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy);
-    })
-  );
-}
-
 /** The walls the contract asks for, in mm: d10 throws before building a die that breaks one. */
 export function walls(d: Die = die()) {
-  const { at } = pins(d);
-  const samples = pocketSamples(d);
-  const holes = at.map((p) => holeWalls(d, samples, p));
   return {
-    /** Under the deepest cut (the 6 and 9 grooves) to the cavity, and under an inlay's floor. */
-    numbers: d.inradius - Math.max(BOARD.number.depth, MARKER.depth) - cavityReach(d.faces[0].n),
-    inlayFloor: d.inradius - BOARD.number.depth - cavityReach(d.faces[0].n),
-    pinToCavity: Math.min(...holes.map((h) => h.cavity)),
-    pinToFace: Math.min(...holes.map((h) => h.face)),
-    pinToPocket: Math.min(...holes.map((h) => h.pocket)),
+    /** How much smaller the ball is than the hollow's insphere: it must be free to roll. */
+    ballRoom: hollow(d) - DICE.ball.diameter / 2,
+    ballToSeam: seamClear(d),
+    round: groove(d).wall,
   };
 }

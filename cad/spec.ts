@@ -149,8 +149,31 @@ export const WELLS = {
  * and their waves' amplitude.
  */
 export const ORBIT_BODY = {
-  /** The planet's bore round the peg kept the featurescript's 0.2 clearance, not the board's 0.1. */
-  planet: { radius: 25, bands: 4, waves: 5, amplitude: 1, tilt: 5, seed: 1, clearance: 0.2 },
+  /**
+   * The planet's bore round the peg kept the featurescript's 0.2 clearance,
+   * not the board's 0.1. It runs up through every band into the top piece
+   * under a flat roof (an 8.4 bridge) `bore.roof` under the dome, with a
+   * keyway along it, so a keyed peg stops the pieces turning. Each band
+   * above the base band prints as two pieces cut square to the planet's
+   * tilted axis, each on its cut face (whole, its wavy underside has
+   * nothing under it); the assembly peg, the bore's shape less the
+   * clearance and `seat` shorter, threads them while they are glued,
+   * standing on a flange the base band rests on (flat on the table, and
+   * something to pull it out by). The
+   * cap's lower piece is `sliver` thick at its thinnest.
+   */
+  planet: {
+    radius: 25,
+    bands: 4,
+    waves: 5,
+    amplitude: 1,
+    tilt: 5,
+    seed: 1,
+    clearance: 0.2,
+    bore: { roof: 1.4, key: { width: 2.4, depth: 1.2 } },
+    assemblyPeg: { seat: 0.3, flange: { diameter: 20, thickness: 2, chamfer: 0.6 } },
+    sliver: 0.8,
+  },
   blackHole: {
     radius: 30,
     /** The horizon's centre above the hub. */
@@ -172,14 +195,15 @@ export const MARKER = { depth: 0.6 };
 
 /**
  * The hull and fuel dice (`pieces/dice/`): a pentagonal trapezohedron per
- * counter, never rolled, a steel ball sealed in its centre, standing on a
- * stand with a magnet sealed under the pocket the die's bottom face drops
- * into. The die prints as two halves split at its equator, each on its cut
- * face, pinned with filament and glued round the ball.
+ * counter, never rolled, hollow with a steel ball loose inside, standing on
+ * a stand with a magnet sealed under the pocket the die's bottom face drops
+ * into: the ball rolls onto the bottom face, over the magnet. The die prints
+ * as two halves split at its equator, each on its cut face, lined up by a
+ * key ring in a groove in both and glued with the ball inside.
  */
 export const DICE = {
-  /** The steel ball, and what its cavity adds to its diameter. */
-  ball: { diameter: 10, clearance: 0.2 },
+  /** The steel ball, loose in the hollow. */
+  ball: { diameter: 10 },
   /**
    * Pole height over the ring's radius (h / r). 1.25 left a long empty tail
    * over the number; under 0.95 the other pole's kite tips overhang past 45
@@ -190,13 +214,42 @@ export const DICE = {
    * Centre to face, the smallest at this proportion that keeps every rule:
    * the numbers set it (the board's inlays, a "0" 7.5 tall, "10" with its
    * margin to its kite and clear of the seam), and d10.ts checks every wall
-   * and places the pins.
+   * and places the seam's groove.
    */
   inradius: 9.9,
-  /** The least plastic between the cavity and a numeral's floor, and round a pin hole. */
-  wall: { numbers: 1.6, pins: 1.2 },
-  /** 1.75 filament pins, a hole each side of the cut. */
-  pin: { hole: 1.9, depth: 2.5 },
+  /**
+   * Each pole cut flat, this far across its pentagon's flats, so a vice can
+   * press the halves together while the glue sets (6 takes 3.3 off a 14.8
+   * pole; the numbers stop 7.6 from the centre).
+   */
+  poleFlat: 6,
+  /**
+   * The hollow's wall under a numeral's floor and the least plastic round
+   * the seam's groove: two perimeters each (0.7 is two, as at a mount face;
+   * the groove's peaked roof leaves 0.74). Under the numbers, the inlay
+   * glued over it makes the face 1.4, and every 0.1 off it is pull on the ball.
+   */
+  wall: { numbers: 0.8, groove: 0.7 },
+  /**
+   * Where the halves meet: the equator's knife edge stood up as a vertical
+   * land on each half; a ring inside it, a decagon `ring` in from the
+   * hollow's edge at the cut and `height` tall under a 45-degree roof; and a
+   * groove round the seam in both halves for a key ring printed apart, which
+   * lines them up all the way round. The ring is what makes room for the
+   * groove: above the cut the hollow widens on half the sides and the
+   * numbers' pockets come within 0.13 of the cut on the other half, and 2.5
+   * by 1.4 leaves 0.86 round a 1.5 by 1 groove and the resting ball 0.59
+   * (3 wide reaches the ball; taller than 1.4 gains nothing). The groove is
+   * bridged across at one place by a block `gap` long; the key is a C whose
+   * opening takes the block, so the halves go together one way only. The
+   * groove's roof is a 45-degree peak, not a bridge (a bridged roof sagged
+   * onto the key and held the halves apart), and its mouth is chamfered
+   * `mouth` for a first layer's flare. The key is the groove less
+   * `clearance` across (0.2 let it rattle) and as tall as reaches into
+   * both peaks, its top corners `end` under each roof: shorter, it sank into
+   * the first half's groove and barely reached the second's.
+   */
+  seam: { land: 0.4, ring: 2.5, height: 1.4, groove: { width: 1.5, depth: 1, gap: 3, clearance: 0.15, end: 0.15, mouth: 0.15 } },
   /**
    * Numbers (BOARD.number's inlays): their pockets' least margin to their
    * kite's edges, and the groove engraved under 6 and 9 (MARKER.depth deep),
@@ -207,10 +260,14 @@ export const DICE = {
     /** How deep the die's face sits, and what the pocket adds to the face across (0.1 a side, as a tenon). */
     pocketDepth: 1.2,
     clearance: 0.2,
-    /** Plastic between the pocket floor and the magnet: thin, since the pull falls fast with distance. */
-    seal: 0.6,
-    /** 6x2 magnets stacked under the pocket (MOUNT.magnet), and the plug under them. */
-    magnets: 1,
+    /** Plastic between the pocket floor and the magnet, two layers: the pull falls fast with distance. */
+    seal: 0.4,
+    /**
+     * The magnet under the pocket, and the plug under it. A 10x3, not the
+     * hulls' 6x2: across the same plastic it pulls the ball about four times
+     * as hard, and its face covers more of the floor the ball rolls on.
+     */
+    magnet: { diameter: 10, thickness: 3 },
     plug: 1.6,
     /**
      * Taken off the plug's diameter, all round. A round slot printed upright
@@ -225,5 +282,7 @@ export const DICE = {
     /** The icon on the stand's top, beyond the pocket's long tail, and its gap to the pocket. */
     icon: 9,
     iconGap: 1.5,
+    /** What the icon's inlay is grown by all round: the fuel icon's thinnest stroke traces 0.42, under FDM.minFeature. */
+    iconGrow: 0.1,
   },
 };

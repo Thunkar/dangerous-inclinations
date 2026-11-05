@@ -106,7 +106,7 @@ function inShip(object: Object3D, root: Object3D): Matrix4 {
  * outboard, +Z dorsal; the printed one maps onto it by a rotation (its dorsal
  * to the game's ventral, which the foot's symmetry allows).
  */
-function mountFrame(model: ShipModel, frame: Matrix4, id: MountId): Matrix4 {
+export function mountFrame(model: ShipModel, frame: Matrix4, id: MountId): Matrix4 {
   const toGame = new Matrix4().makeBasis(
     new Vector3(1, 0, 0),
     new Vector3(0, 0, -1),
@@ -396,7 +396,7 @@ export function slitFins(hull: Hull): { arms: SlitFin[]; keel: SlitFin | null } 
 }
 
 /** A fin's own frame, in mm (x along the ship, y up its plane, z through it), into the hull's print. */
-function finFrame(hull: Hull, f: SlitFin): Matrix4 {
+export function finFrame(hull: Hull, f: SlitFin): Matrix4 {
   return printFrame(HULL_PRINT[hull].bed)
     .multiply(new Matrix4().makeTranslation(0, 0, f.z))
     .multiply(new Matrix4().makeRotationX(f.cant))

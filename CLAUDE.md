@@ -189,6 +189,8 @@ yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.m
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal
 yarn cad                                                          # FluidCAD viewer for cad/ (localhost:3100; build the engine first)
 yarn workspace @dangerous-inclinations/cad export                 # every printable to cad/out/<folder>/*.step + .stl
+yarn workspace @dangerous-inclinations/cad plates                 # MK4S beds of them, a filament each: cad/out/plates/*.3mf + a sheet
+yarn workspace @dangerous-inclinations/cad colour-hulls           # each hull painted in the game's colours for a multi-material printer: cad/out/colour/*.3mf
 yarn workspace @dangerous-inclinations/cad shot coupons/mount.part.js iso-ftr top   # PNGs of a part, headless, to cad/shots/
 node scripts/shot.mjs '/' shot.png                    # photograph the running UI (needs `yarn dev`; PLAYER_ID + ?game=<id> for a seat)
 DOCKERHUB_USER=<you> scripts/deploy.sh               # build + push both images, restart the stack on the NAS (Dockerfile, deploy/)
@@ -526,7 +528,14 @@ walled sectors and inlaid numbers (drawn from the font's own outlines,
 them), a hub, six arms that lock the rings, lane markers in grooves in a band
 outside the outer ring, and the body on the hub's peg: a planet's dome in
 wavy bands (each boundary lofted as Onshape lofted it, between centripetal
-splines through the same samples, matched point to point by parameter), or
+splines through the same samples, matched point to point by parameter),
+the base band printed whole and each band above it as two pieces cut square
+to the planet's tilted axis (`cutAt`), each lying on its cut face, the lower
+turned over; a round bore with a keyway runs up through every piece into
+the top one under a flat roof, and a keyed assembly peg (`assembly-peg`, the
+bore's depth less a hair, on a flat flange the base band rests on, so the
+stack stands flat on the table) lines the pieces up and stops them turning
+while they are glued, then pulls out by its flange, so the planet sits on the hub's own peg, or
 the black hole's horizon and accretion disc with its streak inlays; and the
 ship token (`pieces/token.ts`, a chamfered slab the kernel's own chamfer
 cannot cut, built as lofts between the outlines at each height; `slab`
@@ -545,12 +554,28 @@ planet's letter, six a planet in its colour, kept by the seller). The hull
 and fuel dice (`pieces/dice/`, `DICE` in `spec.ts`) are d10s numbered 1 to
 10, as square as they are tall (the designer's pick of the proportions), in
 two halves split at the equator that print on the cut face with no
-supports: a 10 mm steel ball glued in the centre, two filament pins that
-fit the halves one way only, and the board's own number inlays
+supports: hollow, a 10 mm steel ball loose inside that rolls onto the face
+that is down, over the stand's magnet (1.8 mm from it on the hull stand, 2.4 under
+the fuel stand's 0: a ball held in the centre was 5.5 and barely held, and
+2.8 over a 6x2 still held weakly), each pole cut flat so a vice can press
+the halves together while the glue sets, the seam a vertical land outside
+(not the 48-degree knife edge a first layer flares) and a decagonal ring
+inside it under a 45-degree roof (`DICE.seam`), wide enough for a groove
+round the seam in both halves: a C-shaped key ring printed apart
+(`d10-key`) sits in both, its opening on a block that bridges each groove,
+so the halves line up all the way round and go together one way only
+(the groove's roof a 45-degree peak, since a bridged roof sagged onto the
+key and held the halves apart, and the key reaching into both roofs, so
+it cannot sink into one half and miss the other)
+(the pockets come within 0.13 of the seam and the hollow widens above it,
+so the ring is what leaves the groove its plastic), and the board's own number inlays
 (`lib/numbers.ts`, shared with `well.ts`) glued into pockets. Each die sits
-on a kite stand with a sealed magnet under its pocket that pulls on the
-ball; the fuel stand's pocket holds a 0, which shows when an empty tank
-lifts the die off (`coupons/stand-plug` sets the plug's fit). The token
+on a kite stand with a sealed 10x3 magnet under its pocket (the one
+piece that does not take the 6x2) that pulls on the ball; the fuel stand's pocket holds a 0, which shows when an empty tank
+lifts the die off (`coupons/stand-plug` sets the plug's fit). The stand's
+icon is inlaid too, so a die's numbers, its stand's icon and the 0 print as
+one set in its accent (`hull-inlays`, `fuel-inlays`), the icon grown 0.1 so
+the fuel icon's thinnest stroke prints. The token
 holder (`pieces/holder.ts`, `parts/holder/`) keeps what comes and goes in
 play: a pool tray for crates, data, wrecks and sale chips, its height
 following each bin so only the wreck bin stands tall, and a caddy a player
@@ -558,7 +583,17 @@ in their colour for their salvo tokens and Escort markers; every bin's
 floor runs up into a cove at its front, so a fingertip slides a token out,
 and carries the token that lives in it drawn as a groove (a salvo's
 missiles sunk whole). Ship tokens, stations and Home markers stay on the board and have no place
-in it. The station (`pieces/station.ts`) is printed from the
+in it. `cad/plates.mjs` lists the print plates for a table of six, each one
+filament on a Prusa MK4S bed (the players' colours are the game's; ship, base
+and subsystems grey, for painting; dice and stands black, each die's inlays in
+its accent, red for hull and ochre for fuel; the board black, the black
+hole's numbers and streaks white and its disc ochre; a planet's sale chips,
+sector numbers, lane markers and alternate bands in the game's colour for it,
+Alpha cobalt (the game's deep teal), Beta ochre and Gamma violet, the other bands white; the board's
+counts are checked against its part files' names; a hub prints with rings 1
+and 2 round it as they sit on the board, and a ring in segments prints its
+segments turned alike and stacked one inside the next), and `scripts/plates.mjs` packs them from the exported STLs into a
+3MF a bed for PrusaSlicer. The station (`pieces/station.ts`) is printed from the
 yard's (`ui/src/ships/station.ts`) as the hulls are: a spindle on a foot
 in its sector, a habitat drum, three finned radiators canted at 55
 degrees and three arms climbing to clamps a ship token drops into, so

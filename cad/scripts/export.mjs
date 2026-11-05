@@ -35,30 +35,38 @@ for (const file of files) {
       .replace(/\.part\.js$/, "")
   );
   mkdirSync(dirname(out), { recursive: true });
+  const failed = [];
   await withServer(file, async (port, served) => {
     for (const [format, extra] of [
       ["step", []],
       ["stl", ["--resolution", "fine"]],
     ]) {
-      execFileSync(
-        "npx",
-        [
-          "fluidcad",
-          "export",
-          format,
-          "-e",
-          served,
-          "-p",
-          port,
-          "-o",
-          `${out}.${format}`,
-          "--timeout",
-          "600",
-          ...extra,
-        ],
-        { stdio: ["ignore", "ignore", "inherit"] }
-      );
+      // FluidCAD's STEP writer fails on some solids its STL writer takes (the
+      // hollow die: "b.Position is not a function"); the STL is what prints.
+      try {
+        execFileSync(
+          "npx",
+          [
+            "fluidcad",
+            "export",
+            format,
+            "-e",
+            served,
+            "-p",
+            port,
+            "-o",
+            `${out}.${format}`,
+            "--timeout",
+            "600",
+            ...extra,
+          ],
+          { stdio: ["ignore", "ignore", "inherit"] }
+        );
+      } catch (e) {
+        if (format === "stl") throw e;
+        failed.push(format);
+      }
     }
   });
-  console.log(`${out}.step, ${out}.stl`);
+  console.log(failed.length ? `${out}.stl (STEP export failed)` : `${out}.step, ${out}.stl`);
 }

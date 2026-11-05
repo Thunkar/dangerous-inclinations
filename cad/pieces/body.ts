@@ -6,8 +6,13 @@
 // alternating. The boundaries lean on a shared, tilted axis and each wanders
 // off it (a seed reshuffles them), so they never line up. The waves key each
 // band onto the one below. A bore runs up from the base through every band
-// and stops inside the cap, so the hub's peg (or a longer dowel) lines the
-// stack up.
+// into the top piece, under a flat roof, and the hub's peg sits in its foot.
+// The bore is keyed, so the pieces cannot turn on the peg.
+// The base band prints whole on its flat base; above it, a band's wavy
+// underside would have nothing under it, so each prints as two pieces cut
+// square to the planet's tilted axis, each on its cut face (the lower one
+// turned over). An assembly peg the bore's shape threads them all while they
+// are glued, then slides out.
 //
 // Black hole: the horizon is a sphere with its bottom cut flat to stand on the
 // hub's peg. The accretion disc is flat, with rows of swirl streaks cut right
@@ -18,10 +23,11 @@
 // rest on the hub, and the horizon drops through the disc's hole onto the
 // peg; its belly, wider than the hole, holds the disc down.
 import { subtract, common, fuse, sketch, plane, extrude, loft, sphere, cylinder } from "fluidcad/core";
-import { Matrix4, Vector3 } from "three";
+import { Matrix4, Quaternion, Vector3 } from "three";
 import { BOARD, ORBIT_BODY } from "../spec.ts";
-import { prism, move, outline, type Point, type Solid } from "../lib/solids.ts";
+import { prism, move, block, outline, type Point, type Solid } from "../lib/solids.ts";
 import { placeBuilt } from "../lib/kit.ts";
+import { lathe } from "./markers/common.ts";
 import { BOARD_WELLS } from "./well.ts";
 
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -75,20 +81,44 @@ const wave = (b: Boundary, a: number) =>
   b.reach * (0.7 * Math.sin(rad(b.waves * a + b.phase)) + 0.3 * Math.sin(rad((2 * b.waves + 1) * a + 2 * b.phase)));
 const zAt = (b: Boundary, rho: number, a: number) => b.height + rho * Math.tan(rad(b.tilt)) * Math.cos(rad(a - b.lean)) + wave(b, a);
 
-/** How high the bore runs: past every boundary at its wall, and its cap clear. */
+/**
+ * The bore's flat roof: as high as leaves `bore.roof` of dome over the
+ * keyway's outer corner. The cone a roof would want does not fit: the top
+ * piece is 4 tall, and the key must reach into it.
+ */
 function boreTop(): number {
-  let top = PEG.height + P.clearance;
-  for (let k = 1; k < P.bands; k++)
-    for (let m = 0; m < 144; m++) top = Math.max(top, zAt(boundary(k), BORE, m * 2.5) + MIN_GAP);
-  if (top + MIN_GAP >= Math.sqrt(P.radius ** 2 - BORE ** 2)) throw new Error("The peg bore would break through the planet's top");
-  return top;
+  const { width, depth } = P.bore.key;
+  return Math.sqrt(P.radius ** 2 - (BORE + depth) ** 2 - (width / 2) ** 2) - P.bore.roof;
 }
 
-/** The dome, flat on the base, with the bore up into it. */
+/** The keyway, or the peg's key less `less` all round: a slot from the axis out past the bore along +x, from `base` to `top`. */
+function key(less: number, base: number, top: number): Solid {
+  const { width, depth } = P.bore.key;
+  const [w, out] = [width / 2 - less, BORE + depth - less];
+  return move(prism([[0, -w], [out, -w], [out, w], [0, w]], top - base), 0, 0, base);
+}
+
+/** The dome, flat on the base, with the keyed bore up into it. */
 function dome(): Solid {
   const r = P.radius;
-  const s = subtract(sphere(r), move(cylinder(r + 1, r + 1), 0, 0, -r - 1));
-  return subtract(s, move(cylinder(BORE, boreTop() + 1), 0, 0, -1));
+  let s = subtract(sphere(r), move(cylinder(r + 1, r + 1), 0, 0, -r - 1));
+  s = subtract(s, move(cylinder(BORE, boreTop() + 1), 0, 0, -1));
+  return subtract(s, key(0, -1, boreTop()));
+}
+
+/**
+ * The assembly peg as it prints, upright on its flange: the peg's diameter
+ * with the key along it, the bore's depth less `seat`, standing on a flat
+ * flange the base band rests on, so the stack still stands flat on the
+ * table, and the flange is what to pull it out by.
+ */
+export function buildAssemblyPeg(): Solid {
+  const { seat, flange } = P.assemblyPeg;
+  const t = flange.thickness;
+  const top = t + boreTop() - seat;
+  const r = flange.diameter / 2;
+  const plate = lathe([[0, 0], [r, 0], [r, t - flange.chamfer], [r - flange.chamfer, t], [0, t]]);
+  return fuse(fuse(plate, move(cylinder(PEG.diameter / 2, top - t + 0.01), 0, 0, t - 0.01)), key(P.clearance, t - 0.01, top));
 }
 
 /**
@@ -221,12 +251,66 @@ function below(k: number): Solid {
   return placeBuilt(solid, tilt);
 }
 
-/** Band n (1 at the base), standing on the hub. */
-export function buildBand(n: number): Solid {
-  let band = dome();
-  if (n < P.bands) band = common(band, below(n));
-  if (n > 1) band = subtract(band, below(n - 1));
-  return move(band, 0, 0, BASE);
+/** Band n (1 at the base), its base on z = 0. */
+function band(n: number): Solid {
+  let s = dome();
+  if (n < P.bands) s = common(s, below(n));
+  if (n > 1) s = subtract(s, below(n - 1));
+  return s;
+}
+
+/** The planet's tilted axis: square to every boundary's mean plane. */
+const AXIS = new Vector3(-Math.sin(rad(P.tilt)) * Math.cos(rad(P.seed * 73)), -Math.sin(rad(P.tilt)) * Math.sin(rad(P.seed * 73)), Math.cos(rad(P.tilt)));
+
+/** Boundary k's extent along the axis, over the dome. */
+function extent(k: number): [number, number] {
+  const b = boundary(k);
+  let [lo, hi] = [Infinity, -Infinity];
+  for (let rho = 0; rho <= P.radius; rho += 0.25)
+    for (let a = 0; a < 360; a += 1) {
+      const z = zAt(b, rho, a);
+      if (rho * rho + z * z > P.radius ** 2) continue;
+      const u = rho * Math.cos(rad(a)) * AXIS.x + rho * Math.sin(rad(a)) * AXIS.y + z * AXIS.z;
+      [lo, hi] = [Math.min(lo, u), Math.max(hi, u)];
+    }
+  return [lo, hi];
+}
+
+/**
+ * Where band n is cut, along the axis: midway between its boundaries' reach
+ * into it, so both pieces have a whole flat face; the cap just over its
+ * lower boundary, so the lower piece, printed turned over, hangs least.
+ */
+export function cutAt(n: number): number {
+  const [, low] = extent(n - 1);
+  return n === P.bands ? low + P.sliver : (low + extent(n)[0]) / 2;
+}
+
+/** A band's print: band 1 whole, on its flat base; a band with a wavy underside in a lower and an upper piece. */
+export type BandPrint = "whole" | "lower" | "upper";
+
+/** The prints band n takes. */
+export const bandPrints = (n: number): BandPrint[] => (n === 1 ? ["whole"] : ["lower", "upper"]);
+
+/** From the planet's frame (base on z = 0) to a piece's print pose: its cut on the bed, the lower piece turned over. */
+function printPose(n: number, piece: BandPrint): Matrix4 {
+  if (piece === "whole") return new Matrix4();
+  const square = new Matrix4().makeRotationFromQuaternion(new Quaternion().setFromUnitVectors(AXIS, new Vector3(0, 0, 1)));
+  const m = new Matrix4().makeTranslation(0, 0, -cutAt(n)).multiply(square);
+  return piece === "upper" ? m : new Matrix4().makeRotationX(Math.PI).multiply(m);
+}
+
+/** Band n's piece as it prints. */
+export function buildBandPrint(n: number, piece: BandPrint): Solid {
+  const s = placeBuilt(band(n), printPose(n, piece));
+  if (piece === "whole") return s;
+  const B = P.radius + 5;
+  return subtract(s, block([-B, -B, -2 * B], [B, B, 0]));
+}
+
+/** Where a band's print stands on the hub (the inverse of how it was laid down): for the table's render. */
+export function bandPrintFrame(n: number, piece: BandPrint): Matrix4 {
+  return new Matrix4().makeTranslation(0, 0, BASE).multiply(printPose(n, piece).invert());
 }
 
 // ---- Black hole -----------------------------------------------------------
@@ -314,20 +398,29 @@ export function buildInlays(): void {
 
 /** Every body piece, each once, with how many to print in its name (a planet's once for each planet). */
 export const BODIES: { dir: "blackHole" | "planet"; file: string; name: string; call: string }[] = [
-  ...Array.from({ length: P.bands }, (_, k) => ({
-    dir: "planet" as const,
-    file: `band-${k + 1}`,
-    name: `Band ${k + 1} (print ${BOARD_WELLS.planet})`,
-    call: `buildBody("band", ${k + 1})`,
-  })),
+  ...Array.from({ length: P.bands }, (_, k) =>
+    bandPrints(k + 1).map((piece) => ({
+      dir: "planet" as const,
+      file: `band-${k + 1}${piece === "whole" ? "" : `-${piece}`}`,
+      name: `Band ${k + 1}${piece === "whole" ? "" : `, ${piece} piece`} (print ${BOARD_WELLS.planet})`,
+      call: `buildBody("band", ${k + 1}, "${piece}")`,
+    }))
+  ).flat(),
+  {
+    dir: "planet",
+    file: "assembly-peg",
+    name: `Assembly peg (print ${BOARD_WELLS.planet}: lines a planet's pieces up while they are glued, then comes out)`,
+    call: `buildBody("peg")`,
+  },
   { dir: "blackHole", file: "horizon", name: "Horizon", call: `buildBody("horizon")` },
   { dir: "blackHole", file: "accretion-disc", name: "Accretion disc", call: `buildBody("disc")` },
   { dir: "blackHole", file: "streak-inlay", name: `Streak inlays (all ${S.rows * S.perRow})`, call: `buildBody("inlays")` },
 ];
 
 /** The piece by name, for the part files. */
-export function buildBody(piece: "band" | "horizon" | "disc" | "inlays", n = 0): Solid | void {
-  if (piece === "band") return buildBand(n);
+export function buildBody(piece: "band" | "peg" | "horizon" | "disc" | "inlays", n = 0, print: BandPrint = "whole"): Solid | void {
+  if (piece === "band") return buildBandPrint(n, print);
+  if (piece === "peg") return buildAssemblyPeg();
   if (piece === "horizon") return buildHorizon();
   if (piece === "disc") return buildDisc();
   return buildInlays();

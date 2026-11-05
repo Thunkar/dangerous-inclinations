@@ -8,10 +8,13 @@
     "export": "node scripts/export.mjs",
     "shot": "node scripts/shot.mjs",
     "board": "node --experimental-strip-types --no-warnings --import ./scripts/ts-hooks.mjs scripts/board.ts",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "plates": "node --experimental-strip-types --no-warnings --import ./scripts/ts-hooks.mjs scripts/plates-sheet.mjs",
+    "colour-hulls": "node --experimental-strip-types --no-warnings --import ./scripts/ts-hooks.mjs scripts/colour-hulls.ts"
   },
   "dependencies": {
     "@dangerous-inclinations/engine": "workspace:*",
+    "fflate": "^0.8.2",
     "fluidcad": "0.0.46"
   }
 }
