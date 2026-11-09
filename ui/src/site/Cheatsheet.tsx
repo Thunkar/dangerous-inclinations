@@ -15,7 +15,8 @@
  * one side, or four fronts and then four backs for a duplex printer, and
  * nothing else on the page prints. The loadout cards follow it
  * (`loadouts/`), one per preset, and print nine to a page from their own
- * button; then the mission decks (`missions/`), both piles, double-sided.
+ * button; then the range cards (`ranges/`), one per weapon and one for the
+ * sensor's scan, and the mission decks (`missions/`), both piles, double-sided.
  */
 import { useState } from 'react'
 import { Box } from '@mui/material'
@@ -50,6 +51,8 @@ import { LOADOUT_CARDS } from '../text/loadoutCards'
 import { LoadoutSection } from './loadouts/LoadoutSection'
 import { LOADOUT_CSS } from './loadouts/loadoutStyles'
 import { MissionDeckSection } from './missions/MissionDeckSection'
+import { RangeSection } from './ranges/RangeSection'
+import { RANGE_CSS } from './ranges/rangeStyles'
 import { MISSION_DECK_CSS } from './missions/missionDeckStyles'
 import { rich } from '../utils/rich'
 
@@ -66,6 +69,7 @@ const STYLE = `
 ${CARD_PAGE_CSS}
 ${CARD_CSS}
 ${LOADOUT_CSS}
+${RANGE_CSS}
 ${MISSION_DECK_CSS}
 `
 
@@ -344,6 +348,7 @@ export function Cheatsheet() {
 
       <PrintCard />
       <LoadoutSection />
+      <RangeSection />
       <MissionDeckSection />
       <SiteFooter />
     </Box>

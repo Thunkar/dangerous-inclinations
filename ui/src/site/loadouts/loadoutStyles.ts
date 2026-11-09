@@ -14,7 +14,7 @@
  * says `data-printing="loadouts"` (set by this section's print button only
  * while it prints), so Ctrl+P and the player card's button print as before.
  */
-import { FONT_BODY, FONT_DISPLAY, PRESS } from '../../design/press'
+import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM } from './sheet'
 
 /** The black bar across the foot. */
@@ -105,8 +105,9 @@ export const LOADOUT_CSS = `
 .di-lo-bar {
   position: absolute; left: 0; right: 0; bottom: 0; height: ${BAR_MM}mm;
   background: ${PRESS.ink}; color: ${PRESS.paper}; padding: 2.2mm 3.5mm;
-  display: flex; flex-direction: column; gap: 1.3mm;
+  display: flex; flex-direction: column; justify-content: center; gap: 1.6mm;
 }
+.di-lo-for { color: ${PRESS.paperSoft}; }
 .di-lo-keep { display: flex; align-items: center; gap: 1mm; flex-wrap: wrap; }
 .di-lo-mission {
   display: inline-flex; align-items: center; gap: 0.8mm; font-size: 2.4mm;
@@ -117,7 +118,6 @@ export const LOADOUT_CSS = `
   display: flex; width: 5.4mm; height: 5.4mm; align-items: center; justify-content: center; color: ${PRESS.ink};
 }
 .di-lo-mission i svg { width: 4.2mm; height: 4.2mm; display: block; }
-.di-lo-line { font-family: ${FONT_BODY}; font-size: 2.2mm; line-height: 1.32; color: ${PRESS.paperSoft}; }
 
 /* The printed pages: hidden on screen, every card at scale 1 in print. */
 .di-lo-sheets { display: none; --lo-zoom: 1; }

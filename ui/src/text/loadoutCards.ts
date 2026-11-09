@@ -1,15 +1,15 @@
 /**
  * Every word on the printed loadout cards (`site/loadouts/`), and the block
  * above them on the cheatsheet page. One card per preset: its role over the
- * bow, the bow, the two flanks, then the missions it is kept with and the
- * card's one line in the black bar. The presets' names are the engine's
+ * bow, the bow, the two flanks, then in the black bar the missions it is
+ * recommended for. The presets' names are the engine's
  * (`PRESET_NAMES`), the subsystems' and the missions' too.
  *
  * Only strings live here. A `{name}` is a slot the caller fills with a
  * number: the words around a slot are free to change, and a slot may move or
  * be dropped but keeps its name.
  */
-import type { BotPresetId, BotRole } from '@dangerous-inclinations/engine'
+import type { BotRole } from '@dangerous-inclinations/engine'
 
 export const LOADOUT_CARDS = {
   // -------------------------------------------------------------------------
@@ -29,22 +29,8 @@ export const LOADOUT_CARDS = {
   /** In the black bar: in place of the secondaries on a role's default, and between two. */
   any: 'Any',
   or: 'or',
-  /** The card's one line, preset by preset. */
-  lines: {
-    gunship:
-      'The default hunter. Fire the railgun ahead; the rack and the shields keep you in the fight.',
-    lancer: 'Close on the carrier. Two plasma cannons burn through its shields at point blank.',
-    corsair: 'Missiles from range, three lasers when they close.',
-    warden: 'Plasma strips the target’s shields so the disruptor gets through.',
-    raider: 'The default interceptor. Scan, then break whoever chases the data.',
-    watcher: 'Two shields to carry the data home.',
-    picket: 'Two launchers finish a damaged ship from range.',
-    sentry: 'Ride beside a carrier with laser, rack and shields.',
-    freighter: 'The default hauler. Jumps cost 1 fuel; two shields guard the hold.',
-    convoy: 'Two racks stop missiles; a shield guards the hold.',
-    smuggler: 'Two launchers make the wrecks you salvage.',
-    ghost: 'Disruptor, laser and plasma break whoever chases your fuel.',
-  } satisfies Record<BotPresetId, string>,
+  /** Over the missions in the black bar. */
+  recommended: 'Recommended for',
 
   // -------------------------------------------------------------------------
   // The section on the cheatsheet page

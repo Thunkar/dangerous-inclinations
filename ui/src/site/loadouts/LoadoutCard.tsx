@@ -5,9 +5,8 @@
  * The poster cut, 63x88mm: the preset's name up a stripe of its role's family
  * ink, the insignia top right, the bow (F1) large with its name beside it,
  * the four side slots in two columns (port P1 over P2, starboard S1 over S2,
- * as `MOUNTS` names them), and in the black bar the missions it is kept with
- * and its one line. Everything but the line and the role's name is read from
- * the engine: the preset's slots, which secondaries ask for it, the
+ * as `MOUNTS` names them), and in the black bar the missions it is
+ * recommended for. Everything but the role's name is read from the engine: the preset's slots, which secondaries ask for it, the
  * subsystems' and the missions' names. The words are in `text/loadoutCards.ts`.
  */
 import { Fragment } from 'react'
@@ -110,6 +109,7 @@ export function LoadoutCard({ id }: { id: BotPresetId }) {
       </div>
 
       <div className="di-lo-bar">
+        <div className="di-lo-eyebrow di-lo-for">{T.recommended}</div>
         <div className="di-lo-keep">
           <Mission type={PRIMARY[role]} />
           <span className="di-lo-mission">+</span>
@@ -124,7 +124,6 @@ export function LoadoutCard({ id }: { id: BotPresetId }) {
             ))
           )}
         </div>
-        <div className="di-lo-line">{T.lines[id]}</div>
       </div>
     </div>
   )

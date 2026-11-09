@@ -285,9 +285,11 @@ export function MissionCard({
             borderRadius: '50%',
             bgcolor: band,
             // Black ring inside, paper ring outside: the stamp reads whether it
-            // lands on the paper corner or on the band's own colour.
+            // lands on the paper corner or on the band's own colour. The paper
+            // ring is a shadow's spread, not an outline: a rounded outline on a
+            // scaled card can rasterise with seams across the ring.
             border: `2px solid ${INK}`,
-            outline: `2px solid ${PAPER}`,
+            boxShadow: `0 0 0 2px ${PAPER}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
