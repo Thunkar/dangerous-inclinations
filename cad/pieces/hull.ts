@@ -357,7 +357,7 @@ export interface SlitFin {
 
 /**
  * A fin's tongue (how deep it reaches and the room round it are the fin's
- * own: a glued fin's are looser than one the hull only sits on): how far
+ * own): how far
  * into the fin it starts, how far short of the fin's
  * ends at the bed it stops, the slit roof's half-angle off the fin's plane
  * (steep enough that a canted fin's slit still has a roof that prints), the
@@ -366,7 +366,7 @@ export interface SlitFin {
  */
 const TONGUE = { into: 0.5, end: 0.8, roof: 30, clear: 1.2, shortest: 3 };
 
-/** The fins that slide into slits: under the arms (glued) and the keel (the stand's). */
+/** The fins that slide into slits and are glued: under the arms, and the keel (the stand's). */
 export function slitFins(hull: Hull): { arms: SlitFin[]; keel: SlitFin | null } {
   if (hull !== "mantis") return { arms: [], keel: null };
   const { points, thick, cant, z } = MANTIS_ARM_FIN;
@@ -383,14 +383,14 @@ export function slitFins(hull: Hull): { arms: SlitFin[]; keel: SlitFin | null } 
       ],
       // The slit is the one printed hulls have, cut for a fin 0.09 thick;
       // the fin under it is the stand's and as thick as the game draws it,
-      // and the hull sits on its root. Its tongue plays less in the slit
-      // than a glued fin's.
+      // and the hull sits on its root. Glued like the arm fins, with their
+      // play: 0.05 a side was too tight to print.
       thick: 0.09,
       cant: 0,
       z: 0,
       deep: 3,
       room: 0.1,
-      play: 0.05,
+      play: 0.1,
     },
   };
 }

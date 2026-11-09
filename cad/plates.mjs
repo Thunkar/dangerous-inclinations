@@ -162,6 +162,7 @@ export const PLATES = [
     colour: planet,
     parts: [
       ["tokens/station", 1],
+      ["tokens/station-plugs", 1],
       [`tokens/sale-chip-${planet}`, 6],
       ["board/shared/numbers", 4, "loose"],
       ["board/planet/lane", 2],

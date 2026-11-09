@@ -4,7 +4,7 @@
 // backs and both faces of the player card. Writes cad/shots/table/cards/.
 //
 //   timeout 1800 yarn dev &        # the UI on :5173 (no server, no Redis)
-//   cd cad && timeout 600 node scripts/table/cards.mjs [--url=http://localhost:5173]
+//   cd cad && timeout 600 node scripts/table/cards.mjs [--url=http://localhost:5173] [--state=<file>]
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
@@ -12,7 +12,8 @@ import { chromium } from "playwright";
 const OUT = join(import.meta.dirname, "../../shots/table");
 const CARDS = join(OUT, "cards");
 const url = process.argv.find((a) => a.startsWith("--url="))?.split("=")[1] ?? "http://localhost:5173";
-const state = JSON.parse(readFileSync(join(OUT, "state.json"), "utf8"));
+const stateFile = process.argv.find((a) => a.startsWith("--state="))?.split("=")[1] ?? join(OUT, "state.json");
+const state = JSON.parse(readFileSync(stateFile, "utf8"));
 const wanted = [...new Set(state.players.flatMap((p) => p.missions.map((m) => m.card)))];
 mkdirSync(CARDS, { recursive: true });
 

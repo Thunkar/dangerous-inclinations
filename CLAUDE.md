@@ -190,8 +190,9 @@ yarn workspace @dangerous-inclinations/server seat help          # a seat at the
 yarn cad                                                          # FluidCAD viewer for cad/ (localhost:3100; build the engine first)
 yarn workspace @dangerous-inclinations/cad export                 # every printable to cad/out/<folder>/*.step + .stl
 yarn workspace @dangerous-inclinations/cad plates                 # MK4S beds of them, a filament each: cad/out/plates/*.3mf + a sheet
-yarn workspace @dangerous-inclinations/cad colour-hulls           # each hull painted in the game's colours for a multi-material printer: cad/out/colour/*.3mf
+yarn workspace @dangerous-inclinations/cad colour-hulls           # each hull, and the subsystems plate, painted in the game's colours for a multi-material printer: cad/out/colour/*.3mf
 yarn workspace @dangerous-inclinations/cad shot coupons/mount.part.js iso-ftr top   # PNGs of a part, headless, to cad/shots/
+cd cad && node scripts/table/film.mjs [--stills=4,12.5]   # the explainer: one seat's turns of a bot game on the printed table, a presentation over them (ui/dev-explainer.html, words in ui/src/text/explainer.ts; needs yarn dev): cad/shots/film/explainer.mp4
 node scripts/shot.mjs '/' shot.png                    # photograph the running UI (needs `yarn dev`; PLAYER_ID + ?game=<id> for a seat)
 DOCKERHUB_USER=<you> scripts/deploy.sh               # build + push both images, restart the stack on the NAS (Dockerfile, deploy/)
 ```
@@ -440,7 +441,7 @@ bed at the hull's keel (`HULL_INFO.keel`, where the game carries the bays'
 ventral shoulders to, so the hull stands flat). What hangs below the keel prints apart: the shrike's blade is the top of
 its stand, and the hull sits on it on filament pins in the holes both
 share, unglued; the mantis's keel fin is the top of its stand too, its
-tongue in a slit in the core, unglued, and its arm fins print flat, each
+tongue glued in a slit in the core, and its arm fins print flat, each
 with a tongue along its root that slides into a slit in the arm and is
 glued (`slitFins` in `pieces/hull.ts`: the slits' roofs a steep V, so a
 canted fin's still prints). Modules (`pieces/module.ts`) print on their own the same way,
@@ -597,7 +598,10 @@ segments turned alike and stacked one inside the next), and `scripts/plates.mjs`
 yard's (`ui/src/ships/station.ts`) as the hulls are: a spindle on a foot
 in its sector, a habitat drum, three finned radiators canted at 55
 degrees and three arms climbing to clamps a ship token drops into, so
-lifting the station to advance it carries its moored ships; one piece,
+lifting the station to advance it carries its moored ships, each held by
+the M2x4 screw flush in the token's middle over a 4x2 magnet sealed under
+its clamp's floor (`BERTH`: slid in flat from the clamp's outer face, a
+plug, `station-plugs`, glued in behind it); one piece,
 upright, every face that looks down at 50 degrees (a print reads 45 as an
 overhang). The 3D board draws the same model and stands a moored hull
 on its berth (`world.berthWorld`; `ShipToken.berth`). A ring

@@ -2,6 +2,11 @@
 // STLs it names from cad/out, and renders one named view at a time on
 // request (window.renderView), returning a PNG as a data URL. Served from
 // the repo root by run.mjs, so /node_modules and /cad/out resolve.
+//
+// Film mode (film.mjs): `?scene=<url>` lays out the first state and
+// `?film=<url>,<url>` adds the pieces of the others that differ, keyed by
+// their id (layout.ts); window.renderFrame then sets each piece's matrix and
+// the camera, and returns a JPEG.
 import * as THREE from "three";
 import { STLLoader } from "three/addons/loaders/STLLoader.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
@@ -18,7 +23,10 @@ const H = Number(params.get("h") ?? 1080);
 /** Supersampling: render this many times larger, then scale down. */
 const SS = Number(params.get("ss") ?? 2);
 
-const scene = await (await fetch("/cad/shots/table/scene.json")).json();
+const scene = await (await fetch(params.get("scene") ?? "/cad/shots/table/scene.json")).json();
+const extraScenes = await Promise.all(
+  (params.get("film") ?? "").split(",").filter(Boolean).map(async (url) => (await fetch(url)).json())
+);
 
 // ---- Geometry ---------------------------------------------------------------------
 
@@ -381,21 +389,30 @@ function shadowBox(cx, cy, half) {
 
 // The pieces.
 const groups = { board: [], token: [], piece: [], cube: [] };
-await Promise.all(
-  scene.instances.map(async (inst) => {
-    const parts = await geometryOf(inst);
-    parts.forEach((g, k) => {
-      const material = inst.op?.card ? cardMaterial(inst.op.card, inst.color) : plastic(inst.color, inst.kind);
-      const mesh = new THREE.Mesh(g, material);
-      mesh.matrixAutoUpdate = false;
-      mesh.matrix.fromArray(inst.matrix);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      world.add(mesh);
-      (groups[inst.kind] ?? groups.piece).push(mesh);
-    });
-  })
-);
+/** A piece the film moves, by `id|stl|op`: one mesh per printed form it takes in any state. */
+const filmed = new Map();
+const keyOf = (inst) => `${inst.id}|${inst.stl}|${JSON.stringify(inst.op ?? {})}`;
+async function addInstance(inst, visible) {
+  const parts = await geometryOf(inst);
+  parts.forEach((g) => {
+    const material = inst.op?.card ? cardMaterial(inst.op.card, inst.color) : plastic(inst.color, inst.kind);
+    const mesh = new THREE.Mesh(g, material);
+    mesh.matrixAutoUpdate = false;
+    mesh.matrix.fromArray(inst.matrix);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.visible = visible;
+    world.add(mesh);
+    (groups[inst.kind] ?? groups.piece).push(mesh);
+    if (inst.id) filmed.set(keyOf(inst), [...(filmed.get(keyOf(inst)) ?? []), mesh]);
+  });
+}
+await Promise.all(scene.instances.map((inst) => addInstance(inst, true)));
+// The other states' forms of the filmed pieces, hidden until a frame shows them.
+const extras = new Map();
+for (const other of extraScenes)
+  for (const inst of other.instances) if (inst.id && !filmed.has(keyOf(inst))) extras.set(keyOf(inst), inst);
+await Promise.all([...extras.values()].map((inst) => addInstance(inst, false)));
 
 // ---- Views ----------------------------------------------------------------------------
 
@@ -454,6 +471,7 @@ window.renderView = async (view, override) => {
   } else bokeh.enabled = false;
   if (view === "closeup") shadowBox(c.target[0], c.target[1], 320);
   else shadowBox(tcx, tcy, Math.max(tw, td) / 2 + 40);
+  camera.clearViewOffset();
   composer.render();
   // Scale the supersampled frame down to the output size.
   const out = document.createElement("canvas");
@@ -464,6 +482,53 @@ window.renderView = async (view, override) => {
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(renderer.domElement, 0, 0, w, h);
   return out.toDataURL("image/png");
+};
+
+/**
+ * One frame of the film: `pieces` maps a filmed piece's key to its matrix,
+ * or null to hide it (a key left out keeps its last matrix); `camera` is a
+ * view as in scene.cameras, plus `shift`, the fraction of the frame's width
+ * the picture moves left so the subject clears the card beside it; `shadow`
+ * is [x, y, half] of the key light's box, kept while it does not change.
+ */
+let lastShadow = "";
+window.renderFrame = ({ camera: c, pieces, shadow, quality = 0.95 }) => {
+  for (const [key, m] of Object.entries(pieces)) {
+    for (const mesh of filmed.get(key) ?? []) {
+      mesh.visible = m !== null;
+      if (m) mesh.matrix.fromArray(m);
+    }
+  }
+  const [w, h] = c.size ?? [W, H];
+  if (renderer.domElement.width !== w * SS || renderer.domElement.height !== h * SS) resize([w, h]);
+  aim(c);
+  if (c.shift) camera.setViewOffset(w, h, c.shift * w, 0, w, h);
+  else camera.clearViewOffset();
+  const dist = camera.position.distanceTo(new THREE.Vector3(...c.target));
+  gtao.updateGtaoMaterial({ radius: Math.max(4, dist / 160), distanceExponent: 1.6, thickness: Math.max(2, dist / 300), scale: 1.0, samples: 24 });
+  gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+  if (c.focus) {
+    camera.updateMatrixWorld();
+    const viewZ = new THREE.Vector3(...c.focus).applyMatrix4(camera.matrixWorldInverse).z;
+    bokeh.uniforms.focus.value = -viewZ;
+    bokeh.uniforms.aperture.value = c.aperture ?? 0.00003;
+    bokeh.uniforms.maxblur.value = c.maxblur ?? 0.008;
+    bokeh.enabled = true;
+  } else bokeh.enabled = false;
+  const box = JSON.stringify(shadow ?? [tcx, tcy, Math.max(tw, td) / 2 + 40]);
+  if (box !== lastShadow) {
+    shadowBox(...JSON.parse(box));
+    lastShadow = box;
+  }
+  composer.render();
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(renderer.domElement, 0, 0, w, h);
+  return out.toDataURL("image/jpeg", quality);
 };
 
 const gl = renderer.getContext();

@@ -7,16 +7,8 @@
 //   node scripts/table/state.mjs [--seed=N] [--round=R] [--scan=40]
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import {
-  runGame,
-  isMooredAt,
-  aboard,
-  buildPrimaryDeck,
-  buildSecondaryDeck,
-  cardForPlayer,
-  isPrimaryType,
-  MAX_PLAYERS,
-} from "@dangerous-inclinations/engine";
+import { runGame, isMooredAt, aboard } from "@dangerous-inclinations/engine";
+import { tableState } from "./tableState.mjs";
 
 const arg = (k, d) => {
   const a = process.argv.find((x) => x.startsWith(`--${k}=`));
@@ -79,80 +71,7 @@ if (seed !== null) {
   pick = all[0];
 }
 
-const s = pick.state;
-
-/**
- * The printed card behind a mission: its place in the printed pile as the
- * site's /card page lays it out (ui/src/site/missions/decks.ts: the primary
- * pile at the largest table, `<pile>-<index>`). A rival card counts seats to
- * the left, so the holder's seat turns the count back into the card.
- */
-const PRINTED = { primary: buildPrimaryDeck(MAX_PLAYERS), secondary: buildSecondaryDeck() };
-function printedCard(m, holder) {
-  const pile = isPrimaryType(m.type) ? "primary" : "secondary";
-  const same = (a, b) =>
-    a.type === b.type &&
-    a.targetPlayerId === b.targetPlayerId &&
-    a.pickupPlanetId === b.pickupPlanetId &&
-    a.deliveryPlanetId === b.deliveryPlanetId;
-  const i = PRINTED[pile].findIndex((card) => {
-    if (card.targetOffset !== undefined && card.targetOffset >= s.players.length) return false;
-    return same(cardForPlayer(card, holder, s.players), m);
-  });
-  if (i < 0) throw new Error(`no printed card for ${JSON.stringify(m)}`);
-  return `${pile}-${i}`;
-}
-const dealt = s.players.reduce((n, p) => n + p.missionOffers.length, 0);
-const primaryOffers = s.players.reduce((n, p) => n + p.missionOffers.filter((m) => isPrimaryType(m.type)).length, 0);
-const out = {
-  seed: pick.seed,
-  round: pick.round,
-  score: score(s),
-  stations: s.stations,
-  wrecks: s.wrecks,
-  missiles: s.missiles,
-  /** What is left in the two draw piles after the deal. */
-  piles: {
-    primary: buildPrimaryDeck(s.players.length).length - primaryOffers,
-    secondary: buildSecondaryDeck().length - (dealt - primaryOffers),
-  },
-  players: s.players.map((p) => ({
-    id: p.id,
-    name: p.name,
-    points: p.points,
-    home: p.home,
-    ship: {
-      wellId: p.ship.wellId,
-      ring: p.ship.ring,
-      sector: p.ship.sector,
-      facing: p.ship.facing,
-      fuel: p.ship.reactionMass,
-      hull: p.ship.hitPoints,
-      maxHull: p.ship.maxHitPoints,
-      heat: p.ship.heat.currentHeat,
-      subsystems: p.ship.subsystems.map((x) => ({
-        id: x.id,
-        type: x.type,
-        energy: x.allocatedEnergy,
-        broken: x.isBroken,
-        revealed: x.isRevealed,
-        ammo: x.ammo,
-      })),
-    },
-    moored: isMooredAt(s.stations, p.ship),
-    cargo: aboard(p.cargo).map((c) => ({ id: c.id, kind: c.kind, loot: p.missions.some((m) => m.type === "piracy" && m.cargoId === c.id) })),
-    waiting: p.cargo.filter((c) => !c.isPickedUp && c.pickupPlanetId).map((c) => ({ id: c.id, kind: c.kind, at: c.pickupPlanetId })),
-    soldAt: p.soldAt,
-    missions: p.missions.map((m) => ({
-      type: m.type,
-      done: m.isCompleted,
-      marked: m.type === "escort" ? m.markedPlayerId : undefined,
-      card: printedCard(m, s.players.indexOf(p)),
-      target: m.targetPlayerId,
-      route: m.pickupPlanetId ? [m.pickupPlanetId, m.deliveryPlanetId] : m.deliveryPlanetId,
-    })),
-  })),
-};
+const out = tableState(pick.state, { seed: pick.seed, round: pick.round, score: score(pick.state) });
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, "state.json"), JSON.stringify(out, null, 2));
 console.log(`picked seed ${out.seed} round ${out.round}`, JSON.stringify(out.score));

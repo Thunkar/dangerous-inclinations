@@ -3,7 +3,7 @@
 // at its top what holds that hull. The corvette takes a peg in the socket
 // under its core; the shrike's stand carries its blade, and the hull sits on
 // it on filament pins, unglued; the mantis's stand carries its keel fin, and
-// the hull sits on it by the fin's tongue in a slit in the core, unglued.
+// the hull is glued onto it by the fin's tongue in a slit in the core.
 // Every hull's keel stands level with the top of the shrike's blade, with a
 // hand's room over the deck to move cubes, and the corvette's and the mantis's
 // columns lean to put the ship's middle over the deck's (the socket is aft of
@@ -116,8 +116,8 @@ export function buildStand(hull: Hull): Solid {
     case "corvette":
       return fuse(tenon, column(bed), peg(hull, bed, hx));
     case "mantis": {
-      // The keel fin is the stand's, and the hull sits on it by the fin's
-      // tongue in a slit in the core, unglued. Under the fin's swept leading
+      // The keel fin is the stand's, and the hull is glued onto it by the
+      // fin's tongue in a slit in the core. Under the fin's swept leading
       // edge a web in the fin's plane reaches down at 50 degrees, thickening
       // as it goes, to a ridge on the column, which leans to stand under it.
       const shift = hx - at;

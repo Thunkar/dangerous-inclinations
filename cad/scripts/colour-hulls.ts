@@ -3,7 +3,8 @@
 //   yarn workspace @dangerous-inclinations/cad colour-hulls
 //
 // writes out/colour/<hull>-<accent>.3mf from the STLs `yarn export` writes:
-// the hull painted, its stand, plugs and fins beside it in the base colour.
+// the hull painted, its stand, plugs and fins beside it; and
+// out/colour/subsystems.3mf, the subsystems plate (`plates.mjs`) painted.
 // The geometry is the hull print as it is; the colour is painted on its
 // faces as a slicer's paint tool stores it (PrusaSlicer's
 // slic3rpe:mmu_segmentation, Bambu Studio's and Orca's paint_color), so the
@@ -19,10 +20,10 @@
 // stands.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { BufferAttribute, BufferGeometry, Matrix4, Mesh, Vector3 } from "three";
+import { BufferAttribute, BufferGeometry, Matrix4, Mesh, Vector3, type Object3D } from "three";
 import { MeshBVH } from "three-mesh-bvh";
 import { zipSync, strToU8 } from "fflate";
-import { DEFAULT_SHIP_APPEARANCE, type Hull, type Livery } from "@dangerous-inclinations/engine";
+import { DEFAULT_SHIP_APPEARANCE, type Hull, type Livery, type SubsystemType } from "@dangerous-inclinations/engine";
 import { createShip } from "../../ui/src/ships/model.ts";
 import { DEFAULT_CONFIG } from "../../ui/src/ships/config.ts";
 import { HULL_INFO } from "../../ui/src/ships/hulls.ts";
@@ -34,6 +35,8 @@ import { SHRIKE_BLADE } from "../../ui/src/ships/shrike.ts";
 import { FDM, MOUNT } from "../spec.ts";
 import { MOUNTS } from "../../ui/src/ships/config.ts";
 import { readStl } from "./plates.mjs";
+import { PLATES } from "../plates.mjs";
+import { layout } from "../pieces/module.ts";
 
 const CAD = join(import.meta.dirname, "..");
 
@@ -61,6 +64,15 @@ const MATERIAL: Record<string, Filament> = {
   cyan: BLUE,
   red: RED,
 };
+
+/** The subsystems carry no seat colour: their file keeps the seat's slot empty. */
+const SEAT: Filament = { name: "seat colour (unused)", hex: "#7a7a7a" };
+
+/**
+ * The slots, the same in every file: the base, the secondary paint, the
+ * seat's colour, then the rest of the materials' filaments.
+ */
+const slotsFor = (accent: Filament) => [...new Set([BLACK, WHITE, accent, ...Object.values(MATERIAL)])];
 
 /** What prints, each in a seat's colour (`ui/src/utils/playerColors.ts`) and a livery. */
 const SHIPS: { hull: Hull; livery: Livery; accent: Filament }[] = [
@@ -112,22 +124,23 @@ function liveryAt(livery: Livery, hull: Hull, p: Vector3): boolean {
   }
 }
 
-/** The game's printed meshes in the ship's frame, one triangle soup with each triangle's material, and a BVH over it. */
-function gameSurface(hull: Hull) {
-  const model = createShip({ ...DEFAULT_CONFIG, appearance: { ...DEFAULT_SHIP_APPEARANCE, hull } });
-  model.root.updateMatrixWorld(true);
-  const toShip = model.root.matrixWorld.clone().invert();
+/**
+ * The game's meshes under `root` that `keep` takes, in `root`'s frame: one
+ * triangle soup with each triangle's material, and a BVH over it.
+ */
+function gameSurface(root: Object3D, keep: (name: string, path: string[]) => boolean) {
+  root.updateMatrixWorld(true);
+  const toShip = root.matrixWorld.clone().invert();
   const names: string[] = [];
   const positions: number[] = [];
   const materials: number[] = [];
-  model.root.traverse((o) => {
+  root.traverse((o) => {
     const mesh = o as Mesh;
     if (!mesh.isMesh) return;
     const name = (mesh.material as { name: string }).name;
     const path: string[] = [];
-    for (let p: typeof o | null = mesh; p && p !== model.root; p = p.parent) path.unshift(p.name);
-    // What `pieces/hull.ts` prints, and the details on it: no modules or highlights.
-    if (name === "highlight" || path.some((n) => n.startsWith("module_"))) return;
+    for (let p: typeof o | null = mesh; p && p !== root; p = p.parent) path.unshift(p.name);
+    if (!keep(name, path)) return;
     if (!(name in MATERIAL)) throw new Error(`No filament for the game's ${name}`);
     if (!names.includes(name)) names.push(name);
     const m = toShip.clone().multiply(mesh.matrixWorld);
@@ -163,8 +176,13 @@ function gameSurface(hull: Hull) {
  * (far from every game mesh, or in a mount's recess); and whether the
  * livery covers it.
  */
-function painter(ship: (typeof SHIPS)[number]) {
-  const { bvh, only, material } = gameSurface(ship.hull);
+function painter(ship: (typeof SHIPS)[number]): Painter {
+  const ship3d = createShip({ ...DEFAULT_CONFIG, appearance: { ...DEFAULT_SHIP_APPEARANCE, hull: ship.hull } });
+  // What `pieces/hull.ts` prints, and the details on it: no modules or highlights.
+  const { bvh, only, material } = gameSurface(
+    ship3d.root,
+    (name, path) => name !== "highlight" && !path.some((n) => n.startsWith("module_"))
+  );
   const bands = new Map<string, MeshBVH>();
   const toShip = printFrame(HULL_PRINT[ship.hull].bed).invert();
   const near = NEAR / (printFrame(0).elements[0] || 1);
@@ -193,6 +211,35 @@ function painter(ship: (typeof SHIPS)[number]) {
       if (!bands.has(name)) bands.set(name, only(name));
       return within(bands.get(name)!, p, mm / S);
     },
+  };
+}
+
+/** What the game draws at a point of a print: see `painter`. */
+interface Painter {
+  material: (p: Vector3, reach?: number) => string | null;
+  livery: (p: Vector3) => boolean;
+  over: (p: Vector3, name: string, mm: number) => boolean;
+}
+
+/**
+ * A module's painter: the game's module as the print stands it
+ * (`pieces/module.ts` `layout`). It carries no livery: a module moves from
+ * mount to mount and ship to ship.
+ */
+function modulePainter(type: SubsystemType): Painter {
+  const { group, frame } = layout(type);
+  const { bvh, material } = gameSurface(group, () => true);
+  const toGroup = frame.clone().invert();
+  const near = NEAR / S;
+  const q = new Vector3();
+  const hit = { point: new Vector3(), distance: 0, faceIndex: 0 };
+  return {
+    material: (p, reach = 1) =>
+      bvh.closestPointToPoint(q.copy(p).applyMatrix4(toGroup), hit, 0, near * reach) && hit.distance <= near * reach
+        ? material(hit.faceIndex)
+        : null,
+    livery: () => false,
+    over: () => false,
   };
 }
 
@@ -389,11 +436,14 @@ const PARTS: Record<Hull, { part: string; toHull?: () => ToHull; band?: string }
 
 const GAP = 6;
 
+/** The Prusa CORE One's bed. */
+const MODULE_BED = { x: 250, y: 220, margin: 6, gap: 5 };
+
 /**
  * A piece's triangles painted: each flat face takes the material most of its
  * area is nearest to, and a face of hull paint carries the livery.
  */
-function paintPiece(ship: (typeof SHIPS)[number], mesh: ReturnType<typeof readStl>, filaments: Filament[], at: ReturnType<typeof painter>, toHull: ToHull, band?: string) {
+function paintPiece(accent: Filament, mesh: ReturnType<typeof readStl>, filaments: Filament[], at: Painter, toHull: ToHull, band?: string) {
   const slot = (f: Filament) => filaments.indexOf(f) + 1;
   const lo = new Vector3(...mesh.lo);
   const vertices = mesh.vertices.map((v: number[]) => new Vector3(...v).add(lo));
@@ -414,7 +464,7 @@ function paintPiece(ship: (typeof SHIPS)[number], mesh: ReturnType<typeof readSt
   const livery = (p: Vector3) => {
     const h = toHull(p);
     if (h && band && h.p.z < -BAND_CLEAR && at.over(h.p, band, BAND)) return slot(MATERIAL[band]);
-    return h && at.livery(h.p) ? slot(ship.accent) : slot(MATERIAL.hull);
+    return h && at.livery(h.p) ? slot(accent) : slot(MATERIAL.hull);
   };
   return mesh.triangles.map(([a, b, c]: number[], i: number): Tree => {
     const name = material.get(face[i]);
@@ -426,31 +476,59 @@ function paintPiece(ship: (typeof SHIPS)[number], mesh: ReturnType<typeof readSt
 if (import.meta.url === `file://${process.argv[1]}`) {
   mkdirSync(join(CAD, "out/colour"), { recursive: true });
   for (const ship of SHIPS) {
-    const filaments = [...new Set([BLACK, WHITE, ship.accent, ...Object.values(MATERIAL)])];
+    const filaments = slotsFor(ship.accent);
     const at = painter(ship);
     const pieces: (Piece & { trees?: Tree[] })[] = [];
     let y = 0;
     for (const { part, toHull, band } of PARTS[ship.hull]) {
       const mesh = readStl(join(CAD, `out/${ship.hull}/${ship.hull}-${part}.stl`));
-      const trees = toHull && paintPiece(ship, mesh, filaments, at, toHull(), band);
+      const trees = toHull && paintPiece(ship.accent, mesh, filaments, at, toHull(), band);
       pieces.push({ name: `${ship.hull}-${part}`, mesh, trees, at: [0, y] });
       y += mesh.size[1] + GAP;
     }
-    const used = new Set<number>([1]);
-    const visit = (t: Tree): void => (typeof t === "number" ? void used.add(t) : t.forEach(visit));
-    pieces.forEach((p) => p.trees?.forEach(visit));
-    // Only the filaments the ship uses, in slot order.
-    const slots = filaments.filter((_, i) => used.has(i + 1));
-    const renumber = (t: Tree): Tree => (typeof t === "number" ? slots.indexOf(filaments[t - 1]) + 1 : t.map(renumber));
-    for (const p of pieces) p.paint = p.trees?.map((t) => encode(renumber(t)));
     // Centred on a 256 mm bed; any slicer arranges it again.
     const w = Math.max(...pieces.map((p) => p.mesh.size[0]));
     for (const p of pieces) p.at = [128 - w / 2 + p.at[0], 128 - y / 2 + p.at[1]];
-    const file = `out/colour/${ship.hull}-${ship.accent.name}.3mf`;
-    writeFileSync(
-      join(CAD, file),
-      zipSync({ "[Content_Types].xml": strToU8(CONTENT_TYPES), "_rels/.rels": strToU8(RELS), "3D/3dmodel.model": strToU8(model3mf(pieces, slots)) })
-    );
-    console.log(`${file}: slots ${slots.map((f, i) => `${i + 1} ${f.name}`).join(", ")}`);
+    write(`out/colour/${ship.hull}-${ship.accent.name}.3mf`, pieces, filaments);
   }
+  // The subsystems plate (`plates.mjs`), painted: each module once, laid out
+  // in rows on the CORE One's bed.
+  const filaments = slotsFor(SEAT);
+  const plate = PLATES.find((p: { id: string }) => p.id === "subsystems")!;
+  const modules: (Piece & { trees?: Tree[] })[] = [];
+  for (const [part, count] of plate.parts as [string, number][]) {
+    const type = part.split("/")[1] as SubsystemType;
+    const mesh = readStl(join(CAD, `out/${part}.stl`));
+    const trees = paintPiece(BLACK, mesh, filaments, modulePainter(type), (p) => ({ p }));
+    for (let i = 0; i < count; i++) modules.push({ name: `${type}-${i + 1}`, mesh, trees, at: [0, 0] });
+  }
+  shelve(modules, MODULE_BED);
+  write("out/colour/subsystems.3mf", modules, filaments);
+}
+
+/** Pieces in rows, tallest first, on a bed (mm, with a margin and a gap), centred. */
+function shelve(pieces: Piece[], bed: { x: number; y: number; margin: number; gap: number }) {
+  const order = [...pieces].sort((a, b) => b.mesh.size[1] - a.mesh.size[1]);
+  let [x, y, row] = [0, 0, 0];
+  let wide = 0;
+  for (const p of order) {
+    if (x && x + p.mesh.size[0] > bed.x - 2 * bed.margin) [x, y, row] = [0, y + row + bed.gap, 0];
+    p.at = [x, y];
+    x += p.mesh.size[0] + bed.gap;
+    wide = Math.max(wide, x - bed.gap);
+    row = Math.max(row, p.mesh.size[1]);
+  }
+  const tall = y + row;
+  if (tall > bed.y - 2 * bed.margin) throw new Error(`The pieces need ${tall.toFixed(0)} mm of the bed's ${bed.y}`);
+  for (const p of pieces) p.at = [(bed.x - wide) / 2 + p.at[0], (bed.y - tall) / 2 + p.at[1]];
+}
+
+/** Write a painted 3MF with every slot, used or not, so a printer loaded for one file is loaded for all. */
+function write(file: string, pieces: (Piece & { trees?: Tree[] })[], slots: Filament[]) {
+  for (const p of pieces) p.paint = p.trees?.map(encode);
+  writeFileSync(
+    join(CAD, file),
+    zipSync({ "[Content_Types].xml": strToU8(CONTENT_TYPES), "_rels/.rels": strToU8(RELS), "3D/3dmodel.model": strToU8(model3mf(pieces, slots)) })
+  );
+  console.log(`${file}: slots ${slots.map((f, i) => `${i + 1} ${f.name}`).join(", ")}`);
 }

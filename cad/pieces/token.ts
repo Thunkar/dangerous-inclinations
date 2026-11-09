@@ -1,7 +1,8 @@
 // The ship token for the board: a 6 mm slab cut to a ship in plan, nose +x,
 // with the sides of its V-notches, its stern corners and its flanks into the
 // nose chamfered at 45 degrees top and bottom, and the rest square (the
-// designer's Onshape token, read back from its export and drawn again).
+// designer's Onshape token, read back from its export and drawn again), with
+// a screw seat at its middle so a station's berth holds it.
 //
 // The kernel's chamfer cannot take it (two chamfers run out over one short
 // square side from both ends, and the flank's runs out over the nose's
@@ -10,7 +11,8 @@
 // in by the chamfer less h and every square side left where it is. Between
 // the heights at which a side shrinks away, every such outline has the same
 // corners, and the band is lofted between them; each face is flat.
-import { sketch, plane, loft, fuse } from "fluidcad/core";
+import { sketch, plane, loft, fuse, subtract } from "fluidcad/core";
+import { countersinkTool, pilotTool } from "../lib/mount.ts";
 import { prism, move, outline, type Point, type Solid } from "../lib/solids.ts";
 
 export const TOKEN = { thickness: 6, chamfer: 1.125 };
@@ -151,6 +153,11 @@ export function slab(plan: Plan, t: number, d: number): Solid {
   return fuse(middle, ...band(s, t, d, false), ...band(s, t, d, true));
 }
 
+/**
+ * The token, with a seat for an M2x4 countersunk screw at its middle, flush
+ * with its underside: a station's berth holds it by the screw (`BERTH`). The
+ * middle is the notch's square waist, the widest the underside is there.
+ */
 export function buildToken(): Solid {
-  return slab(shipPlan(), TOKEN.thickness, TOKEN.chamfer);
+  return subtract(subtract(slab(shipPlan(), TOKEN.thickness, TOKEN.chamfer), countersinkTool()), pilotTool());
 }

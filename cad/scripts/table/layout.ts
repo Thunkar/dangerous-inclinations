@@ -4,6 +4,16 @@
 // table frame is in mm: x east, y north, z up, the table top at z = 0.
 // Writes cad/shots/table/scene.json for render.js.
 //
+//   --state=<file>  lay out another state (default shots/table/state.json)
+//   --out=<file>    write the scene there (default shots/table/scene.json)
+//   --roll=<v>@<x>,<y>  the table's one d10 lying at (x, y) showing v
+//   --poses=<v>@<x>,<y>;...  where else the film throws it: frames in `poses`, no pieces
+//   --open-bays     every bay's door open, as a ship is before its build goes in
+//
+// A piece the film moves (film.mjs) carries an `id` stable across states;
+// one printed in several parts (a die, a card) names its `group`, whose
+// frame is in `groups`, so the parts move as one.
+//
 // Every assembly is read from the pieces' own code where it is exported
 // (wellOf, standOf, the module and hull print frames, the dice's resting
 // frame, the holders' bins); where it is not (the base's bays and channels,
@@ -19,7 +29,7 @@ import {
   type SubsystemType,
 } from "@dangerous-inclinations/engine";
 import { COLOUR, PLAYER_COLOURS, PLANETS } from "../../colours.ts";
-import { BOARD, CUBE, DICE, FDM, PRINT } from "../../spec.ts";
+import { BOARD, CUBE, DICE, FDM, MOUNT, PRINT } from "../../spec.ts";
 import { wellOf, type WellKind } from "../../pieces/well.ts";
 import { bandPrints, bandPrintFrame } from "../../pieces/body.ts";
 import { standOf } from "../../pieces/stand.ts";
@@ -37,7 +47,8 @@ import { DEFAULT_CONFIG, setModule, type MountId } from "../../../ui/src/ships/c
 import { MANTIS_ARM_FIN } from "../../../ui/src/ships/mantis.ts";
 
 const OUT = join(import.meta.dirname, "../../shots/table");
-const state = JSON.parse(readFileSync(join(OUT, "state.json"), "utf8"));
+const arg = (k: string) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split("=")[1];
+const state = JSON.parse(readFileSync(arg("state") ?? join(OUT, "state.json"), "utf8"));
 const S = PRINT.mmPerUnit;
 const DEG = Math.PI / 180;
 
@@ -78,8 +89,13 @@ interface Instance {
   /** A treatment the renderer applies to the mesh first. */
   op?: Record<string, unknown>;
   kind?: string;
+  /** The same piece in every state of a film. */
+  id?: string;
+  /** The rigid assembly the piece moves with, its frame in `groups`. */
+  group?: string;
 }
 const instances: Instance[] = [];
+const groups: Record<string, number[]> = {};
 const put = (stl: string, color: string, m: Matrix4, extra: Partial<Instance> = {}) =>
   instances.push({ stl, color, matrix: m.toArray(), ...extra });
 
@@ -212,7 +228,7 @@ function tokens() {
   for (const st of stations) {
     const p = onBoard(st.planetId, st.ring, st.sector);
     const S0 = mul(T(p.x, p.y, p.z), Rz(p.prograde));
-    put("tokens/station.stl", PLANET_COLOURS[st.planetId], S0, { kind: "token" });
+    put("tokens/station.stl", PLANET_COLOURS[st.planetId], S0, { kind: "token", id: `station:${st.planetId}` });
     const moored = players.filter(
       (pl: { moored: boolean; ship: { wellId: string; sector: number; ring: number } }) =>
         pl.moored && pl.ship.wellId === st.planetId && pl.ship.ring === st.ring && pl.ship.sector === st.sector
@@ -226,7 +242,7 @@ function tokens() {
       let yaw = Math.atan2(by, bx) / DEG + 90;
       const want = pl.ship.facing === "prograde" ? 0 : 180;
       if (Math.cos((yaw - want) * DEG) < 0) yaw += 180;
-      put("tokens/ship-token.stl", playerColour(seatOf(pl.id)), mul(S0, T(bx, by, 18), Rz(yaw)), { kind: "token" });
+      put("tokens/ship-token.stl", playerColour(seatOf(pl.id)), mul(S0, T(bx, by, 18), Rz(yaw)), { kind: "token", id: `ship:${seatOf(pl.id)}` });
     });
   }
   // Ships in their sectors, nose the way they face.
@@ -241,7 +257,7 @@ function tokens() {
       place: (along) => {
         const p = onBoard(s.wellId, s.ring, s.sector, along);
         const yaw = p.prograde + (s.facing === "prograde" ? 0 : 180);
-        put("tokens/ship-token.stl", playerColour(i), mul(T(p.x, p.y, p.z), Rz(yaw + jit(4))), { kind: "token" });
+        put("tokens/ship-token.stl", playerColour(i), mul(T(p.x, p.y, p.z), Rz(yaw + jit(4))), { kind: "token", id: `ship:${i}` });
       },
     });
   });
@@ -255,7 +271,7 @@ function tokens() {
       width: 10,
       place: (along) => {
         const p = onBoard(h.wellId, h.ring, h.sector, along);
-        put("tokens/home-marker.stl", playerColour(i), mul(T(p.x, p.y, p.z), Rz(p.prograde + 90 + jit(5))), { kind: "token" });
+        put("tokens/home-marker.stl", playerColour(i), mul(T(p.x, p.y, p.z), Rz(p.prograde + 90 + jit(5))), { kind: "token", id: `home:${i}` });
       },
     });
   });
@@ -268,7 +284,7 @@ function tokens() {
       width: 21,
       place: (along) => {
         const p = onBoard(w.wellId, w.ring, w.sector, along);
-        put("tokens/wreck-token.stl", COLOUR.black, mul(T(p.x, p.y, p.z), Rz(p.prograde + 25)), { kind: "token" });
+        put("tokens/wreck-token.stl", COLOUR.black, mul(T(p.x, p.y, p.z), Rz(p.prograde + 25)), { kind: "token", id: `wreck:${w.id}` });
       },
     });
   }
@@ -293,7 +309,7 @@ function tokens() {
         place: (along) => {
           const p = onBoard(m.wellId, m.ring, m.sector, along);
           const file = n === 1 ? "tokens/missile-token" : `tokens/salvo-${n}`;
-          put(`${file}.stl`, playerColour(seat), mul(T(p.x, p.y, p.z), Rz(p.prograde + jit(4))), { kind: "token" });
+          put(`${file}.stl`, playerColour(seat), mul(T(p.x, p.y, p.z), Rz(p.prograde + jit(4))), { kind: "token", id: `salvo:${m.id}:${k}` });
         },
       });
     }
@@ -437,7 +453,7 @@ function inlayFrames(): Record<number, number[]> {
 const INLAYS = inlayFrames();
 
 /** A die standing on a stand at `at` showing `top`, or lying on the table beside it. */
-function dice(counter: "hull" | "fuel", value: number, at: Matrix4) {
+function dice(counter: "hull" | "fuel", value: number, at: Matrix4, seat: number) {
   // The designer's colours (1 Nov 2026): black dice and stands, the numbers and the stand's icon in the die's accent.
   const colour = COLOUR.black;
   const ink = counter === "hull" ? COLOUR.hull : COLOUR.fuel;
@@ -456,12 +472,33 @@ function dice(counter: "hull" | "fuel", value: number, at: Matrix4) {
     put(inlays, ink, mul(at, T(0, 0, floor - depth + 0.02), Rz(90), T(-(14 + DICE.stand.icon / 2), 30, 0)), { op: { inlay: "zero" }, kind: "piece" });
   // An empty tank: the die is off its stand, lying beside it on its 10.
   const frame = value > 0 ? mul(at, restingFrame(value, floor)) : mul(at, T(-4, -34, 0), Rz(35), restingFrame(10, 0));
-  put("dice/d10-pole-odd.stl", colour, frame, { kind: "piece" });
-  // The even pole prints turned over about x: turned back.
-  put("dice/d10-pole-even.stl", colour, mul(frame, Rx(180)), { kind: "piece" });
-  for (let v = 1; v <= 10; v++)
-    put(inlays, ink, mul(frame, new Matrix4().fromArray(INLAYS[v])), { op: { dieNumber: v }, kind: "piece" });
+  d10(`die:${seat}:${counter}`, colour, ink, inlays, frame);
 }
+
+/** A d10 at `frame`, its parts one group: the two poles and the ten numbers. */
+function d10(group: string, colour: string, ink: string, inlays: string, frame: Matrix4) {
+  groups[group] = frame.toArray();
+  put("dice/d10-pole-odd.stl", colour, frame, { kind: "piece", id: `${group}:odd`, group });
+  // The even pole prints turned over about x: turned back.
+  put("dice/d10-pole-even.stl", colour, mul(frame, Rx(180)), { kind: "piece", id: `${group}:even`, group });
+  for (let v = 1; v <= 10; v++)
+    put(inlays, ink, mul(frame, new Matrix4().fromArray(INLAYS[v])), { op: { dieNumber: v }, kind: "piece", id: `${group}:${v}`, group });
+}
+
+/** The table's one d10 (RULES §Components), lying where `--roll` puts it with its value up. */
+const rollFrame = (spec: string) => {
+  const [v, at] = spec.split("@");
+  const [x, y] = at.split(",").map(Number);
+  return mul(T(x, y), Rz(20), restingFrame(Number(v), 0));
+};
+function rollDie() {
+  const roll = arg("roll");
+  if (!roll) return;
+  // Not chosen by the designer: a white die with black numbers, apart from the hull and fuel dice.
+  d10("die:roll", COLOUR.white, COLOUR.black, "dice/hull-inlays.stl", rollFrame(roll));
+}
+/** Frames the film throws the d10 to between the states, by spec. */
+const poses = Object.fromEntries((arg("poses") ?? "").split(";").filter(Boolean).map((p) => [p, rollFrame(p).toArray()]));
 
 // The holders' bins (pieces/holder.ts: tokenSize, measure, lay and fill, not exported).
 type Bin = { kind: string; n?: number; grid: [number, number, number]; planet?: string };
@@ -546,8 +583,8 @@ function players() {
     const slots = subs.filter((s) => s.id === "forward-0" || s.id.startsWith("side-"));
     // A face-down module hides in its bay, door shut; a face-up one is on
     // the ship, its bay open; a broken one is off the ship and the base.
-    const closed = slots.filter((s) => !s.revealed && !s.broken).map((s) => bayOfMount[s.id]);
-    put("base/base.stl", COLOUR.grey, B, { op: { closeBays: closed.map((k) => L.bays[k]), bay: bayGeometry() }, kind: "piece" });
+    const closed = process.argv.includes("--open-bays") ? [] : slots.filter((s) => !s.revealed && !s.broken).map((s) => bayOfMount[s.id]);
+    put("base/base.stl", COLOUR.grey, B, { op: { closeBays: closed.map((k) => L.bays[k]), bay: bayGeometry() }, kind: "piece", id: `base:${i}` });
     // The stand (printed lowered, its tenon's foot on the bed) and the hull on it.
     const st = standOf(hull);
     put(`${hull}/${hull}-stand.stl`, COLOUR.grey, mul(B, T(0, 0, deckTop() - SOCKET.depth + SOCKET.room)), { kind: "piece" });
@@ -564,23 +601,34 @@ function players() {
       });
     }
     for (const s of slots) {
-      if (!s.revealed || s.broken) continue;
-      put(`modules/${s.type}.stl`, COLOUR.grey, mul(H, moduleOnHull(hull, s.id as MountId, s.type)), { kind: "piece" });
+      if (s.broken) continue;
+      if (s.revealed) {
+        put(`modules/${s.type}.stl`, COLOUR.grey, mul(H, moduleOnHull(hull, s.id as MountId, s.type)), { kind: "piece", id: `module:${i}:${s.id}` });
+        continue;
+      }
+      // Face-down: on its side on the bay's wall mount, behind the shut door
+      // (pieces/bay.ts: showBay, the module as it prints turned onto the wall).
+      const bay = L.bays[bayOfMount[s.id]];
+      const inBay = mul(B, T(bay.x, bay.y, 0), Rz(bay.turn), T(0, -MOUNT.recessDepth, L.b.centre), Rz(180), Rx(90));
+      put(`modules/${s.type}.stl`, COLOUR.grey, inBay, { kind: "piece", id: `module:${i}:${s.id}` });
     }
     // Energy cubes on their channels, heat cubes on the track.
-    const cubes = (pts: [number, number][], n: number, c: string) => {
-      for (const [x, y] of pts.slice(0, n))
-        put("@cube", c, mul(B, T(x + jit(0.12), y + jit(0.15), L.deck - CUBE.pocketDepth + CUBE.size / 2), Rz(jit(1.5))), { kind: "cube" });
-    };
+    const cubes = (pts: [number, number][], n: number, c: string, name: string) =>
+      pts.slice(0, n).forEach(([x, y], k) =>
+        put("@cube", c, mul(B, T(x + jit(0.12), y + jit(0.15), L.deck - CUBE.pocketDepth + CUBE.size / 2), Rz(jit(1.5))), {
+          kind: "cube",
+          id: `cube:${i}:${name}:${k}`,
+        })
+      );
     for (const s of subs) {
       if (!s.energy) continue;
       const ch = s.id.startsWith("side-") ? L.channels[`flank-${bayOfMount[s.id]}`] : L.channels[s.id];
-      if (ch) cubes(ch, s.energy, CUBE_COLOURS.energy);
+      if (ch) cubes(ch, s.energy, CUBE_COLOURS.energy, s.id);
     }
-    cubes(L.channels.heat, pl.ship.heat, CUBE_COLOURS.heat);
+    cubes(L.channels.heat, pl.ship.heat, CUBE_COLOURS.heat, "heat");
     // The dice to the player's right, the caddy to the left.
-    dice("hull", pl.ship.hull, mul(seat, T(96, 222), Rz(90)));
-    dice("fuel", pl.ship.fuel, mul(seat, T(132, 222), Rz(90)));
+    dice("hull", pl.ship.hull, mul(seat, T(96, 222), Rz(90)), i);
+    dice("fuel", pl.ship.fuel, mul(seat, T(132, 222), Rz(90)), i);
     const caddyAt = mul(seat, T(-162, 150));
     put("holder/caddy.stl", colour, caddyAt, { kind: "piece" });
     const caddy = lay(CADDY);
@@ -598,12 +646,12 @@ function players() {
       const m = mul(seat, T(-140 + k * 24, 118), Rz(10 * k - 5));
       const file = c.kind === "crate" ? "tokens/crate-token" : "tokens/data-token";
       const t = c.kind === "crate" ? 4 : 3.6;
-      put(`${file}.stl`, COLOUR.white, c.loot ? mul(m, T(0, 0, t), Rx(180)) : m, { kind: "token" });
+      put(`${file}.stl`, COLOUR.white, c.loot ? mul(m, T(0, 0, t), Rx(180)) : m, { kind: "token", id: `hold:${i}:${c.id}` });
     });
     // Sale chips the player took, beside the base on the right.
     pl.soldAt.forEach((planet: string, k: number) => {
       const name = planet.replace("planet-", "");
-      put(`tokens/sale-chip-${name}.stl`, PLANET_COLOURS[planet], mul(seat, T(96 + k * 19, 150), Rz(-20)), { kind: "token" });
+      put(`tokens/sale-chip-${name}.stl`, PLANET_COLOURS[planet], mul(seat, T(96 + k * 19, 150), Rz(-20)), { kind: "token", id: `chip:${i}:${planet}` });
     });
   });
   // Escort markers, face-up beside the base of the ship they escort.
@@ -644,13 +692,18 @@ function pool() {
       fill(bin, place, top, COUNTS.crate - aboard("crate"), (m) => put("tokens/crate-token.stl", COLOUR.white, mul(at, m), { kind: "token" }));
     if (bin.kind === "data")
       fill(bin, place, top, COUNTS.data - aboard("data"), (m) => put("tokens/data-token.stl", COLOUR.white, mul(at, m), { kind: "token" }));
-    if (bin.kind === "wreck")
-      fill(bin, place, top, COUNTS.wreck - state.wrecks.length, (m) => put("tokens/wreck-token.stl", COLOUR.black, mul(at, m), { kind: "token" }));
+    if (bin.kind === "wreck") {
+      let n = 0;
+      fill(bin, place, top, COUNTS.wreck - state.wrecks.length, (m) =>
+        put("tokens/wreck-token.stl", COLOUR.black, mul(at, m), { kind: "token", id: `pool:wreck:${n++}` })
+      );
+    }
     if (bin.kind === "chip") {
       const planet = `planet-${bin.planet}`;
       const sold = state.players.filter((p: any) => p.soldAt.includes(planet)).length;
+      let n = 0;
       fill(bin, place, top, COUNTS.chip - sold, (m) =>
-        put(`tokens/sale-chip-${bin.planet}.stl`, PLANET_COLOURS[planet], mul(at, m), { kind: "token" })
+        put(`tokens/sale-chip-${bin.planet}.stl`, PLANET_COLOURS[planet], mul(at, m), { kind: "token", id: `pool:chip:${planet}:${n++}` })
       );
     }
   });
@@ -670,10 +723,11 @@ const CARD_EDGE = "#efe8d6";
  * about its long axis to show its back. Textures are cards.mjs's photographs
  * of the site's /card page, in cad/shots/table/cards/.
  */
-function card(size: { w: number; h: number }, front: string, back: string, faceUp: boolean, at: Matrix4, z = 0) {
+function card(size: { w: number; h: number }, front: string, back: string, faceUp: boolean, at: Matrix4, z = 0, id?: string) {
   const turn = faceUp ? new Matrix4() : new Matrix4().makeRotationY(Math.PI);
   put("@card", CARD_EDGE, mul(at, T(0, 0, z + STOCK / 2), turn), {
     kind: "card",
+    id,
     op: { card: { size: [size.w, size.h, STOCK], front: `cards/${front}.png`, back: `cards/${back}.png` } },
   });
 }
@@ -684,7 +738,7 @@ function cards() {
     // The three missions in a row between the base and the edge: primary, then the secondaries.
     pl.missions.forEach((m: any, k: number) => {
       const pile = m.card.startsWith("primary") ? "primary" : "secondary";
-      card(MISSION_CARD, m.card, `back-${pile}`, m.done, mul(seat, T((k - 1) * 72 + jit(2), 58 + jit(2)), Rz(jit(3))));
+      card(MISSION_CARD, m.card, `back-${pile}`, m.done, mul(seat, T((k - 1) * 72 + jit(2), 58 + jit(2)), Rz(jit(3))), 0, `card:${i}:${k}`);
     });
     // The player card, "your turn" up, on the right past the dice.
     card(TURN_CARD, "turn-front", "turn-back", true, mul(seat, T(188 + jit(2), 84 + jit(2)), Rz(jit(3))));
@@ -789,8 +843,9 @@ tokens();
 players();
 pool();
 cards();
+rollDie();
 writeFileSync(
-  join(OUT, "scene.json"),
-  JSON.stringify({ seed: state.seed, round: state.round, table: TABLE, instances, cameras: cameras(), cube: CUBE.size })
+  arg("out") ?? join(OUT, "scene.json"),
+  JSON.stringify({ seed: state.seed, round: state.round, table: TABLE, instances, groups, poses, cameras: cameras(), cube: CUBE.size })
 );
 console.log(`scene.json: ${instances.length} instances, seed ${state.seed} round ${state.round}`);

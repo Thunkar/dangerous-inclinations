@@ -194,6 +194,20 @@ export const ORBIT_BODY = {
 export const MARKER = { depth: 0.6 };
 
 /**
+ * A station's berths hold their ship tokens: a 4x2 magnet lies flat under
+ * each clamp's floor, slid in from the clamp's outer face and sealed there by
+ * a plug glued in behind it (`station-plugs`), and each ship token carries a
+ * ferrous M2x4 countersunk screw at its middle, flush with its underside
+ * (the mount's screw, `MOUNT.screw`). The pocket takes the mount's
+ * clearance and the plug its fit.
+ */
+export const BERTH = {
+  magnet: { diameter: 4, thickness: 2 },
+  /** Plastic between the magnet and the clamp's floor, three layers (the designer's pick over two): the pull falls fast with distance. */
+  seal: 0.6,
+};
+
+/**
  * The hull and fuel dice (`pieces/dice/`): a pentagonal trapezohedron per
  * counter, never rolled, hollow with a steel ball loose inside, standing on
  * a stand with a magnet sealed under the pocket the die's bottom face drops
