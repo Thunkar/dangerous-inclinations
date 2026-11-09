@@ -61,6 +61,8 @@ import {
   absorbingShield,
   breakSlot,
   rackAnswers,
+  spentCubes,
+  turnEnds,
   upRack,
   typeAt,
   type Mat,
@@ -88,6 +90,7 @@ function freshMat(): Mat {
       'side-3': STARTING.sideSlots[3] ?? 'radiator',
     },
     energy: {},
+    spent: {},
     broken: [],
     track: 0,
     checked: false,
@@ -220,6 +223,7 @@ export function HeatTrackerTool() {
       ...m,
       loadout: { ...m.loadout, [mount]: type },
       energy: { ...m.energy, [mount]: 0 },
+      spent: { ...m.spent, [mount]: 0 },
       broken: m.broken.filter(s => s !== mount),
     }))
 
@@ -231,6 +235,7 @@ export function HeatTrackerTool() {
   const absorbPoint = () => setMat(m => absorb(m, 1))
   const absorbPlasma = () => setMat(plasmaBolt)
   const answerMissiles = () => setMat(rackAnswers)
+  const theirTurnEnds = () => setMat(turnEnds)
 
   const onMat = SLOTS.reduce((sum, slot) => sum + energyOf(slot), 0)
   const hull = SLOTS.map(slot => ({ type: typeAt(mat, slot), isBroken: isBroken(slot) }))
@@ -401,9 +406,15 @@ export function HeatTrackerTool() {
             disabled={!upRack(mat)}
             onClick={answerMissiles}
           />
+          <AbsorbButton
+            label="Their turn ends"
+            badge={`${spentCubes(mat)} back`}
+            disabled={spentCubes(mat) === 0}
+            onClick={theirTurnEnds}
+          />
         </Box>
         <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1 }}>
-          {`A hit on your shields: each energy stops ${SHIELD_POINTS_PER_ENERGY} damage (${PLASMA_SHIELD_POINTS} of plasma) and comes off, and every point stopped goes on the track. A rack that rolls at missiles puts ${INTERCEPT_HEAT} on the track, once a turn however many.`}
+          {`A hit on your shields: each energy stops ${SHIELD_POINTS_PER_ENERGY} damage (${PLASMA_SHIELD_POINTS} of plasma) and is set aside until that player's turn ends, and every point stopped goes on the track. A rack that rolls at missiles puts ${INTERCEPT_HEAT} on the track, once a turn however many.`}
         </Body>
 
         <Box sx={{ mt: 3 }}>
@@ -419,7 +430,7 @@ export function HeatTrackerTool() {
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 3 }}>
           {mat.checked ? (
-            <Slab tone="red" onClick={() => setMat(m => ({ ...m, energy: {}, checked: false }))}>
+            <Slab tone="red" onClick={() => setMat(m => ({ ...m, energy: {}, spent: {}, checked: false }))}>
               Start my turn
             </Slab>
           ) : (
@@ -430,7 +441,7 @@ export function HeatTrackerTool() {
           <Slab
             tone="paper"
             onClick={() =>
-              setMat(m => ({ ...m, energy: {}, broken: [], track: 0, checked: false }))
+              setMat(m => ({ ...m, energy: {}, spent: {}, broken: [], track: 0, checked: false }))
             }
           >
             Reset

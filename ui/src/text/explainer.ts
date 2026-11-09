@@ -110,7 +110,7 @@ export const EXPLAINER = {
         'Shed {dissipation} (+{radiator} for each radiator). Carry the rest into your next turn.',
       over: 'Over {maxHeat}: each point over is 1 hull damage, and your heat stops at {maxHeat}.',
       absorbed:
-        'Shields absorb a point a cube: the cube comes off and the point goes on your heat track.',
+        'Shields absorb a point a cube: the cube is spent for that turn and the point goes on your heat track.',
       rack: 'A rack that rolls at missiles puts {heat} on your heat track, however many it rolls at.',
     },
     fight: {

@@ -70,7 +70,7 @@ function createSubsystemInstance(
     type,
     allocatedEnergy: 0,
     usedThisTurn: false,
-    rollsThisTurn: 0,
+    spentThisTurn: 0,
     isBroken: false,
     isRevealed: slot === undefined, // fixed systems are always known
     ...(slot && { slotGroup: slot.group, slotIndex: slot.index }),

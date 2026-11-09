@@ -275,7 +275,7 @@ function flyMissile(state: GameState, missile: Missile): Flight {
       s.type === "ballistic_rack" &&
       isPowered(s) &&
       !s.isBroken &&
-      s.rollsThisTurn < interceptsPerRack()
+      s.spentThisTurn < interceptsPerRack()
   );
   if (rack) {
     // The first roll of a player-turn uses the rack and flips it face-up,
@@ -286,9 +286,9 @@ function flyMissile(state: GameState, missile: Missile): Flight {
       targetShip = used.ship;
       events.push(...used.events);
     }
-    if (rack.rollsThisTurn === 0) targetShip = addHeat(targetShip, INTERCEPT_HEAT);
+    if (rack.spentThisTurn === 0) targetShip = addHeat(targetShip, INTERCEPT_HEAT);
     targetShip = updateSubsystem(targetShip, rack.id, (r) => ({
-      rollsThisTurn: r.rollsThisTurn + 1,
+      spentThisTurn: r.spentThisTurn + 1,
     }));
     const roll = rollD10(next);
     const destroyed = roll >= INTERCEPT_ROLL;

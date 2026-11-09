@@ -40,7 +40,7 @@ export const RULES_DIALOG = {
     ['Dissipation', 'dissipate {dissipation} (+{radiator} per radiator) at every check'],
     [
       'Shields',
-      'power at {halfShield} or {fullShield}. Each energy absorbs {shieldPoints} damage ({plasmaPoints} of plasma) and comes off. Every point absorbed is heat on your track, paid at your next check. Power them every turn you want them up. Lasers ignore them. Any powered shield stops a disruptor whole',
+      'power at {halfShield} or {fullShield}. Each energy absorbs {shieldPoints} damage ({plasmaPoints} of plasma) and is spent until that player’s turn ends, so the wall is whole for the next attacker. Every point absorbed is heat on your track, paid at your next check. Power them every turn you want them up. Lasers ignore them. Any powered shield stops a disruptor whole',
     ],
     [
       'Ballistic rack',

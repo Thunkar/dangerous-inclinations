@@ -105,6 +105,8 @@ at **every** missile that reaches it, also for one use of the rack, and the two
 halves stay together: a rack that answers a whole salvo is what keeps a salvo
 that costs one subsystem's heat honest. Answering is a flat 2 heat on the
 defender's track, however many missiles, as a shield's absorbed points are.
+Both defences are whole for every attacker: a shield's cubes that absorb are
+spent for that player-turn only, and a rack rolls at up to four each turn.
 
 Turn: (respawn turn if destroyed) → clear the loadout → actions in chosen order (power,
 rotate, one move: coast/burn/jump, fire, scan, seize, survey, salvage, mark; a
@@ -140,7 +142,8 @@ ui/src/                 context/ (game, animation, plan, boardMode, navigation),
 ui/src/site/            routes.ts (the four sections), Landing, Tools, Cheatsheet,
                         turn.ts (the turn, stated once), numbers.ts, poster.tsx,
                         guide/ (the cheatsheet's sections), card/ (the printed card),
-                        loadouts/ (the twelve loadout cards), missions/ (the mission
+                        loadouts/ (the twelve loadout cards), ranges/ (the range
+                        cards), missions/ (the mission
                         decks and their backs), PosterArt.tsx (the landing picture,
                         also the decks' back),
                         tools/ (RoutePlannerTool + OrbitalWindows, windows.ts,
@@ -392,10 +395,20 @@ name up it, the insignia top right (the role's badge shape with the preset's
 signature subsystem in it), the bow large, the flanks as Port and Starboard
 columns by slot code (F1, P1, P2, S1, S2: never fore and aft, which the
 shrike does not have), and a black bar with the missions it is kept with
-(`presetSecondaries`, the bots' own table read backwards) and one line on
-how to fly it. Everything on it is read from the engine's presets, so a
-preset that changes changes its card; the line is the designer's, in the text
-file.
+(`presetSecondaries`, the bots' own table read backwards) under
+"Recommended for". Everything on it is read from the engine's presets, so a
+preset that changes changes its card.
+
+**The range cards** (`ui/src/site/ranges/`, words in `text/rangeCards.ts`)
+follow the loadout cards on `/card`: one per weapon and one for the sensor's
+scan, on the loadout cards' stock, stripe, bar and back (red for a weapon,
+violet for the sensor). Each draws a fan of the black hole's five rings,
+the hole cut by the card's right edge, with the ship on ring 3 facing
+prograde (up the card, port on its left and outward), and shades what the
+engine's own targeting reaches from there (`reach.ts`: `isInWeaponRange`
+for a port and a starboard mount, `inScanRange`, a missile's first flight
+in steps); the ship's arrow says the rest for a retrograde ship.
+`ui/dev-ranges.html?zoom=3` shows them alone.
 
 **The mission decks** (`ui/src/site/missions/`, words in
 `text/missionDeck.ts`) follow on `/card`: both piles for six seats
@@ -1121,6 +1134,36 @@ not an argument:
   under its bar (33.6 → 32.4 against 33). It moves nothing because racks
   shoot down 2–3 missiles a game: it is a rule for the table, not a lever.
   The bots do not price it when they decide to power a rack.
+- **A rack spent by answering, and defence that never drains.** Tried 9
+  Nov 2026 on the way to the per-turn wall (next entry). A rack whose first
+  answer moved its 2 energy onto the track and left it dark until powered
+  again measured identical to the flat 2 heat (300 games at three and four
+  seats within a tenth; `balance --quick` mean −0.35pp), and was replaced
+  the same day for the per-turn wall's symmetry. Defence that never drains
+  (a shield stopping its points on every hit, a rack answering every
+  attacker, only intervening costing heat) made walls strong: shields
+  soaked 25 → 39% of damage at three seats, kills fell 2.6 / 5.1 / 8.0 /
+  11.5 → 2.1 / 4.3 / 6.6 / 9.5 at 3–6 seats, missile hull damage fell
+  36–43%, disruptor blocks rose two- to threefold, and heat at the check
+  moved by 0.05 (a hit is 2–4 heat against a dissipation of 5, so the heat
+  was no price). It is the free-shields entry above with a heat cost too
+  small to matter.
+- **A wall whole for every attacker.** Adopted 9 Nov 2026, the designer's
+  rule: a shield's cubes that absorb are spent for the rest of that
+  player-turn and stay on it (heat at its owner's check, dumped whole by a
+  critical that breaks it), and the wall is whole again when play passes;
+  a disruptor is stopped only by a shield with cubes unspent this turn.
+  The rack already worked so (four a turn, a flat 2 heat). The point is the
+  crowded table: cubes that came off for good made a wall weaker with every
+  attacker between its owner's turns. `rollsThisTurn` became
+  `spentThisTurn`, a shield's spent cubes and a rack's rolls alike. Against
+  cubes that came off for good, same seeds, 300 games a seat count: kills
+  2.6 / 5.1 / 8.0 / 11.5 → 2.6 / 5.0 / 7.8 / 10.9 at 3–6 seats, shields
+  soaking 22–25% → 23–26%, heat at the check unchanged, six-seat games at
+  the cap 23 → 20%; `balance --quick` mean row +1.0pp, nothing past 10
+  (40-game noise), dealt Destroy / Deliver / Intercept 38 / 40 / 28 → 35 /
+  40 / 25, failing flags four → three. The bots rarely take two attackers'
+  fire between turns, so it is a rule for the table more than a lever.
 - **Docking before the heat check.** Replaced 7 Oct 2026, the designer's
   decision: the check comes first and the dock after it. With the dock
   first, a ship low on hull could cook itself on the approach, be restored to

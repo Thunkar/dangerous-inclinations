@@ -423,7 +423,7 @@ describe("missiles: on the target's sector", () => {
     const state = withPower(salvoOf(onTarget(LOADOUTS.rack), 5), "p2", "side-0", 2);
     const result = processOwnerMissiles({ ...state, forcedRollValue: 5 }, "p1");
     expect(eventsOf(result.events as never, "missile_intercepted")).toHaveLength(4);
-    expect(getSub(result.state, "p2", "side-0").rollsThisTurn).toBe(4);
+    expect(getSub(result.state, "p2", "side-0").spentThisTurn).toBe(4);
     // The one it could not roll at attacks.
     expect(eventsOf(result.events as never, "attack_resolved")).toHaveLength(1);
     expect(getShip(result.state, "p2").hitPoints).toBe(8);
@@ -441,9 +441,9 @@ describe("missiles: on the target's sector", () => {
     expect(eventTypes(result.events as never)).not.toContain("attack_resolved");
     expect(getShip(result.state, "p2").hitPoints).toBe(10);
     // The first rack spent its four, the second took the fifth and turned over.
-    expect(getSub(result.state, "p2", "side-0").rollsThisTurn).toBe(4);
+    expect(getSub(result.state, "p2", "side-0").spentThisTurn).toBe(4);
     expect(getSub(result.state, "p2", "side-2")).toMatchObject({
-      rollsThisTurn: 1,
+      spentThisTurn: 1,
       isRevealed: true,
     });
   });
@@ -484,13 +484,13 @@ describe("missiles: on the target's sector", () => {
   it("the count is per player-turn: a rack that spent its four answers again next turn", () => {
     const state = withPower(salvoOf(onTarget(LOADOUTS.rack), 4), "p2", "side-0", 2);
     const spent = processOwnerMissiles({ ...state, forcedRollValue: 5 }, "p1");
-    expect(getSub(spent.state, "p2", "side-0").rollsThisTurn).toBe(4);
+    expect(getSub(spent.state, "p2", "side-0").spentThisTurn).toBe(4);
     // `finish` clears it for everyone when play passes (game/turns.ts).
     const fresh = {
       ...spent.state,
       players: spent.state.players.map((p) => ({ ...p, ship: resetSubsystemUsage(p.ship) })),
     };
-    expect(getSub(fresh, "p2", "side-0").rollsThisTurn).toBe(0);
+    expect(getSub(fresh, "p2", "side-0").spentThisTurn).toBe(0);
   });
 
   /**

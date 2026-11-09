@@ -458,7 +458,7 @@ function firedFrom(view: GameView, event: Extract<GameEvent, { type: 'weapon_fir
     type: event.weaponType,
     allocatedEnergy: 0,
     usedThisTurn: true,
-    rollsThisTurn: 0,
+    spentThisTurn: 0,
     isBroken: false,
     isRevealed: true,
     ...(slot ? { slotGroup: slot.group, slotIndex: slot.index } : {}),

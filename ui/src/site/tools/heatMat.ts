@@ -2,8 +2,9 @@
  * The heat tracker's mat with no React in it: the loadout, the energy on it,
  * the broken slots and the heat track, and the two things that happen to it
  * on other players' turns. Both are the engine's rules played by hand: a
- * shield soaking a shot spends its energy, in the order the engine walks the
- * shields, and puts every point it soaked on the track; a break dumps a
+ * shield soaking a shot spends its energy for the rest of that player's turn,
+ * in the order the engine walks the shields, and puts every point it soaked
+ * on the track; a break dumps a
  * subsystem's energy onto the track. `heatMat.test.ts` holds them to the
  * engine on a built ship.
  */
@@ -25,6 +26,11 @@ export const TRACK_CEILING = 30
 export interface Mat {
   loadout: Record<MountId, SubsystemType>
   energy: Partial<Record<SlotId, number>>
+  /**
+   * Shield energy spent absorbing this player-turn: it stays on (and is heat
+   * at the check) but stops nothing more until that player's turn ends.
+   */
+  spent: Partial<Record<SlotId, number>>
   broken: SlotId[]
   track: number
   /** This turn's heat check is done; the energy stays on until the next turn starts. */
@@ -38,19 +44,23 @@ export const typeAt = (mat: Mat, slot: SlotId): SubsystemType =>
 function upShields(mat: Mat): SlotId[] {
   return SLOTS.filter(
     slot =>
-      typeAt(mat, slot) === 'shields' && !mat.broken.includes(slot) && (mat.energy[slot] ?? 0) > 0
+      typeAt(mat, slot) === 'shields' && !mat.broken.includes(slot) && ready(mat, slot) > 0
   )
 }
 
-/** The shield that soaks the next point: the first, in slot order, with energy on it. */
+/** A shield's energy not yet spent this player-turn. */
+const ready = (mat: Mat, slot: SlotId) => (mat.energy[slot] ?? 0) - (mat.spent[slot] ?? 0)
+
+/** The shield that soaks the next point: the first, in slot order, with energy ready. */
 export function absorbingShield(mat: Mat): SlotId | undefined {
   return upShields(mat)[0]
 }
 
 /**
  * A shot of `damage` meets the shields, as `resolveAttack` meets it: each
- * shield in turn takes what its energy can (`pointsPerEnergy` a cube), the
- * cubes that absorbed come off (a cube is spent whole), and every point
+ * shield in turn takes what its ready energy can (`pointsPerEnergy` a cube),
+ * the cubes that absorbed are spent for the turn (a cube is spent whole) but
+ * stay on, and every point
  * absorbed goes onto the track. What the shields cannot take is hull, which
  * the mat does not keep.
  */
@@ -61,17 +71,26 @@ export function absorb(
 ): Mat {
   let remaining = damage
   let absorbed = 0
-  const energy = { ...mat.energy }
+  const spent = { ...mat.spent }
   for (const shield of upShields(mat)) {
     if (remaining <= 0) break
-    const take = Math.min(remaining, (energy[shield] ?? 0) * pointsPerEnergy)
-    energy[shield] = (energy[shield] ?? 0) - Math.ceil(take / pointsPerEnergy)
+    const take = Math.min(remaining, ready({ ...mat, spent }, shield) * pointsPerEnergy)
+    spent[shield] = (spent[shield] ?? 0) + Math.ceil(take / pointsPerEnergy)
     remaining -= take
     absorbed += take
   }
   if (absorbed === 0) return mat
-  return { ...mat, energy, track: Math.min(TRACK_CEILING, mat.track + absorbed) }
+  return { ...mat, spent, track: Math.min(TRACK_CEILING, mat.track + absorbed) }
 }
+
+/** The attacker's turn ends: every shield is whole again for the next one. */
+export function turnEnds(mat: Mat): Mat {
+  return { ...mat, spent: {} }
+}
+
+/** Shield energy set aside this player-turn, waiting for that turn to end. */
+export const spentCubes = (mat: Mat) =>
+  Object.values(mat.spent).reduce((sum, n) => sum + (n ?? 0), 0)
 
 /** A working ballistic rack with energy on it: one that answers missiles. */
 export function upRack(mat: Mat): SlotId | undefined {
@@ -99,6 +118,7 @@ export function breakSlot(mat: Mat, slot: SlotId): Mat {
     ...mat,
     broken: [...mat.broken, slot],
     energy: { ...mat.energy, [slot]: 0 },
+    spent: { ...mat.spent, [slot]: 0 },
     track: Math.min(TRACK_CEILING, mat.track + (mat.energy[slot] ?? 0)),
   }
 }

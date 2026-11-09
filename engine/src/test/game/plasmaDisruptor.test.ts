@@ -76,9 +76,9 @@ describe("plasma cannon: a shield cube absorbs two points", () => {
     });
     const target = getShip(result.gameState, "p2");
     expect(target.hitPoints).toBe(10 - toHull);
-    // The cubes come off the shields and every point absorbed is heat on the track.
+    // The cubes stay on the shields and every point absorbed is heat on the track.
     expect(target.heat.currentHeat).toBe(absorbed);
-    expect(cubesOnLoadout(target)).toBe(0);
+    expect(cubesOnLoadout(target)).toBe(cubes.reduce((n, [, c]) => n + c, 0));
     expect(
       eventsOf(result.events, "subsystem_revealed")
         .filter((e) => e.playerId === "p2")

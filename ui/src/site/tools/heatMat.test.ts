@@ -34,6 +34,7 @@ function matOf(forward: SubsystemType, sides: SubsystemType[], energy: Energy, t
       'side-3': sides[3],
     },
     energy,
+    spent: {},
     broken: [],
     track,
     checked: false,
@@ -61,15 +62,20 @@ function reading(ship: ShipState) {
     const cubes = ship.subsystems.find(s => s.id === slot)?.allocatedEnergy ?? 0
     if (cubes > 0) energy[slot] = cubes
   }
+  const spent: Energy = {}
+  for (const s of ship.subsystems)
+    if (s.type === 'shields' && s.spentThisTurn > 0) spent[s.id as SlotId] = s.spentThisTurn
   const broken = SLOTS.filter(slot => ship.subsystems.find(s => s.id === slot)?.isBroken)
-  return { energy, broken, track: ship.heat.currentHeat }
+  return { energy, spent, broken, track: ship.heat.currentHeat }
 }
 
 function matReading(mat: Mat) {
   const energy: Energy = {}
   for (const slot of SLOTS) if ((mat.energy[slot] ?? 0) > 0) energy[slot] = mat.energy[slot]
+  const spent: Energy = {}
+  for (const slot of SLOTS) if ((mat.spent[slot] ?? 0) > 0) spent[slot] = mat.spent[slot]
   const broken = SLOTS.filter(slot => mat.broken.includes(slot))
-  return { energy, broken, track: mat.track }
+  return { energy, spent, broken, track: mat.track }
 }
 
 /** A roll that hits and is not a critical, whatever the attacker runs. */

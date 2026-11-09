@@ -305,7 +305,7 @@ export function resetSubsystemUsage(ship: ShipState): ShipState {
   return {
     ...ship,
     subsystems: ship.subsystems.map((s) =>
-      s.usedThisTurn || s.rollsThisTurn > 0 ? { ...s, usedThisTurn: false, rollsThisTurn: 0 } : s
+      s.usedThisTurn || s.spentThisTurn > 0 ? { ...s, usedThisTurn: false, spentThisTurn: 0 } : s
     ),
   };
 }

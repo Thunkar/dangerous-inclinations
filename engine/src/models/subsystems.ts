@@ -116,9 +116,11 @@ export function isPowerableType(type: SubsystemType): boolean {
 
 /**
  * Damage a shield's energy absorbs, a point a cube, unless the weapon names its
- * own rate (`shieldPointsPerEnergy`). The cubes that absorb come off the
- * subsystem, and every point absorbed is a point of heat on its owner's track,
- * paid at their next check: the shot's energy goes somewhere.
+ * own rate (`shieldPointsPerEnergy`). The cubes that absorb are spent for the
+ * rest of that player-turn and stand ready again for the next attacker's
+ * ({@link shieldCubesReady}), and every point absorbed is a point of heat on
+ * its owner's track, paid at their next check: the shot's energy goes
+ * somewhere.
  *
  * It was two cubes a point with the absorbing free (1 Oct 2026), and before
  * that two cubes a point with the absorbing hot. A point a cube with nothing
@@ -127,6 +129,17 @@ export function isPowerableType(type: SubsystemType): boolean {
  * were declined as absorbed whole. The heat is what prices the wall now.
  */
 export const SHIELD_POINTS_PER_ENERGY = 1;
+
+/**
+ * The cubes a shield still has to absorb with this player-turn: its energy,
+ * less what it has spent on this turn's hits. A shield stops a disruptor only
+ * while it has one. Measured 9 Nov 2026 against cubes that came off for good:
+ * natural play within noise at three to five seats, kills 11.5 -> 10.9 a game
+ * at six, so a wall is whole for every attacker at a crowded table.
+ */
+export function shieldCubesReady(shield: Pick<Subsystem, "allocatedEnergy" | "spentThisTurn">): number {
+  return Math.max(0, shield.allocatedEnergy - shield.spentThisTurn);
+}
 
 export interface WeaponStats {
   damage: number;
@@ -178,11 +191,14 @@ export interface Subsystem {
   allocatedEnergy: number;
   usedThisTurn: boolean;
   /**
-   * Interception rolls a ballistic rack has made this player-turn. A rack's
-   * two cubes answer as many missiles as two cubes can throw
-   * ({@link INTERCEPTS_PER_RACK}) and no more; 0 on every other tile.
+   * What a defence has used of itself this player-turn, cleared when play
+   * passes, so it is whole again for the next attacker. A ballistic rack
+   * counts the missiles it has rolled at (its two cubes answer as many as two
+   * cubes can throw, {@link INTERCEPTS_PER_RACK}); shields count the cubes
+   * they have spent absorbing, which stay on the tile (and are heat at their
+   * owner's check) but stop nothing more this turn. 0 on every other tile.
    */
-  rollsThisTurn: number;
+  spentThisTurn: number;
   isBroken: boolean;
   /** Face-up for everyone at the table. Fixed systems start revealed. */
   isRevealed: boolean;

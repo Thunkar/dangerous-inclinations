@@ -46,8 +46,10 @@ import type { GameEvent } from "../models/events.ts";
  *     sequence, taken at their place in the turn, not at its end.
  * v21: a destruction is settled the moment it happens, mid-sequence; a
  *     `salvage` may name no wreck, and `action_skipped` may be a `salvage`.
+ * v22: a shield's absorbing cubes are spent for the player-turn only and stay
+ *     on it; `rollsThisTurn` is `spentThisTurn`, a shield's spent cubes too.
  */
-export const RECORDING_SCHEMA_VERSION = 21;
+export const RECORDING_SCHEMA_VERSION = 22;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

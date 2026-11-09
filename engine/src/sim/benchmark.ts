@@ -458,7 +458,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
     `| Heat track | ${MAX_HEAT}; above it is hull damage, then shed ${DEFAULT_DISSIPATION_CAPACITY} (+${radiator} per radiator) and carry the rest |`
   );
   out.push(
-    `| Shields | ${SUBSYSTEM_CONFIGS.shields.minEnergy} or ${SUBSYSTEM_CONFIGS.shields.maxEnergy} energy, ${SHIELD_POINTS_PER_ENERGY} point absorbed a cube, which comes off the subsystem; its energy is heat every turn it is powered, and every point absorbed is heat too |`
+    `| Shields | ${SUBSYSTEM_CONFIGS.shields.minEnergy} or ${SUBSYSTEM_CONFIGS.shields.maxEnergy} energy, ${SHIELD_POINTS_PER_ENERGY} point absorbed a cube, which is spent until that player's turn ends; its energy is heat every turn it is powered, and every point absorbed is heat too |`
   );
   out.push(
     `| Ballistic rack | rolls at up to ${interceptsPerRack()} missiles a turn while powered; answering is ${INTERCEPT_HEAT} heat on the track, however many |`

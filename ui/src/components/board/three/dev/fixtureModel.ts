@@ -326,7 +326,7 @@ export function fixtureShots(t0: number, slow = 1): TableEffect[] {
     type: 'disruptor',
     allocatedEnergy: 3,
     usedThisTurn: true,
-    rollsThisTurn: 0,
+    spentThisTurn: 0,
     isBroken: false,
     isRevealed: true,
     slotGroup: 'side',

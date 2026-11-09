@@ -95,7 +95,7 @@ export const PRINTED_CARD = {
           '±{rings} ring ±{sectors}, one side. <red>Every shield energy stops {points}</red>',
         ballistic_rack: '±{rings} ring ±{sectors} either side, or 1 along your ring',
         disruptor:
-          '±{rings} ring ±{sectors} either side, or 1 along your ring. Breaks the named slot. <red>A powered shield stops it</red>',
+          '±{rings} ring ±{sectors} either side, or 1 along your ring. Breaks the named slot. <red>A shield with energy left stops it</red>',
         missiles:
           'inside your well, a salvo is one action. {aboard}\u00a0aboard, fly {steps} a turn from launch, {turns} turns',
       },
@@ -104,7 +104,7 @@ export const PRINTED_CARD = {
       title: 'Powered',
       aside: 'works until your next turn',
       columns: { subsystem: 'subsystem', energy: 'energy', effect: 'effect' },
-      shields: 'each energy stops {points} damage and comes off',
+      shields: 'each energy stops {points} damage a turn',
       ballistic_rack: 'shoots down {missiles} missiles a turn on {on}+, for {heat} heat',
       sensor_array: "shots after it's enabled crit on {crit}+. Scan: your ring, 1–{sectors} ahead",
     },

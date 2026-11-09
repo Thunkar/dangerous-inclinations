@@ -223,7 +223,7 @@ export const CHEATSHEET = {
       plasma_cannon:
         '±{rings} ring, ±{sectors} sector, off one side. <b>Each shield energy stops {points} damage</b>',
       disruptor:
-        'An EMP burst: ±{rings} ring, ±{sectors} sector, either side. <b>No damage</b>: a hit ({from}–{to}) breaks the slot you named, unless any shield has energy on it.',
+        'An EMP burst: ±{rings} ring, ±{sectors} sector, either side. <b>No damage</b>: a hit ({from}–{to}) breaks the slot you named, unless a shield still has energy unspent this turn.',
     },
     /** A gun that fits either slot. */
     eitherSlot: 'forward or side',
@@ -251,7 +251,7 @@ export const CHEATSHEET = {
     },
     /** The two columns of points at the foot of the section. */
     hits: [
-      '<b>Shields absorb first</b>: each energy stops {shieldPoints} damage ({plasmaPoints} of plasma). <b>Every point absorbed is heat</b> on the target’s track. Lasers ignore them.',
+      '<b>Shields absorb first</b>: each energy stops {shieldPoints} damage ({plasmaPoints} of plasma) a turn, whole again for the next attacker. <b>Every point absorbed is heat</b> on the target’s track. Lasers ignore them.',
       'At 0 the ship is destroyed (see 08).',
       'In your own sector every weapon reaches. Nothing fires across wells.',
     ],

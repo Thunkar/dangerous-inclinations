@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { resolveAttack, rollToResult } from "../../game/damage.ts";
-import { lowestCriticalFace } from "../../game/ship.ts";
+import { lowestCriticalFace, resetSubsystemUsage } from "../../game/ship.ts";
+import { shieldCubesReady } from "../../models/subsystems.ts";
 import type { ShipLoadout } from "../../models/game.ts";
 import {
   LOADOUTS,
@@ -91,15 +92,15 @@ describe("damage: resolveAttack", () => {
     expect(resolveAttack(target, "p2", 4, "engines", 5, attacker).ship.hitPoints).toBe(0);
   });
 
-  // A cube absorbs a point, the cubes that absorb come off the shield, and
-  // every point absorbed goes onto the target's track.
+  // A cube absorbs a point and is spent for the rest of the player-turn (it
+  // stays on the shield), and every point absorbed goes onto the target's track.
   it.each([
     ["1 cube vs damage 4: one point absorbed, three land", 1, 4, 3, 1, 0],
-    ["2 cubes vs damage 2: the whole shot absorbed, both cubes gone", 2, 2, 0, 2, 0],
+    ["2 cubes vs damage 2: the whole shot absorbed, both cubes spent", 2, 2, 0, 2, 0],
     ["2 cubes vs damage 3: two absorbed, one lands", 2, 3, 1, 2, 0],
     ["2 cubes vs damage 4: a full shield stops half a railgun", 2, 4, 2, 2, 0],
-    ["2 cubes vs damage 1: a point costs one cube, the other stays", 2, 1, 0, 1, 1],
-  ])("%s", (_label, shieldEnergy, damage, toHull, absorbed, shieldLeft) => {
+    ["2 cubes vs damage 1: a point costs one cube, the other stays ready", 2, 1, 0, 1, 1],
+  ])("%s", (_label, shieldEnergy, damage, toHull, absorbed, readyLeft) => {
     const state = withPower(base, "p2", "side-2", shieldEnergy);
     const target = getShip(state, "p2");
     const outcome = resolveAttack(target, "p2", damage, "engines", 5, attacker);
@@ -109,9 +110,22 @@ describe("damage: resolveAttack", () => {
     // Every point absorbed is a point on the owner's track.
     expect(outcome.ship.heat.currentHeat).toBe(absorbed);
     const shield = outcome.ship.subsystems.find((s) => s.id === "side-2")!;
-    expect(shield.allocatedEnergy).toBe(shieldLeft);
-    // The cubes that absorbed come off the shield.
-    expect(cubesOnLoadout(outcome.ship)).toBe(cubesOnLoadout(target) - (shieldEnergy - shieldLeft));
+    expect(shieldCubesReady(shield)).toBe(readyLeft);
+    // The cubes that absorbed stay on the shield: they are heat at its owner's check.
+    expect(shield.allocatedEnergy).toBe(shieldEnergy);
+    expect(cubesOnLoadout(outcome.ship)).toBe(cubesOnLoadout(target));
+  });
+
+  it("a wall spent this turn lets the next shot through, and is whole when play passes", () => {
+    const target = getShip(withPower(base, "p2", "side-2", 2), "p2");
+    const railgun = resolveAttack(target, "p2", 4, "engines", 5, attacker);
+    expect(railgun.hitResult).toMatchObject({ absorbed: 2, damageToHull: 2 });
+    const missile = resolveAttack(railgun.ship, "p2", 2, "engines", 5, attacker);
+    expect(missile.hitResult).toMatchObject({ absorbed: 0, damageToHull: 2 });
+    const nextTurn = resolveAttack(resetSubsystemUsage(missile.ship), "p2", 2, "engines", 5, attacker);
+    expect(nextTurn.hitResult).toMatchObject({ absorbed: 2, damageToHull: 0 });
+    expect(nextTurn.ship.hitPoints).toBe(6);
+    expect(nextTurn.ship.heat.currentHeat).toBe(4);
   });
 
   it("absorbed points go on top of the heat the target already carries", () => {
@@ -146,8 +160,8 @@ describe("damage: resolveAttack", () => {
     expect(outcome.hitResult.absorbed).toBe(absorbed);
     expect(outcome.hitResult.damageToHull).toBe(toHull);
     expect(outcome.ship.heat.currentHeat).toBe(absorbed);
-    expect(outcome.ship.subsystems.find((s) => s.id === "side-2")!.allocatedEnergy).toBe(0);
-    expect(outcome.ship.subsystems.find((s) => s.id === "side-3")!.allocatedEnergy).toBe(0);
+    expect(shieldCubesReady(outcome.ship.subsystems.find((s) => s.id === "side-2")!)).toBe(0);
+    expect(shieldCubesReady(outcome.ship.subsystems.find((s) => s.id === "side-3")!)).toBe(0);
     expect(
       eventsOf(outcome.events as never, "subsystem_revealed").map((e) => e.subsystemId)
     ).toEqual(["side-2", "side-3"]);
@@ -160,8 +174,8 @@ describe("damage: resolveAttack", () => {
     const outcome = resolveAttack(getShip(state, "p2"), "p2", 2, "engines", 5, attacker);
     expect(outcome.hitResult).toMatchObject({ absorbed: 2, damageToHull: 0 });
     expect(outcome.ship.heat.currentHeat).toBe(2);
-    expect(outcome.ship.subsystems.find((s) => s.id === "side-2")!.allocatedEnergy).toBe(0);
-    expect(outcome.ship.subsystems.find((s) => s.id === "side-3")!.allocatedEnergy).toBe(2);
+    expect(shieldCubesReady(outcome.ship.subsystems.find((s) => s.id === "side-2")!)).toBe(0);
+    expect(shieldCubesReady(outcome.ship.subsystems.find((s) => s.id === "side-3")!)).toBe(2);
     expect(
       eventsOf(outcome.events as never, "subsystem_revealed").map((e) => e.subsystemId)
     ).toEqual(["side-2"]);
@@ -226,13 +240,12 @@ describe("damage: resolveAttack", () => {
   });
 
   it.each([
-    // Both cubes went on the two points it absorbed and came off the shield,
-    // so there is nothing left to dump: the heat is the two points absorbed.
-    ["spent whole, dumps nothing", 2, 0, 2],
-    // One point took one cube; the other is dumped on top of the point.
-    ["with a cube left, dumps that cube on top of the point absorbed", 1, 1, 2],
+    // The cubes it spent absorbing stay on it, so the break dumps both on top
+    // of the points absorbed.
+    ["spent whole, dumps both cubes on top of two points", 2, 2, 4],
+    ["one cube spent, dumps both cubes on top of one point", 1, 2, 3],
   ])(
-    "naming the shield that absorbed breaks it after it spent its cubes: %s",
+    "naming the shield that absorbed breaks it: %s",
     (_label, damage, energyLost, heat) => {
       const state = withPower(base, "p2", "side-2", 2);
       const outcome = resolveAttack(getShip(state, "p2"), "p2", damage, "side-2", 10, attacker);
@@ -334,7 +347,7 @@ describe("damage: through executeTurn", () => {
     ],
     ["a full shield stops half a railgun", railgunShot, "forward-0", "railgun", 4, 2, 2, 2],
   ] as const)(
-    "%s, spends its cubes and puts the points on the target's track",
+    "%s, spends its cubes for the turn and puts the points on the target's track",
     (_label, build, slot, weaponType, damage, cubes, toHull, absorbed) => {
       const state = withPower(build(), "p2", "side-2", cubes);
       const result = executeTurnAs(state, fire(1, slot, "p2"));
@@ -348,8 +361,9 @@ describe("damage: through executeTurn", () => {
       expect(target.hitPoints).toBe(10 - toHull);
       // Absorbing on someone else's turn puts the points on their track now.
       expect(target.heat.currentHeat).toBe(absorbed);
-      // The shield spent every cube it had, so nothing is left lit.
-      expect(cubesOnLoadout(target)).toBe(0);
+      // The cubes stay on the shield, whole again now that play has passed.
+      expect(cubesOnLoadout(target)).toBe(cubes);
+      expect(shieldCubesReady(getSub(result.gameState, "p2", "side-2"))).toBe(cubes);
     }
   );
 

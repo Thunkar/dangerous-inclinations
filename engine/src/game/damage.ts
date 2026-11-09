@@ -5,18 +5,20 @@
  * makes 8-10 critical (`lowestCriticalFace`).
  *
  * Shields absorb SHIELD_POINTS_PER_ENERGY points of damage a cube (or the
- * weapon's own `shieldPointsPerEnergy`); the cubes that absorb are spent,
- * leaving the subsystem dark until it is re-powered, and every point absorbed
- * is a point of heat on its owner's track, paid at their next check. A
+ * weapon's own `shieldPointsPerEnergy`); the cubes that absorb are spent for
+ * the rest of the player-turn and stop nothing more until play passes, and
+ * every point absorbed is a point of heat on its owner's track, paid at their
+ * next check. A
  * critical breaks the slot the attacker named whether or not the shot reached
  * the hull.
  *
  * A disruptor deals no damage and never criticals: a hit breaks the named slot
- * unless the target has any powered shield, which blocks it whole.
+ * unless the target has a shield with cubes still ready this turn, which
+ * blocks it whole.
  */
 import type { ShipState } from "../models/game.ts";
 import { BASE_CRITICAL_FACE } from "../models/game.ts";
-import { SHIELD_POINTS_PER_ENERGY, isPowered } from "../models/subsystems.ts";
+import { SHIELD_POINTS_PER_ENERGY, shieldCubesReady } from "../models/subsystems.ts";
 import type { SubsystemId } from "../models/subsystems.ts";
 import type { EventDraft } from "../models/events.ts";
 import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
@@ -96,20 +98,23 @@ export function resolveAttack(
   let absorbed = 0;
   const shields = ignoresShields
     ? []
-    : ship.subsystems.filter((s) => s.type === "shields" && isPowered(s) && !s.isBroken);
+    : ship.subsystems.filter(
+        (s) => s.type === "shields" && shieldCubesReady(s) > 0 && !s.isBroken
+      );
   for (const shield of shields) {
     if (remainingDamage <= 0) break;
-    const take = Math.min(remainingDamage, shield.allocatedEnergy * perCube);
+    const take = Math.min(remainingDamage, shieldCubesReady(shield) * perCube);
     if (take <= 0) continue;
     // A cube absorbs whole: one that stops a single point of plasma is spent.
     const spent = Math.ceil(take / perCube);
-    // The cubes that absorbed are spent: the subsystem is down by as much as
-    // it soaked until its owner powers it again on their next turn, and a
-    // critical that finds it now dumps only what is left. The shot's energy
-    // goes onto the owner's track, a point a point absorbed, and is paid at
-    // their next check like anything else carried there.
+    // The cubes that absorbed are spent for this player-turn: they stay on
+    // the subsystem (heat at the owner's check, and dumped whole by a
+    // critical that breaks it) but stop nothing more until play passes, when
+    // the wall is whole for the next attacker. The shot's energy goes onto
+    // the owner's track, a point a point absorbed, and is paid at their next
+    // check like anything else carried there.
     ship = updateSubsystem(ship, shield.id, {
-      allocatedEnergy: shield.allocatedEnergy - spent,
+      spentThisTurn: shield.spentThisTurn + spent,
     });
     ship = addHeat(ship, take);
     const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
@@ -125,9 +130,9 @@ export function resolveAttack(
   // A critical breaks the slot it named whether or not the shot reached the
   // hull. It used to need `toHull > 0`, which meant shields that held ate the
   // critical aimed at it: the fattest, most public slot on the loadout was also
-  // the one best protected from being named. Absorbing first still blunts it
-  // (the tile that soaked the shot spent its cubes, so breaking it dumps
-  // little or no heat), but the tile is gone until a dock.
+  // the one best protected from being named. A shield that absorbed keeps its
+  // cubes on, so breaking it dumps them all as heat on top of the points it
+  // took, and the tile is gone until a dock.
   if (result === "critical") {
     const broken = breakNamed(ship, targetPlayerId, criticalTarget, attackerPlayerId);
     ship = broken.ship;
@@ -164,7 +169,8 @@ function breakNamed(
 }
 
 /**
- * A disruptor hit. Any powered, working shield blocks it whole: nothing is
+ * A disruptor hit. Any working shield with cubes ready this turn
+ * ({@link shieldCubesReady}) blocks it whole: nothing is
  * spent and no heat taken, and the first such shield in slot order turns
  * face-up, since it did something. Otherwise the named slot breaks as a
  * critical breaks it (its cubes dump as heat; a broken slot stays broken).
@@ -177,7 +183,7 @@ function disrupt(
   attackerPlayerId: string | undefined
 ): AttackOutcome {
   const shield = ship.subsystems.find(
-    (s) => s.type === "shields" && isPowered(s) && !s.isBroken
+    (s) => s.type === "shields" && shieldCubesReady(s) > 0 && !s.isBroken
   );
   const hitResult: WeaponHitResult = {
     roll,
