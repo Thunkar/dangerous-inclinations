@@ -134,7 +134,10 @@ function send(connection: Connection, message: unknown): void {
   if (connection.ws.readyState === OPEN) connection.ws.send(JSON.stringify(message))
 }
 
-/** Build and send a message for each member of the room; every socket of a player gets it. */
+/**
+ * Build and send a message for each member of the room; every socket of a
+ * player gets it. A `build` that answers null sends that player nothing.
+ */
 export function broadcastViews(
   room: Room,
   roomId: string,
@@ -145,6 +148,7 @@ export function broadcastViews(
   for (const [playerId, connections] of byPlayer) {
     if (connections.size === 0) continue
     const message = build(playerId)
+    if (message === null) continue
     for (const connection of connections) send(connection, message)
   }
 }

@@ -20,8 +20,10 @@ COPY engine/package.json engine/
 COPY server/package.json server/
 COPY ui/package.json ui/
 COPY cad/package.json cad/
-RUN yarn install --immutable
-COPY tsconfig.json ./
+# Only what the images build: the root (tsc), the engine, the server and the
+# UI. The CAD workspace's FluidCAD is not installed.
+RUN yarn workspaces focus dangerous-inclinations @dangerous-inclinations/engine \
+      @dangerous-inclinations/server @dangerous-inclinations/ui
 COPY engine engine
 COPY server server
 COPY ui ui

@@ -47,8 +47,9 @@ interface TurnErrorPayload {
 
 /**
  * Table talk. One channel per game, two lanes: `say` is heard by everyone at
- * the table (humans and agents alike); `think` is a player's reasoning,
- * shown to humans in the UI but not fed to other agents.
+ * the table (humans and agents alike); `think` is a player's reasoning, and
+ * the server sends it to its author and to the seats people play, never to
+ * another agent's seat.
  */
 export interface ChatMessage {
   id: string
@@ -63,13 +64,14 @@ export interface ChatMessage {
   at: string
 }
 
-/** A dry run of a turn: what the engine would say, without committing anything. */
+/**
+ * A dry run of a turn: whether the engine would accept it, and nothing else.
+ * No events: they would carry the dice the live RNG is about to roll.
+ */
 export interface PreviewPayload {
   ok: boolean
   error?: string
   errors?: string[]
-  /** Events the caller would see, when the turn is legal. */
-  events?: GameEvent[]
 }
 
 export type ServerGameMessage =

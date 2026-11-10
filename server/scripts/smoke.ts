@@ -266,7 +266,8 @@ const transport: GameTransport = {
   },
 }
 
-function record(playerId: string, message: ServerGameMessage): void {
+function record(playerId: string, message: ServerGameMessage | null): void {
+  if (!message) return
   messageCounts.set(message.type, (messageCounts.get(message.type) ?? 0) + 1)
   if (playerId !== HUMAN) return
   // Serialize exactly as the socket would, then inspect the result.
@@ -297,7 +298,8 @@ function submitTurnMessage(actions: unknown[], turn: number, activePlayerId = HU
 
 const kv = memoryKv()
 const recordings = createRecordingService(kv, null)
-const games = createGameService({ kv, recordings, transport })
+// Every seat but the human's is played by an agent, for the table-talk checks.
+const games = createGameService({ kv, recordings, transport, isAgent: async id => id !== HUMAN })
 
 function fail(message: string): never {
   console.error(`\nsmoke: ${message}`)
@@ -453,10 +455,7 @@ console.log(
 // --- Preview and table talk ---------------------------------------------------
 {
   const dry = await games.previewTurn(GAME_ID, HUMAN, [])
-  check(
-    dry.ok === true && Array.isArray(dry.events),
-    'a preview of an empty (coast) turn is legal and returns the events it would produce'
-  )
+  check(dry.ok === true, 'a preview of an empty (coast) turn is legal')
   const before = await games.getView(GAME_ID, HUMAN)
   check(before!.turn === afterDeploy.turn, 'a preview commits nothing')
   // Positive control: a soft burn from the outer deployment ring stays on the board.
@@ -489,13 +488,43 @@ console.log(
   const said = await games.postChat(GAME_ID, HUMAN, 'say', 'good luck, all')
   const thought = await games.postChat(GAME_ID, HUMAN, 'think', 'going for the Alpha crate first')
   check(said.ok && thought.ok, 'players can say and think at the table')
-  const chat = await games.listChat(GAME_ID)
+  const chat = await games.listChat(GAME_ID, HUMAN)
   check(
     chat.length === 2 &&
       chat[0].kind === 'say' &&
       chat[1].kind === 'think' &&
       chat[1].turn === afterDeploy.turn,
     'table talk is stored in order with its kind and turn'
+  )
+  // A think reaches its author and every seat a person plays, never another
+  // agent, on the socket and on GET /chat.
+  check(
+    toHuman.some(
+      m => m.type === 'CHAT' && m.payload.kind === 'think' && m.payload.playerId === HUMAN
+    ),
+    "the human's own think comes back to the human"
+  )
+  const sentBefore = toHuman.length
+  const botThought = await games.postChat(GAME_ID, BOT_A, 'think', 'the human is heading for Alpha')
+  check(botThought.ok, 'an agent seat can think at the table')
+  check(
+    toHuman
+      .slice(sentBefore)
+      .some(m => m.type === 'CHAT' && m.payload.kind === 'think' && m.payload.playerId === BOT_A),
+    "an agent's think is sent to the human, who watches it reason"
+  )
+  const humanHears = await games.listChat(GAME_ID, HUMAN)
+  const botHears = await games.listChat(GAME_ID, BOT_A)
+  check(
+    humanHears.length === 3 && humanHears.some(m => m.playerId === BOT_A && m.kind === 'think'),
+    "an agent's think is in the human's chat history"
+  )
+  check(
+    botHears.length === 2 &&
+      botHears.some(m => m.kind === 'say') &&
+      botHears.some(m => m.playerId === BOT_A && m.kind === 'think') &&
+      !botHears.some(m => m.playerId === HUMAN && m.kind === 'think'),
+    "an agent hears every say and its own thinks, never another seat's"
   )
   const stranger = await games.postChat(GAME_ID, 'nobody', 'say', 'hi')
   check(!stranger.ok, 'only seated players talk at the table')
@@ -1175,6 +1204,12 @@ async function freshGame(archive: RecordingArchive | null = null) {
   check(
     preview.ok,
     `the canned turn previews legal (${preview.errors?.join('; ') ?? preview.error ?? ''})`
+  )
+  // The dry run rolls the live dice: any event in it would show the shot's
+  // roll and the scan's result before the turn is committed.
+  check(
+    JSON.stringify(Object.keys(JSON.parse(JSON.stringify(preview)) as object)) === '["ok"]',
+    `a preview that fires and scans carries its verdict and no events (${JSON.stringify(preview)})`
   )
 
   const sentBefore = toHuman.length

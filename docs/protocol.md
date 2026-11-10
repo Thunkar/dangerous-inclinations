@@ -23,20 +23,20 @@ the name. The server picks every player id. A lobby seat is
 `{ playerId, playerName, isBot, agent? }`. The seat CLI keeps nothing locally
 and resolves a seat from these routes.
 
-| Method | Path | Body | Response |
-|--------|------|------|----------|
-| POST | `/api/players` | `{ playerName, agent? }` | the new player; a body with any other field (a `playerId` included) is `400` |
-| GET | `/api/players/:playerId` | none | the player, or `404` |
-| PUT | `/api/players/:playerId` | `{ playerName }` | the renamed player; `x-player-id` must be that player (`401` without it, `403` for anyone else) |
-| GET | `/api/players/:playerId/status` | none | `{ player, lobby, view }`: the caller's lobby (if any) and its game view (once started); own id only, as for PUT. A game saved under other rules is `410` once: the player leaves its lobby on the way out |
-| POST | `/api/lobbies` | `{ lobbyName, password?, maxPlayers? }` | the lobby, with the caller as host; `maxPlayers` is `MIN_PLAYERS`..`MAX_PLAYERS` (default `MAX_PLAYERS`) |
-| GET | `/api/lobbies` | none | `{ lobbyId, lobbyName, hasPassword, maxPlayers, currentPlayers, gameStarted, seated, createdAt }[]`; `seated` is whether the caller (`x-player-id`) has a seat there, so it can rejoin. No player ids are listed |
-| GET | `/api/lobbies/:lobbyId` | none | the lobby: seats, `hostPlayerId`, `hasPassword` and, once started, `gameId` (never the password) |
-| POST | `/api/lobbies/join` | `{ lobbyId, password? }` | the lobby, or `400 { error }` (not found, full, started, wrong password); joining a lobby you already sit in returns it |
-| POST | `/api/lobbies/:lobbyId/leave` | none | `{ success: true }`, or `404` for an unknown lobby; a host who leaves hands the lobby to the first remaining seat, and a lobby left with no humans is deleted with its game |
-| POST | `/api/lobbies/:lobbyId/start` | none | `{ gameId }` (host only; `MIN_PLAYERS`..`MAX_PLAYERS` seats, at least one human, not started yet), or `400 { error }` |
-| POST | `/api/lobbies/:lobbyId/bot` | `{ botName? }` | the lobby with a bot seat added (host only, before the start, not full), or `400 { error }` |
-| DELETE | `/api/lobbies/:lobbyId/bot/:botId` | none | `{ success: true }` (host only, before the start), or `400 { error }` |
+| Method | Path                               | Body                                    | Response                                                                                                                                                                                                         |
+| ------ | ---------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/players`                     | `{ playerName, agent? }`                | the new player; a body with any other field (a `playerId` included) is `400`                                                                                                                                     |
+| GET    | `/api/players/:playerId`           | none                                    | the player, or `404`                                                                                                                                                                                             |
+| PUT    | `/api/players/:playerId`           | `{ playerName }`                        | the renamed player; `x-player-id` must be that player (`401` without it, `403` for anyone else)                                                                                                                  |
+| GET    | `/api/players/:playerId/status`    | none                                    | `{ player, lobby, view }`: the caller's lobby (if any) and its game view (once started); own id only, as for PUT. A game saved under other rules is `410` once: the player leaves its lobby on the way out       |
+| POST   | `/api/lobbies`                     | `{ lobbyName, password?, maxPlayers? }` | the lobby, with the caller as host; `maxPlayers` is `MIN_PLAYERS`..`MAX_PLAYERS` (default `MAX_PLAYERS`)                                                                                                         |
+| GET    | `/api/lobbies`                     | none                                    | `{ lobbyId, lobbyName, hasPassword, maxPlayers, currentPlayers, gameStarted, seated, createdAt }[]`; `seated` is whether the caller (`x-player-id`) has a seat there, so it can rejoin. No player ids are listed |
+| GET    | `/api/lobbies/:lobbyId`            | none                                    | the lobby: seats, `hostPlayerId`, `hasPassword` and, once started, `gameId` (never the password)                                                                                                                 |
+| POST   | `/api/lobbies/join`                | `{ lobbyId, password? }`                | the lobby, or `400 { error }` (not found, full, started, wrong password); joining a lobby you already sit in returns it                                                                                          |
+| POST   | `/api/lobbies/:lobbyId/leave`      | none                                    | `{ success: true }`, or `404` for an unknown lobby; a host who leaves hands the lobby to the first remaining seat, and a lobby left with no humans is deleted with its game                                      |
+| POST   | `/api/lobbies/:lobbyId/start`      | none                                    | `{ gameId }` (host only; `MIN_PLAYERS`..`MAX_PLAYERS` seats, at least one human, not started yet), or `400 { error }`                                                                                            |
+| POST   | `/api/lobbies/:lobbyId/bot`        | `{ botName? }`                          | the lobby with a bot seat added (host only, before the start, not full), or `400 { error }`                                                                                                                      |
+| DELETE | `/api/lobbies/:lobbyId/bot/:botId` | none                                    | `{ success: true }` (host only, before the start), or `400 { error }`                                                                                                                                            |
 
 Every lobby route but the two GETs needs `x-player-id` (`401` without it; creating
 and joining also refuse an unknown player with `401`). A body that fails its
@@ -47,24 +47,24 @@ played to `DEFAULT_POINTS_TO_WIN` and there is no table agreement to negotiate.
 The number still rides on `GameState.pointsToWin` and reaches every client as
 the public `GameView.pointsToWin` (what the table is playing to is not hidden
 information) and the simulator can still play a batch at another number
-(`--rules=missionsToWin=4`).
+(`--rules=pointsToWin=4`).
 
 ## REST (`/api/games`)
 
-| Method | Path | Body | Response |
-|--------|------|------|----------|
-| GET | `/api/games/:gameId` | none | `{ view: GameView, events: GameEvent[], seats }` (full filtered history; `seats` = `{ playerId, playerName, isBot, agent? }[]` from the lobby: who plays each seat) |
-| GET | `/api/games/:gameId/turns` | none | `{ turns: { index, turn, actorId, eventCount }[] }`: every player-turn so far the caller saw an event of, oldest first, with no views (the timeline); `404` before the game is active (the recording starts there) |
-| GET | `/api/games/:gameId/turns/:index` | none | `{ from: GameView, to: GameView, events: GameEvent[] }`: that turn as the caller saw it, to replay over the board; `400` for an index that is not a non-negative integer, `404` past the end |
-| POST | `/api/games/:gameId/loadout` | `{ loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance }` | `{ view }` or `400 { error }` |
-| POST | `/api/games/:gameId/deploy` | `{ ring: 2 \| 3 \| 4, sector: number }` | `{ view }` or `400 { error }`. Black Hole ring 2, 3 or 4, at least three sectors from every ship already placed (if no position is that clear, the clearest ones are legal instead); the position becomes the player's Home |
-| POST | `/api/games/:gameId/preview` | `{ actions: PlayerAction[] }` (at most 64) | `{ ok, error?, errors?, events? }` (dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn). `error` when it is not the caller's turn or the game is not active, `errors` for the engine's reasons; a malformed body is `400` with `ok: false` |
-| GET | `/api/games/:gameId/chat` | none | `{ messages: ChatMessage[] }` (table talk, oldest first) |
-| POST | `/api/games/:gameId/chat` | `{ text, kind?: "say" \| "think" }` (`text` 1–2000 characters after trimming, `kind` default `say`) | `{ message }`; broadcast to the table as a `CHAT` socket message. `say` is heard by everyone; `think` is a player's reasoning, shown to humans, not fed to other agents |
-| POST | `/api/games/fork` | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` (all required; `turnIndex` `-1` is the initial state) | `{ gameId, view }`, or `400 { error }` (archived recordings of the current schema only, from a snapshot after deployment; the seat must be your own original seat or a bot's). The fork has no lobby, so its `seats` is empty |
-| GET | `/api/health` | none | `{ status, uptimeSeconds, botInvalidTurns, pendingFinalizations, recordingsDir }` |
-| GET | `/api/recordings` | none | `{ recordings: { recordingId, createdAt, source, turnCount, winnerId?, label? }[] }`: the **finished** recordings made under the current recording schema, newest first |
-| GET | `/api/recordings/:id` | none | a finished recording (full states; the game is over), `404` for an unknown one, or `410 { error }` for a stale one |
+| Method | Path                              | Body                                                                                                            | Response                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/games/:gameId`              | none                                                                                                            | `{ view: GameView, events: GameEvent[], seats }` (full filtered history; `seats` = `{ playerId, playerName, isBot, agent? }[]` from the lobby: who plays each seat)                                                                                                                                                                                                                                                                      |
+| GET    | `/api/games/:gameId/turns`        | none                                                                                                            | `{ turns: { index, turn, actorId, eventCount }[] }`: every player-turn so far the caller saw an event of, oldest first, with no views (the timeline); `404` before the game is active (the recording starts there)                                                                                                                                                                                                                       |
+| GET    | `/api/games/:gameId/turns/:index` | none                                                                                                            | `{ from: GameView, to: GameView, events: GameEvent[] }`: that turn as the caller saw it, to replay over the board; `400` for an index that is not a non-negative integer, `404` past the end                                                                                                                                                                                                                                             |
+| POST   | `/api/games/:gameId/loadout`      | `{ loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance }`                                   | `{ view }` or `400 { error }`                                                                                                                                                                                                                                                                                                                                                                                                            |
+| POST   | `/api/games/:gameId/deploy`       | `{ ring: 2 \| 3 \| 4, sector: number }`                                                                         | `{ view }` or `400 { error }`. Black Hole ring 2, 3 or 4, at least three sectors from every ship already placed (if no position is that clear, the clearest ones are legal instead); the position becomes the player's Home                                                                                                                                                                                                              |
+| POST   | `/api/games/:gameId/preview`      | `{ actions: PlayerAction[] }` (at most 64)                                                                      | `{ ok, error?, errors? }` (dry run of a turn against the live state, nothing committed; the tool agents use to never submit an illegal turn). `error` when it is not the caller's turn or the game is not active, `errors` for the engine's reasons; a malformed body is `400` with `ok: false`. It returns no events: the dry run rolls the live dice, so its events would show the rolls and a scan's result before the turn is played |
+| GET    | `/api/games/:gameId/chat`         | none                                                                                                            | `{ messages: ChatMessage[] }` (table talk, oldest first: every `say`, the caller's own `think`s, and for a seat a person plays every `think`)                                                                                                                                                                                                                                                                                                                                |
+| POST   | `/api/games/:gameId/chat`         | `{ text, kind?: "say" \| "think" }` (`text` 1–2000 characters after trimming, `kind` default `say`)             | `{ message }`; broadcast to the table as a `CHAT` socket message. `say` is heard by everyone; `think` is a player's reasoning: it reaches its author and every seat a person plays, never another agent's seat, on the socket and on `GET`                                                                                                                                                                                                                                                    |
+| POST   | `/api/games/fork`                 | `{ recordingId, turnIndex, impersonateOriginalPlayerId }` (all required; `turnIndex` `-1` is the initial state) | `{ gameId, view }`, or `400 { error }` (archived recordings of the current schema only, from a snapshot after deployment; the seat must be your own original seat or a bot's). The fork has no lobby, so its `seats` is empty                                                                                                                                                                                                            |
+| GET    | `/api/health`                     | none                                                                                                            | `{ status, uptimeSeconds, botInvalidTurns, pendingFinalizations, recordingsDir }`                                                                                                                                                                                                                                                                                                                                                        |
+| GET    | `/api/recordings`                 | none                                                                                                            | `{ recordings: { recordingId, createdAt, source, turnCount, winnerId?, label? }[] }`: the **finished** recordings made under the current recording schema, newest first                                                                                                                                                                                                                                                                  |
+| GET    | `/api/recordings/:id`             | none                                                                                                            | a finished recording (full states; the game is over), `404` for an unknown one, or `410 { error }` for a stale one                                                                                                                                                                                                                                                                                                                       |
 
 Every `/api/games/:gameId` route needs `x-player-id`: `401` without it, `404` for
 an unknown game, `403` for a caller who is not one of its players. Fork needs it
@@ -94,7 +94,7 @@ Server → client:
   // only to the submitter: `errors` for a malformed message or the engine's reasons,
   // `error` for a stale or out-of-turn submission, a game not active, or a failed save
 { type: "CHAT", payload: { id, gameId, playerId, name, kind: "say" | "think", text, turn, at } }
-  // a line posted with POST /api/games/:gameId/chat, to every seat
+  // a line posted with POST /api/games/:gameId/chat: a say to every seat, a think to its author and the people at the table
 ```
 
 Client → server:
@@ -156,7 +156,7 @@ first turn back from Home) allows all three: they touch nobody's ship.
   finding none (the shot before it did not kill) is skipped with an
   `action_skipped` (`action: "salvage"`, `reason: "no_wreck"`, no
   `targetId`) rather than refused. The engine's `salvageableWrecks(hand,
-  wrecks, position)` lists what qualifies.
+wrecks, position)` lists what qualifies.
 - `escort_mark` (`{ carrierId }`), one per Escort card whose marker is in
   hand, each naming a different rival: the marker goes on that ship if the
   player is on its ring there (same well, any sector), the player is not
@@ -279,13 +279,13 @@ gameplay rules or consumes gameplay RNG.
 
 ## Server environment
 
-| Variable | Default | Meaning |
-|----------|---------|---------|
-| `PORT` | `3000` | HTTP and WebSocket port |
-| `HOST` | `0.0.0.0` | interface to listen on |
-| `REDIS_HOST` | `localhost` | Redis host |
-| `REDIS_PORT` | `6379` | Redis port |
-| `REDIS_PASSWORD` | none | Redis password |
-| `REDIS_DB` | `0` | Redis database number |
-| `CORS_ORIGIN` | `http://localhost:5173` | the origin browsers may call the API from (the UI) |
-| `RECORDINGS_DIR` | `./recordings` | where finished recordings are archived; point the sim CLI at the same folder to share them |
+| Variable         | Default                 | Meaning                                                                                    |
+| ---------------- | ----------------------- | ------------------------------------------------------------------------------------------ |
+| `PORT`           | `3000`                  | HTTP and WebSocket port                                                                    |
+| `HOST`           | `0.0.0.0`               | interface to listen on                                                                     |
+| `REDIS_HOST`     | `localhost`             | Redis host                                                                                 |
+| `REDIS_PORT`     | `6379`                  | Redis port                                                                                 |
+| `REDIS_PASSWORD` | none                    | Redis password                                                                             |
+| `REDIS_DB`       | `0`                     | Redis database number                                                                      |
+| `CORS_ORIGIN`    | `http://localhost:5173` | the origin browsers may call the API from (the UI)                                         |
+| `RECORDINGS_DIR` | `./recordings`          | where finished recordings are archived; point the sim CLI at the same folder to share them |

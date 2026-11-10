@@ -6,6 +6,7 @@
 import { resolve } from 'node:path'
 import { getRedis } from './redis.ts'
 import { redisKv } from './kv.ts'
+import { getPlayer } from './playerService.ts'
 import { createRecordingArchive, createRecordingService } from './recordingService.ts'
 import { createGameService, type GameTransport } from './gameService.ts'
 import { broadcastViews } from '../websocket/rooms.ts'
@@ -15,7 +16,7 @@ export const RECORDINGS_DIR = process.env.RECORDINGS_DIR
   ? resolve(process.env.RECORDINGS_DIR)
   : resolve(process.cwd(), 'recordings')
 
-export const kv = redisKv(getRedis)
+const kv = redisKv(getRedis)
 export const recordingArchive = createRecordingArchive(RECORDINGS_DIR)
 export const recordings = createRecordingService(kv, recordingArchive)
 
@@ -23,4 +24,9 @@ const wsTransport: GameTransport = {
   broadcastViews: (gameId, build) => broadcastViews('game', gameId, build),
 }
 
-export const gameService = createGameService({ kv, recordings, transport: wsTransport })
+export const gameService = createGameService({
+  kv,
+  recordings,
+  transport: wsTransport,
+  isAgent: async playerId => (await getPlayer(playerId))?.agent !== undefined,
+})

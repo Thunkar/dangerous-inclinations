@@ -11,8 +11,8 @@
  *   yarn seat view --as Codex [--rules] [--json] [--turns 1]   what the seat sees; --turns is how many recent turns
  *   yarn seat options --as Codex                  legal moves, as JSON
  *   yarn seat guide                               the rules digest and the intent format an agent is given
- *   yarn seat try --as Codex --intent '{...}' [--show]   build + dry-run a turn: errors or the events it would cause;
- *                                                 --show prints the actions built
+ *   yarn seat try --as Codex --intent '{...}' [--show]   build + dry-run a turn: LEGAL, or the engine's errors
+ *                                                 (no events: those would show the dice); --show prints the actions built
  *   yarn seat act --as Codex --intent '{...}' [--think "..."] [--say "..."] [--timeout 5]
  *                                                 build, dry-run, submit (an illegal turn is refused, nothing is sent);
  *                                                 waits --timeout seconds for the turn to come round first
@@ -20,13 +20,14 @@
  *                                                 --actions '[...]' submits raw actions instead of an intent)
  *   yarn seat loadout --as Codex --forward railgun --sides missiles,radiator,laser,shields --missions m1,m2,m3
  *                                                 (one primary and any two secondaries; no flags prints the offers)
- *   yarn seat deploy --as Codex --sector 6 [--ring 3|4]   (ring 4 unless asked; no --sector prints the rule and the legal positions)
+ *   yarn seat deploy --as Codex --sector 6 [--ring <n>]   (the outer deployment ring unless asked; no --sector prints the rule and the legal positions)
  *   yarn seat rules                               the full RULES.md
  *   yarn seat say --as Codex "text" (or --text "text") / think "text" / chat [--last 50]
  *   yarn seat wait --as Codex [--timeout 3600] [--hold]   hold a socket open until it is your turn, then print the view;
  *                                                 --hold keeps the socket open afterwards
  *   yarn seat agent --as Codex [--driver codex|claude] [--model m] [--turns N] [--quiet-think]
  *                             [--ask-timeout 900] [--attempts 8]   how long a model gets per question, and how many tries before the seat gives up (0 = for ever)
+ *                             [--transcript]   log every prompt and answer to ~/.config/dangerous-inclinations/logs/<game>-<seat>.log
  *
  * Every command takes --server <url> (or DI_SERVER; default http://localhost:3000)
  * and --game <id> (or DI_GAME) to name the game directly.
@@ -45,8 +46,15 @@
  * is answering. A driver that times out or returns nothing is not being told
  * anything it can act on, so those attempts are counted and the seat stops
  * with a reason after `--attempts` of them.
+ *
+ * A `think` reaches the seat that thought it and nobody else; a `say` reaches
+ * the table. A transcript holds the seat's private view, so it is written only
+ * with --transcript, readable by its owner alone (mode 0600), and the Claude
+ * driver is denied Read on the log folder. The Codex driver's read-only sandbox
+ * still reads the whole disk: do not keep transcripts on a machine where a
+ * Codex agent plays another seat.
  */
-import { mkdirSync, readFileSync, writeFileSync, existsSync, appendFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync, appendFileSync } from 'node:fs'
 import { homedir, tmpdir, userInfo } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -61,13 +69,16 @@ import {
   DEPLOYMENT_GAP,
   EITHER_SLOT_SUBSYSTEMS,
   FORWARD_SLOT_SUBSYSTEMS,
+  BLACK_HOLE_OUTER_RING,
+  GRAVITY_WELLS,
   HOME_RING,
   HOME_RINGS,
   MAX_PLAYERS,
   MIN_PLAYERS,
   MISSIONS_PER_PLAYER,
   SIDE_SLOT_SUBSYSTEMS,
-  DAMAGING_WEAPON_TYPES,
+  damagingWeaponTypes,
+  TRANSFER_LANES,
   buildTurn,
   describeEvent,
   describeMission,
@@ -107,8 +118,13 @@ const fullRules = (): string => {
     return '(RULES.md not found)'
   }
 }
-/** Transcripts of what a driver was asked and answered. Output only; no state lives here. */
+/**
+ * Transcripts of what a driver was asked and answered, written only with
+ * --transcript. Output only; no state lives here. A prompt carries the seat's
+ * private view, so no other seat's driver may read this folder.
+ */
 const LOG_DIR = join(homedir(), '.config', 'dangerous-inclinations', 'logs')
+const TRANSCRIPT = has('transcript')
 
 /** Which program plays a seat, and with which model. Stored on the server with the player. */
 interface AgentInfo {
@@ -359,7 +375,7 @@ Your offers:
 ${offers}
 Loadouts that are known to fly (you are not limited to these):
 ${presetLines()}
-Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${DAMAGING_WEAPON_TYPES.join(', ')}). ${view.pointsToWin} points win and a hand is exactly ONE 2-point primary (Destroy, Deliver or Intercept) and TWO 1-point secondaries (Survey, Piracy, Tanker, Escort, Salvage; two of a kind is allowed, and they are two jobs), which is four points held: your primary and either secondary wins, and the other secondary is the spare.
+Keep only cards this hull can fly: Intercept opens with a scan so it needs a sensor_array, Destroy needs a weapon (${damagingWeaponTypes().join(', ')}). ${view.pointsToWin} points win and a hand is exactly ONE 2-point primary (Destroy, Deliver or Intercept) and TWO 1-point secondaries (Survey, Piracy, Tanker, Escort, Salvage; two of a kind is allowed, and they are two jobs), which is four points held: your primary and either secondary wins, and the other secondary is the spare.
 Reply with ONE JSON object and nothing else: {"think": "...", "say": "...", "missionIds": [${Array.from({ length: MISSIONS_PER_PLAYER }, () => '"id"').join(',')}], "loadout": {"forward": "sensor_array", "sides": ["shields","laser","laser","radiator"]}}`
 }
 
@@ -372,7 +388,18 @@ function deployPrompt(view: GameView): string {
     const sectors = legal.filter(p => p.ring === ring).map(p => p.sector)
     return `  ring ${ring}: ${sectors.length > 0 ? sectors.join(', ') : 'nothing legal'}`
   }).join('\n')
-  return `DEPLOYMENT PHASE. Place your ship on Black Hole ring 3 or ring 4, at least ${DEPLOYMENT_GAP} sectors from every ship already placed (if the board is too crowded for that, the clearest positions left are the legal ones). Ring 3 drifts 4 sectors a turn; ring 4 drifts 2 and a soft burn outward from it reaches ring 5, the lane ring. Lanes out of the black hole leave from ring 5 sectors 0-3 (to Beta), 8-11 (to Gamma), 16-19 (to Alpha). Already placed: ${taken.join(', ') || 'nobody'}. Your ring and sector become your Home (where you respawn).
+  const blackHole = GRAVITY_WELLS.find(w => w.type === 'blackhole')!
+  const drift = HOME_RINGS.map(
+    ring => `ring ${ring} ${blackHole.rings.find(r => r.ring === ring)!.velocity}`
+  ).join(', ')
+  const wellName = (id: string) => GRAVITY_WELLS.find(w => w.id === id)?.name ?? id
+  const departures = TRANSFER_LANES.filter(l => l.direction === 'outbound')
+    .map(
+      ({ blackHoleArc: a, planetId }) =>
+        `${a.startSector}-${a.startSector + a.length - 1} (to ${wellName(planetId)})`
+    )
+    .join(', ')
+  return `DEPLOYMENT PHASE. Place your ship on Black Hole ring ${HOME_RINGS.join(', ')}, at least ${DEPLOYMENT_GAP} sectors from every ship already placed (if the board is too crowded for that, the clearest positions left are the legal ones). Sectors drifted a turn: ${drift}. Ring ${BLACK_HOLE_OUTER_RING} is the lane ring: lanes out of the black hole leave from its sectors ${departures}. Already placed: ${taken.join(', ') || 'nobody'}. Your ring and sector become your Home (where you respawn).
 Legal positions:
 ${legalLines}
 Reply with ONE JSON object: {"think": "...", "say": "...", "ring": <${HOME_RINGS.join(' or ')}>, "sector": <0-23>}`
@@ -445,6 +472,9 @@ function askModel(prompt: string, drv: Driver, timeoutMs = askTimeoutMs): Ask {
           'Read,Grep,Glob',
           '--allowedTools',
           'Read,Grep,Glob',
+          // Another seat's transcript is that seat's private view.
+          '--disallowedTools',
+          `Read(/${LOG_DIR}/**)`,
           '--no-session-persistence',
         ]
   // A nested Claude Code session refuses to start unless it is told it is not nested.
@@ -461,6 +491,7 @@ function askModel(prompt: string, drv: Driver, timeoutMs = askTimeoutMs): Ask {
   })
   const took = Math.round((Date.now() - started) / 1000)
   if (run.error) {
+    rmSync(outFile, { force: true })
     const timedOut = (run.error as Error & { code?: string }).code === 'ETIMEDOUT'
     log(
       timedOut
@@ -471,6 +502,8 @@ function askModel(prompt: string, drv: Driver, timeoutMs = askTimeoutMs): Ask {
   }
   let text =
     drv.driver === 'codex' && existsSync(outFile) ? readFileSync(outFile, 'utf8') : run.stdout
+  // The reply holds the seat's thinking: it does not stay where other drivers can read it.
+  rmSync(outFile, { force: true })
   if (drv.driver === 'claude') {
     // `--output-format json` wraps the reply: {"type":"result","result":"<the model's text>",...}
     try {
@@ -516,10 +549,12 @@ function giveUp(phase: string, attempt: number): never {
 const outOfAttempts = (attempt: number) => MAX_ATTEMPTS > 0 && attempt >= MAX_ATTEMPTS
 
 function transcript(line: string): void {
-  mkdirSync(LOG_DIR, { recursive: true })
+  if (!TRANSCRIPT) return
+  mkdirSync(LOG_DIR, { recursive: true, mode: 0o700 })
   appendFileSync(
     join(LOG_DIR, `${GAME ?? 'game'}-${seatName ?? PLAYER}.log`),
-    `${new Date().toISOString()} ${line}\n`
+    `${new Date().toISOString()} ${line}\n`,
+    { mode: 0o600 }
   )
 }
 
@@ -543,7 +578,7 @@ ${digest(payload, { rules: false, turns: 2 })}
 ${talk}
 ${AGENT_INTENT_GUIDE}
 ${help}${rejected}
-Reply with ONE JSON object: {"think": "<your reasoning in 1-3 sentences; a human observer reads this>", "say": "<optional table talk heard by everyone, or empty>", "intent": {...}}`
+Reply with ONE JSON object: {"think": "<your reasoning in 1-3 sentences; your own seat and the people at the table see it, never another agent>", "say": "<optional table talk heard by everyone, or empty>", "intent": {...}}`
 }
 async function driveTurn(
   table: Table,
@@ -1138,7 +1173,7 @@ async function main(): Promise<void> {
         : { actions: JSON.parse(flag('actions') ?? '[]') as PlayerAction[], notes: [] }
       for (const n of actions.notes) console.log(`builder: ${n}`)
       const dry = await preview(actions.actions)
-      if (dry.ok) console.log(`LEGAL. It would cause:\n${describeEvents(dry.events ?? [], view)}`)
+      if (dry.ok) console.log('LEGAL')
       else console.log(`ILLEGAL:\n${(dry.errors ?? [dry.error]).map(e => `  - ${e}`).join('\n')}`)
       if (has('show')) console.log(JSON.stringify(actions.actions, null, 2))
       process.exitCode = dry.ok ? 0 : 2

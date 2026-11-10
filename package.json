@@ -17,7 +17,7 @@
     "dev": "turbo run dev --filter=@dangerous-inclinations/ui",
     "dev:server": "turbo run dev --filter=@dangerous-inclinations/server",
     "dev:all": "turbo run dev",
-    "test": "prettier --check . && turbo run test",
+    "test": "prettier --check . && turbo run typecheck test",
     "sim": "turbo run sim --filter=@dangerous-inclinations/engine --",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -53,9 +53,6 @@ const lobbyKey = (lobbyId: string) => `${LOBBY_KEY_PREFIX}${lobbyId}`
  * Per-lobby serialization. Every mutation is read-modify-write on one Redis
  * key, so two concurrent joins would otherwise overwrite each other and two
  * concurrent starts would create two games for the same lobby.
- *
- * `deleteLobby` is deliberately not locked: it is called from inside
- * `leaveLobby`, which already holds the lock.
  */
 const withLobbyLock = createKeyedLock()
 
@@ -246,7 +243,7 @@ export function leaveLobby(lobbyId: string, playerId: string): Promise<boolean> 
     if (!lobby.players.some(p => !p.isBot)) {
       log.info(`leaveLobby: no humans left in lobby ${lobbyId}, deleting it`)
       if (lobby.gameId) await gameService.deleteGame(lobby.gameId)
-      await deleteLobby(lobbyId)
+      await removeLobby(lobbyId)
       return true
     }
 
@@ -300,7 +297,16 @@ export function startGame(lobbyId: string, hostPlayerId: string): Promise<string
   })
 }
 
-export async function deleteLobby(lobbyId: string): Promise<void> {
+/**
+ * Delete a lobby under its lock, so a leave in flight cannot save it back
+ * after it is gone.
+ */
+export function deleteLobby(lobbyId: string): Promise<void> {
+  return withLobbyLock(lobbyId, () => removeLobby(lobbyId))
+}
+
+/** Delete a lobby; the caller holds its lock. */
+async function removeLobby(lobbyId: string): Promise<void> {
   const redis = getRedis()
   await redis.del(lobbyKey(lobbyId))
   await redis.srem(LOBBY_LIST_KEY, lobbyId)

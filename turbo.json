@@ -7,9 +7,25 @@
       "inputs": ["src/**", "tsconfig.json", "package.json"],
       "outputs": ["dist/**"]
     },
+    "@dangerous-inclinations/ui#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "public/**",
+        "*.html",
+        "vite.config.ts",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "tsconfig.json", "package.json", "vitest.config.ts"],
+      "inputs": ["src/**", "scripts/**", "tsconfig.json", "package.json", "vitest.config.ts"],
       "outputs": []
     },
     "dev": {

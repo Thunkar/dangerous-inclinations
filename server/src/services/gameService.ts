@@ -64,7 +64,8 @@ import type {
 // ---------------------------------------------------------------------------
 
 export interface GameTransport {
-  broadcastViews(gameId: string, build: (playerId: string) => ServerGameMessage): void
+  /** `build` answers null for a seat that gets nothing. */
+  broadcastViews(gameId: string, build: (playerId: string) => ServerGameMessage | null): void
 }
 
 /** What a bot decides, from exactly the information a human has. */
@@ -89,6 +90,13 @@ interface GameServiceDeps {
   transport: GameTransport
   bots?: BotStrategy
   log?: ServiceLogger
+  /**
+   * Whether a seat is played by an agent (`yarn seat`). A `think` reaches its
+   * author and every seat a person plays, never another agent: people at the
+   * table watch the agents reason, agents never read each other. Omitted, no
+   * seat is an agent.
+   */
+  isAgent?: (playerId: string) => Promise<boolean>
 }
 
 export type Result<T = object> =
@@ -106,15 +114,6 @@ export interface ForkOptions {
   impersonateOriginalPlayerId: string
   humanPlayerId: string
   humanPlayerName: string
-}
-
-/**
- * Bot turns the engine rejected (or the AI failed to produce) in live games.
- * Each one is logged and replaced by an empty turn so the game continues.
- */
-let botInvalidTurns = 0
-export function getBotInvalidTurnCount(): number {
-  return botInvalidTurns
 }
 
 /**
@@ -167,6 +166,14 @@ function parseGame(data: string): GameState {
   return stored.state
 }
 
+/**
+ * A `say` is heard by the table; a `think` by the player who thought it and
+ * by every seat a person plays, never by another agent.
+ */
+function mayHear(message: ChatMessage, playerId: string, agents: ReadonlySet<string>): boolean {
+  return message.kind === 'say' || message.playerId === playerId || !agents.has(playerId)
+}
+
 const gameKey = (gameId: string) => `game:${gameId}`
 const humansKey = (gameId: string) => `game-humans:${gameId}`
 const chatKey = (gameId: string) => `game-chat:${gameId}`
@@ -175,6 +182,18 @@ export function createGameService(deps: GameServiceDeps) {
   const { kv, recordings, transport } = deps
   const bots = deps.bots ?? engineBots
   const log = deps.log ?? defaultLog
+  const isAgent = deps.isAgent ?? (async () => false)
+  /** The seats at this table an agent plays. */
+  const agentSeats = async (playerIds: readonly string[]) => {
+    const flags = await Promise.all(playerIds.map(id => isAgent(id)))
+    return new Set(playerIds.filter((_, i) => flags[i]))
+  }
+  /**
+   * Bot turns the engine rejected (or the AI failed to produce) in this
+   * service's games. Each one is logged and replaced by an empty turn so the
+   * game continues.
+   */
+  let botInvalidTurns = 0
 
   // -------------------------------------------------------------------------
   // Persistence
@@ -298,10 +317,10 @@ export function createGameService(deps: GameServiceDeps) {
     } catch (error) {
       log.error(`Failed to save turn ${turn.turnNumber} of game ${gameId}: ${String(error)}`)
       if (turnCount !== null) {
-        // Drop the turn we just recorded so the recording matches the state
-        // that is still live.
+        // Drop the turn just recorded, so the recording matches the state
+        // that is still saved.
         try {
-          await recordings.truncate(gameId, turnCount - 2)
+          await recordings.dropLastTurn(gameId, turnCount)
         } catch (rollbackError) {
           log.error(`Failed to roll the recording of game ${gameId} back: ${String(rollbackError)}`)
         }
@@ -433,11 +452,8 @@ export function createGameService(deps: GameServiceDeps) {
       return bots.decideActions(viewFor(state, bot.id)).actions
     } catch (error) {
       botInvalidTurns++
-      console.error('[bot] AI threw while deciding; passing an empty turn', {
-        turn: state.turn,
-        botId: bot.id,
-        error: error instanceof Error ? (error.stack ?? error.message) : String(error),
-      })
+      const reason = error instanceof Error ? (error.stack ?? error.message) : String(error)
+      log.error(`Bot ${bot.id} AI threw at T${state.turn}; passing an empty turn: ${reason}`)
       return []
     }
   }
@@ -466,13 +482,9 @@ export function createGameService(deps: GameServiceDeps) {
       if (result.errors && result.errors.length > 0) {
         // The simulator is strict about this; a live game with humans in it must go on.
         botInvalidTurns++
-        console.error('[bot] turn rejected by the engine; passing an empty turn', {
-          gameId,
-          turn: turnNumber,
-          botId: bot.id,
-          actions,
-          errors: result.errors,
-        })
+        log.error(
+          `Bot ${bot.id} turn T${turnNumber} of game ${gameId} rejected by the engine; passing an empty turn: ${result.errors.join('; ')} (actions ${JSON.stringify(actions)})`
+        )
         actions = []
         result = executeTurn(state, actions)
         if (result.errors && result.errors.length > 0) {
@@ -572,11 +584,15 @@ export function createGameService(deps: GameServiceDeps) {
 
   return {
     getHumanPlayerIds,
-    getBotInvalidTurnCount,
+    getBotInvalidTurnCount: (): number => botInvalidTurns,
 
     /**
-     * Dry run: what the engine would say to these actions right now, without
+     * Dry run: whether the engine would accept these actions right now, without
      * committing anything. Agents use it to never submit an illegal turn.
+     *
+     * Only the verdict leaves here. The dry run rolls the live game's dice from
+     * its real RNG state, so its events would show a seat the rolls it is about
+     * to get (and a scan's result for free), and it could retry until they suit.
      */
     async previewTurn(
       gameId: string,
@@ -590,10 +606,13 @@ export function createGameService(deps: GameServiceDeps) {
       if (activePlayer(state).id !== playerId) return { ok: false, error: 'Not your turn' }
       const result = executeTurn(state, actions)
       if (result.errors && result.errors.length > 0) return { ok: false, errors: result.errors }
-      return { ok: true, events: filterEventsFor(result.events, playerId) }
+      return { ok: true }
     },
 
-    /** Table talk: append a line and tell every seat at the table. */
+    /**
+     * Table talk: append a line and tell the seats that may hear it. A `say`
+     * goes to every seat; a `think` to its author and to the seats people play.
+     */
     async postChat(
       gameId: string,
       playerId: string,
@@ -615,14 +634,20 @@ export function createGameService(deps: GameServiceDeps) {
         at: new Date().toISOString(),
       }
       await kv.rpush(chatKey(gameId), JSON.stringify(message))
-      transport.broadcastViews(gameId, () => ({ type: 'CHAT', payload: message }))
+      const agents = await agentSeats(state.players.map(p => p.id))
+      transport.broadcastViews(gameId, recipient =>
+        mayHear(message, recipient, agents) ? { type: 'CHAT', payload: message } : null
+      )
       return { ok: true, message }
     },
 
-    /** Every line said at this table so far, oldest first. */
-    async listChat(gameId: string): Promise<ChatMessage[]> {
+    /** Every line said at this table so far that `playerId` may hear, oldest first. */
+    async listChat(gameId: string, playerId: string): Promise<ChatMessage[]> {
       const raw = await kv.lrange(chatKey(gameId))
-      return raw.map(line => JSON.parse(line) as ChatMessage)
+      const agents = await agentSeats([playerId])
+      return raw
+        .map(line => JSON.parse(line) as ChatMessage)
+        .filter(message => mayHear(message, playerId, agents))
     },
 
     async createGame(
@@ -639,16 +664,16 @@ export function createGameService(deps: GameServiceDeps) {
 
     getGame: loadState,
 
-    /**
-     * Under the same lock as turn processing: a turn in flight finishes first
-     * and no later write can recreate the game (every step re-checks it).
-     */
     /** Every game in the store, started or not, live or abandoned. */
     async listGameIds(): Promise<string[]> {
       const prefix = gameKey('')
       return (await kv.keys(prefix)).map(key => key.slice(prefix.length))
     },
 
+    /**
+     * Under the same lock as turn processing: a turn in flight finishes first
+     * and no later write can recreate the game (every step re-checks it).
+     */
     deleteGame(gameId: string): Promise<void> {
       return withGameLock(gameId, async () => {
         await kv.del(gameKey(gameId), humansKey(gameId), chatKey(gameId))

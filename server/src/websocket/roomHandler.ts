@@ -8,6 +8,7 @@ import { getPlayer } from '../services/playerService.ts'
 import { getLobby, findLobbyByGameId, deleteLobby } from '../services/lobbyService.ts'
 import { gameService } from '../services/live.ts'
 import { StaleGameError } from '../services/gameService.ts'
+import { log } from '../services/logger.ts'
 import type { ServerGameMessage } from '../protocol.ts'
 import { answerSubmission, connectedMessage } from './submission.ts'
 import {
@@ -58,8 +59,9 @@ function scheduleAbandonCheck(gameId: string): void {
         const lobby = await findLobbyByGameId(gameId)
         if (lobby) await deleteLobby(lobby.lobbyId)
         await gameService.deleteGame(gameId)
-      } catch {
-        // Best effort: a failed cleanup is retried on the next disconnect.
+      } catch (error) {
+        // Best effort: the sweep schedules the teardown again.
+        log.error(`Failed to tear down abandoned game ${gameId}: ${String(error)}`)
       }
     }, ABANDON_GRACE_MS)
   )

@@ -18,7 +18,6 @@ export interface Kv {
   /** Keep only the first `count` elements. */
   ltrim(key: string, count: number): Promise<void>
   expire(key: string, seconds: number): Promise<void>
-  persist(key: string): Promise<void>
   /** Every key starting with `prefix` (a SCAN, never a blocking KEYS). */
   keys(prefix: string): Promise<string[]>
 }
@@ -41,9 +40,6 @@ export function redisKv(getRedis: () => Redis): Kv {
     },
     expire: async (key, seconds) => {
       await getRedis().expire(key, seconds)
-    },
-    persist: async key => {
-      await getRedis().persist(key)
     },
     keys: async prefix => {
       const found: string[] = []
@@ -87,7 +83,6 @@ export function memoryKv(): Kv {
       else lists.set(key, list.slice(0, count))
     },
     expire: async () => {},
-    persist: async () => {},
     keys: async prefix =>
       [...strings.keys(), ...lists.keys()].filter(key => key.startsWith(prefix)),
   }

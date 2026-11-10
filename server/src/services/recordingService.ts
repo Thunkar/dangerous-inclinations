@@ -22,7 +22,7 @@
  * it costs O(1) regardless of game length. Live recordings hold full states
  * and are private; only archived (finished) recordings are served by the API.
  */
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   RECORDING_SCHEMA_VERSION,
@@ -67,11 +67,29 @@ export interface RecordingArchive {
 
 export function createRecordingArchive(dir: string): RecordingArchive {
   const fileFor = (recordingId: string) => join(dir, `${recordingId}.json`)
+  /**
+   * A recording is megabytes of states and the listing needs a few fields, so
+   * each file is parsed once and read again only when it changes on disk.
+   */
+  const summaryCache = new Map<
+    string,
+    { mtimeMs: number; size: number; summary: RecordingSummary | null }
+  >()
 
+  /** Null for a missing file; a file that is there but does not parse is logged. */
   async function readRecording(path: string): Promise<GameRecording | null> {
+    let text: string
     try {
-      return JSON.parse(await readFile(path, 'utf8')) as GameRecording
-    } catch {
+      text = await readFile(path, 'utf8')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+        log.error(`Cannot read recording ${path}: ${String(error)}`)
+      return null
+    }
+    try {
+      return JSON.parse(text) as GameRecording
+    } catch (error) {
+      log.error(`Corrupt recording ${path} (${text.length} bytes): ${String(error)}`)
       return null
     }
   }
@@ -86,18 +104,28 @@ export function createRecordingArchive(dir: string): RecordingArchive {
       }
       const summaries = await Promise.all(
         files.map(async (file): Promise<RecordingSummary | null> => {
-          const rec = await readRecording(join(dir, file))
+          const path = join(dir, file)
+          const info = await stat(path).catch(() => null)
+          if (!info) return null // removed since the listing
+          const { mtimeMs, size } = info
+          const cached = summaryCache.get(path)
+          if (cached && cached.mtimeMs === mtimeMs && cached.size === size) return cached.summary
+          const rec = await readRecording(path)
           // A recording made under other rules is not a game this build can
           // show: it is left out, never migrated (`staleRecordingReason`).
-          if (!rec || staleRecordingReason(rec) !== null) return null
-          return {
-            recordingId: rec.recordingId,
-            createdAt: rec.createdAt,
-            source: rec.metadata.source,
-            turnCount: rec.metadata.turnCount,
-            winnerId: rec.metadata.winnerId,
-            label: rec.metadata.label,
-          }
+          const summary: RecordingSummary | null =
+            !rec || staleRecordingReason(rec) !== null
+              ? null
+              : {
+                  recordingId: rec.recordingId,
+                  createdAt: rec.createdAt,
+                  source: rec.metadata.source,
+                  turnCount: rec.metadata.turnCount,
+                  winnerId: rec.metadata.winnerId,
+                  label: rec.metadata.label,
+                }
+          summaryCache.set(path, { mtimeMs, size, summary })
+          return summary
         })
       )
       return summaries
@@ -110,7 +138,12 @@ export function createRecordingArchive(dir: string): RecordingArchive {
     },
     async write(recording) {
       await mkdir(dir, { recursive: true })
-      await writeFile(fileFor(recording.recordingId), JSON.stringify(recording))
+      // Written aside and renamed into place, so a crash mid-write leaves no
+      // half a recording under its name (`list` reads only *.json).
+      const path = fileFor(recording.recordingId)
+      const temp = join(dir, `.${recording.recordingId}.${process.pid}.tmp`)
+      await writeFile(temp, JSON.stringify(recording))
+      await rename(temp, path)
     },
   }
 }
@@ -132,8 +165,11 @@ export interface RecordingService {
   load(gameId: string): Promise<GameRecording | null>
   /** Every event of the game so far, in order. Empty if there is no recording yet. */
   loadEvents(gameId: string): Promise<GameEvent[]>
-  /** Keep turns 0..throughTurnIndex (inclusive); -1 keeps none. Clears any final state. */
-  truncate(gameId: string, throughTurnIndex: number): Promise<void>
+  /**
+   * Remove the turn `append` just added, whose state could not be saved. The
+   * game is still live, so there is no final state to undo.
+   */
+  dropLastTurn(gameId: string, turnCount: number): Promise<void>
   finalize(
     gameId: string,
     finalState: GameState,
@@ -241,20 +277,9 @@ export function createRecordingService(kv: Kv, archive: RecordingArchive | null)
       return perTurn.flatMap(json => JSON.parse(json) as GameEvent[])
     },
 
-    async truncate(gameId, throughTurnIndex) {
-      const header = await loadHeader(gameId)
-      if (!header) return
-      const keep = Math.max(0, throughTurnIndex + 1)
-      await kv.ltrim(turnsKey(gameId), keep)
-      await kv.ltrim(eventsKey(gameId), keep)
-      await saveHeader(gameId, {
-        ...header,
-        finalState: undefined,
-        metadata: { ...header.metadata, winnerId: undefined, endReason: 'max_turns' },
-      })
-      // A rewound game is live again: drop the post-game expiry.
-      for (const key of keys(gameId)) await kv.persist(key)
-      await kv.del(pendingKey(gameId))
+    async dropLastTurn(gameId, turnCount) {
+      await kv.ltrim(turnsKey(gameId), turnCount - 1)
+      await kv.ltrim(eventsKey(gameId), turnCount - 1)
     },
 
     async finalize(gameId, finalState, endReason) {
@@ -299,7 +324,7 @@ export function createRecordingService(kv: Kv, archive: RecordingArchive | null)
         if (!(await kv.get(pendingKey(gameId)))) continue // archived in the meantime
         const header = await loadHeader(gameId)
         if (!header?.finalState) {
-          // The game was deleted or rewound back to life: nothing to archive.
+          // The game was deleted: nothing to archive.
           await kv.del(pendingKey(gameId))
           continue
         }

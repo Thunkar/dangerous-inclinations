@@ -86,7 +86,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     }
   )
 
-  // Dry run of a turn: validation and the events it would produce, nothing committed.
+  // Dry run of a turn: legal or not, and the engine's reasons; no events, nothing committed.
   fastify.post<GameRequest>('/api/games/:gameId/preview', async (request, reply) => {
     const member = await requireMember(request, reply)
     if (!member) return
@@ -106,11 +106,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
     return reply.send(result)
   })
 
-  // Table talk: everything said at this table, oldest first.
+  // Table talk: everything said at this table, oldest first, with only the caller's own thinks.
   fastify.get<GameRequest>('/api/games/:gameId/chat', async (request, reply) => {
     const member = await requireMember(request, reply)
     if (!member) return
-    return reply.send({ messages: await gameService.listChat(member.gameId) })
+    return reply.send({ messages: await gameService.listChat(member.gameId, member.playerId) })
   })
 
   // Table talk: say something (or think out loud) to the table.
