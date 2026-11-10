@@ -42,7 +42,7 @@ import { SOCKET, deckTop } from '../pieces/base.ts'
 import { SHRIKE_BLADE } from '../../ui/src/ships/shrike.ts'
 import { FDM, MOUNT } from '../spec.ts'
 import { MOUNTS } from '../../ui/src/ships/config.ts'
-import { readStl } from './plates.mjs'
+import { readStl } from './plates.ts'
 import { PLATES } from '../plates.mjs'
 import { layout } from '../pieces/module.ts'
 

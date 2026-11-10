@@ -1323,6 +1323,13 @@ function Topic({ id, u }: { id: keyof typeof S; u: number }) {
   )
 }
 
+/** What a caption states as a rule, read off the engine; the film's example numbers come in `vars`. */
+const CAPTION_RULES: Partial<Record<keyof typeof X.captions, Vars>> = {
+  rotate: { energy: SUBSYSTEM_CONFIGS.rotation.minEnergy },
+  rotateIn: { energy: SUBSYSTEM_CONFIGS.rotation.minEnergy },
+  phase: { fuel: SECTOR_ADJUSTMENT_COST_PER_SECTOR },
+}
+
 /** The demonstration's one caption, lower third. */
 function Caption({ text, vars, u }: { text: string; vars?: Vars; u: number }) {
   const key = text as keyof typeof X.captions
@@ -1352,6 +1359,7 @@ function Caption({ text, vars, u }: { text: string; vars?: Vars; u: number }) {
         dissipation: DEFAULT_DISSIPATION_CAPACITY,
         radiator: RADIATOR_DISSIPATION,
         drift: STATION_DRIFT,
+        ...CAPTION_RULES[key],
         ...vars,
       })}
     </Box>

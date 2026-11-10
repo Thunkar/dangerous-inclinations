@@ -5,6 +5,7 @@
  */
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
+  D10_FACES,
   FIXED_SUBSYSTEM_TYPES,
   INTERCEPT_HEAT,
   INTERCEPT_ROLL,
@@ -28,7 +29,8 @@ export const FULL_SHIELD = SUBSYSTEM_CONFIGS.shields.maxEnergy
 export const RACK_ENERGY = SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy
 export const SENSOR_ENERGY = SUBSYSTEM_CONFIGS.sensor_array.minEnergy
 
-export const D10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
+/** The d10's faces, 1 up to the engine's top face. */
+export const D10: readonly number[] = Array.from({ length: D10_FACES }, (_, i) => i + 1)
 
 /** The lowest face that is a critical, bare and with a powered sensor. */
 export const BASE_CRIT = lowestCriticalFace([])

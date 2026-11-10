@@ -39,13 +39,9 @@ import { Ships } from './scene/Ships'
 import { Wells } from './scene/Wells'
 import { Wrecks } from './scene/Wrecks'
 import { CAMERA_FAR, CAMERA_NEAR } from './world'
+import { BOARD_TEXT } from '../../../text/board'
 
-const PRESET_LABEL: Record<CameraPreset, string> = {
-  table: 'Table view',
-  top: 'Top view',
-  follow: 'Follow your ship',
-  auto: 'Auto camera: films each turn, then pulls back for yours',
-}
+const PRESET_LABEL: Record<CameraPreset, string> = BOARD_TEXT.controls.preset
 
 /** The presets that get a button. 'table' is Recentre's job; see the column below. */
 const BUTTON_PRESETS: readonly CameraPreset[] = ['top', 'follow', 'auto']
@@ -227,13 +223,13 @@ function Board({
           gap: 0.5,
         }}
       >
-        <BoardButton title="Zoom in" onClick={() => rig.zoomBy(1.25)}>
+        <BoardButton title={BOARD_TEXT.controls.zoomIn} onClick={() => rig.zoomBy(1.25)}>
           <AddIcon fontSize="small" />
         </BoardButton>
-        <BoardButton title="Zoom out" onClick={() => rig.zoomBy(1 / 1.25)}>
+        <BoardButton title={BOARD_TEXT.controls.zoomOut} onClick={() => rig.zoomBy(1 / 1.25)}>
           <RemoveIcon fontSize="small" />
         </BoardButton>
-        <BoardButton title="Recentre the board" onClick={rig.reset}>
+        <BoardButton title={BOARD_TEXT.controls.recentre} onClick={rig.reset}>
           <CenterFocusStrongIcon fontSize="small" />
         </BoardButton>
         <Box sx={{ height: 6 }} />

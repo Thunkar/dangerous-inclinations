@@ -631,7 +631,7 @@ sector numbers, lane markers and alternate bands in the game's colour for it,
 Alpha cobalt (the game's deep teal), Beta ochre and Gamma violet, the other bands white; the board's
 counts are checked against its part files' names; a hub prints with rings 1
 and 2 round it as they sit on the board, and a ring in segments prints its
-segments turned alike and stacked one inside the next), and `scripts/plates.mjs` packs them from the exported STLs into a
+segments turned alike and stacked one inside the next), and `scripts/plates.ts` packs them from the exported STLs into a
 3MF a bed for PrusaSlicer. The station (`pieces/station.ts`) is printed from the
 yard's (`ui/src/ships/station.ts`) as the hulls are: a spindle on a foot
 in its sector, a habitat drum, three finned radiators canted at 55

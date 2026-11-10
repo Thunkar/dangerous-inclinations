@@ -9,7 +9,7 @@ import { resolve, extname } from 'node:path'
 import { chromium } from 'playwright'
 import { BED } from '../plates.mjs'
 import { COLOUR, PLAYER_COLOURS } from '../colours.ts'
-import { buildPlates, counts } from './plates.mjs'
+import { buildPlates, counts } from './plates.ts'
 
 const ROOT = resolve('..')
 const TYPES = {

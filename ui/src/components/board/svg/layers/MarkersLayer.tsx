@@ -4,11 +4,10 @@
  * a station buys one item from each player, once.
  */
 import { memo } from 'react'
-import { getWellName } from '@dangerous-inclinations/engine'
 import type { HomeMarker, StationMarker } from '../../model'
 import { positionPoint, wellColor } from '../../geometry'
 import { BOARD } from '../palette'
-import { placeLabel } from '../../../../utils/route'
+import { homeLabel, stationLabel } from '../../labels'
 
 /** The sold-at squares under a station: their side and the step between them. */
 const SOLD_SIZE = 7
@@ -26,7 +25,7 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
         const p = positionPoint(home.position)
         return (
           <g key={`home-${home.playerId}`} opacity={0.8}>
-            <title>{`${home.name}'s Home · ${placeLabel(home.position)}`}</title>
+            <title>{homeLabel(home)}</title>
             {/* Landing-pad brackets at the four corners: a berth, not a hull outline
                 (a ship parked on its Home sits inside them). */}
             {[
@@ -53,11 +52,7 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
         const color = wellColor(station.planetId)
         return (
           <g key={station.id}>
-            <title>{`${getWellName(station.planetId)} Station · dock here to load, sell, repair and reload${
-              station.soldBy.length > 0
-                ? ` · has bought from ${station.soldBy.map(s => s.name).join(', ')}`
-                : ''
-            }`}</title>
+            <title>{stationLabel(station)}</title>
             <circle cx={p.x} cy={p.y} r={10} fill={BOARD.deep} stroke={color} strokeWidth={2.5} />
             <circle cx={p.x} cy={p.y} r={3.5} fill={color} />
             <line x1={p.x - 15} y1={p.y} x2={p.x + 15} y2={p.y} stroke={color} strokeWidth={1.6} />

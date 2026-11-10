@@ -41,7 +41,10 @@ export async function withServer(entry, run) {
   })
   const clean = () => {
     try {
-      process.kill(-server.pid)
+      // SIGKILL to the whole group: a server busy in a long boolean ignores
+      // SIGTERM and outlives its deleted workspace. It holds nothing worth
+      // flushing, the workspace goes next.
+      process.kill(-server.pid, 'SIGKILL')
     } catch {
       // already gone
     }

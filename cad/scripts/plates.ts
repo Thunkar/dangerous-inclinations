@@ -1,5 +1,5 @@
 // Pack the print plates of plates.mjs: `node --experimental-strip-types
-// --import ./scripts/ts-hooks.mjs scripts/plates.mjs` (it reads the game's
+// --import ./scripts/ts-hooks.mjs scripts/plates.ts` (it reads the game's
 // colours from its TypeScript) writes
 // out/plates/<plate>.3mf, one MK4S bed a file (PrusaSlicer has one bed a
 // project), from the STLs `yarn export` writes. Each piece is an object of
@@ -11,10 +11,61 @@ import { zipSync, strToU8 } from 'fflate'
 import { BED, PLATES } from '../plates.mjs'
 import { COLOUR } from '../colours.ts'
 
+/** An STL's triangles as indexed vertices, its box moved to start at the origin. */
+export interface Mesh {
+  vertices: number[][]
+  triangles: number[][]
+  size: number[]
+  lo: number[]
+}
+
+/**
+ * A plate's entry (`plates.mjs`): a part and how many, "loose" for a set of
+ * inlays packed body by body; or parts laid out together.
+ */
+type Entry =
+  | [part: string, n: number, layout?: 'loose']
+  | { concentric: string[]; nested?: undefined; n: number }
+  | { nested: string[]; concentric?: undefined; n: number }
+
+/** A plate as `plates.mjs` lists it. */
+export interface Plate {
+  id: string
+  title: string
+  colour: string
+  parts: Entry[]
+}
+
+const plates = PLATES as Plate[]
+
+/** A placement in the bed's plane, [a, b, c, d, tx, ty]: x' = a x + b y + tx, y' = c x + d y + ty. */
+type Place = number[]
+/** A part placed in a unit. */
+interface Member {
+  part: string
+  m: Place
+}
+/** What the packer lays down as one: its members and its size. */
+interface Unit {
+  members: Member[]
+  w: number
+  h: number
+}
+/** A unit's footprint on the raster: its size in cells, its runs of cells a row, the placement onto it and its size in mm. */
+interface Footprint {
+  w: number
+  h: number
+  rows: [number, number][][]
+  M: Place
+  size: number[]
+}
+/** The meshes by part. */
+type MeshOf = (part: string) => Mesh
+
 /** An STL's triangles as indexed vertices, moved so its box starts at the origin. */
-export function readStl(path) {
+export function readStl(path: string): Mesh {
   const buf = readFileSync(path)
-  const raw = []
+  const raw: number[][] = []
   if (buf.subarray(0, 5).toString() === 'solid' && buf.subarray(0, 400).includes('facet')) {
     for (const m of buf.toString().matchAll(/vertex\s+(\S+)\s+(\S+)\s+(\S+)/g))
       raw.push([+m[1], +m[2], +m[3]])
@@ -28,8 +79,8 @@ export function readStl(path) {
   }
   const lo = [0, 1, 2].map(i => Math.min(...raw.map(p => p[i])))
   const hi = [0, 1, 2].map(i => Math.max(...raw.map(p => p[i])))
-  const index = new Map()
-  const vertices = []
+  const index = new Map<string, number>()
+  const vertices: number[][] = []
   const ids = raw.map(p => {
     const q = p.map((v, i) => v - lo[i])
     const key = q.map(v => v.toFixed(4)).join(',')
@@ -37,9 +88,9 @@ export function readStl(path) {
       index.set(key, vertices.length)
       vertices.push(q)
     }
-    return index.get(key)
+    return index.get(key)!
   })
-  const triangles = []
+  const triangles: number[][] = []
   for (let i = 0; i < ids.length; i += 3) {
     const [a, b, c] = ids.slice(i, i + 3)
     if (a !== b && b !== c && a !== c) triangles.push([a, b, c])
@@ -52,25 +103,26 @@ export function readStl(path) {
  * other kept together (the digits of one number), each moved so its box
  * starts at the origin.
  */
-export function loose(mesh, near = 1.5) {
+export function loose(mesh: Mesh, near = 1.5): Omit<Mesh, 'lo'>[] {
   const parent = mesh.vertices.map((_, i) => i)
-  const root = i => (parent[i] === i ? i : (parent[i] = root(parent[i])))
+  const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i])))
   for (const [a, b, c] of mesh.triangles) {
     parent[root(b)] = root(a)
     parent[root(c)] = root(a)
   }
-  const bodies = new Map()
+  const bodies = new Map<number, number[][]>()
   mesh.triangles.forEach(t => {
     const r = root(t[0])
     if (!bodies.has(r)) bodies.set(r, [])
-    bodies.get(r).push(t)
+    bodies.get(r)!.push(t)
   })
-  const box = tris => {
+  const box = (tris: number[][]) => {
     const pts = tris.flat().map(i => mesh.vertices[i])
     return [0, 1, 2].map(d => [Math.min(...pts.map(p => p[d])), Math.max(...pts.map(p => p[d]))])
   }
   let groups = [...bodies.values()].map(tris => ({ tris, box: box(tris) }))
-  const touch = (a, b) =>
+  type Group = { tris: number[][]; box: number[][] }
+  const touch = (a: Group, b: Group) =>
     [0, 1].every(d => a.box[d][0] - near <= b.box[d][1] && b.box[d][0] - near <= a.box[d][1])
   for (let merged = true; merged; ) {
     merged = false
@@ -83,24 +135,23 @@ export function loose(mesh, near = 1.5) {
         }
   }
   return groups.map(({ tris, box: b }) => {
-    const index = new Map()
-    const vertices = []
+    const index = new Map<number, number>()
+    const vertices: number[][] = []
     const triangles = tris.map(t =>
       t.map(i => {
         if (!index.has(i)) {
           index.set(i, vertices.length)
           vertices.push(mesh.vertices[i].map((v, d) => v - b[d][0]))
         }
-        return index.get(i)
+        return index.get(i)!
       })
     )
     return { vertices, triangles, size: b.map(([lo, hi]) => hi - lo) }
   })
 }
 
-// A placement in the bed's plane, [a, b, c, d, tx, ty]: x' = a x + b y + tx, y' = c x + d y + ty.
-const I = [1, 0, 0, 1, 0, 0]
-const mul = (P, Q) => [
+const I: Place = [1, 0, 0, 1, 0, 0]
+const mul = (P: Place, Q: Place): Place => [
   P[0] * Q[0] + P[1] * Q[2],
   P[0] * Q[1] + P[1] * Q[3],
   P[2] * Q[0] + P[3] * Q[2],
@@ -108,17 +159,20 @@ const mul = (P, Q) => [
   P[0] * Q[4] + P[1] * Q[5] + P[4],
   P[2] * Q[4] + P[3] * Q[5] + P[5],
 ]
-const shift = (x, y) => [1, 0, 0, 1, x, y]
-const spin = deg => {
+const shift = (x: number, y: number): Place => [1, 0, 0, 1, x, y]
+const spin = (deg: number): Place => {
   const [c, s] = [Math.cos((deg * Math.PI) / 180), Math.sin((deg * Math.PI) / 180)]
   return [c, -s, s, c, 0, 0]
 }
-const apply = (m, [x, y]) => [m[0] * x + m[1] * y + m[4], m[2] * x + m[3] * y + m[5]]
+const apply = (m: Place, [x, y]: number[]) => [
+  m[0] * x + m[1] * y + m[4],
+  m[2] * x + m[3] * y + m[5],
+]
 
 /** The raster the packer lays footprints on, mm a cell. */
 const CELL = 0.5
 
-const footprints = new WeakMap()
+const footprints = new WeakMap<Unit, Map<string, Footprint>>()
 
 /**
  * A unit's footprint turned by `rot` degrees: its triangles seen from above,
@@ -126,10 +180,11 @@ const footprints = new WeakMap()
  * a row; with `M`, which takes the unit's points onto it (cell (i, j) spans
  * i to i + 1 cells from the origin), and the turned piece's size in mm.
  */
-function footprint(unit, rot, pad, mesh) {
+function footprint(unit: Unit, rot: number, pad: number, mesh: MeshOf): Footprint {
   const key = `${rot}:${pad}`
-  const cache = footprints.get(unit) ?? footprints.set(unit, new Map()).get(unit)
-  if (cache.has(key)) return cache.get(key)
+  const cache = footprints.get(unit) ?? footprints.set(unit, new Map()).get(unit)!
+  const known = cache.get(key)
+  if (known) return known
   const turn = spin(rot)
   const tris = unit.members.flatMap(({ part, m }) => {
     const g = mesh(part)
@@ -142,18 +197,21 @@ function footprint(unit, rot, pad, mesh) {
   const p = Math.ceil(pad / CELL)
   const [w, h] = [Math.ceil((x1 - x0) / CELL) + 2 * p + 1, Math.ceil((y1 - y0) / CELL) + 2 * p + 1]
   let grid = new Uint8Array(w * h)
-  const cell = (x, y) => [Math.floor((x - x0) / CELL) + p, Math.floor((y - y0) / CELL) + p]
+  const cell = (x: number, y: number) => [
+    Math.floor((x - x0) / CELL) + p,
+    Math.floor((y - y0) / CELL) + p,
+  ]
   for (const [a, b, c] of tris) {
     // Every corner's cell, so a sliver too thin to cover a cell's centre still counts.
     for (const q of [a, b, c]) {
-      const [i, j] = cell(...q)
+      const [i, j] = cell(q[0], q[1])
       grid[j * w + i] = 1
     }
     const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
     if (Math.abs(area) < 1e-9) continue
     const [i0, j0] = cell(Math.min(a[0], b[0], c[0]), Math.min(a[1], b[1], c[1]))
     const [i1, j1] = cell(Math.max(a[0], b[0], c[0]), Math.max(a[1], b[1], c[1]))
-    const edge = (u, v, x, y) =>
+    const edge = (u: number[], v: number[], x: number, y: number) =>
       ((v[0] - u[0]) * (y - u[1]) - (v[1] - u[1]) * (x - u[0])) * Math.sign(area)
     for (let j = j0; j <= j1; j++)
       for (let i = i0; i <= i1; i++) {
@@ -163,10 +221,11 @@ function footprint(unit, rot, pad, mesh) {
       }
   }
   // Grow by p cells: along each row, then down each column.
-  for (const [n, len, at] of [
+  const lines: [number, number, (r: number, k: number) => number][] = [
     [h, w, (r, k) => r * w + k],
     [w, h, (r, k) => k * w + r],
-  ]) {
+  ]
+  for (const [n, len, at] of lines) {
     const out = new Uint8Array(w * h)
     for (let r = 0; r < n; r++) {
       let count = 0
@@ -180,7 +239,7 @@ function footprint(unit, rot, pad, mesh) {
     grid = out
   }
   const rows = Array.from({ length: h }, (_, j) => {
-    const runs = []
+    const runs: [number, number][] = []
     for (let i = 0; i < w; i++)
       if (grid[j * w + i] && (i === 0 || !grid[j * w + i - 1])) {
         let e = i
@@ -189,7 +248,7 @@ function footprint(unit, rot, pad, mesh) {
       }
     return runs
   })
-  const fp = {
+  const fp: Footprint = {
     w,
     h,
     rows,
@@ -201,17 +260,17 @@ function footprint(unit, rot, pad, mesh) {
 }
 
 /** A bed's raster: which cells are taken, each row's running count of them for an at-a-glance test, and what stands on it. */
-function bedRaster(bw, bh) {
+function bedRaster(bw: number, bh: number) {
   const occ = new Uint8Array(bw * bh)
   const pre = new Int32Array(bh * (bw + 1))
-  const fits = (fp, X, Y) => {
+  const fits = (fp: Footprint, X: number, Y: number) => {
     for (let r = 0; r < fp.h; r++) {
       const base = (Y + r) * (bw + 1)
       for (const [a, b] of fp.rows[r]) if (pre[base + X + b + 1] - pre[base + X + a]) return false
     }
     return true
   }
-  const take = (fp, X, Y) => {
+  const take = (fp: Footprint, X: number, Y: number) => {
     for (let r = 0; r < fp.h; r++) {
       const y = Y + r
       for (const [a, b] of fp.rows[r]) occ.fill(1, y * bw + X + a, y * bw + X + b + 1)
@@ -220,16 +279,17 @@ function bedRaster(bw, bh) {
     }
   }
   /** The lowest, then leftmost, place the footprint fits, or null. */
-  const find = fp => {
+  const find = (fp: Footprint): [number, number] | null => {
     for (let Y = 0; Y + fp.h <= bh; Y++)
       for (let X = 0; X + fp.w <= bw; X++) if (fits(fp, X, Y)) return [X, Y]
     return null
   }
-  return { find, take, placed: [] }
+  const placed: { i: number; place: Place; box: number[] }[] = []
+  return { find, take, placed }
 }
 
 /** The 3MF model of a bed: one object per piece, an item per placement. */
-function model(pieces, colour) {
+function model(pieces: { name: string; mesh: Mesh; at: Place[] }[], colour: string) {
   const objects = pieces
     .map(({ name, mesh }, k) => {
       const v = mesh.vertices
@@ -278,19 +338,19 @@ const SPREAD = [20, 15, 10]
  * many times as each name says to print ("(print 17", else once), and no more.
  */
 function checkBoard() {
-  const want = new Map()
+  const want = new Map<string, number>()
   for (const dir of readdirSync('parts/board'))
     for (const file of readdirSync(`parts/board/${dir}`)) {
       const name = readFileSync(`parts/board/${dir}/${file}`, 'utf8').match(
         /part\(\s*(['"`])(.*?)\1/s
-      )[2]
+      )![2]
       want.set(
         `board/${dir}/${file.replace('.part.js', '')}`,
         +(name.match(/\(print (\d+)/)?.[1] ?? 1)
       )
     }
-  const have = new Map()
-  for (const plate of PLATES)
+  const have = new Map<string, number>()
+  for (const plate of plates)
     for (const [part, n] of counts(plate))
       if (part.startsWith('board/')) have.set(part, (have.get(part) ?? 0) + n)
   for (const part of new Set([...want.keys(), ...have.keys()]))
@@ -301,10 +361,10 @@ function checkBoard() {
 }
 
 /** A mesh's points in the board's plane, where the part was built. */
-const built = mesh => mesh.vertices.map(([x, y]) => [x + mesh.lo[0], y + mesh.lo[1]])
+const built = (mesh: Mesh) => mesh.vertices.map(([x, y]) => [x + mesh.lo[0], y + mesh.lo[1]])
 
 /** A unit moved so its footprint starts at the origin, with that footprint's size. */
-function settle(members, mesh) {
+function settle(members: Member[], mesh: MeshOf): Unit {
   const pts = members.flatMap(({ part, m }) => mesh(part).vertices.map(v => apply(m, v)))
   const [x0, y0] = [Math.min(...pts.map(p => p[0])), Math.min(...pts.map(p => p[1]))]
   const [x1, y1] = [Math.max(...pts.map(p => p[0])), Math.max(...pts.map(p => p[1]))]
@@ -319,7 +379,7 @@ function settle(members, mesh) {
  * Pieces that sit one round another on the board (a hub, rings 1 and 2),
  * printed as they sit: their own gaps apart, centred together.
  */
-function concentric(parts, mesh) {
+function concentric(parts: string[], mesh: MeshOf): Unit {
   const radii = parts
     .map(part => {
       const r = built(mesh(part)).map(([x, y]) => Math.hypot(x, y))
@@ -330,7 +390,7 @@ function concentric(parts, mesh) {
     if (o.lo - radii[k].hi < 1) throw new Error(`${o.part} does not clear ${radii[k].part}`)
   })
   return settle(
-    parts.map(part => ({ part, m: shift(...mesh(part).lo) })),
+    parts.map(part => ({ part, m: shift(mesh(part).lo[0], mesh(part).lo[1]) })),
     mesh
   )
 }
@@ -341,7 +401,7 @@ function concentric(parts, mesh) {
  * widest at the bottom, each moved up just enough that its inner edge, its
  * ends included, keeps `gap` off the outer edge below it.
  */
-function nested(parts, mesh, gap) {
+function nested(parts: string[], mesh: MeshOf, gap: number): Unit {
   const arcs = parts
     .map(part => {
       const pts = built(mesh(part))
@@ -371,7 +431,10 @@ function nested(parts, mesh, gap) {
       }
       return {
         part: a.part,
-        m: mul(shift(0, up), mul(spin(90 - (a.mid * 180) / Math.PI), shift(...mesh(a.part).lo))),
+        m: mul(
+          shift(0, up),
+          mul(spin(90 - (a.mid * 180) / Math.PI), shift(mesh(a.part).lo[0], mesh(a.part).lo[1]))
+        ),
       }
     }),
     mesh
@@ -379,8 +442,8 @@ function nested(parts, mesh, gap) {
 }
 
 /** A plate's entries as [part, copies], whatever their layout. */
-export function counts(plate) {
-  return plate.parts.flatMap(e =>
+export function counts(plate: Plate): [string, number][] {
+  return plate.parts.flatMap((e): [string, number][] =>
     Array.isArray(e) ? [[e[0], e[1]]] : (e.concentric ?? e.nested).map(part => [part, e.n])
   )
 }
@@ -390,26 +453,33 @@ export function buildPlates() {
   checkBoard()
   rmSync('out/plates', { recursive: true, force: true })
   mkdirSync('out/plates', { recursive: true })
-  const meshes = new Map()
-  const mesh = part => meshes.get(part) ?? meshes.set(part, readStl(`out/${part}.stl`)).get(part)
+  const meshes = new Map<string, Mesh>()
+  const mesh: MeshOf = part =>
+    meshes.get(part) ?? meshes.set(part, readStl(`out/${part}.stl`)).get(part)!
   const { x: W, y: H, margin, gap } = BED
-  const written = []
-  for (const plate of PLATES) {
+  const written: {
+    plate: Plate
+    file: string
+    pieces: number
+    used: [number, number]
+    gap: number
+  }[] = []
+  for (const plate of plates) {
     // The units packed: a piece, a body of a "loose" set of inlays (laid out
     // as they go on, so packed one by one), or pieces laid out together.
-    const single = part => ({
+    const single = (part: string): Unit => ({
       members: [{ part, m: I }],
       w: mesh(part).size[0],
       h: mesh(part).size[1],
     })
     const units = plate.parts.flatMap(e => {
       const n = Array.isArray(e) ? e[1] : e.n
-      let one
+      let one: Unit[]
       if (!Array.isArray(e))
         one = e.concentric ? [concentric(e.concentric, mesh)] : [nested(e.nested, mesh, BED.nest)]
       else if (e[2] === 'loose')
         one = loose(mesh(e[0])).map((m, k) => {
-          meshes.set(`${e[0]}#${k + 1}`, m)
+          meshes.set(`${e[0]}#${k + 1}`, { ...m, lo: [0, 0, 0] })
           return single(`${e[0]}#${k + 1}`)
         })
       else one = [single(e[0])]
@@ -417,7 +487,8 @@ export function buildPlates() {
     })
     // A unit that fits the bed only without its margin (the board's ring 2)
     // gets a bed of its own, centred, turned if it fits only turned.
-    const within = ({ w, h }, x, y) => (w <= x && h <= y) || (h <= x && w <= y)
+    const within = ({ w, h }: Unit, x: number, y: number) =>
+      (w <= x && h <= y) || (h <= x && w <= y)
     const alone = units.flatMap((u, i) => {
       if (within(u, W - 2 * margin, H - 2 * margin)) return []
       if (!within(u, W, H))
@@ -432,13 +503,17 @@ export function buildPlates() {
     // bed inside its margin, largest first, at the lowest place it fits in
     // any of four turns, on the first bed it fits.
     // The widest gap that still packs onto as few beds as the least gap does, so a sparse plate spreads out.
-    const packed = g => {
+    const packed = (g: number) => {
       const inset = margin - g / 2
       const [bw, bh] = [Math.floor((W - 2 * inset) / CELL), Math.floor((H - 2 * inset) / CELL)]
       const order = [...rest].sort((a, b) => units[b].w * units[b].h - units[a].w * units[a].h)
-      const beds = []
+      const beds: ReturnType<typeof bedRaster>[] = []
       for (const i of order) {
-        let spot = null
+        let spot: {
+          raster: ReturnType<typeof bedRaster>
+          fp: Footprint
+          at: [number, number]
+        } | null = null
         for (const bed of [...beds, null]) {
           const raster = bed ?? bedRaster(bw, bh)
           for (const rot of [0, 90, 180, 270]) {
@@ -455,7 +530,7 @@ export function buildPlates() {
         if (!spot)
           throw new Error(`${units[i].members.map(m => m.part).join(' + ')} does not fit the bed`)
         const { raster, fp, at } = spot
-        raster.take(fp, ...at)
+        raster.take(fp, at[0], at[1])
         // The unit's box on the bed, without the half gap round it.
         const [x, y] = [inset + at[0] * CELL, inset + at[1] * CELL]
         const box = [x + g / 2, y + g / 2, x + fp.w * CELL - g / 2, y + fp.h * CELL - g / 2]
@@ -480,18 +555,18 @@ export function buildPlates() {
       const hi = [Math.max(...items.map(r => r.box[2])), Math.max(...items.map(r => r.box[3]))]
       const [ux, uy] = [hi[0] - lo[0], hi[1] - lo[1]]
       const centre = shift((W - ux) / 2 - lo[0], (H - uy) / 2 - lo[1])
-      const byPart = new Map()
+      const byPart = new Map<string, Place[]>()
       for (const r of items)
         for (const { part, m } of units[r.i].members) {
           if (!byPart.has(part)) byPart.set(part, [])
-          byPart.get(part).push(mul(centre, mul(r.place, m)))
+          byPart.get(part)!.push(mul(centre, mul(r.place, m)))
         }
       const pieces = [...byPart].map(([part, at]) => ({
-        name: part.split('/').pop(),
+        name: part.split('/').pop()!,
         mesh: mesh(part),
         at,
       }))
-      const colour = COLOUR[plate.colour] ?? COLOUR.grey
+      const colour = (COLOUR as Record<string, string>)[plate.colour] ?? COLOUR.grey
       const file = `out/plates/${plate.id}${beds.length > 1 ? `-${b + 1}` : ''}.3mf`
       writeFileSync(
         file,

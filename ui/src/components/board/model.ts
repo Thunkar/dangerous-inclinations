@@ -38,7 +38,7 @@ import { usePlanOptional } from '../../context/PlanContext'
 import { useRoutePlanOptional } from '../../context/RoutePlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { TABLE } from '../../design/tokens'
-import { TABLE_TEXT } from '../../text/table'
+import { BOARD_TEXT as BT } from '../../text/board'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
 import { STATION_BERTHS } from '../../ships/station'
 import {
@@ -189,8 +189,6 @@ export interface MissilePreview {
 /** How far apart missiles sharing a sector stand, in board units. */
 const MISSILE_SPREAD = 9
 
-const BT = TABLE_TEXT.board
-
 /** The label a planned launch carries. */
 function missilePreviewLabel(targetName: string, count: number): string {
   const { stepsPerMove: steps } = getMissileStats()
@@ -326,6 +324,88 @@ export interface BoardModel {
   pointOf: (playerId: string) => Point | null
 }
 
+/**
+ * Number each ship among the ships sharing its sector, in the order given
+ * (seat order), and put a moored one on its station's berth. Read off the
+ * resting positions, never off a slide: a token half-way round the ring
+ * still belongs to the sector it is heading for. `moorings` are the
+ * stations' sectors.
+ */
+export function crowdShips(
+  tokens: ReadonlyArray<Omit<ShipToken, 'crowd' | 'berth'>>,
+  moorings: readonly Position[]
+): ShipToken[] {
+  return tokens.map(token => {
+    const sharing = tokens.filter(other => samePosition(other.position, token.position))
+    const index = sharing.indexOf(token)
+    const moored = moorings.some(at => samePosition(at, token.position))
+    return {
+      ...token,
+      crowd: { index, count: sharing.length },
+      berth: moored && index < STATION_BERTHS.length ? index : null,
+    }
+  })
+}
+
+/**
+ * Number each wreck among the wrecks on its sector and count the ships
+ * standing there, so the wrecks take their own band and never sit on a hull.
+ * Read off resting positions, like the ships' crowd.
+ */
+export function crowdWrecks(
+  wrecks: ReadonlyArray<Omit<WreckToken, 'crowd'>>,
+  ships: readonly ShipToken[]
+): WreckToken[] {
+  return wrecks.map(wreck => {
+    const sharing = wrecks.filter(other => samePosition(other.position, wreck.position))
+    return {
+      ...wreck,
+      crowd: {
+        index: sharing.indexOf(wreck),
+        count: sharing.length,
+        ships: ships.filter(ship => samePosition(ship.position, wreck.position)).length,
+      },
+    }
+  })
+}
+
+/** The board point a ship's hull is drawn on: its sector, nudged by its place in the crowd. */
+export function shipPoint(ships: readonly ShipToken[], playerId: string): Point | null {
+  const token = ships.find(s => s.playerId === playerId)
+  return token ? radialPoint(token.position, crowdOffset(token.crowd)) : null
+}
+
+/**
+ * A board with no game behind it (the route planner tool, the 3D harness):
+ * the given ships, stations and names, and the empty values a quiet board
+ * has for everything not given. Nothing is playing, planned or pickable.
+ */
+export function quietBoardModel(
+  model: Pick<BoardModel, 'ships' | 'stations' | 'colorOf' | 'nameOf'> & Partial<BoardModel>
+): BoardModel {
+  return {
+    wrecks: [],
+    homes: [],
+    missiles: [],
+    missilePreviews: [],
+    plannedPoints: [],
+    route: null,
+    rangeCells: [],
+    selectableIds: [],
+    activeLaneIds: [],
+    onPickDestination: null,
+    onPickTarget: null,
+    deployment: null,
+    animating: false,
+    effects: [],
+    ping: null,
+    shot: null,
+    planColor: TABLE.ink,
+    pointOf: playerId => shipPoint(model.ships, playerId),
+    ...model,
+  }
+}
+
 export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions): BoardModel {
   const { view, nameOf } = useGame()
   const { overlay, effects, pinged, shot } = useAnimation()
@@ -385,45 +465,22 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
         },
       ]
     })
-    // Sharing is read off the resting positions, never off a slide: a token
-    // half-way round the ring still belongs to the sector it is heading for.
-    const moorings = (overlay?.stations ?? view.stations).map(stationPosition)
-    return tokens.map(token => {
-      const sharing = tokens.filter(other => samePosition(other.position, token.position))
-      const index = sharing.indexOf(token)
-      const moored = moorings.some(at => samePosition(at, token.position))
-      return {
-        ...token,
-        crowd: { index, count: sharing.length },
-        berth: moored && index < STATION_BERTHS.length ? index : null,
-      }
-    })
+    return crowdShips(tokens, (overlay?.stations ?? view.stations).map(stationPosition))
   }, [view.players, view.stations, overlay, livePlayers])
 
-  /**
-   * A token per wreck, numbered among the wrecks on its sector and told how
-   * many ships stand there, so the wrecks take their own band and never sit on
-   * a hull. Read off resting positions, like the ships' crowd.
-   */
-  const wrecks = useMemo<WreckToken[]>(() => {
-    const live =
-      overlay?.wrecks ??
-      view.wrecks.map(w => ({
-        id: w.id,
-        position: { wellId: w.wellId, ring: w.ring, sector: w.sector },
-      }))
-    return live.map(wreck => {
-      const sharing = live.filter(other => samePosition(other.position, wreck.position))
-      return {
-        ...wreck,
-        crowd: {
-          index: sharing.indexOf(wreck),
-          count: sharing.length,
-          ships: ships.filter(ship => samePosition(ship.position, wreck.position)).length,
-        },
-      }
-    })
-  }, [view.wrecks, overlay, ships])
+  /** A token per wreck, crowded among the wrecks and ships on its sector. */
+  const wrecks = useMemo<WreckToken[]>(
+    () =>
+      crowdWrecks(
+        overlay?.wrecks ??
+          view.wrecks.map(w => ({
+            id: w.id,
+            position: { wellId: w.wellId, ring: w.ring, sector: w.sector },
+          })),
+        ships
+      ),
+    [view.wrecks, overlay, ships]
+  )
 
   const homes = useMemo<HomeMarker[]>(
     () =>
@@ -450,13 +507,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     [ships]
   )
 
-  const pointOf = useCallback(
-    (playerId: string): Point | null => {
-      const token = ships.find(s => s.playerId === playerId)
-      return token ? radialPoint(token.position, crowdOffset(token.crowd)) : null
-    },
-    [ships]
-  )
+  const pointOf = useCallback((playerId: string) => shipPoint(ships, playerId), [ships])
 
   const liveStations = overlay?.stations ?? view.stations
   const stations = useMemo(

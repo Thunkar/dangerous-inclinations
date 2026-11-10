@@ -1,6 +1,6 @@
 // The print plates for a table of six: each plate is one colour, laid out
 // on a Prusa MK4S bed, so whoever owns a printer can print a set for the
-// table. `scripts/plates.mjs` packs them into out/plates/<plate>.3mf for
+// table. `scripts/plates.ts` packs them into out/plates/<plate>.3mf for
 // PrusaSlicer (one bed a file) and draws the sheet of them.
 //
 // Every colour is the game's where the game draws the piece (`colours.ts`):
@@ -46,7 +46,7 @@ const MODULES = Object.values(BOT_PRESET_LOADOUTS).reduce((most, { forwardSlots,
  * many, and "loose" for a set of inlays laid out as they go on, packed body
  * by body; or `{ concentric: [paths], n }`, pieces printed one round another
  * as they sit on the board, or `{ nested: [paths], n }`, a ring's segments
- * turned alike and stacked one inside the next (`scripts/plates.mjs`). A
+ * turned alike and stacked one inside the next (`scripts/plates.ts`). A
  * plate whose parts do not fit one bed is split over several.
  */
 export const PLATES = [
@@ -153,8 +153,9 @@ export const PLATES = [
       // A hub with rings 1 and 2 round it, as they sit on the board.
       { concentric: ['board/planet/hub', 'board/shared/ring-1', 'board/shared/ring-2'], n: 3 },
       { concentric: ['board/blackHole/hub', 'board/shared/ring-1', 'board/shared/ring-2'], n: 1 },
+      // Ring 3's halves span the bed, so each takes a bed of its own.
+      ...[1, 2].map(j => [`board/shared/ring-3.${j}`, 4]),
       // A ring in segments, each turned to face the same way, stacked one inside the next.
-      { nested: [1, 2].map(j => `board/shared/ring-3.${j}`), n: 4 },
       { nested: [1, 2, 3, 4, 5, 6].map(j => `board/planet/ring-4.${j}`), n: 3 },
       { nested: [1, 2, 3, 4, 5, 6].map(j => `board/blackHole/ring-4.${j}`), n: 1 },
       { nested: [1, 2, 3, 4, 5, 6].map(j => `board/blackHole/ring-5.${j}`), n: 1 },

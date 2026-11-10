@@ -17,8 +17,8 @@
  * the same station clock the "Stations now at" control sets.
  *
  * The board renders a `BoardModel` and only that (`components/board/model.ts`),
- * which is what lets it run with no game behind it: this builds one by hand,
- * the way the 3D dev harness does.
+ * which is what lets it run with no game behind it: this builds one with the
+ * model's own `quietBoardModel` and `crowdShips`, as the 3D dev harness does.
  */
 import { useMemo, useState } from 'react'
 import { Box } from '@mui/material'
@@ -46,9 +46,15 @@ import {
   planAlternativesToTarget,
   planMovementAlternatives,
   samePosition,
+  stationPosition,
   stationTarget,
 } from '@dangerous-inclinations/engine'
-import { stationMarkers, type BoardModel } from '../../components/board/model'
+import {
+  crowdShips,
+  quietBoardModel,
+  stationMarkers,
+  type BoardModel,
+} from '../../components/board/model'
 import { GameBoardSvg } from '../../components/board/svg/GameBoardSvg'
 import { getPlayerColor } from '../../utils/playerColors'
 import { ROUTE_SEARCH_TURNS, placeLabel, routeLegs, routeName } from '../../utils/route'
@@ -149,11 +155,6 @@ export function RoutePlannerTool() {
 
   const station =
     destination.kind === 'station' ? stations.find(s => s.planetId === destination.planetId) : null
-  const stationAt = (s: Station): Position => ({
-    wellId: s.planetId,
-    ring: s.ring,
-    sector: s.sector,
-  })
   // The stations all step together, so one reading moves all three, and a
   // station only ever stands on a sector of its clock.
   const moveStations = (sector: number) => setStations(all => all.map(s => ({ ...s, sector })))
@@ -193,53 +194,39 @@ export function RoutePlannerTool() {
   /** A click on the board: the ship, a station (which then moves), or a sector. */
   const pick = (position: Position) => {
     if (picking === 'ship') return setFrom(position)
-    const hit = stations.find(s => samePosition(stationAt(s), position))
+    const hit = stations.find(s => samePosition(stationPosition(s), position))
     setDestination(
       hit ? { kind: 'station', planetId: hit.planetId } : { kind: 'sector', at: position }
     )
   }
 
   const model = useMemo<BoardModel>(
-    () => ({
-      ships: [
-        {
-          playerId: SHIP_ID,
-          name: T.shipName,
-          color: SHIP_COLOR,
-          position: from,
-          facing,
-          crowd: { index: 0, count: 1 },
-          berth: null,
-          escorts: [],
-          isActive: true,
-          isMe: true,
-          hitPoints: STARTING_HIT_POINTS,
-          maxHitPoints: STARTING_HIT_POINTS,
-          heat: 0,
-        },
-      ],
-      wrecks: [],
-      homes: [],
-      stations: stationMarkers(stations),
-      missiles: [],
-      missilePreviews: [],
-      plannedPoints: [],
-      route,
-      rangeCells: [],
-      selectableIds: [],
-      activeLaneIds: [],
-      onPickDestination: pick,
-      onPickTarget: null,
-      deployment: null,
-      animating: false,
-      effects: [],
-      ping: null,
-      shot: null,
-      planColor: TABLE.ink,
-      colorOf: () => SHIP_COLOR,
-      nameOf: () => T.shipName,
-      pointOf: () => null,
-    }),
+    () =>
+      quietBoardModel({
+        ships: crowdShips(
+          [
+            {
+              playerId: SHIP_ID,
+              name: T.shipName,
+              color: SHIP_COLOR,
+              position: from,
+              facing,
+              escorts: [],
+              isActive: true,
+              isMe: true,
+              hitPoints: STARTING_HIT_POINTS,
+              maxHitPoints: STARTING_HIT_POINTS,
+              heat: 0,
+            },
+          ],
+          stations.map(stationPosition)
+        ),
+        stations: stationMarkers(stations),
+        route,
+        onPickDestination: pick,
+        colorOf: () => SHIP_COLOR,
+        nameOf: () => T.shipName,
+      }),
     // `pick` closes over these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [from, facing, route, stations, picking]
@@ -314,7 +301,7 @@ export function RoutePlannerTool() {
                         kind: 'station',
                         planetId: isPlanet(from.wellId) ? from.wellId : 'planet-alpha',
                       }
-                    : { kind: 'sector', at: station ? stationAt(station) : from }
+                    : { kind: 'sector', at: station ? stationPosition(station) : from }
                 )
               }
             />

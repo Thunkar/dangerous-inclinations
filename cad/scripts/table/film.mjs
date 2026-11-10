@@ -33,10 +33,13 @@ import { extname, join, normalize, resolve } from 'node:path'
 import { chromium } from 'playwright'
 import { Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three'
 import {
+  BURN_COSTS,
   COMPRESSED_JUMP_MASS,
+  DEFAULT_DISSIPATION_CAPACITY,
   GRAVITY_WELLS,
   INTERCEPT_HEAT,
   INTERCEPT_ROLL,
+  SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
   getMissileStats,
   runGame,
@@ -407,6 +410,16 @@ vg.coast.moves = [
   { match: `base:${HERO}`, t0: 30.4, t1: 30.4, kind: 'swap' },
   { match: `module:${HERO}:side-3`, t0: 30.5, t1: 32.0, kind: 'lift', height: 70 },
 ]
+// The coast's heat check, as its captions and ledger read it: the hero's
+// cubes by subsystem once its actions are done, and the check's own numbers.
+const coastCheck = ev('coast', 'heat_check')
+const coastAfter = JSON.parse(readFileSync(join(STATES, 'coast-after.json'), 'utf8'))
+const coastLoadout = coastAfter.players[HERO].ship.subsystems
+const coastCubes = type =>
+  coastLoadout.filter(s => s.type === type).reduce((n, s) => n + s.energy, 0)
+const coastRadiators =
+  coastLoadout.filter(s => s.type === 'radiator' && !s.broken).length *
+  (SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0)
 // Fire vignette: burn 0-10, fire 10-21, critical 21-28, racks 28-35.
 const fired = vg.fire.turn.events.filter(e => e.type === 'attack_resolved')
 const VICTIM = seatOf('fire', fired[0].targetId)
@@ -594,7 +607,12 @@ const FILM = [
         t0: 2.4,
         t1: 5.3,
       },
-      { text: 'burnOut', vars: { ring: burned.to.ring }, t0: 5.3, t1: 7.0 },
+      {
+        text: 'burnOut',
+        vars: { ring: burned.to.ring, fuel: BURN_COSTS[burned.intensity].mass },
+        t0: 5.3,
+        t1: 7.0,
+      },
       {
         text: 'phase',
         vars: {
@@ -702,7 +720,18 @@ const FILM = [
     dur: 4.5,
     topic: 'heat',
     cam: drift([base.x + 10, base.y, 25], -20, -14, 46, 380, 365, 4.5, { focus: true }),
-    captions: [{ text: 'cubes', t0: 0.4 }],
+    captions: [
+      {
+        text: 'cubes',
+        vars: {
+          shields: coastCubes('shields'),
+          rack: coastCubes('ballistic_rack'),
+          scoop: coastCubes('scoop'),
+          cubes: coastCheck.cubes,
+        },
+        t0: 0.4,
+      },
+    ],
   },
   { slide: 'heatCheck', dur: 11 },
   {
@@ -712,19 +741,19 @@ const FILM = [
     topic: 'heatCheck',
     cam: drift([base.x + 10, base.y, 25], -14, -8, 46, 365, 350, 5.5, { focus: true }),
     captions: [
-      { text: 'check', t0: 0.3, t1: 2.9 },
+      { text: 'check', vars: { heat: coastCheck.heat }, t0: 0.3, t1: 2.9 },
       { text: 'radiator', t0: 2.9 },
     ],
     ledger: {
       t0: 0.3,
       t1: 2.4,
       rows: [
-        { value: '7', text: 'cubes' },
-        { value: '0', text: 'carried' },
-        { value: '7', text: 'atCheck', rule: true },
-        { value: '−5', text: 'dissipate' },
-        { value: '−2', text: 'radiator' },
-        { value: '0', text: 'next', tone: 'ink' },
+        { value: String(coastCheck.cubes), text: 'cubes' },
+        { value: String(coastCheck.heat - coastCheck.cubes), text: 'carried' },
+        { value: String(coastCheck.heat), text: 'atCheck', rule: true },
+        { value: `−${DEFAULT_DISSIPATION_CAPACITY}`, text: 'dissipate' },
+        { value: `−${coastRadiators}`, text: 'radiator' },
+        { value: String(coastCheck.carried), text: 'next', tone: 'ink' },
       ],
     },
     rings: [{ at: `module:${HERO}:side-3`, t0: 3.1, r: 40 }],

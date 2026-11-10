@@ -18,6 +18,7 @@ import RemoveIcon from '@mui/icons-material/Remove'
 import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong'
 import type { Position } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../design/tokens'
+import { BOARD_TEXT } from '../../../text/board'
 import type { BoardModel } from '../model'
 import { useBoardClock } from '../useBoardClock'
 import { BOARD_BOUNDS, BOARD_VIEWBOX, HOME_VIEW_RADIUS } from '../geometry'
@@ -200,13 +201,19 @@ export function GameBoardSvg({ model }: { model: BoardModel }) {
           gap: 0.5,
         }}
       >
-        <BoardButton title="Zoom in" onClick={() => setZoom(z => Math.min(MAX_ZOOM, z * 1.2))}>
+        <BoardButton
+          title={BOARD_TEXT.controls.zoomIn}
+          onClick={() => setZoom(z => Math.min(MAX_ZOOM, z * 1.2))}
+        >
           <AddIcon fontSize="small" />
         </BoardButton>
-        <BoardButton title="Zoom out" onClick={() => setZoom(z => Math.max(MIN_ZOOM, z / 1.2))}>
+        <BoardButton
+          title={BOARD_TEXT.controls.zoomOut}
+          onClick={() => setZoom(z => Math.max(MIN_ZOOM, z / 1.2))}
+        >
           <RemoveIcon fontSize="small" />
         </BoardButton>
-        <BoardButton title="Recentre the board" onClick={resetView}>
+        <BoardButton title={BOARD_TEXT.controls.recentre} onClick={resetView}>
           <CenterFocusStrongIcon fontSize="small" />
         </BoardButton>
       </Box>

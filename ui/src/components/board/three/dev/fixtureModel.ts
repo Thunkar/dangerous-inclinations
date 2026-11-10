@@ -19,17 +19,17 @@ import {
   BOT_PRESET_LOADOUTS,
   DEFAULT_SHIP_APPEARANCE,
   HULLS,
-  samePosition,
   viewFor,
 } from '@dangerous-inclinations/engine'
 import {
+  crowdShips,
+  crowdWrecks,
+  quietBoardModel,
   stationMarkers,
   type BoardModel,
   type HomeMarker,
   type ShipToken,
-  type WreckToken,
 } from '../../model'
-import { crowdOffset, radialPoint } from '../../geometry'
 import { weaponReach } from '../../reach'
 import {
   EFFECT_COLORS,
@@ -235,17 +235,12 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     },
   ]
 
-  // The same numbering the board model does, so the harness crowds as a real
-  // table does.
-  const ships: ShipToken[] = tokens.map(token => {
-    const sharing = tokens.filter(other => samePosition(other.position, token.position))
-    return {
-      ...token,
-      escorts: escortsOn(token.playerId),
-      crowd: { index: sharing.indexOf(token), count: sharing.length },
-      berth: samePosition(token.position, ALPHA_BERTH) ? sharing.indexOf(token) : null,
-    }
-  })
+  const stations = createInitialStations()
+  // The board model's own numbering, so the harness crowds as a real table does.
+  const ships = crowdShips(
+    tokens.map(token => ({ ...token, escorts: escortsOn(token.playerId) })),
+    stations.map(stationPosition)
+  )
 
   // Three wrecks under Aurora and Lumen, which must part from each other and
   // stand clear of both hulls, and one alone on a quiet sector.
@@ -255,17 +250,7 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     { id: 'wreck-3', position: SEATS[0].position },
     { id: 'wreck-4', position: { wellId: 'blackhole', ring: 3, sector: 2 } },
   ]
-  const wrecks: WreckToken[] = wreckSites.map(wreck => {
-    const sharing = wreckSites.filter(other => samePosition(other.position, wreck.position))
-    return {
-      ...wreck,
-      crowd: {
-        index: sharing.indexOf(wreck),
-        count: sharing.length,
-        ships: ships.filter(ship => samePosition(ship.position, wreck.position)).length,
-      },
-    }
-  })
+  const wrecks = crowdWrecks(wreckSites, ships)
 
   const homes: HomeMarker[] = SEATS.map(seat => ({
     playerId: seat.playerId,
@@ -274,35 +259,17 @@ export function createFixtureModel(now = performance.now()): BoardModel {
     position: seat.home,
   }))
 
-  const stations = stationMarkers(createInitialStations())
-
-  return {
+  return quietBoardModel({
     ships,
     wrecks,
     homes,
-    stations,
-    missiles: [],
-    missilePreviews: [],
-    plannedPoints: [],
-    route: null,
-    rangeCells: [],
+    stations: stationMarkers(stations),
     selectableIds: ['p3'],
     activeLaneIds: ['alpha-b'],
-    onPickDestination: null,
     onPickTarget: playerId => console.log('[fixture] picked target', playerId),
-    deployment: null,
-    animating: false,
-    effects: [],
-    ping: null,
-    shot: null,
-    planColor: TABLE.ink,
     colorOf,
     nameOf,
-    pointOf: playerId => {
-      const token = ships.find(ship => ship.playerId === playerId)
-      return token ? radialPoint(token.position, crowdOffset(token.crowd)) : null
-    },
-  }
+  })
 }
 
 /** How long one round of {@link fixtureShots} takes, in ms; the harness fires it again on this beat. */
