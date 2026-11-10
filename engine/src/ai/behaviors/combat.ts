@@ -452,7 +452,7 @@ export function chooseDisruptTarget(
   return chooseCriticalTarget(target, intent)
 }
 
-interface FiringContext {
+export interface FiringContext {
   /** Position and facing when pre-movement shots execute. */
   pre: FirePosition
   /** Position and facing when post-movement shots execute. */

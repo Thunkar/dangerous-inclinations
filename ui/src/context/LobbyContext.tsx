@@ -12,7 +12,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react'
-import type { ServerLobby, LobbySocketMessage } from '../api/types'
+import type { LobbySocketMessage, PublicLobby } from '@dangerous-inclinations/engine'
 import {
   getLobby,
   leaveLobby,
@@ -29,7 +29,7 @@ export type LobbyPhase = 'browser' | 'lobby' | 'game'
 
 interface LobbyContextType {
   phase: LobbyPhase
-  lobbyState: ServerLobby | null
+  lobbyState: PublicLobby | null
   /** Set once the lobby's game has started. */
   gameId: string | null
   isRestoringSession: boolean
@@ -64,7 +64,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
   const { client, connect, disconnect } = useWebSocket()
   const [phase, setPhase] = useState<LobbyPhase>('browser')
   const [currentLobbyId, setCurrentLobbyId] = useState<string | null>(null)
-  const [lobbyState, setLobbyState] = useState<ServerLobby | null>(null)
+  const [lobbyState, setLobbyState] = useState<PublicLobby | null>(null)
   const [gameId, setGameId] = useState<string | null>(null)
   const [isRestoringSession, setIsRestoringSession] = useState(true)
   const [error, setError] = useState<string | null>(null)

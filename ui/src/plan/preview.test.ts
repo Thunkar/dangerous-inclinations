@@ -8,7 +8,8 @@
  * a berth, out of fuel, broken tiles, quiet turns...) is run through both, and
  * the preview must call a plan illegal exactly when the engine refuses the
  * actions built from it. Only legal against illegal is compared, never the
- * wording.
+ * wording. The preview reads the engine's own walk (`walkTurn`), which is
+ * also held to the referee directly, on the bots' actions as sent.
  */
 import { describe, expect, it } from 'vitest'
 import type {
@@ -32,6 +33,7 @@ import {
   ringVelocity,
   runGame,
   viewFor,
+  walkTurn,
 } from '@dangerous-inclinations/engine'
 import {
   moveReadiness,
@@ -570,7 +572,7 @@ describe('the plan preview against the engine', () => {
           { id: id(), kind: 'move', move },
         ]
         const preview = previewPlan(view, me, steps, {})
-        const ready = moveReadiness(me, preview.loadout, preview.moveFrom, move)
+        const ready = moveReadiness(view, me, steps, {})
         const button = move.kind === 'burn' ? ready.burnReady[move.intensity] : ready.jumpReady
         const result = executeTurn(
           structuredClone(state),
@@ -584,6 +586,134 @@ describe('the plan preview against the engine', () => {
     expect(offered).toBeGreaterThan(0)
     expect(blocked).toBeGreaterThan(0)
   })
+})
+
+/**
+ * The engine's walk (`walkTurn`), which the preview and the agents' turn
+ * builder both read, held to the referee on the bots' own actions: nothing
+ * refused on any turn the engine took, and refusals exactly where the engine
+ * refuses on the same turns made illegal.
+ */
+describe("the engine's walk against the referee, action by action", () => {
+  /** The tactical actions numbered 1, 2, 3 in their order, the rest as they are. */
+  const resequence = (actions: PlayerAction[]): PlayerAction[] => {
+    let n = 0
+    return [...actions]
+      .sort((a, b) => (a.sequence ?? Infinity) - (b.sequence ?? Infinity))
+      .map(a => (a.sequence === undefined ? a : { ...a, sequence: ++n }))
+  }
+  const last = (actions: PlayerAction[]) => Math.max(0, ...actions.map(a => a.sequence ?? 0))
+
+  type Variant = { state: GameState; actions: PlayerAction[] }
+  const ACTION_MUTATIONS: Record<string, (turn: Turn) => Variant[]> = {
+    'an empty tank': ({ state, actions }) => [
+      { state: withShip(state, active(state), { reactionMass: 0 }), actions },
+    ],
+    'the other facing': ({ state, actions }) => {
+      const ship = state.players[state.activePlayerIndex].ship
+      const facing = ship.facing === 'prograde' ? 'retrograde' : 'prograde'
+      return [{ state: withShip(state, active(state), { facing }), actions }]
+    },
+    'the engines twice': ({ state, actions }) => {
+      const me = state.players[state.activePlayerIndex]
+      const move = actions.find(a => a.type === 'burn' || a.type === 'well_transfer')
+      const railgun = me.ship.subsystems.find(s => s.type === 'railgun')
+      const rival = state.players.find(p => p.id !== me.id)
+      if (!move || !railgun || !rival) return []
+      const shot: PlayerAction = {
+        playerId: me.id,
+        type: 'fire_weapon',
+        sequence: last(actions) + 1,
+        data: {
+          subsystemId: railgun.id,
+          targetPlayerId: rival.id,
+          criticalTarget: 'engines',
+          compensateRecoil: true,
+        },
+      }
+      return [
+        {
+          state,
+          actions: resequence([
+            ...actions.filter(a => a.type !== 'fire_weapon' || a.data.subsystemId !== railgun.id),
+            shot,
+          ]),
+        },
+      ]
+    },
+    'every weapon at every rival': ({ state, actions }) => {
+      const me = state.players[state.activePlayerIndex]
+      return (
+        me.ship.subsystems
+          // Every boxed gun: a missile reaches anyone in its well.
+          .filter(s => ['railgun', 'laser', 'ballistic_rack', 'plasma_cannon'].includes(s.type))
+          .flatMap(weapon =>
+            state.players
+              .filter(p => p.id !== me.id)
+              .map(rival => ({
+                state,
+                actions: resequence([
+                  ...actions.filter(
+                    a => a.type !== 'fire_weapon' || a.data.subsystemId !== weapon.id
+                  ),
+                  {
+                    playerId: me.id,
+                    type: 'fire_weapon',
+                    sequence: last(actions) + 1,
+                    data: {
+                      subsystemId: weapon.id,
+                      targetPlayerId: rival.id,
+                      criticalTarget: 'engines',
+                    },
+                  } as PlayerAction,
+                ]),
+              }))
+          )
+      )
+    },
+  }
+
+  it('refuses nothing the engine took', () => {
+    const refused = TURNS.flatMap(({ state, actions }) => {
+      const id = active(state)
+      const walk = walkTurn(viewFor(state, id), actions)
+      return walk.refusals.length > 0
+        ? [{ turn: state.turn, player: id, refusals: walk.refusals.map(r => r.code) }]
+        : []
+    })
+    expect(refused).toEqual([])
+  })
+
+  it.each(Object.entries(ACTION_MUTATIONS))(
+    'refuses exactly when the engine does: %s',
+    (_name, mutate) => {
+      let judged = 0
+      let refused = 0
+      const disagreements: unknown[] = []
+      TURNS.forEach((turn, index) => {
+        if (index % 3 !== 0 && turn.state.turn !== 1) return
+        for (const { state, actions } of mutate(turn)) {
+          const result = executeTurn(structuredClone(state), actions)
+          // A step at a ship an earlier shot destroyed is skipped: the dice's, not the walk's.
+          if (result.events.some(e => e.type === 'action_skipped')) continue
+          const walk = walkTurn(viewFor(state, active(state)), actions)
+          const errors = result.errors ?? []
+          judged++
+          if (errors.length > 0) refused++
+          if (walk.refusals.length > 0 !== errors.length > 0)
+            disagreements.push({
+              turn: turn.state.turn,
+              refusals: walk.refusals.map(r => r.code),
+              errors,
+              actions: actions.map(a => `${a.type} ${JSON.stringify(a.data)}`),
+            })
+        }
+      })
+      expect(disagreements).toEqual([])
+      expect(judged).toBeGreaterThan(0)
+      expect(refused).toBeGreaterThan(0)
+    }
+  )
 })
 
 /**

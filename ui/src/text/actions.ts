@@ -3,8 +3,8 @@
  * `components/table/actions/`), top to bottom: the panel's states, the
  * loadout, orientation, the move, the route planner, the systems, the
  * repair, the dock and the four "you may" steps, the sequence and the end of
- * the turn; then what the plan preview (`plan/preview.ts`) says when a move
- * is not ready or the engine would refuse the turn.
+ * the turn; then what the plan preview (`plan/preview.ts`) says of a step
+ * still missing a choice.
  *
  * Only strings live here. A `{name}` is a slot the caller fills with a
  * number or a name, so every number comes from the engine or the plan: the
@@ -21,8 +21,7 @@ export const ACTIONS = {
     outward: 'outward',
     inward: 'inward',
     rings: { one: '{rings} ring {direction}', many: '{rings} rings {direction}' },
-    /** A burn intensity inside a sentence, and as a label. */
-    intensity: { soft: 'soft', medium: 'medium', hard: 'hard' },
+    /** A burn intensity as a label. */
     intensityLabel: { soft: 'Soft', medium: 'Medium', hard: 'Hard' },
     /** An item a pirate takes, by kind. */
     item: { crate: 'crate', loot: 'loot', data: 'data' },
@@ -70,7 +69,6 @@ export const ACTIONS = {
 
   orientation: {
     tip: 'Flip facing: {energy} energy on the thrusters, {energy} heat at your check.',
-    blocked: 'No rotation: {reason}.',
     rotating: 'rotating',
     rotate: 'rotate',
     /** After the facing now, the facing the rotation leaves. */
@@ -84,10 +82,8 @@ export const ACTIONS = {
       'Moored: you hold this berth and ride the station when it advances. Burn to cast off.',
     burn: 'Burn',
     burnTip: 'Change ring with the engines. Prograde burns outward, retrograde inward.',
-    noBurn: 'No burn: {reason}.',
     jump: 'Jump',
     jumpTip: 'Take the transfer lane to {well}.',
-    noJump: 'No jump: {reason}.',
     moored:
       'The station carries you {drift} sectors at the end of the round, and holding the berth repairs nothing more: the dock happened on arrival.',
     drift: 'Drift',
@@ -96,7 +92,6 @@ export const ACTIONS = {
     scoopBroken: 'No scoop: it is broken.',
     scoopTip:
       "Recover fuel equal to this ring's velocity ({fuel}). Puts {energy} energy on the scoop. A berth is as good a place to skim from as any.",
-    noIntensity: 'No {intensity} burn: {reason}.',
     intensityTip: '{rings} · {energy} energy on the engines · {fuel} fuel',
     burnCost: '{rings} · {energy} energy · {fuel} fuel',
     phase: 'phase {value}',
@@ -330,83 +325,13 @@ export const ACTIONS = {
       'A shot before this one is at the same ship: if it destroys them, the marker stays in your hand. Move this step up to mark them first.',
   },
 
-  /** Why a move cannot be taken: a clause, so a tooltip can end a sentence with it. */
-  readiness: {
-    thrustersBroken: 'the thrusters are broken',
-    thrustersUsed: 'the thrusters have already turned the ship',
-    enginesBroken: 'the engines are broken',
-    offRings: 'there are not {rings} from ring {ring}: rotate to burn the other way',
-    enginesUsed: 'the engines have already burned this turn',
-    fuel: 'it costs {mass} fuel and {fuel} is aboard',
-    noLane: 'jumps leave only from a lane end, and this sector is not one',
-    cannotFace: 'a jump needs prograde facing and the ship cannot rotate',
-  },
-
-  /** What the engine would refuse, walked in the turn's order. */
+  /**
+   * A step still missing a choice. Everything the engine would refuse it says
+   * in its own words (`engine/src/text/refusals.ts`).
+   */
   issues: {
-    shortFuel: 'Not enough fuel for {what}: {amount} needed, {fuel} in the tank by then',
-    thrustersBroken: 'Maneuvering thrusters are broken: no rotation',
-    enginesNoBurn: 'Engines are broken: no burn',
-    phasing: 'Phasing must be between {min} and +{max} from this ring',
-    burnOffRings: 'A {intensity} burn {direction} from ring {ring} would leave the rings',
-    aBurn: 'a {intensity} burn',
-    noLane: 'No transfer lane from here to that destination',
-    jumpPhasing: 'Phasing a jump stays inside the arrival arc ({min} to +{max} from here)',
-    enginesNoJump: 'Engines are broken: no jump',
-    jumpFacing: 'A jump is a burn out of the well: face prograde (rotate first)',
-    aJump: 'a jump',
-    scoopBroken: 'Fuel scoop is broken',
-    openingNoFire: 'No weapon fires in the first round',
-    backNoFire: 'Back from Home: no weapon of yours fires this turn',
-    broken: '{slot} is broken',
-    noMissiles: '{slot}: no missiles left aboard',
-    tooManyMissiles: '{slot}: {count} missiles planned, {ammo} aboard',
-    emptySalvo: '{slot}: a salvo launches at least one missile',
-    mooredNoFire: 'A moored ship fires at nobody: burn off the berth first',
     pickTarget: '{slot}: pick a target',
-    untouchableTarget: '{name} cannot be targeted until its turn back is over',
-    mooredTarget: '{name} is moored: nobody fires at a ship at a berth',
-    outOfRange: '{slot}: target out of range from where you fire',
-    enginesNoRecoil: 'Engines are broken: nothing to cancel the recoil with',
-    recoilCompensation: 'recoil compensation',
-    recoilOffRings: 'Railgun recoil would push you off the rings: compensate or rotate first',
-    openingNoScan: 'Nobody scans in the first round',
-    backNoScan: 'Back from Home: you scan nobody this turn',
-    noSensor: 'No sensor array aboard',
     scanPick: 'Scan: pick a target on your ring, up to {range} sectors ahead',
-    mooredScan: '{name} is moored: nobody scans a ship at a berth',
-    scanRange:
-      'Scan: the target must be on your ring, up to {range} sectors ahead or in your sector. Rotate first to face it',
     scanPeek: 'Scan: choose which subsystem to look at',
-    seizeTwice: 'Seize: that item from {name} is named twice',
-    seizeNoCard: 'Seize: no Piracy card is free to take an item',
-    seizeCards: {
-      one: 'Seize: one Piracy card takes one item',
-      many: 'Seize: {count} Piracy cards take {count} items',
-    },
-    openingNoSeize: 'Nobody seizes in the first round',
-    backNoSeize: 'Back from Home: you seize nothing this turn',
-    untouchable: '{name} cannot be touched until its turn back is over',
-    mooredNoSeize: 'A moored ship seizes nothing: burn off the berth first',
-    seizeAway: 'Seize: {name} is not in your sector with that item at this point',
-    surveyTwice: 'One survey a turn',
-    surveyNoCard: 'Survey: no Survey card wants data',
-    surveyRing: 'Survey: you are not on Black Hole Ring {ring} at this point',
-    salvageTwice: 'One wreck a turn',
-    salvageNoCard: 'Salvage: no Salvage card wants a black box',
-    salvageNothing:
-      'Salvage: no wreck in your sector at this point, and no shot before it at a ship there',
-    wreckGone: 'Salvage: that wreck is not on the board',
-    wreckAway: 'Salvage: the wreck is not in your sector at this point',
-    markTwice: 'Mark: {name} is marked twice',
-    markNone: 'Mark: no Escort marker in hand',
-    markers: {
-      one: 'Mark: one Escort marker in hand',
-      many: 'Mark: {count} Escort markers in hand',
-    },
-    mooredNoMark: 'A moored ship marks nobody: burn off the berth first',
-    markEmpty: 'Mark: {name} carries nothing at this point',
-    markAway: 'Mark: {name} cannot take your marker from where you are at this point',
-    enginesTwice: 'Engines act once per turn: burn/jump or recoil compensation, not both',
   },
 } as const

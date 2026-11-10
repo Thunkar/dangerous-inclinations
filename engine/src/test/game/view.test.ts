@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { viewFor } from '../../game/view.ts'
+import { executeTurn } from '../../game/turns.ts'
+import { botDecideActions } from '../../ai/index.ts'
+import { runGame } from '../../sim/runGame.ts'
 import { canSeeEvent, filterEventsFor } from '../../models/events.ts'
 import type { GameEvent } from '../../models/events.ts'
 import { dealMissionOffers } from '../../game/missions/missionDeck.ts'
@@ -14,6 +17,7 @@ import {
   BETA,
   GAMMA,
   crateCargo,
+  deepFreeze,
   lootCargo,
   BH,
   makeTwoPlayerGame,
@@ -178,7 +182,7 @@ describe("view: the viewer's own side", () => {
   it('me is the full player record and my slots are all known', () => {
     const state = knownGame()
     const view = viewFor(state, 'p1')
-    expect(view.me).toBe(state.players[0])
+    expect(view.me).toEqual(state.players[0])
     expect(view.players[0].isMe).toBe(true)
     expect(view.players[0].slots.every(s => s.type !== null && s.knownVia === 'own')).toBe(true)
     expect(view.players[1].isMe).toBe(false)
@@ -223,8 +227,8 @@ describe("view: the viewer's own side", () => {
     })
     expect(view.players[0].isActive).toBe(true)
     expect(view.players[1].isActive).toBe(false)
-    expect(view.missiles).toBe(state.missiles)
-    expect(view.stations).toBe(state.stations)
+    expect(view.missiles).toEqual(state.missiles)
+    expect(view.stations).toEqual(state.stations)
     expect(view.players[0].home).toEqual(state.players[0].home)
   })
 })
@@ -318,5 +322,39 @@ describe("view: a rival's hold", () => {
     expect(text).not.toContain('survey-secret')
     expect(text).not.toContain('intercept-secret')
     expect(text).not.toContain('piracy-secret')
+  })
+})
+
+describe('view: shares nothing with the state', () => {
+  /** Every object and array reachable from `value`. */
+  function objectsIn(value: unknown, into = new Set<object>()): Set<object> {
+    if (value && typeof value === 'object' && !into.has(value)) {
+      into.add(value)
+      for (const child of Object.values(value)) objectsIn(child, into)
+    }
+    return into
+  }
+
+  // Bots decide in-process from a view: anything the view shares with the
+  // state is a door from the bots into the game.
+  it('no object reachable from a view is reachable from the state, for any seat', () => {
+    let state = withMissile(withPlayer(knownGame(), 'p1', { cargo: [crateCargo(ALPHA, BETA)] }))
+    state = { ...state, wrecks: [{ id: 'wreck-0', wellId: BH, ring: 3, sector: 5 }] }
+    state = withPlayer(state, 'p2', { missions: [{ ...destroyMission('p1'), isCompleted: true }] })
+    const inState = objectsIn(state)
+    for (const viewer of ['p1', 'p2', null]) {
+      const shared = [...objectsIn(viewFor(state, viewer))].filter(o => inState.has(o))
+      expect(shared, `viewer ${viewer}`).toEqual([])
+    }
+  })
+
+  it('the bots decide from a deep-frozen view what they decide from a live one', () => {
+    const game = runGame({ seed: 3, botCount: 4, record: true })
+    let state = game.recording!.initialState
+    for (const turn of game.recording!.turns) {
+      const frozen = botDecideActions(deepFreeze(viewFor(state, turn.playerId))).actions
+      expect(frozen, `turn ${turn.turnNumber}`).toEqual(turn.actions)
+      state = executeTurn(state, turn.actions).gameState
+    }
   })
 })

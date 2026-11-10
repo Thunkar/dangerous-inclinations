@@ -30,8 +30,15 @@ import {
   samePosition,
   ringVelocity,
   wrapSector,
+  CreateLobbySchema,
+  CreatePlayerSchema,
+  ForkSchema,
+  LoadoutSubmissionSchema,
+  PreviewSchema,
+  SubmitTurnSchema,
   type EscortMission,
   type GameEvent,
+  type GameSocketMessage,
   type MissionType,
   type ShipLoadout,
 } from '@dangerous-inclinations/engine'
@@ -64,12 +71,6 @@ import {
   type GameTransport,
 } from '../src/services/gameService.ts'
 import { checkPlayerAccess } from '../src/services/playerService.ts'
-import {
-  ForkSchema,
-  LoadoutSubmissionSchema,
-  PreviewSchema,
-  SubmitTurnSchema,
-} from '../src/schemas/game.ts'
 import { answerSubmission, connectedMessage } from '../src/websocket/submission.ts'
 // Board-building helpers for the canned position (they import no test runner).
 import {
@@ -81,8 +82,6 @@ import {
   withShip,
   withSub,
 } from '../../engine/src/test/testUtils.ts'
-import { CreatePlayerSchema } from '../src/schemas/player.ts'
-import { CreateLobbySchema } from '../src/schemas/lobby.ts'
 import {
   broadcastViews as roomBroadcastViews,
   getConnectedPlayers,
@@ -90,7 +89,6 @@ import {
   releaseConnection,
   unregisterConnection,
 } from '../src/websocket/rooms.ts'
-import type { ServerGameMessage } from '../src/protocol.ts'
 
 const HUMAN = 'human-ada'
 const BOT_A = 'bot-alpha'
@@ -138,7 +136,6 @@ const SECRET_KEYS = [
   'rngState',
   'rngSeed',
   'nextEntityId',
-  'forcedRollValue',
   'resultingStateSnapshot',
   'initialState',
 ]
@@ -161,7 +158,7 @@ let holdItemsSeen = 0
 let visibleOpponentSlots = 0
 let ownSlotsSeen = 0
 
-function inspectHumanMessage(message: ServerGameMessage, index: number): void {
+function inspectHumanMessage(message: GameSocketMessage, index: number): void {
   const where = `message ${index} (${message.type})`
 
   for (const { path, key } of walk(message)) {
@@ -256,7 +253,7 @@ function inspectHumanMessage(message: ServerGameMessage, index: number): void {
 // Harness
 // ---------------------------------------------------------------------------
 
-const toHuman: ServerGameMessage[] = []
+const toHuman: GameSocketMessage[] = []
 const messageCounts = new Map<string, number>()
 
 const transport: GameTransport = {
@@ -266,18 +263,18 @@ const transport: GameTransport = {
   },
 }
 
-function record(playerId: string, message: ServerGameMessage | null): void {
+function record(playerId: string, message: GameSocketMessage | null): void {
   if (!message) return
   messageCounts.set(message.type, (messageCounts.get(message.type) ?? 0) + 1)
   if (playerId !== HUMAN) return
   // Serialize exactly as the socket would, then inspect the result.
-  const onTheWire = JSON.parse(JSON.stringify(message)) as ServerGameMessage
+  const onTheWire = JSON.parse(JSON.stringify(message)) as GameSocketMessage
   toHuman.push(onTheWire)
   inspectHumanMessage(onTheWire, toHuman.length - 1)
 }
 
 /** A reply the socket sends only to the human (CONNECTED, TURN_ERROR): recorded and inspected the same way. */
-function recordReply(message: ServerGameMessage | null): ServerGameMessage | null {
+function recordReply(message: GameSocketMessage | null): GameSocketMessage | null {
   if (message) record(HUMAN, message)
   return message
 }
@@ -287,7 +284,7 @@ function submitRaw(
   service: typeof games,
   gameId: string,
   body: unknown
-): Promise<ServerGameMessage | null> {
+): Promise<GameSocketMessage | null> {
   const raw = typeof body === 'string' ? body : JSON.stringify(body)
   return answerSubmission(service, gameId, HUMAN, raw).then(recordReply)
 }

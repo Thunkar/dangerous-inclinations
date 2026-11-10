@@ -16,13 +16,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type {
-  Facing,
-  MovementPlan,
-  MovementStep,
-  Position,
-  Station,
-} from '@dangerous-inclinations/engine'
+import type { MovementPlan, MovementStep, Position, Station } from '@dangerous-inclinations/engine'
 import {
   getStationAt,
   hasWorkingCompressor,
@@ -88,16 +82,6 @@ export function moveOfRouteStep(step: MovementStep): MoveChoice {
     : step.actionType === 'well_transfer'
       ? { kind: 'jump', destinationWellId: step.to.wellId, adjustment: step.sectorAdjustment }
       : { kind: 'burn', intensity: step.burnIntensity ?? 'soft', adjustment: step.sectorAdjustment }
-}
-
-/** Prograde burns outward, retrograde inward: the step says which way, so it says the facing. */
-function facingOfRouteStep(step: MovementStep): Facing | null {
-  // A jump is a burn out of the well, so it needs prograde facing too.
-  return step.actionType === 'burn_prograde' || step.actionType === 'well_transfer'
-    ? 'prograde'
-    : step.actionType === 'burn_retrograde'
-      ? 'retrograde'
-      : null
 }
 
 export function RoutePlanProvider({ children }: { children: ReactNode }) {
@@ -189,7 +173,8 @@ export function RoutePlanProvider({ children }: { children: ReactNode }) {
 
   const applyRouteStep = useCallback(() => {
     const step = route?.steps[0]
-    if (step) applyMove(moveOfRouteStep(step), facingOfRouteStep(step))
+    // The planner says the facing the step is made in, carried from the ship's own.
+    if (step) applyMove(moveOfRouteStep(step), step.from.facing)
   }, [route, applyMove])
 
   const value = useMemo<RoutePlanContextValue>(

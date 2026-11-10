@@ -35,7 +35,7 @@ import {
   isPowered,
 } from '../models/subsystems.ts'
 import type { EventDraft } from '../models/events.ts'
-import { rollD10, nextEntityId } from '../utils/rng.ts'
+import { rollD10 } from '../utils/rng.ts'
 import {
   driftPosition,
   positionOf,
@@ -49,13 +49,13 @@ import { addHeat, isDestroyed, isOnBoard, updateSubsystem, useSubsystem } from '
 import { canBeTargeted } from './targeting.ts'
 
 export function createMissile(
-  state: GameState,
+  id: string,
   owner: Player,
   targetId: string,
   criticalTarget: SubsystemId
 ): Missile {
   return {
-    id: nextEntityId(state, `missile-${owner.id}`),
+    id,
     ownerId: owner.id,
     targetId,
     ...positionOf(owner.ship),
@@ -284,8 +284,8 @@ function flyMissile(state: GameState, missile: Missile): Flight {
     return { state, events, survivor: null }
   }
 
-  // Rolls advance the copy's RNG, never the caller's state.
-  const next: GameState = { ...state }
+  // Each roll hands back a new state with the RNG advanced.
+  let next = state
   const targetPos = positionOf(target.ship)
 
   // A ship that just came back cannot be touched until its returning turn
@@ -348,7 +348,8 @@ function flyMissile(state: GameState, missile: Missile): Flight {
     targetShip = updateSubsystem(targetShip, rack.id, r => ({
       spentThisTurn: r.spentThisTurn + 1,
     }))
-    const roll = rollD10(next)
+    const [roll, rolled] = rollD10(next)
+    next = rolled
     const destroyed = roll >= INTERCEPT_ROLL
     events.push({
       type: 'missile_intercepted',
@@ -368,7 +369,8 @@ function flyMissile(state: GameState, missile: Missile): Flight {
   }
 
   const owner = players.find(p => p.id === ownerId)!
-  const roll = rollD10(next)
+  const [roll, rolled] = rollD10(next)
+  next = rolled
   const outcome = resolveAttack(
     targetShip,
     target.id,

@@ -278,7 +278,7 @@ describe('order: an uncompensated railgun moves the ship on the spot', () => {
 })
 
 describe('order: a missile reads the sensor when it is launched', () => {
-  // forcedRollValue is 8: a hit, or a critical once a sensor has energy on it.
+  // The die is pinned to 8: a hit, or a critical once a sensor has energy on it.
   it.each<[string, Draft[], 'hit' | 'critical']>([
     // A missile flies and attacks the moment it is launched (RULES §Weapons,
     // Missiles), so a scan sequenced after the launch comes too late for it.

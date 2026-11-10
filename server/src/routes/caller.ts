@@ -1,6 +1,6 @@
 import type { FastifyReply } from 'fastify'
 import { getPlayer } from '../services/playerService.ts'
-import type { PlayerAuth } from '../schemas/player.ts'
+import type { PlayerRecord } from '@dangerous-inclinations/engine'
 
 /**
  * Resolve the caller from its `x-player-id` header, replying 401 when the
@@ -9,7 +9,7 @@ import type { PlayerAuth } from '../schemas/player.ts'
 export async function requirePlayer(
   playerId: string | undefined,
   reply: FastifyReply
-): Promise<PlayerAuth | null> {
+): Promise<PlayerRecord | null> {
   if (!playerId) {
     await reply.code(401).send({ error: 'Player ID required' })
     return null

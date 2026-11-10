@@ -23,6 +23,7 @@ import {
   withSub,
   eventsOf,
   LOADOUTS,
+  rolling,
 } from '../testUtils.ts'
 
 /** Four shield tiles: the hull for lighting more than a ship can cool. */
@@ -141,7 +142,7 @@ describe("energy: it stays on the tile until its owner's next turn", () => {
     (_label, actions, dumped) => {
       const afterP1 = mustExecute(makeTwoPlayerGame({ sector: 0 }, { sector: 2 }), ...actions)
       const heatBefore = getShip(afterP1, 'p1').heat.currentHeat
-      const armed = { ...p2MissileOnP1(afterP1, 'forward-0'), forcedRollValue: 10 }
+      const armed = { ...p2MissileOnP1(afterP1, 'forward-0'), ...rolling(10) }
       const onP2 = executeTurnAs(armed, coast(1))
       expect(onP2.errors ?? []).toEqual([])
       const [broken] = eventsOf(onP2.events, 'subsystem_broken')
@@ -279,7 +280,7 @@ describe('energy: a sensor widens the shots after it', () => {
     ['not powered this turn', 'hit', [fire(1, 'side-0', 'p2'), coast(2)]],
   ] as const)('an 8 on a shot with the sensor %s is a %s', (_label, expected, actions) => {
     // Last turn's sensor is cleared when the turn starts: it does not count.
-    const state = { ...withPower(rackAndTarget(), 'p1', 'forward-0', 2), forcedRollValue: 8 }
+    const state = { ...withPower(rackAndTarget(), 'p1', 'forward-0', 2), ...rolling(8) }
     const result = executeTurnAs(state, ...actions)
     expect(result.errors ?? []).toEqual([])
     const [attack] = eventsOf(result.events, 'attack_resolved')

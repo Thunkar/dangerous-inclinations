@@ -13,6 +13,7 @@
  * and global messages, which carry no game state.
  */
 import type { WebSocket } from '@fastify/websocket'
+import type { GlobalSocketMessage, LobbySocketMessage } from '@dangerous-inclinations/engine'
 
 export type Room = 'global' | 'lobby' | 'game'
 
@@ -154,7 +155,11 @@ export function broadcastViews(
 }
 
 /** Same message to everyone. Lobby and global rooms only: never carries game state. */
-export function broadcastToRoom(room: 'global' | 'lobby', message: unknown, roomId?: string): void {
+export function broadcastToRoom(
+  room: 'global' | 'lobby',
+  message: GlobalSocketMessage | LobbySocketMessage,
+  roomId?: string
+): void {
   const byPlayer = rooms.get(roomKey(room, roomId))
   if (!byPlayer) return
   for (const connections of byPlayer.values()) {

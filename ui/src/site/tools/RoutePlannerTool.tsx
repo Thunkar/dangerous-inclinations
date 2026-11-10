@@ -246,7 +246,7 @@ export function RoutePlannerTool() {
     [from, facing, route, stations, picking]
   )
 
-  const legs = route ? routeLegs(route.steps, facing) : []
+  const legs = route ? routeLegs(route.steps) : []
   const where =
     destination.kind === 'station' && station
       ? fill(T.station, { planet: getWellName(station.planetId) })

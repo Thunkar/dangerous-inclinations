@@ -26,14 +26,39 @@ export type MovementActionType = 'coast' | 'burn_prograde' | 'burn_retrograde' |
  * A single step in a movement plan.
  */
 export interface MovementStep {
+  /** Where the step starts, facing the way its move is made (see {@link orientSteps}). */
   from: OrientedPosition
   to: OrbitalPosition
   actionType: MovementActionType
   burnIntensity?: BurnIntensity
   sectorAdjustment: number
+  /** The ship turns before this step: the facing it is made in is not the one it had. */
   requiresRotation: boolean
   /** Mass spent on this step. Negative means mass recovered by the scoop. */
   massCost: number
+}
+
+/**
+ * The facing each step of a route is made in, carried from the ship's own:
+ * a burn faces its way (prograde outward, retrograde inward), a jump faces
+ * prograde (it is a burn out of the well), and a coast keeps the facing. A
+ * step whose facing is not the one the step before left needs the turn's
+ * rotation first. The searches cost no rotation and seed either facing, so
+ * the facings they carry are theirs; this sets the ship's, in place.
+ */
+export function orientSteps(steps: MovementStep[], facing: Facing): void {
+  let current = facing
+  for (const step of steps) {
+    const made: Facing =
+      step.actionType === 'burn_prograde' || step.actionType === 'well_transfer'
+        ? 'prograde'
+        : step.actionType === 'burn_retrograde'
+          ? 'retrograde'
+          : current
+    step.from = { ...step.from, facing: made }
+    step.requiresRotation = made !== current
+    current = made
+  }
 }
 
 /**

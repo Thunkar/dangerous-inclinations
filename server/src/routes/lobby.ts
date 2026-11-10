@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { CreateLobbySchema, JoinLobbySchema } from '../schemas/lobby.ts'
+import { CreateLobbySchema, JoinLobbySchema } from '@dangerous-inclinations/engine'
 import {
   createLobby,
   getLobby,

@@ -6,38 +6,22 @@
  * turn, and the order a turn is played in. The loadout is cleared at the start
  * of every turn, so a subsystem not named in `power` (and not used) is off.
  */
-import type {
-  BurnIntensity,
-  Facing,
-  GravityWellId,
-  Player,
-  PlayerAction,
-  Position,
-} from '../models/game.ts'
-import { isQuietTurn } from '../models/game.ts'
+import type { BurnIntensity, Facing, GravityWellId, Player, PlayerAction } from '../models/game.ts'
 import type { SubsystemId } from '../models/subsystems.ts'
-import { LOAD_CRATES, SCAN_SECTOR_RANGE, SELL_FUEL, SELL_NOTHING } from '../models/missions.ts'
+import { LOAD_CRATES, SELL_FUEL, SELL_NOTHING } from '../models/missions.ts'
 import { getSubsystemConfig, isPowerableType } from '../models/subsystems.ts'
-import { BURN_COSTS, calculateBurnMassCost, calculateJumpMassCost } from '../models/rings.ts'
 import type { GameView } from '../game/view.ts'
 import { powerActions, type EnergyTargets } from '../game/power.ts'
-import { canBeTargeted, isTouchable, canFireFrom, isInWeaponRange } from '../game/targeting.ts'
+import { isInWeaponRange } from '../game/targeting.ts'
 import { inScanRange } from '../game/scan.ts'
-import { hasWorkingCompressor } from '../game/ship.ts'
-import {
-  projectPosition,
-  recoilRing,
-  ringAfter,
-  scoopYield,
-  type MovementPreview,
-} from '../game/movement.ts'
-import { driftPosition, positionOf, samePosition, wrapSector } from '../game/geometry.ts'
-import { isMooredAt, isMooredMidTurn } from '../game/stations.ts'
+import { projectPosition, type MovementPreview } from '../game/movement.ts'
+import { positionOf, samePosition } from '../game/geometry.ts'
+import { isMooredMidTurn } from '../game/stations.ts'
 import { escortCandidates, unplacedEscorts } from '../game/escort.ts'
-import { freePiracyCards } from '../game/piracy.ts'
-import { onSurveyRing, surveyToTake } from '../game/survey.ts'
-import { salvageToTake } from '../game/salvage.ts'
-import { findJump, getJumpOptions, phasedJumpDestination } from '../models/gravityWells.ts'
+import { onSurveyRing } from '../game/survey.ts'
+import { getJumpOptions, phasedJumpDestination } from '../models/gravityWells.ts'
+import { walkTurn } from '../game/walk.ts'
+import { refusalText } from '../game/refusals.ts'
 
 export interface FireIntent {
   weapon: SubsystemId
@@ -463,7 +447,6 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
   if (!scanBefore) actions.push(...scanAction())
   for (const f of shots.filter(s => s.when !== 'before')) actions.push(fireAction(f))
   actions.push(...salvageActions('last'))
-  notes.push(...foreseenRefusals(view, me, actions))
   if (intent.repair !== undefined) {
     const sub = ship.subsystems.find(s => s.id === intent.repair)
     if (!sub) notes.push(`no subsystem ${intent.repair}; repair dropped`)
@@ -483,224 +466,28 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
       )
     else actions.push({ type: 'dock_sale', playerId: me.id, data: { sale } })
   }
+  notes.push(...foreseenRefusals(view, actions))
   return { actions, notes }
 }
 
 /**
- * What the engine will refuse in the turn as built, walked in its order from
- * where the ship stands, the way the engine plays it: a rotation turns the
- * ship for everything after it, a shot or a scan is taken from where the ship
- * is when it comes up, an uncompensated railgun moves the ship a ring on the
- * spot, and the engines go once, for the move or for a compensation. The
- * builder places the actions but does not change what was asked (no
- * autopilot): this is the reason, in advance, for a refusal the agent would
- * otherwise only meet in the preview. Three notes are not refusals: a
- * seizure or an Escort marker after a shot at the same ship, which finds
- * nothing if the shot kills, and a salvage naming no wreck, which finds one
- * only if a shot before it destroys a ship in its sector.
+ * What the engine will refuse in the turn as built, and what it takes but
+ * may come to nothing, from the engine's own walk of it (`walkTurn`): a
+ * rotation turns the ship for everything after it, a shot or a scan is taken
+ * from where the ship is when it comes up, an uncompensated railgun moves the
+ * ship a ring on the spot, and the engines go once. The builder places the
+ * actions but does not change what was asked (no autopilot): this is the
+ * reason, in advance, for a refusal the agent would otherwise only meet in
+ * the preview. Three notes are not refusals: a seizure or an Escort marker
+ * after a shot at the same ship, which finds nothing if the shot kills, and
+ * a salvage naming no wreck, which finds one only if a shot before it
+ * destroys a ship in its sector.
  */
-function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): string[] {
-  const notes: string[] = []
-  const ship = me.ship
-  const tile = (id: SubsystemId) => ship.subsystems.find(s => s.id === id)
-  const seat = (id: string) => view.players.find(p => p.id === id)
-  const quiet = isQuietTurn(view.turn, me)
-  const start: Position = positionOf(ship)
-  let position: Position = start
-  let facing = ship.facing
-  let fuel = ship.reactionMass
-  let engines: string | null = null
-  let moved = false
-  // Piracy cards still free, and the ships shot at so far: a seizure after a
-  // shot at the same ship finds nothing if the shot destroyed it.
-  let cards = freePiracyCards(me.missions, me.cargo).length
-  const shotAt = new Set<string>()
-  // Escort markers still in hand and the ships marked so far; one survey and
-  // one wreck a turn.
-  let markers = unplacedEscorts(me.missions).length
-  const marked = new Set<string>()
-  let surveys = 0
-  let salvages = 0
-  const where = () => (moved ? 'after the move' : 'before the move')
-  const useEngines = (what: string) => {
-    const sub = tile('engines')
-    if (!sub || sub.isBroken) notes.push(`the engines are broken: no ${what}`)
-    else if (engines !== null)
-      notes.push(`the engines act once a turn: ${engines} and ${what} cannot share it`)
-    engines ??= what
-  }
-  const spend = (mass: number, what: string) => {
-    if (mass > fuel) notes.push(`${what} needs ${mass} fuel and ${fuel} is in the tank by then`)
-    fuel = Math.max(0, fuel - mass)
-  }
-
-  const tactical = actions
-    .filter(a => a.sequence !== undefined)
-    .sort((a, b) => a.sequence! - b.sequence!)
-  for (const a of tactical) {
-    switch (a.type) {
-      case 'rotate':
-        if (tile('rotation')?.isBroken) notes.push('the thrusters are broken: no rotation')
-        facing = a.data.targetFacing
-        break
-      case 'coast': {
-        moved = true
-        // A berth held since the turn began holds; one the turn put the ship on drifts.
-        if (!isMooredMidTurn(view.stations, start, position)) position = driftPosition(position)
-        if (a.data.activateScoop) {
-          if (tile('scoop')?.isBroken) notes.push('the fuel scoop is broken: no scooping')
-          else fuel += scoopYield(position, fuel)
-        }
-        break
-      }
-      case 'burn': {
-        moved = true
-        const what = `a ${a.data.burnIntensity} burn`
-        const cost = BURN_COSTS[a.data.burnIntensity]
-        useEngines(what)
-        spend(calculateBurnMassCost(cost.mass, a.data.sectorAdjustment), what)
-        const drifted = driftPosition(position)
-        const ring = ringAfter({ ...drifted, facing }, cost.rings)
-        if (ring === null)
-          notes.push(
-            `${what} ${facing === 'prograde' ? 'outward' : 'inward'} from ring ${drifted.ring} would leave the rings`
-          )
-        position = {
-          ...drifted,
-          ring: ring ?? drifted.ring,
-          sector: wrapSector(drifted.sector + a.data.sectorAdjustment),
-        }
-        break
-      }
-      case 'well_transfer': {
-        moved = true
-        useEngines('a jump')
-        if (facing !== 'prograde') notes.push('a jump needs prograde facing when it is made')
-        const lane = findJump(position, a.data.destinationWellId)
-        const landing = lane && phasedJumpDestination(lane, a.data.sectorAdjustment)
-        if (!lane) notes.push(`no lane to ${a.data.destinationWellId} from where the jump is made`)
-        else if (!landing) notes.push("the jump's phasing lands outside the arrival arc")
-        spend(
-          calculateJumpMassCost(a.data.sectorAdjustment, hasWorkingCompressor(ship)),
-          'the jump'
-        )
-        if (landing) position = landing
-        break
-      }
-      case 'fire_weapon': {
-        const weapon = tile(a.data.subsystemId)
-        if (!weapon) break
-        shotAt.add(a.data.targetPlayerId)
-        const target = seat(a.data.targetPlayerId)
-        const shot = `${weapon.id}'s shot at ${a.data.targetPlayerId}`
-        if (quiet) notes.push(`${shot}: no weapon fires on a first round`)
-        else if (weapon.isBroken) notes.push(`${shot}: ${weapon.id} is broken`)
-        else if (!canFireFrom(start, position, view.stations))
-          notes.push(`${shot}: a moored ship fires at nobody; burn off the berth first`)
-        else if (!target?.ship || !canBeTargeted(target, view.stations))
-          notes.push(`${shot}: that ship cannot be fired at now`)
-        else if (!isInWeaponRange(weapon, { ...position, facing }, positionOf(target.ship)))
-          notes.push(`${shot}: out of range from where it fires (${where()}, facing ${facing})`)
-        if (getSubsystemConfig(weapon.type).weaponStats?.hasRecoil) {
-          if (a.data.compensateRecoil) {
-            useEngines(`compensating ${weapon.id}'s recoil`)
-            spend(BURN_COSTS.soft.mass, `compensating ${weapon.id}'s recoil`)
-          } else {
-            const ring = recoilRing({ ...position, facing })
-            if (ring === null) notes.push(`${shot}: its recoil would push the ship off the rings`)
-            else position = { ...position, ring }
-          }
-        }
-        break
-      }
-      case 'seize': {
-        const what = `the seizure of ${a.data.cargoId} from ${a.data.victimId}`
-        const victim = seat(a.data.victimId)
-        if (quiet) notes.push(`${what}: nobody seizes on a first round`)
-        else if (cards <= 0) notes.push(`${what}: no Piracy card free to take it by then`)
-        else if (!victim?.ship || !isTouchable(victim))
-          notes.push(`${what}: that ship cannot be touched now`)
-        else if (isMooredMidTurn(view.stations, start, position))
-          notes.push(`${what}: a moored ship seizes nothing; burn off the berth first`)
-        else if (!samePosition(positionOf(victim.ship), position))
-          notes.push(`${what}: not in its sector ${where()}`)
-        else if (isMooredAt(view.stations, positionOf(victim.ship)))
-          notes.push(`${what}: that ship is moored`)
-        else if (!victim.hold.some(i => i.cargoId === a.data.cargoId))
-          notes.push(`${what}: it carries no such item`)
-        else if (shotAt.has(a.data.victimId))
-          notes.push(`${what}: if a shot before it destroys that ship, it finds nothing`)
-        cards--
-        break
-      }
-      case 'escort_mark': {
-        const what = `the Escort marker on ${a.data.carrierId}`
-        const carrier = seat(a.data.carrierId)
-        if (markers <= 0) notes.push(`${what}: no Escort marker in hand by then`)
-        else if (!carrier?.ship || carrier.ship.isDestroyed || !isTouchable(carrier))
-          notes.push(`${what}: that ship cannot be touched now`)
-        else if (isMooredMidTurn(view.stations, start, position))
-          notes.push(`${what}: a moored ship marks nobody; burn off the berth first`)
-        else if (marked.has(a.data.carrierId) || carrier.escortedBy.length > 0)
-          notes.push(`${what}: that ship already carries an Escort marker`)
-        else if (carrier.ship.wellId !== position.wellId || carrier.ship.ring !== position.ring)
-          notes.push(`${what}: not on your ring ${where()}`)
-        else if (isMooredAt(view.stations, positionOf(carrier.ship)))
-          notes.push(`${what}: that ship is moored`)
-        else if (carrier.hold.length === 0) notes.push(`${what}: that ship carries nothing`)
-        else if (shotAt.has(a.data.carrierId))
-          notes.push(`${what}: if a shot before it destroys that ship, it is not placed`)
-        markers--
-        marked.add(a.data.carrierId)
-        break
-      }
-      case 'survey': {
-        if (surveys > 0) notes.push('the survey: one a turn')
-        else if (!surveyToTake(me)) notes.push('the survey: no Survey card wants data')
-        else if (!onSurveyRing(position))
-          notes.push(`the survey: not on Black Hole Ring 1 ${where()}`)
-        surveys++
-        break
-      }
-      case 'salvage': {
-        const wreckId = a.data.wreckId
-        const what = wreckId === undefined ? 'the salvage' : `the salvage of ${wreckId}`
-        const wreck = view.wrecks.find(w => w.id === wreckId)
-        if (salvages > 0) notes.push(`${what}: one wreck a turn`)
-        else if (!salvageToTake(me)) notes.push(`${what}: no Salvage card wants a black box`)
-        else if (wreckId === undefined) {
-          // Naming none, it takes what is in the sector when it comes: a
-          // wreck there now, or the one a kill before it leaves.
-          const prey = [...shotAt].filter(id => {
-            const s = seat(id)?.ship
-            return !!s && samePosition(positionOf(s), position)
-          })
-          if (!view.wrecks.some(w => samePosition(w, position)))
-            notes.push(
-              prey.length > 0
-                ? `${what}: no wreck in your sector ${where()} yet; it takes one only if a shot before it destroys ${prey.join(' or ')}`
-                : `${what}: no wreck in your sector ${where()}, and no shot before it at a ship there; it takes nothing`
-            )
-        } else if (!wreck) notes.push(`${what}: no such wreck on the board`)
-        else if (!samePosition(wreck, position)) notes.push(`${what}: not in its sector ${where()}`)
-        salvages++
-        break
-      }
-      case 'scan': {
-        const target = seat(a.data.targetPlayerId)
-        const scan = `the scan of ${a.data.targetPlayerId}`
-        if (quiet) notes.push(`${scan}: nobody scans on a first round`)
-        else if (ship.subsystems.find(s => s.type === 'sensor_array')?.isBroken)
-          notes.push(`${scan}: the sensor array is broken`)
-        else if (!target?.ship || !canBeTargeted(target, view.stations))
-          notes.push(`${scan}: that ship cannot be scanned now (back from Home, or moored)`)
-        else if (!inScanRange({ ...position, facing }, positionOf(target.ship)))
-          notes.push(
-            `${scan}: not on your ring ahead of you (${facing}) within ${SCAN_SECTOR_RANGE} sectors, or in your sector (${where()})`
-          )
-        break
-      }
-    }
-  }
-  return notes
+function foreseenRefusals(view: GameView, actions: PlayerAction[]): string[] {
+  const walk = walkTurn(view, actions)
+  return [...walk.refusals, ...walk.warnings].map(r => {
+    const action = r.step === null ? null : actions[r.step]
+    const where = action?.sequence !== undefined ? `step ${action.sequence} (${action.type}): ` : ''
+    return `${where}${refusalText(r)}`
+  })
 }

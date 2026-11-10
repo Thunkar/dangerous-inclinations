@@ -109,8 +109,8 @@ export function usePlanReadout(
     [moveFrom]
   )
   const { rotateReady, burnReady, jumpReady } = useMemo(
-    () => moveReadiness(me, pendingSubsystems, moveFrom, moveStep.move),
-    [me, pendingSubsystems, moveFrom, moveStep]
+    () => moveReadiness(view, me, steps, preview.powers),
+    [view, me, steps, preview.powers]
   )
   const scoopGain = useMemo(() => {
     const scoop = pendingSubsystems.find(s => s.id === 'scoop')
@@ -125,7 +125,7 @@ export function usePlanReadout(
       ? SELL_NOTHING
       : (chosenSale(dockOffer, dockChoice ?? undefined)?.sale ?? null)
   // A seize, salvage or mark step stays where it was put when the move
-  // changes: if it no longer holds there, the sequence says so (`planIssues`).
+  // changes: if it no longer holds there, the sequence says so (the preview's issues).
   const seizeChoices = useMemo(
     () => steps.flatMap(s => (s.kind === 'seize' ? [seizeKey(s)] : [])),
     [steps]

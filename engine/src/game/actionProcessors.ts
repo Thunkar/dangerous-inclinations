@@ -19,8 +19,6 @@ import type {
   WellTransferAction,
   ScanAction,
   Player,
-  RepairAction,
-  DockSaleAction,
   EscortMarkAction,
   SeizeAction,
   SurveyAction,
@@ -32,7 +30,7 @@ import type { EventDraft } from '../models/events.ts'
 import { getSubsystemConfig, type WeaponType } from '../models/subsystems.ts'
 import { BURN_COSTS, WELL_TRANSFER_COSTS, calculateJumpMassCost } from '../models/rings.ts'
 import { findJump, phasedJumpDestination } from '../models/gravityWells.ts'
-import { rollD10 } from '../utils/rng.ts'
+import { nextEntityId, rollD10 } from '../utils/rng.ts'
 import { positionOf } from './geometry.ts'
 import {
   applyOrbitalMovement,
@@ -60,23 +58,9 @@ import {
   useSubsystem,
   workingCompressors,
 } from './ship.ts'
-import {
-  validateActionSequence,
-  validatePowerAction,
-  validateRotateAction,
-  validateCoastAction,
-  validateBurnAction,
-  validateFireWeaponAction,
-  validateRepairAction,
-  validateDockSaleAction,
-  validateEscortMarkAction,
-  validateSeizeAction,
-  validateSurveyAction,
-  validateSalvageAction,
-  validateScanAction,
-  validateWellTransferAction,
-  type TurnContext,
-} from './validators.ts'
+import { refusalsFor, turnRefusals, type TurnContext } from './validators.ts'
+import { refusalText } from './refusals.ts'
+import { tableOf } from './table.ts'
 
 interface ProcessResult {
   success: boolean
@@ -112,20 +96,26 @@ export function processActions(
   actions: PlayerAction[],
   turn: TurnContext
 ): ProcessResult {
-  const sequenceErrors = validateActionSequence(actions)
-  if (sequenceErrors.length > 0)
-    return { success: false, state, events: [], errors: sequenceErrors }
+  // The turn as a whole: sequenced, one move, one repair, one sale, one
+  // survey, one wreck, each marker and each seizure named once.
+  const refused = turnRefusals(
+    tableOf(state, turn.start),
+    state.players[state.activePlayerIndex],
+    actions
+  )
+  if (refused.length > 0)
+    return { success: false, state, events: [], errors: refused.map(r => refusalText(r)) }
 
   let current = state
   const events: EventDraft[] = []
 
   const run = <A extends PlayerAction>(
     action: A,
-    validate: (s: GameState, a: A) => string[],
     process: (s: GameState, a: A) => Step
   ): string[] | null => {
-    const errors = validate(current, action)
-    if (errors.length > 0) return errors
+    const actor = current.players.find(p => p.id === action.playerId)!
+    const errors = refusalsFor(tableOf(current, turn.start), actor, action)
+    if (errors.length > 0) return errors.map(r => refusalText(r))
     const step = process(current, action)
     current = step.state
     events.push(...step.events)
@@ -136,60 +126,9 @@ export function processActions(
     return null
   }
 
-  const repairs = actions.filter((a): a is RepairAction => a.type === 'repair')
   const tactical = actions
     .filter(isTacticalAction)
     .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
-
-  // One tile a turn: a cold ship's crew get to one thing, not to the loadout.
-  if (repairs.length > 1) {
-    return {
-      success: false,
-      state,
-      events: [],
-      errors: ['Only one subsystem may be repaired in a turn'],
-    }
-  }
-  for (const a of repairs) {
-    const errors = validateRepairAction(current, a)
-    if (errors.length > 0) return { success: false, state, events: [], errors }
-  }
-  // One visit, one sale: the sale is named once and read at docking (turns.ts).
-  const dockSales = actions.filter((a): a is DockSaleAction => a.type === 'dock_sale')
-  if (dockSales.length > 1) {
-    return {
-      success: false,
-      state,
-      events: [],
-      errors: ['Only one sale may be named for a visit'],
-    }
-  }
-  for (const a of dockSales) {
-    const errors = validateDockSaleAction(current, a)
-    if (errors.length > 0) return { success: false, state, events: [], errors }
-  }
-
-  // Each marker names a different ship, and each seizure a different item.
-  // Whether each one holds is asked at its place in the sequence, below.
-  const named = actions.flatMap(a => (a.type === 'escort_mark' ? [a.data.carrierId] : []))
-  if (new Set(named).size !== named.length)
-    return {
-      success: false,
-      state,
-      events: [],
-      errors: ['Each Escort marker goes on a different ship'],
-    }
-  const seized = actions.flatMap(a =>
-    a.type === 'seize' ? [`${a.data.victimId}/${a.data.cargoId}`] : []
-  )
-  if (new Set(seized).size !== seized.length)
-    return { success: false, state, events: [], errors: ['Each seizure names a different item'] }
-  // One dive a turn and one wreck a turn (RULES §Missions): two of a kind
-  // are two jobs, so a second card needs a second turn.
-  if (actions.filter(a => a.type === 'survey').length > 1)
-    return { success: false, state, events: [], errors: ['One survey a turn'] }
-  if (actions.filter(a => a.type === 'salvage').length > 1)
-    return { success: false, state, events: [], errors: ['One wreck a turn'] }
 
   // Ships alive when the turn began: shots at one of these that dies mid-turn are skipped, not errors.
   const aliveAtStart = new Set(state.players.filter(isOnBoard).map(p => p.id))
@@ -197,19 +136,19 @@ export function processActions(
     let err: string[] | null = null
     switch (a.type) {
       case 'power':
-        err = run(a, validatePowerAction, processPower)
+        err = run(a, processPower)
         break
       case 'rotate':
-        err = run(a, validateRotateAction, processRotation)
+        err = run(a, processRotation)
         break
       case 'coast':
-        err = run(a, validateCoastAction, (s, c) => processCoast(s, c, turn))
+        err = run(a, (s, c) => processCoast(s, c, turn))
         break
       case 'burn':
-        err = run(a, validateBurnAction, processBurn)
+        err = run(a, processBurn)
         break
       case 'well_transfer':
-        err = run(a, validateWellTransferAction, processWellTransfer)
+        err = run(a, processWellTransfer)
         break
       case 'fire_weapon':
         if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
@@ -222,7 +161,7 @@ export function processActions(
           })
           break
         }
-        err = run(a, (s, f) => validateFireWeaponAction(s, f, turn), processFireWeapon)
+        err = run(a, processFireWeapon)
         break
       case 'scan':
         if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
@@ -235,7 +174,7 @@ export function processActions(
           })
           break
         }
-        err = run(a, validateScanAction, (s, sa: ScanAction) => processScan(s, sa))
+        err = run(a, (s, sa: ScanAction) => processScan(s, sa))
         break
       case 'seize':
         // A ship a shot destroyed earlier in the turn drops what it carried:
@@ -250,7 +189,7 @@ export function processActions(
           })
           break
         }
-        err = run(a, (s, sz) => validateSeizeAction(s, sz, turn), processSeize)
+        err = run(a, processSeize)
         break
       case 'escort_mark':
         // A carrier a shot destroyed earlier in the turn is off the board:
@@ -265,13 +204,13 @@ export function processActions(
           })
           break
         }
-        err = run(a, (s, m) => validateEscortMarkAction(s, m, turn), processEscortMark)
+        err = run(a, processEscortMark)
         break
       case 'survey':
-        err = run(a, validateSurveyAction, processSurvey)
+        err = run(a, processSurvey)
         break
       case 'salvage':
-        err = run(a, validateSalvageAction, processSalvage)
+        err = run(a, processSalvage)
         break
     }
     if (err) return { success: false, state, events: [], errors: err }
@@ -287,7 +226,6 @@ export function processActions(
         sequence: tactical.length + 1,
         data: { activateScoop: false },
       } as CoastAction,
-      validateCoastAction,
       (s, c) => processCoast(s, c, turn)
     )
     if (err) return { success: false, state, events: [], errors: err }
@@ -559,10 +497,11 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
   if (weaponType === 'missiles') {
     const launched: Missile[] = []
     for (let i = 0; i < salvo; i++) {
-      // createMissile draws the next entity id off `working`, so each round of
-      // the salvo gets its own token.
+      // Each round of the salvo draws the next entity id, so each gets its own token.
+      const [id, counted] = nextEntityId(working, `missile-${attacker.id}`)
+      working = counted
       launched.push(
-        createMissile(working, attacker, action.data.targetPlayerId, action.data.criticalTarget)
+        createMissile(id, attacker, action.data.targetPlayerId, action.data.criticalTarget)
       )
     }
     attacker = {
@@ -592,7 +531,8 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
   } else {
     players[attackerIndex] = attacker
     const target = players[targetIndex]
-    const roll = rollD10(working)
+    const [roll, rolled] = rollD10(working)
+    working = rolled
     const stats = config.weaponStats!
     const outcome = resolveAttack(
       target.ship,

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { CreatePlayerSchema, UpdatePlayerSchema } from '../schemas/player.ts'
+import { CreatePlayerSchema, UpdatePlayerSchema } from '@dangerous-inclinations/engine'
 import {
   checkPlayerAccess,
   createPlayer,

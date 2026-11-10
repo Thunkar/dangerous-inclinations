@@ -9,8 +9,7 @@ import {
   LoadoutSubmissionSchema,
   PreviewSchema,
   issueLines,
-} from '../schemas/game.ts'
-import type { PlayerAction } from '@dangerous-inclinations/engine'
+} from '@dangerous-inclinations/engine'
 
 interface GameRequest {
   Headers: { 'x-player-id'?: string }
@@ -101,7 +100,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
     const result = await gameService.previewTurn(
       member.gameId,
       member.playerId,
-      parsed.data.actions as PlayerAction[]
+      parsed.data.actions
     )
     return reply.send(result)
   })

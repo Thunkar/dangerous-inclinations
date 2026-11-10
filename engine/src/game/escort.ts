@@ -9,27 +9,14 @@
  * referee, the bots, the seat CLI and the table's plan all ask, so the four
  * agree.
  */
-import type { GameState, Player, Position, Station } from '../models/game.ts'
+import type { GameState, Player, Position } from '../models/game.ts'
 import type { EventDraft } from '../models/events.ts'
 import type { EscortMission, Mission } from '../models/missions.ts'
-import { aboard } from '../models/missions.ts'
 import type { GameView } from './view.ts'
 import { positionOf } from './geometry.ts'
 import { isMooredAt, isMooredMidTurn } from './stations.ts'
-import { isDestroyed, isOnBoard } from './ship.ts'
-
-/**
- * A seat as the question needs it: where it is (null off the board), whether
- * it is just back from Home, whether it carries anything, and whether
- * someone's Escort marker is already on it.
- */
-interface EscortSeat {
-  id: string
-  position: Position | null
-  recovering: boolean
-  carrying: boolean
-  escorted: boolean
-}
+import { isDestroyed } from './ship.ts'
+import { seatPosition, tableOf, tableOfView, type TurnTable } from './table.ts'
 
 /** Undone Escorts whose marker is still in hand, in hand order. */
 export function unplacedEscorts(missions: readonly Mission[]): EscortMission[] {
@@ -64,28 +51,29 @@ export function markedBy(player: { missions: readonly Mission[] }): Set<string> 
  * moored, and no ship that already carries an Escort marker (anyone's: a ship
  * takes one). The escort must not be moored: during its own actions that is
  * the berth it began the turn on and has not left (`isMooredMidTurn`, as for
- * firing). Empty when the hand holds no marker to place.
+ * firing). Empty when the hand holds no marker to place. Asked of the table
+ * off the state by the referee and off a view by everyone else.
  */
-function candidates(
-  seats: readonly EscortSeat[],
-  stations: Station[],
+export function escortableAt(
+  table: Pick<TurnTable, 'seats' | 'stations' | 'start'>,
   escortId: string,
   missions: readonly Mission[],
-  start: Position,
   position: Position
 ): string[] {
   if (unplacedEscorts(missions).length === 0) return []
   // A berth marks nobody.
-  if (isMooredMidTurn(stations, start, position)) return []
+  if (isMooredMidTurn(table.stations, table.start, position)) return []
   const taken = markedBy({ missions })
+  const seats = table.seats
   const self = seats.findIndex(s => s.id === escortId)
   const out: string[] = []
   for (let step = 1; step < seats.length; step++) {
     const seat = seats[(Math.max(self, 0) + step) % seats.length]
+    const at = seatPosition(seat)
     if (seat.id === escortId || taken.has(seat.id) || seat.escorted) continue
-    if (!seat.position || !seat.carrying || seat.recovering) continue
-    if (seat.position.wellId !== position.wellId || seat.position.ring !== position.ring) continue
-    if (isMooredAt(stations, seat.position)) continue
+    if (!at || seat.items.length === 0 || seat.recovering) continue
+    if (at.wellId !== position.wellId || at.ring !== position.ring) continue
+    if (isMooredAt(table.stations, at)) continue
     out.push(seat.id)
   }
   return out
@@ -105,19 +93,10 @@ export function escortCandidates(
 ): string[] {
   const me = view.me
   if (!me || me.id !== playerId) return []
-  const seats: EscortSeat[] = view.players.map(p => ({
-    id: p.id,
-    position: p.ship && !p.ship.isDestroyed ? positionOf(p.ship) : null,
-    recovering: p.recovering,
-    carrying: p.cargoCount > 0,
-    escorted: p.escortedBy.length > 0,
-  }))
-  return candidates(
-    seats,
-    view.stations,
+  return escortableAt(
+    tableOfView(view, start ?? positionOf(me.ship)),
     playerId,
     me.missions,
-    start ?? positionOf(me.ship),
     position
   )
 }
@@ -130,21 +109,13 @@ export function escortCandidates(
 export function escortCandidatesNow(state: GameState, escortId: string, start: Position): string[] {
   const escort = state.players.find(p => p.id === escortId)
   if (!escort || isDestroyed(escort.ship)) return []
-  const seats: EscortSeat[] = state.players.map(p => ({
-    id: p.id,
-    position: isOnBoard(p) ? positionOf(p.ship) : null,
-    recovering: p.recovering,
-    carrying: aboard(p.cargo).length > 0,
-    escorted: state.players.some(other => markedBy(other).has(p.id)),
-  }))
-  return candidates(
-    seats,
-    state.stations,
-    escortId,
-    escort.missions,
-    start,
-    positionOf(escort.ship)
-  )
+  return escortableAt(tableOf(state, start), escortId, escort.missions, positionOf(escort.ship))
+}
+
+/** The hand once a marker goes on `carrierId`: the first undone Escort whose marker is in hand. */
+export function withMarkerOn(missions: readonly Mission[], carrierId: string): Mission[] {
+  const mission = unplacedEscorts(missions)[0]
+  return missions.map(m => (m.id === mission.id ? { ...mission, markedPlayerId: carrierId } : m))
 }
 
 /**
@@ -159,15 +130,7 @@ export function markCarrier(
   const escort = state.players.find(p => p.id === escortId)!
   const mission = unplacedEscorts(escort.missions)[0]
   const players = state.players.map(
-    (p): Player =>
-      p.id === escortId
-        ? {
-            ...p,
-            missions: p.missions.map(m =>
-              m.id === mission.id ? { ...mission, markedPlayerId: carrierId } : m
-            ),
-          }
-        : p
+    (p): Player => (p.id === escortId ? { ...p, missions: withMarkerOn(p.missions, carrierId) } : p)
   )
   return {
     state: { ...state, players },

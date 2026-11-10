@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Button, TextField, Typography, type SxProps, type Theme } from '@mui/material'
 import { fill } from '@dangerous-inclinations/engine'
-import type { ChatMessage } from '../../api/types'
+import type { ChatMessage } from '@dangerous-inclinations/engine'
 import { useChat } from '../../context/ChatContext'
 import { useGame } from '../../context/GameContext'
 import { TABLE_TEXT } from '../../text/table'

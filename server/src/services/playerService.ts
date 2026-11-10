@@ -1,14 +1,14 @@
 import { randomUUID } from 'crypto'
 import { getRedis } from './redis.ts'
-import type { AgentInfo, PlayerAuth } from '../schemas/player.ts'
+import type { AgentInfo, PlayerRecord } from '@dangerous-inclinations/engine'
 
 const PLAYER_KEY_PREFIX = 'player:'
 
-export async function createPlayer(playerName: string, agent?: AgentInfo): Promise<PlayerAuth> {
+export async function createPlayer(playerName: string, agent?: AgentInfo): Promise<PlayerRecord> {
   const redis = getRedis()
   const id = randomUUID()
 
-  const player: PlayerAuth = {
+  const player: PlayerRecord = {
     playerId: id,
     playerName,
     ...(agent ? { agent } : {}),
@@ -20,13 +20,13 @@ export async function createPlayer(playerName: string, agent?: AgentInfo): Promi
   return player
 }
 
-export async function getPlayer(playerId: string): Promise<PlayerAuth | null> {
+export async function getPlayer(playerId: string): Promise<PlayerRecord | null> {
   const redis = getRedis()
   const data = await redis.get(`${PLAYER_KEY_PREFIX}${playerId}`)
 
   if (!data) return null
 
-  return JSON.parse(data) as PlayerAuth
+  return JSON.parse(data) as PlayerRecord
 }
 
 /**

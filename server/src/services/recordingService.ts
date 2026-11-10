@@ -32,6 +32,7 @@ import {
   type GameState,
   type RecordedTurn,
   type RecordingMetadata,
+  type RecordingSummary,
 } from '@dangerous-inclinations/engine'
 import type { Kv } from './kv.ts'
 import { log } from './logger.ts'
@@ -48,15 +49,6 @@ const eventsKey = (gameId: string) => `recording:${gameId}:events`
 const pendingKey = (gameId: string) => `recording:${gameId}:pending-finalize`
 /** Queue of game ids to retry. Entries without a flag are stale and dropped. */
 const PENDING_LIST_KEY = 'recordings:pending-finalize'
-
-export interface RecordingSummary {
-  recordingId: string
-  createdAt: string
-  source: RecordingMetadata['source']
-  turnCount: number
-  winnerId?: string
-  label?: string
-}
 
 /** Finished recordings on disk. */
 export interface RecordingArchive {

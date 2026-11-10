@@ -415,7 +415,6 @@ __metadata:
     "@types/ws": "npm:^8.5.13"
     fastify: "npm:^5.2.0"
     ioredis: "npm:^5.4.2"
-    zod: "npm:^3.23.8"
   languageName: unknown
   linkType: soft
 
@@ -446,7 +445,6 @@ __metadata:
     three: "npm:0.186.0"
     vite: "npm:^7.1.7"
     vitest: "npm:^4.0.8"
-    zod: "npm:^3.23.8"
   languageName: unknown
   linkType: soft
 

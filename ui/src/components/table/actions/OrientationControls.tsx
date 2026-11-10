@@ -19,11 +19,7 @@ export function OrientationControls() {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
       <Tooltip
-        title={
-          ready.ok || rotating
-            ? fill(T.tip, { energy: drawFor('rotation') })
-            : fill(T.blocked, { reason: ready.reason })
-        }
+        title={ready.ok || rotating ? fill(T.tip, { energy: drawFor('rotation') }) : ready.reason}
       >
         <Box component="span" sx={{ display: 'flex' }}>
           <Chip

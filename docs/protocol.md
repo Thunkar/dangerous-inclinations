@@ -6,6 +6,13 @@ The server is authoritative and holds `GameState`. Clients never receive a
 playerId)`, plus the turn's `GameEvent[]` filtered with `filterEventsFor`.
 Bots receive exactly the same view through `viewFor`.
 
+Every shape below is defined once, in the engine, and exported from its
+barrel. The actions are zod schemas in `engine/src/models/game.ts`, and their
+types are inferred from those schemas. The request schemas, the response
+types and the socket messages are in `engine/src/protocol/` (`lobby.ts` for
+players and lobbies, `game.ts` for games). The server, `yarn seat` and the UI
+all import them from there.
+
 ## Identity
 
 Every request carries the player id (`x-player-id` header on REST, `playerId`

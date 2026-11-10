@@ -9,7 +9,11 @@ import { getLobby, findLobbyByGameId, deleteLobby } from '../services/lobbyServi
 import { gameService } from '../services/live.ts'
 import { StaleGameError } from '../services/gameService.ts'
 import { log } from '../services/logger.ts'
-import type { ServerGameMessage } from '../protocol.ts'
+import type {
+  GameSocketMessage,
+  GlobalSocketMessage,
+  LobbySocketMessage,
+} from '@dangerous-inclinations/engine'
 import { answerSubmission, connectedMessage } from './submission.ts'
 import {
   getConnectedPlayers,
@@ -20,7 +24,7 @@ import {
 
 function send(
   ws: WebSocket,
-  message: ServerGameMessage | { type: string; room: string; roomId?: string }
+  message: GameSocketMessage | LobbySocketMessage | GlobalSocketMessage
 ): void {
   ws.send(JSON.stringify(message))
 }

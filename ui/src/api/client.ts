@@ -3,7 +3,7 @@
  * exceptions.
  */
 import { ENV } from '../config/env'
-import type { APIError } from './types'
+import type { APIError } from '@dangerous-inclinations/engine'
 
 export class APIClientError extends Error {
   public statusCode?: number

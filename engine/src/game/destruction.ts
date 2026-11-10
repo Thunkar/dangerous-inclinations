@@ -53,8 +53,9 @@ export function applyDestructions(
 
     // The wreck: where the ship was when it died. A destroyed ship stays on
     // its sector until it respawns, so its position is the place.
-    const wreck: Wreck = { id: nextEntityId(next, 'wreck'), ...positionOf(victim.ship) }
-    next = { ...next, wrecks: [...next.wrecks, wreck] }
+    const [wreckId, counted] = nextEntityId(next, 'wreck')
+    const wreck: Wreck = { id: wreckId, ...positionOf(victim.ship) }
+    next = { ...counted, wrecks: [...counted.wrecks, wreck] }
     sink.push({
       type: 'wreck_left',
       wreckId: wreck.id,

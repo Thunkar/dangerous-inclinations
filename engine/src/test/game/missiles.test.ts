@@ -27,6 +27,7 @@ import {
   withPower,
   withShip,
   withSub,
+  rolling,
 } from '../testUtils.ts'
 
 /** One action as the test helpers draft it, before `executeTurnAs` stamps the player. */
@@ -352,7 +353,7 @@ describe('missiles: flying before or after the ride', () => {
     // falls short, so it rides first and flies back: no attack this move.
     ['five sectors ahead: it cannot attack either way', 15, false, null],
   ] as const)('%s', (_label, sector, attacks, at) => {
-    const result = processOwnerMissiles({ ...behind(sector), forcedRollValue: 5 }, 'p1')
+    const result = processOwnerMissiles({ ...behind(sector), ...rolling(5, 6) }, 'p1')
     expect(eventTypes(result.events as never).includes('attack_resolved')).toBe(attacks)
     if (at) {
       const target = { wellId: BH, ...at }
@@ -370,7 +371,7 @@ describe("missiles: on the target's sector", () => {
     })
 
   it("attacks with the missile's own critical target", () => {
-    const state = withPower({ ...onTarget(), forcedRollValue: 10 }, 'p2', 'side-1', 2)
+    const state = withPower({ ...onTarget(), ...rolling(10, 6) }, 'p2', 'side-1', 2)
     const result = processOwnerMissiles(
       { ...state, missiles: [{ ...state.missiles[0], criticalTarget: 'side-1' }] },
       'p1'
@@ -428,7 +429,7 @@ describe("missiles: on the target's sector", () => {
 
   it('one rack rolls at every missile of a salvo and is used once for the turn', () => {
     const state = withPower(salvoOf(onTarget(LOADOUTS.rack), 3), 'p2', 'side-0', 2)
-    const result = processOwnerMissiles({ ...state, forcedRollValue: 5 }, 'p1')
+    const result = processOwnerMissiles({ ...state, ...rolling(5, 6) }, 'p1')
     const intercepts = eventsOf(result.events as never, 'missile_intercepted')
     expect(intercepts).toHaveLength(3)
     expect(eventTypes(result.events as never)).not.toContain('attack_resolved')
@@ -442,7 +443,7 @@ describe("missiles: on the target's sector", () => {
     // is on trial is that the rack does not stop rolling after a miss, and that
     // a turn of misses still costs it only the one use.
     const state = withPower(salvoOf(onTarget(LOADOUTS.rack), 3), 'p2', 'side-0', 2)
-    const result = processOwnerMissiles({ ...state, forcedRollValue: 1 }, 'p1')
+    const result = processOwnerMissiles({ ...state, ...rolling(1, 6) }, 'p1')
     expect(eventsOf(result.events as never, 'missile_intercepted')).toHaveLength(3)
     expect(eventsOf(result.events as never, 'attack_resolved')).toHaveLength(3)
     expect(getSub(result.state, 'p2', 'side-0').allocatedEnergy).toBe(2)
@@ -452,7 +453,7 @@ describe("missiles: on the target's sector", () => {
     // Two cubes throw four missiles, so two cubes shoot four down: the rule is
     // the same number read from either end (RULES §Weapons -> Ballistic rack).
     const state = withPower(salvoOf(onTarget(LOADOUTS.rack), 5), 'p2', 'side-0', 2)
-    const result = processOwnerMissiles({ ...state, forcedRollValue: 5 }, 'p1')
+    const result = processOwnerMissiles({ ...state, ...rolling(5, 6) }, 'p1')
     expect(eventsOf(result.events as never, 'missile_intercepted')).toHaveLength(4)
     expect(getSub(result.state, 'p2', 'side-0').spentThisTurn).toBe(4)
     // The one it could not roll at attacks.
@@ -467,7 +468,7 @@ describe("missiles: on the target's sector", () => {
       'side-2',
       2
     )
-    const result = processOwnerMissiles({ ...two, forcedRollValue: 5 }, 'p1')
+    const result = processOwnerMissiles({ ...two, ...rolling(5, 6) }, 'p1')
     expect(eventsOf(result.events as never, 'missile_intercepted')).toHaveLength(5)
     expect(eventTypes(result.events as never)).not.toContain('attack_resolved')
     expect(getShip(result.state, 'p2').hitPoints).toBe(10)
@@ -494,7 +495,7 @@ describe("missiles: on the target's sector", () => {
       let state = salvoOf(onTarget(loadout), count)
       if (racks >= 1) state = withPower(state, 'p2', 'side-0', 2)
       if (racks === 2) state = withPower(state, 'p2', 'side-2', 2)
-      const result = processOwnerMissiles({ ...state, forcedRollValue: roll }, 'p1')
+      const result = processOwnerMissiles({ ...state, ...rolling(roll, 6) }, 'p1')
       expect(getShip(result.state, 'p2').heat.currentHeat).toBe(heat)
     }
   )
@@ -506,7 +507,7 @@ describe("missiles: on the target's sector", () => {
       'side-2',
       2
     )
-    const result = processOwnerMissiles({ ...two, forcedRollValue: 5 }, 'p1')
+    const result = processOwnerMissiles({ ...two, ...rolling(5, 6) }, 'p1')
     expect(eventsOf(result.events as never, 'missile_intercepted')).toHaveLength(2)
     expect(getShip(result.state, 'p2').hitPoints).toBe(10)
     expect(getSub(result.state, 'p2', 'side-2').isRevealed).toBe(false)
@@ -514,7 +515,7 @@ describe("missiles: on the target's sector", () => {
 
   it('the count is per player-turn: a rack that spent its four answers again next turn', () => {
     const state = withPower(salvoOf(onTarget(LOADOUTS.rack), 4), 'p2', 'side-0', 2)
-    const spent = processOwnerMissiles({ ...state, forcedRollValue: 5 }, 'p1')
+    const spent = processOwnerMissiles({ ...state, ...rolling(5, 6) }, 'p1')
     expect(getSub(spent.state, 'p2', 'side-0').spentThisTurn).toBe(4)
     // `finish` clears it for everyone when play passes (game/turns.ts).
     const fresh = {
@@ -712,7 +713,7 @@ describe('missiles: the launch flight resolves at its place in the turn', () => 
     ],
     ['no sensor at all', [fire(1, 'side-0', 'p2')], 'hit'],
   ])('a launch flight with %s rolls its 8 as a %s', (_label, actions, expected) => {
-    const state = { ...wallState(), forcedRollValue: 8 }
+    const state = { ...wallState(), ...rolling(8, 6) }
     const result = executeTurnAs(withPower(state, 'p2', 'side-2', 0), ...actions)
     expect(result.errors).toBeUndefined()
     const [attack] = eventsOf(result.events, 'attack_resolved')

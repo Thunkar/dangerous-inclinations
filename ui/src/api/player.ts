@@ -11,10 +11,10 @@
 import { APIClientError, api } from './client'
 import type {
   CreatePlayerRequest,
-  CreatePlayerResponse,
-  Player,
+  PlayerRecord,
   PlayerStatusResponse,
-} from './types'
+  UpdatePlayerRequest,
+} from '@dangerous-inclinations/engine'
 
 function isNotFound(error: unknown): boolean {
   return error instanceof APIClientError && error.statusCode === 404
@@ -32,14 +32,14 @@ export function isTransient(error: unknown): boolean {
   )
 }
 
-export async function createPlayer(playerName: string): Promise<CreatePlayerResponse> {
-  return api.post<CreatePlayerResponse>('/api/players', { playerName } as CreatePlayerRequest)
+export async function createPlayer(playerName: string): Promise<PlayerRecord> {
+  return api.post<PlayerRecord>('/api/players', { playerName } satisfies CreatePlayerRequest)
 }
 
 /** The player, `null` if the server has no such player, or throws if it could not be asked. */
-export async function getPlayer(playerId: string): Promise<Player | null> {
+export async function getPlayer(playerId: string): Promise<PlayerRecord | null> {
   try {
-    return await api.get<Player>(`/api/players/${playerId}`)
+    return await api.get<PlayerRecord>(`/api/players/${playerId}`)
   } catch (error) {
     if (isNotFound(error)) return null
     throw error
@@ -47,7 +47,9 @@ export async function getPlayer(playerId: string): Promise<Player | null> {
 }
 
 export async function updatePlayerName(playerId: string, playerName: string): Promise<void> {
-  await api.put(`/api/players/${playerId}`, { playerName })
+  await api.put<PlayerRecord>(`/api/players/${playerId}`, {
+    playerName,
+  } satisfies UpdatePlayerRequest)
 }
 
 /**

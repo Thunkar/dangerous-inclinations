@@ -8,7 +8,7 @@
  * newly reached state the target's `isMatch` is consulted with the current
  * layer index.
  *
- *   Layer 0:    {origin, both facings}
+ *   Layer 0:    {origin, both facings}  (the facings are the search's: see orientSteps)
  *      │  getSuccessors
  *   Layer 1:    {states after 1 action}   ── isMatch(state, 1)? → plan
  *      │  getSuccessors
@@ -66,7 +66,7 @@ import type {
   MovementActionType,
 } from './types.ts'
 import { samePosition } from '../../game/geometry.ts'
-import { DEFAULT_PLANNER_OPTIONS, positionKeyInt } from './types.ts'
+import { DEFAULT_PLANNER_OPTIONS, orientSteps, positionKeyInt } from './types.ts'
 import { getSuccessors } from './successors.ts'
 import type { PlannerTarget } from './targets.ts'
 
@@ -246,12 +246,13 @@ function reconstructForwardPlan(
       actionType: curr.action!,
       burnIntensity: curr.burnIntensity ?? undefined,
       sectorAdjustment: curr.sectorAdjustment,
-      // Rotation is free; the first step needs one when its facing differs
-      // from the ship's actual facing.
-      requiresRotation: i === 1 && prev.position.facing !== origin.facing,
+      requiresRotation: false,
       massCost: curr.massCost - prev.massCost,
     })
   }
+  // The search seeds both facings, and every burn and jump is open from
+  // either one: the facings it carried are its own, not the ship's.
+  orientSteps(steps, origin.facing)
 
   const last = steps[steps.length - 1]
   const destination: OrbitalPosition = last ? last.to : target.positionAt(endNode.turns)

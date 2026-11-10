@@ -2,8 +2,8 @@
  * Shared test helpers. Build small, explicit game states and actions.
  *
  * Defaults: two deployed players on black hole ring 3 (sectors 0 and 12),
- * default loadout, stations created, d10 pinned to 5 (a plain hit) via
- * `forcedRollValue`. Override anything you need per test.
+ * default loadout, stations created, the first six d10s 5 (a plain hit; see
+ * `rolling` to pin another). Override anything you need per test.
  */
 import { expect } from 'vitest'
 import type {
@@ -53,7 +53,7 @@ import { executeTurn, type TurnResult } from '../game/turns.ts'
 import { ringVelocity, wrapSector } from '../game/geometry.ts'
 import { isInWeaponRange } from '../game/targeting.ts'
 import { cratesForMissions } from '../game/missions/missionDeck.ts'
-import { createDeterminismFields } from '../utils/rng.ts'
+import { Rng, createDeterminismFields } from '../utils/rng.ts'
 import { viewFor } from '../game/view.ts'
 import { analyzeSituation, botDecideActions } from '../ai/index.ts'
 import { generateCandidates } from '../ai/planner.ts'
@@ -210,8 +210,49 @@ export function makePlayer(
   }
 }
 
-function testDeterminismDefaults(seed = 0xdeadbeef) {
-  return { ...createDeterminismFields(seed), forcedRollValue: 5 }
+/**
+ * Freeze `value` and everything reachable from it, so a write anywhere in it
+ * throws (test files are ES modules, so strict mode). Returns `value`.
+ */
+export function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value)
+    for (const child of Object.values(value)) deepFreeze(child)
+  }
+  return value
+}
+
+const seedsRolling = new Map<string, number>()
+
+/**
+ * The die is the game's own RNG, so a test pins it by choosing where the RNG
+ * starts: the first seed from 0 whose first `count` d10s all come up `value`.
+ * Each roll past `count` is whatever the RNG gives.
+ */
+export function seedRolling(value: number, count = 4): number {
+  const key = `${value}x${count}`
+  const cached = seedsRolling.get(key)
+  if (cached !== undefined) return cached
+  for (let seed = 0; ; seed++) {
+    const rng = new Rng(seed)
+    let n = 0
+    while (n < count && rng.rollD10() === value) n++
+    if (n === count) {
+      seedsRolling.set(key, seed)
+      return seed
+    }
+  }
+}
+
+/** State fields whose first `count` d10s all come up `value` (see {@link seedRolling}). */
+export function rolling(value: number, count = 4): Pick<GameState, 'rngSeed' | 'rngState'> {
+  const { rngSeed, rngState } = createDeterminismFields(seedRolling(value, count))
+  return { rngSeed, rngState }
+}
+
+/** The default state's first six d10s are 5: a plain hit. */
+function testDeterminismDefaults() {
+  return createDeterminismFields(seedRolling(5, 6))
 }
 
 export function makeGameState(players: Player[], overrides: Partial<GameState> = {}): GameState {
@@ -817,7 +858,6 @@ export function scriptedGameStart(seed: number): GameState {
   )
   const state = makeGameState([p1, p2], {
     ...createDeterminismFields(seed),
-    forcedRollValue: undefined,
   })
   // Nothing to pre-power: the shot powers the railgun and the compensation
   // powers the engines, and both are dark again by the next turn.

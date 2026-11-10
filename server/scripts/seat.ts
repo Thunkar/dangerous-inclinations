@@ -60,8 +60,27 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { createInterface } from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
-import type { GameEvent, GameView, PlayerAction, ShipLoadout } from '@dangerous-inclinations/engine'
+import type {
+  AgentInfo,
+  ChatHistoryResponse,
+  ChatKind,
+  ChatMessage,
+  GameEvent,
+  GameSocketMessage,
+  GameView,
+  LobbyListItem,
+  LobbySeat,
+  PlayerAction,
+  PlayerRecord,
+  PlayerStatusResponse,
+  PreviewResponse,
+  PublicLobby,
+  ShipLoadout,
+  StartGameResponse,
+  ViewPayload,
+} from '@dangerous-inclinations/engine'
 import {
+  AGENT_DRIVERS,
   AGENT_INTENT_GUIDE,
   agentRulesDigest,
   BOT_PRESET_LOADOUTS,
@@ -90,7 +109,6 @@ import {
   seatOptions,
   type TurnIntent,
 } from '@dangerous-inclinations/engine'
-import type { ChatMessage, PreviewPayload, ServerGameMessage } from '../src/protocol.ts'
 
 // ---------------------------------------------------------------------------
 // Arguments and the seat
@@ -126,12 +144,6 @@ const fullRules = (): string => {
 const LOG_DIR = join(homedir(), '.config', 'dangerous-inclinations', 'logs')
 const TRANSCRIPT = has('transcript')
 
-/** Which program plays a seat, and with which model. Stored on the server with the player. */
-interface AgentInfo {
-  driver: 'claude' | 'codex'
-  model: string
-}
-const DRIVERS: ReadonlyArray<AgentInfo['driver']> = ['claude', 'codex']
 const DEFAULT_MODEL: Record<AgentInfo['driver'], string> = {
   claude: 'claude-opus-5',
   codex: 'gpt-6-astra',
@@ -140,7 +152,7 @@ const DRIVER_NAME: Record<AgentInfo['driver'], string> = { claude: 'Claude', cod
 const agentLabel = (a?: AgentInfo): string | null =>
   a ? `${DRIVER_NAME[a.driver]} · ${a.model}` : null
 const isDriver = (s: string | undefined): s is AgentInfo['driver'] =>
-  s !== undefined && (DRIVERS as readonly string[]).includes(s)
+  s !== undefined && (AGENT_DRIVERS as readonly string[]).includes(s)
 
 let SERVER = flag('server') ?? process.env.DI_SERVER ?? 'http://localhost:3000'
 let PLAYER: string | undefined = flag('player') ?? process.env.DI_PLAYER
@@ -201,16 +213,12 @@ async function http<T>(
   return data as T
 }
 
-interface ViewPayload {
-  view: GameView
-  events: GameEvent[]
-}
 const getView = () => http<ViewPayload>('GET', `/api/games/${needGame()}`)
 
 /** One game socket: turns go through it, and holding it open keeps the game alive. */
 class Table {
   private ws!: WebSocket
-  private handlers = new Set<(m: ServerGameMessage) => void>()
+  private handlers = new Set<(m: GameSocketMessage) => void>()
   latest: ViewPayload | null = null
 
   static async open(): Promise<Table> {
@@ -222,14 +230,14 @@ class Table {
       t.ws.addEventListener('error', () => reject(new Error(`cannot open ${url}`)))
     })
     t.ws.addEventListener('message', ev => {
-      const m = JSON.parse(String(ev.data)) as ServerGameMessage
+      const m = JSON.parse(String(ev.data)) as GameSocketMessage
       if (m.type === 'GAME_VIEW' || m.type === 'TURN_EXECUTED')
         t.latest = { view: m.payload.view, events: m.payload.events }
       for (const h of t.handlers) h(m)
     })
     return t
   }
-  on(handler: (m: ServerGameMessage) => void): () => void {
+  on(handler: (m: GameSocketMessage) => void): () => void {
     this.handlers.add(handler)
     return () => this.handlers.delete(handler)
   }
@@ -309,14 +317,11 @@ function digest(payload: ViewPayload, opts: { rules?: boolean; turns?: number } 
 }
 
 async function chatLines(limit = 12): Promise<ChatMessage[]> {
-  const { messages } = await http<{ messages: ChatMessage[] }>(
-    'GET',
-    `/api/games/${needGame()}/chat`
-  )
+  const { messages } = await http<ChatHistoryResponse>('GET', `/api/games/${needGame()}/chat`)
   return messages.slice(-limit)
 }
 
-async function post(kind: 'say' | 'think', text: string): Promise<void> {
+async function post(kind: ChatKind, text: string): Promise<void> {
   if (!text.trim()) return
   await http('POST', `/api/games/${needGame()}/chat`, { text: text.trim().slice(0, 2000), kind })
 }
@@ -326,8 +331,8 @@ function parseIntent(): TurnIntent | null {
   return raw ? (JSON.parse(raw) as TurnIntent) : null
 }
 
-async function preview(actions: PlayerAction[]): Promise<PreviewPayload> {
-  return http<PreviewPayload>('POST', `/api/games/${needGame()}/preview`, { actions })
+async function preview(actions: PlayerAction[]): Promise<PreviewResponse> {
+  return http<PreviewResponse>('POST', `/api/games/${needGame()}/preview`, { actions })
 }
 
 function describeEvents(events: GameEvent[], view: GameView): string {
@@ -764,42 +769,14 @@ async function agentLoop(): Promise<void> {
 // Lobbies, the seat on the server, and the interactive menu
 // ---------------------------------------------------------------------------
 
-interface LobbySummary {
-  lobbyId: string
-  lobbyName: string
-  maxPlayers: number
-  currentPlayers: number
-  gameStarted: boolean
-  createdAt: string
-}
-interface SeatInfo {
-  playerId: string
-  playerName: string
-  isBot: boolean
-  agent?: AgentInfo
-}
-interface LobbyDetail {
-  lobbyId: string
-  lobbyName: string
-  maxPlayers: number
-  hostPlayerId: string
-  players: SeatInfo[]
-  gameId?: string
-}
-interface PlayerRecord {
-  playerId: string
-  playerName: string
-  agent?: AgentInfo
-}
-
-const listLobbies = () => http<LobbySummary[]>('GET', '/api/lobbies', undefined, undefined)
+const listLobbies = () => http<LobbyListItem[]>('GET', '/api/lobbies', undefined, undefined)
 const lobbyDetail = (id: string) =>
-  http<LobbyDetail>('GET', `/api/lobbies/${id}`, undefined, undefined)
-const allLobbies = async (): Promise<LobbyDetail[]> =>
+  http<PublicLobby>('GET', `/api/lobbies/${id}`, undefined, undefined)
+const allLobbies = async (): Promise<PublicLobby[]> =>
   Promise.all((await listLobbies()).map(l => lobbyDetail(l.lobbyId)))
 
 /** "Codex (Codex · gpt-6-astra)", "Bot 1 (bot)", "thunkar". */
-function seatLabel(p: SeatInfo, lobby?: LobbyDetail): string {
+function seatLabel(p: LobbySeat, lobby?: PublicLobby): string {
   const kind = p.isBot ? 'bot' : agentLabel(p.agent)
   const host = lobby && lobby.hostPlayerId === p.playerId ? ', host' : ''
   return `${p.playerName}${kind || host ? ` (${[kind, host.replace(', ', '')].filter(Boolean).join(', ')})` : ''}`
@@ -812,13 +789,11 @@ function seatLabel(p: SeatInfo, lobby?: LobbyDetail): string {
  */
 async function resolveSeat(opts: { narrow: boolean }): Promise<void> {
   if (PLAYER) {
-    const status = await http<{ player: PlayerRecord; lobby: LobbyDetail | null }>(
-      'GET',
-      `/api/players/${PLAYER}/status`
-    ).catch((e: Error) =>
-      die(
-        `Player ${PLAYER} is unknown to ${SERVER} (${e.message}). Was Redis reset? \`yarn seat\` creates a new seat.`
-      )
+    const status = await http<PlayerStatusResponse>('GET', `/api/players/${PLAYER}/status`).catch(
+      (e: Error) =>
+        die(
+          `Player ${PLAYER} is unknown to ${SERVER} (${e.message}). Was Redis reset? \`yarn seat\` creates a new seat.`
+        )
     )
     seatName ??= status.player.playerName
     AGENT = status.player.agent
@@ -862,7 +837,7 @@ async function resolveSeat(opts: { narrow: boolean }): Promise<void> {
   GAME ??= m.lobby.gameId
 }
 
-async function printLobbies(): Promise<LobbyDetail[]> {
+async function printLobbies(): Promise<PublicLobby[]> {
   const details = await allLobbies()
   if (details.length === 0) {
     console.log('No lobbies on this server.')
@@ -879,7 +854,7 @@ async function printLobbies(): Promise<LobbyDetail[]> {
   return details
 }
 
-function printFollowUps(lobby: LobbyDetail): void {
+function printFollowUps(lobby: PublicLobby): void {
   const who = agentLabel(AGENT)
   console.log(
     `\nSeated as ${seatName}${who ? ` (${who})` : ''} at ${lobby.lobbyName}${GAME ? `, game ${GAME}` : ''}.`
@@ -945,7 +920,7 @@ async function menu(): Promise<void> {
     )
     const who = await pick('Choose', 3 + seated.length)
     if (who === null) return
-    let lobby: LobbyDetail | null = null
+    let lobby: PublicLobby | null = null
     if (who < 3) {
       const driver = who === 0 ? 'claude' : who === 1 ? 'codex' : null
       const name = await ask('Name', driver ? DRIVER_NAME[driver] : userInfo().username)
@@ -984,7 +959,7 @@ async function menu(): Promise<void> {
         const name = await ask('Lobby name', 'Arena')
         const max = Number(await ask('Seats', '3'))
         const bots = Number(await ask('Bots to add', '0'))
-        const created = await http<{ lobbyId: string }>('POST', '/api/lobbies', {
+        const created = await http<PublicLobby>('POST', '/api/lobbies', {
           lobbyName: name,
           maxPlayers: max,
         })
@@ -1035,7 +1010,7 @@ async function menu(): Promise<void> {
       const chosen = options[w]
       if (chosen === 'start the game now') {
         await attempt(`start (${MIN_PLAYERS}-${MAX_PLAYERS} seats, host only)`, async () => {
-          const { gameId } = await http<{ gameId: string }>('POST', `/api/lobbies/${LOBBY}/start`)
+          const { gameId } = await http<StartGameResponse>('POST', `/api/lobbies/${LOBBY}/start`)
           GAME = gameId
         })
         if (GAME) break
@@ -1121,7 +1096,7 @@ async function main(): Promise<void> {
     }
     case 'lobby': {
       needPlayer()
-      const lobby = await http<{ lobbyId: string }>('POST', '/api/lobbies', {
+      const lobby = await http<PublicLobby>('POST', '/api/lobbies', {
         lobbyName: flag('name') ?? 'Arena',
         maxPlayers: Number(flag('max') ?? 3),
       })
@@ -1140,7 +1115,7 @@ async function main(): Promise<void> {
     case 'start': {
       needPlayer()
       const lobbyId = LOBBY ?? die('this seat is not at a lobby (or pass --lobby <id>)')
-      const { gameId } = await http<{ gameId: string }>('POST', `/api/lobbies/${lobbyId}/start`)
+      const { gameId } = await http<StartGameResponse>('POST', `/api/lobbies/${lobbyId}/start`)
       console.log(gameId)
       return
     }

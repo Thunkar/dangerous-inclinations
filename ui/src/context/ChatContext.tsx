@@ -20,7 +20,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { ChatMessage, GameSocketMessage } from '../api/types'
+import type { ChatMessage, GameSocketMessage } from '@dangerous-inclinations/engine'
 import { getChat, postChat } from '../api/game'
 import { useWebSocket } from './WebSocketContext'
 

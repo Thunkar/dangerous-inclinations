@@ -14,6 +14,9 @@ import { resolveShipAppearance, type ShipAppearance } from '../models/appearance
  * Private: face-down tile identities, the ammo in a face-down missiles tile,
  * missions in hand, the card an item belongs to, cargo destinations, mission
  * offers, what a scan showed you.
+ *
+ * A view shares no object with the state: in-process bots decide from it, and
+ * nothing they do to it can reach the game.
  */
 import type {
   GameState,
@@ -146,7 +149,7 @@ export interface GameView {
    * Public: everyone is playing to the same number.
    */
   pointsToWin: number
-  /** The viewer's full player record, or null for a spectator. */
+  /** A copy of the viewer's full player record, or null for a spectator. */
   me: Player | null
   myStats: OwnShipStats | null
 }
@@ -203,7 +206,7 @@ function playerViewFor(state: GameState, player: Player, viewer: Player | null):
     hasSubmittedLoadout: player.hasSubmittedLoadout,
     appearance: resolveShipAppearance(player.hasSubmittedLoadout ? player.appearance : undefined),
     hasDeployed: player.hasDeployed,
-    home: player.home,
+    home: player.home ? { ...player.home } : null,
     recovering: player.recovering,
     ship: shipView(player),
     fixed: player.ship.subsystems
@@ -221,7 +224,7 @@ function playerViewFor(state: GameState, player: Player, viewer: Player | null):
     },
     cargoCount: aboard(player.cargo).length,
     points: player.points,
-    completedMissions: completedMissions(player),
+    completedMissions: structuredClone(completedMissions(player)),
     soldAt: [...player.soldAt],
     hold: aboard(player.cargo).map(c => ({ cargoId: c.id, kind: holdItemKind(c) })),
     escortedBy: state.players
@@ -242,13 +245,13 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
     activePlayerIndex: state.activePlayerIndex,
     activePlayerId: state.players[state.activePlayerIndex]?.id ?? '',
     players: state.players.map(p => playerViewFor(state, p, me)),
-    stations: state.stations,
-    missiles: state.missiles,
-    wrecks: state.wrecks,
+    stations: state.stations.map(s => ({ ...s })),
+    missiles: state.missiles.map(m => ({ ...m })),
+    wrecks: state.wrecks.map(w => ({ ...w })),
     winnerId: state.winnerId,
     finalRound: state.finalRound === true,
     pointsToWin: state.pointsToWin,
-    me,
+    me: me ? structuredClone(me) : null,
     myStats: me
       ? {
           dissipationCapacity: getDissipationCapacity(me.ship.subsystems),

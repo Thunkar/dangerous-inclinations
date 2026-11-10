@@ -1,5 +1,5 @@
 /** "Codex · gpt-6-astra": how an agent seat is labelled everywhere at the table. */
-import type { AgentInfo } from '../api/types'
+import type { AgentInfo } from '@dangerous-inclinations/engine'
 
 const DRIVER_NAME: Record<AgentInfo['driver'], string> = { claude: 'Claude', codex: 'Codex' }
 

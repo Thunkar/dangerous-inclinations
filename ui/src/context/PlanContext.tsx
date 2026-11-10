@@ -52,6 +52,7 @@ import {
   type ScanStep,
   type StepContext,
   type Target,
+  withRotation,
 } from '../plan/preview'
 
 /** What a click on an opponent's loadout is currently for. */
@@ -226,17 +227,6 @@ function defaultSteps(): PlanStep[] {
   return [{ id: stepId(), kind: 'move', move: { kind: 'coast', scoop: false } }]
 }
 const defaultMove = () => defaultSteps()[0] as MoveStep
-
-/** The steps with the rotation (if one is needed) just before the move. */
-function withRotation(steps: PlanStep[], rotate: boolean): PlanStep[] {
-  const next: PlanStep[] = steps.filter(s => s.kind !== 'rotate')
-  const moveIndex = Math.max(
-    0,
-    next.findIndex(s => s.kind === 'move')
-  )
-  if (rotate) next.splice(moveIndex, 0, { id: stepId(), kind: 'rotate' })
-  return next
-}
 
 export function PlanProvider({ children }: { children: ReactNode }) {
   const { view } = useGame()
@@ -423,14 +413,14 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     (move: MoveChoice, facing: Facing | null) => {
       const rotate = facing !== null && facing !== me.ship.facing
       setSteps(prev =>
-        withRotation(prev, rotate).map(s => (s.kind === 'move' ? { ...s, move } : s))
+        withRotation(prev, rotate, stepId).map(s => (s.kind === 'move' ? { ...s, move } : s))
       )
     },
     [me.ship.facing]
   )
 
   const toggleRotate = useCallback(() => {
-    setSteps(prev => withRotation(prev, !prev.some(s => s.kind === 'rotate')))
+    setSteps(prev => withRotation(prev, !prev.some(s => s.kind === 'rotate'), stepId))
   }, [])
 
   const addFire = useCallback(

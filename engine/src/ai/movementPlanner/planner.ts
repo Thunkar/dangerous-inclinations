@@ -17,7 +17,7 @@ import type {
   SearchNode,
   MovementAlternatives,
 } from './types.ts'
-import { DEFAULT_PLANNER_OPTIONS, positionKeyInt } from './types.ts'
+import { DEFAULT_PLANNER_OPTIONS, orientSteps, positionKeyInt } from './types.ts'
 
 /**
  * Plan optimal movement from origin to destination.
@@ -140,13 +140,17 @@ function reconstructPlan(
       actionType: current.action!,
       burnIntensity: current.burnIntensity ?? undefined,
       sectorAdjustment: current.sectorAdjustment,
-      requiresRotation: steps.length === 0 && current.position.facing !== origin.facing,
+      requiresRotation: false,
       massCost: current.massCost - next.massCost,
     }
     if (step.actionType === 'well_transfer') crossesWells = true
     steps.push(step)
     current = next
   }
+
+  // Either facing matched the origin, so the facings the search carried are
+  // its own: set the ship's, from the facing it really has.
+  orientSteps(steps, origin.facing)
 
   // The search ran backwards and could not know the tank at each coast, so it
   // booked every coast as a full scoop. Replayed forwards against the real

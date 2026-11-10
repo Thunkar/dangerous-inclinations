@@ -3,20 +3,24 @@
  * computed for the requesting player; the client never sees a GameState.
  */
 import { api } from './client'
-import type { ShipLoadout, ShipAppearance } from '@dangerous-inclinations/engine'
 import type {
   ChatHistoryResponse,
   ChatPostResponse,
+  ChatRequest,
+  DeployRequest,
   ForkResponse,
-  GameViewResponse,
-  TurnFramesResponse,
+  GameResponse,
+  LoadoutSubmission,
+  ShipAppearance,
+  ShipLoadout,
+  TurnFrames,
   TurnsResponse,
   ViewResponse,
-} from './types'
+} from '@dangerous-inclinations/engine'
 
 /** The current view plus the full filtered event history. */
-export async function getGame(gameId: string): Promise<GameViewResponse> {
-  return api.get<GameViewResponse>(`/api/games/${gameId}`)
+export async function getGame(gameId: string): Promise<GameResponse> {
+  return api.get<GameResponse>(`/api/games/${gameId}`)
 }
 
 /** Every turn of the game so far that this seat saw something of, oldest first. */
@@ -25,8 +29,8 @@ export async function getTurns(gameId: string): Promise<TurnsResponse> {
 }
 
 /** One turn's pair of views and events, as this seat saw it. */
-export async function getTurnFrames(gameId: string, index: number): Promise<TurnFramesResponse> {
-  return api.get<TurnFramesResponse>(`/api/games/${gameId}/turns/${index}`)
+export async function getTurnFrames(gameId: string, index: number): Promise<TurnFrames> {
+  return api.get<TurnFrames>(`/api/games/${gameId}/turns/${index}`)
 }
 
 /** Deployment: place your ship and Home marker on a sector of Black Hole Ring 2, 3 or 4. */
@@ -35,7 +39,10 @@ export async function deployShip(
   sector: number,
   ring: number
 ): Promise<ViewResponse> {
-  return api.post<ViewResponse>(`/api/games/${gameId}/deploy`, { ring, sector })
+  return api.post<ViewResponse>(`/api/games/${gameId}/deploy`, {
+    ring,
+    sector,
+  } satisfies DeployRequest)
 }
 
 /** Loadout phase: the ship's tiles and the three missions kept from the six offered. */
@@ -45,7 +52,11 @@ export async function submitLoadout(
   missionIds: string[],
   appearance?: ShipAppearance
 ): Promise<ViewResponse> {
-  return api.post<ViewResponse>(`/api/games/${gameId}/loadout`, { loadout, missionIds, appearance })
+  return api.post<ViewResponse>(`/api/games/${gameId}/loadout`, {
+    loadout,
+    missionIds,
+    appearance,
+  } satisfies LoadoutSubmission)
 }
 
 /** Table talk so far, oldest first. */
@@ -55,7 +66,10 @@ export async function getChat(gameId: string): Promise<ChatHistoryResponse> {
 
 /** Say something at the table. A `think` is an agent's, posted by `yarn seat`, never by the UI. */
 export async function postChat(gameId: string, text: string): Promise<ChatPostResponse> {
-  return api.post<ChatPostResponse>(`/api/games/${gameId}/chat`, { text, kind: 'say' })
+  return api.post<ChatPostResponse>(`/api/games/${gameId}/chat`, {
+    text,
+    kind: 'say',
+  } satisfies ChatRequest)
 }
 
 /** Fork a finished recording into a fresh live game. */

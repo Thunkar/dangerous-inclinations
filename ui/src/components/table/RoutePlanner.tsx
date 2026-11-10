@@ -32,13 +32,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
 import RotateRightIcon from '@mui/icons-material/RotateRight'
 import RouteIcon from '@mui/icons-material/Route'
-import type {
-  Facing,
-  MovementPlan,
-  MovementStep,
-  Position,
-  Station,
-} from '@dangerous-inclinations/engine'
+import type { MovementPlan, MovementStep, Position, Station } from '@dangerous-inclinations/engine'
 import { fill, getWellName } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { moveOfRouteStep, useRoutePlan, type RouteMode } from '../../context/RoutePlanContext'
@@ -46,7 +40,6 @@ import type { MoveChoice } from '../../plan/preview'
 import {
   ROUTE_SEARCH_TURNS,
   describeStep,
-  facingFor,
   placeLabel,
   routeLegs,
   routeName,
@@ -103,7 +96,7 @@ export function RoutePlanner() {
   const taken = Boolean(
     first &&
       sameMove(moveOfRouteStep(first), plan.moveStep.move) &&
-      facingFor(first, plan.moveFrom.facing) === plan.moveFrom.facing
+      (first.actionType === 'coast' || first.from.facing === plan.moveFrom.facing)
   )
 
   const edge = picking ? TABLE.accent : route ? ROUTE_FAINT : TABLE.line
@@ -205,10 +198,9 @@ export function RoutePlanner() {
                 selected={routePlan.routeIndex}
                 onSelect={routePlan.selectRoute}
               />
-              <Itinerary route={route} facing={plan.me.ship.facing} taken={taken} />
+              <Itinerary route={route} taken={taken} />
               <FirstStep
                 step={route.steps[0]}
-                facing={plan.me.ship.facing}
                 taken={taken}
                 disabled={disabled}
                 onTake={routePlan.applyRouteStep}
@@ -693,16 +685,8 @@ function Readout({ value, on, tint }: { value: number; on: boolean; tint?: strin
  * across the board. The first turn is lit; everything after it is a later
  * turn, and dimmed to say so.
  */
-function Itinerary({
-  route,
-  facing,
-  taken,
-}: {
-  route: MovementPlan
-  facing: Facing
-  taken: boolean
-}) {
-  const legs = routeLegs(route.steps, facing)
+function Itinerary({ route, taken }: { route: MovementPlan; taken: boolean }) {
+  const legs = routeLegs(route.steps)
   const shown = legs.slice(0, ITINERARY_LIMIT)
   const hidden = legs.length - shown.length
 
@@ -842,13 +826,11 @@ function LegRow({
  */
 function FirstStep({
   step,
-  facing,
   taken,
   disabled,
   onTake,
 }: {
   step: MovementStep
-  facing: Facing
   taken: boolean
   disabled: boolean
   onTake: () => void
@@ -888,7 +870,7 @@ function FirstStep({
   }
 
   return (
-    <Tooltip title={fill(T.takeTip, { step: describeStep(step, facing) })}>
+    <Tooltip title={fill(T.takeTip, { step: describeStep(step) })}>
       <Box component="span" sx={{ display: 'flex', mt: 0.1, minWidth: 0 }}>
         <Button
           fullWidth

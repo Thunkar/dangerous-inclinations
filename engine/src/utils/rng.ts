@@ -5,9 +5,11 @@
  * The state is a single 32-bit integer that we keep on GameState so it
  * round-trips through JSON cleanly.
  *
- * The `Rng` class is a thin handle; the canonical state lives on GameState.
- * Engine code uses the helpers (rollD10, pickIndex), which take a GameState
- * and advance its rngState in place. The deal shuffles with an `Rng` directly.
+ * The `Rng` class is a thin, mutable handle; the canonical state lives on
+ * GameState. The helpers (rollD10, pickIndex, nextEntityId, withRng) never
+ * touch the state they are given: each returns its value and a new state with
+ * the RNG (or the ID counter) advanced, which the caller carries on with. The
+ * deal shuffles with an `Rng` directly.
  */
 
 import type { GameState } from '../models/game.ts'
@@ -53,48 +55,38 @@ export class Rng {
   }
 }
 
-/** Read GameState's PRNG into an Rng handle. */
-function getRng(state: GameState): Rng {
-  return new Rng(state.rngState)
-}
-
-/** Write the PRNG state back to GameState. */
-function commitRng(state: GameState, rng: Rng): void {
-  state.rngState = rng.state
-}
-
 /**
- * Roll a d10 against GameState's RNG, advancing it. Mutates state.rngState in
- * place. A test may pin the die with `forcedRollValue`, which leaves the RNG
- * untouched.
+ * Run `draw` with an RNG handle read off the state, and fold what it drew back:
+ * the result and a new state whose `rngState` has advanced. The state passed in
+ * is never touched. For a caller that hands a seeded pick to code that may draw
+ * any number of times (a bot choosing a hand or a sector).
  */
-export function rollD10(state: GameState): number {
-  if (state.forcedRollValue !== undefined) return state.forcedRollValue
-  const rng = getRng(state)
-  const v = rng.rollD10()
-  commitRng(state, rng)
-  return v
+export function withRng<T>(state: GameState, draw: (rng: Rng) => T): [T, GameState] {
+  const rng = new Rng(state.rngState)
+  const value = draw(rng)
+  // Nothing drawn, nothing to fold back (the handle keeps the seed as a 32-bit int).
+  if (rng.state === (state.rngState | 0)) return [value, state]
+  return [value, { ...state, rngState: rng.state }]
+}
+
+/** Roll a d10 against the state's RNG: the roll and the state with the RNG advanced. */
+export function rollD10(state: GameState): [number, GameState] {
+  return withRng(state, rng => rng.rollD10())
+}
+
+/** A random index into `arr` against the state's RNG, and the state with the RNG advanced. */
+export function pickIndex<T>(state: GameState, arr: readonly T[]): [number, GameState] {
+  return withRng(state, rng => rng.pickIndex(arr))
 }
 
 /**
- * Pick a random index against GameState's RNG, advancing it.
- */
-export function pickIndex<T>(state: GameState, arr: readonly T[]): number {
-  const rng = getRng(state)
-  const i = rng.pickIndex(arr)
-  commitRng(state, rng)
-  return i
-}
-
-/**
- * Allocate the next monotonic entity ID and bump GameState's counter.
- * Use for missile/cargo/scan IDs: anything that needs to be deterministic
+ * The next monotonic entity ID, and the state with its counter bumped.
+ * Use for missile/wreck IDs: anything that needs to be deterministic
  * and unique across a single game.
  */
-export function nextEntityId(state: GameState, prefix: string): string {
+export function nextEntityId(state: GameState, prefix: string): [string, GameState] {
   const id = state.nextEntityId
-  state.nextEntityId = id + 1
-  return `${prefix}-${id}`
+  return [`${prefix}-${id}`, { ...state, nextEntityId: id + 1 }]
 }
 
 /**

@@ -21,6 +21,7 @@ import {
   withSub,
   at,
   attackerAt,
+  rolling,
 } from '../testUtils.ts'
 
 describe('plasma cannon: range', () => {
@@ -128,7 +129,7 @@ describe('disruptor: a hit breaks the named slot', () => {
     const state = makeTwoPlayerGame(
       { loadout: LOADOUTS.disruptor },
       { ring: 3, sector: 1, loadout: LOADOUTS.gunship },
-      { forcedRollValue: roll }
+      rolling(roll)
     )
     return withPower(state, 'p2', 'forward-0', 4)
   }

@@ -1,17 +1,12 @@
 import { api } from './client.ts'
-import type { GameRecording } from '@dangerous-inclinations/engine'
-
-export interface RecordingSummary {
-  recordingId: string
-  createdAt: string
-  source: 'sim' | 'live'
-  turnCount: number
-  winnerId?: string
-  label?: string
-}
+import type {
+  GameRecording,
+  RecordingSummary,
+  RecordingsResponse,
+} from '@dangerous-inclinations/engine'
 
 export async function listRecordings(): Promise<RecordingSummary[]> {
-  const result = await api.get<{ recordings: RecordingSummary[] }>('/api/recordings')
+  const result = await api.get<RecordingsResponse>('/api/recordings')
   return result.recordings ?? []
 }
 

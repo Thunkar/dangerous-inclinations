@@ -64,8 +64,7 @@ export function executeTurn(gameState: GameState, actions: PlayerAction[]): Turn
   const active = gameState.players[activeIndex]
   const events: EventDraft[] = []
 
-  // Shallow copy: RNG helpers mutate rngState on the working object.
-  let state: GameState = { ...gameState }
+  let state = gameState
 
   if (needsRespawn(active)) {
     const respawn = respawnPlayer(state, activeIndex)

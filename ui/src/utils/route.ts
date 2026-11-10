@@ -1,25 +1,18 @@
 /**
  * Reading a route out loud.
  *
- * A {@link MovementPlan} is a list of steps with a facing carried between
- * them; turning that into words is the same job at the table as it is in the
+ * A {@link MovementPlan} is a list of steps, each with the facing it is made
+ * in; turning that into words is the same job at the table as it is in the
  * game, so both the turn column's planner and the standalone tool call these
  * and the two cannot end up describing the same burn differently.
  */
-import type { Facing, MovementPlan, MovementStep, Position } from '@dangerous-inclinations/engine'
+import type { MovementPlan, MovementStep, Position } from '@dangerous-inclinations/engine'
 import { getWellName } from '@dangerous-inclinations/engine'
 
 /** How many turns ahead a route search looks before it gives up: the turn column and the tool alike. */
 export const ROUTE_SEARCH_TURNS = 20
 
 export const placeLabel = (p: Position) => `${getWellName(p.wellId)} R${p.ring} S${p.sector}`
-
-/** Facing a burn needs: prograde burns outward, retrograde inward. Coasts and jumps keep the facing. */
-export function facingFor(step: MovementStep, before: Facing): Facing {
-  if (step.actionType === 'burn_prograde') return 'prograde'
-  if (step.actionType === 'burn_retrograde') return 'retrograde'
-  return before
-}
 
 /** One leg of a route: what it does, and whether the nose has to come round first. */
 interface Leg {
@@ -30,31 +23,30 @@ interface Leg {
 }
 
 /** One step of a planned route, in the words of the move row. */
-function legText(step: MovementStep, facingAfter: Facing): string {
+function legText(step: MovementStep): string {
   if (step.actionType === 'coast') return `coast${step.massCost < 0 ? ' + scoop' : ''}`
   const phase = step.sectorAdjustment
     ? ` ${step.sectorAdjustment > 0 ? '+' : ''}${step.sectorAdjustment}`
     : ''
   if (step.actionType === 'well_transfer') return `jump → ${getWellName(step.to.wellId)}${phase}`
-  return `${step.burnIntensity ?? 'soft'} burn ${facingAfter === 'prograde' ? 'out' : 'in'}${phase}`
+  return `${step.burnIntensity ?? 'soft'} burn ${step.from.facing === 'prograde' ? 'out' : 'in'}${phase}`
 }
 
-/** The same step spelled out in full, for a tooltip that has the room. */
-export function describeStep(step: MovementStep, facingBefore: Facing): string {
-  const needed = facingFor(step, facingBefore)
-  return `${legText(step, needed)}${needed !== facingBefore ? ' (rotate first)' : ''}`
+/**
+ * The same step spelled out in full, for a tooltip that has the room. The
+ * planner says which way each step faces and whether the ship turns for it.
+ */
+export function describeStep(step: MovementStep): string {
+  return `${legText(step)}${step.requiresRotation ? ' (rotate first)' : ''}`
 }
 
-/** Every step described, with the facing carried from one to the next. */
-export function routeLegs(steps: MovementStep[], facing: Facing): Leg[] {
-  const out: Leg[] = []
-  let current = facing
-  for (const step of steps) {
-    const needed = facingFor(step, current)
-    out.push({ text: legText(step, needed), rotate: needed !== current, massCost: step.massCost })
-    current = needed
-  }
-  return out
+/** Every step described. */
+export function routeLegs(steps: MovementStep[]): Leg[] {
+  return steps.map(step => ({
+    text: legText(step),
+    rotate: step.requiresRotation,
+    massCost: step.massCost,
+  }))
 }
 
 /** "⚡ Fastest" → "fastest": the engine labels for people, we label for the plate. */

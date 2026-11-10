@@ -45,6 +45,7 @@ import {
   piracyMission,
   withPlayer,
   LANDING,
+  rolling,
 } from '../testUtils.ts'
 
 export type Draft = Parameters<typeof executeTurnAs>[1]
@@ -148,7 +149,7 @@ export const label = (ordering: readonly Item[]): string =>
  * A d10 pinned to 8: a hit, or a critical when a sensor has energy on it, so
  * every shot says which critical range it was rolled against.
  */
-const PINNED_EIGHT = { forcedRollValue: 8 }
+const PINNED_EIGHT = rolling(8)
 
 /**
  * p1 on black hole ring 3, sector 6, prograde, flying the brawler (railgun;

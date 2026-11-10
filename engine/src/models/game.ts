@@ -1,20 +1,30 @@
+import { z } from 'zod'
 import type { ShipAppearance } from './appearance.ts'
-import type { Subsystem, SubsystemId, SubsystemType, HeatState } from './subsystems.ts'
+import { BURN_INTENSITIES } from './rings.ts'
+import {
+  SUBSYSTEM_CONFIGS,
+  type Subsystem,
+  type SubsystemId,
+  type SubsystemType,
+  type HeatState,
+} from './subsystems.ts'
 import type { Mission, Cargo } from './missions.ts'
+
+const SlotSchema = z
+  .enum(Object.keys(SUBSYSTEM_CONFIGS) as [SubsystemType, ...SubsystemType[]])
+  .nullable()
 
 /**
  * Ship loadout: one forward slot and four side slots.
  * Fixed systems (engines, thrusters, scoop) are always present.
  */
-export interface ShipLoadout {
-  forwardSlots: [SubsystemType | null]
-  sideSlots: [
-    SubsystemType | null,
-    SubsystemType | null,
-    SubsystemType | null,
-    SubsystemType | null,
-  ]
-}
+export const ShipLoadoutSchema = z
+  .object({
+    forwardSlots: z.tuple([SlotSchema]),
+    sideSlots: z.tuple([SlotSchema, SlotSchema, SlotSchema, SlotSchema]),
+  })
+  .strict()
+export type ShipLoadout = z.infer<typeof ShipLoadoutSchema>
 
 export interface LoadoutValidation {
   valid: boolean
@@ -108,13 +118,15 @@ export function isQuietTurn(turn: number, me: { recovering: boolean }): boolean 
   return isOpeningRound(turn) || me.recovering
 }
 
-export type Facing = 'prograde' | 'retrograde'
+const FacingSchema = z.enum(['prograde', 'retrograde'])
+export type Facing = z.infer<typeof FacingSchema>
 
 /** The facing a rotation turns a ship to. */
 export function oppositeFacing(facing: Facing): Facing {
   return facing === 'prograde' ? 'retrograde' : 'prograde'
 }
-export type BurnIntensity = 'soft' | 'medium' | 'hard'
+/** A burn's strength: the keys of `BURN_COSTS`. */
+export type BurnIntensity = (typeof BURN_INTENSITIES)[number]
 
 export type GravityWellId = string // 'blackhole' | 'planet-alpha' | ...
 export type GravityWellType = 'blackhole' | 'planet'
@@ -206,73 +218,115 @@ export interface ShipState {
   loadout: ShipLoadout
 }
 
-interface BaseAction {
-  playerId: string
-  /** Tactical actions (power/rotate/move/fire/scan/jump/seize/survey/salvage/escort_mark) execute in sequence order. */
-  sequence?: number
+/**
+ * Every action a turn may carry, as the wire schema that checks it and the
+ * type the engine reads: one definition, so a new field is one edit. The
+ * engine still judges the semantics (range, whose turn it is); anything that
+ * is not exactly one of these shapes is refused before it gets there, so a
+ * malformed action fails the whole submission and never turns into a coast.
+ */
+const actionId = z.string().min(1)
+const actionInt = z.number().int().finite()
+const actionBase = {
+  playerId: actionId,
+  /** Tactical actions (power/rotate/move/fire/scan/jump/seize/survey/salvage/escort_mark) execute in sequence order; clients number them from 1. */
+  sequence: z.number().int().finite().positive().optional(),
 }
 
-export interface CoastAction extends BaseAction {
-  type: 'coast'
-  data: { activateScoop: boolean }
-}
+const CoastActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('coast'),
+    data: z.object({ activateScoop: z.boolean() }).strict(),
+  })
+  .strict()
 
-export interface BurnAction extends BaseAction {
-  type: 'burn'
-  data: { burnIntensity: BurnIntensity; sectorAdjustment: number }
-}
+const BurnActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('burn'),
+    data: z
+      .object({
+        burnIntensity: z.enum(BURN_INTENSITIES as [BurnIntensity, ...BurnIntensity[]]),
+        sectorAdjustment: actionInt,
+      })
+      .strict(),
+  })
+  .strict()
 
-export interface RotateAction extends BaseAction {
-  type: 'rotate'
-  data: { targetFacing: Facing }
-}
+const RotateActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('rotate'),
+    data: z.object({ targetFacing: FacingSchema }).strict(),
+  })
+  .strict()
 
 /** Power one of the tiles that work on other players' turns (POWERABLE_TYPES). `amount` is shields' 1 or 2; absent means the tile's minimum. */
-export interface PowerAction extends BaseAction {
-  type: 'power'
-  data: { subsystemId: SubsystemId; amount?: number }
-}
+const PowerActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('power'),
+    data: z.object({ subsystemId: actionId, amount: actionInt.optional() }).strict(),
+  })
+  .strict()
 
-export interface FireWeaponAction extends BaseAction {
-  type: 'fire_weapon'
-  data: {
-    subsystemId: SubsystemId // which weapon fires
-    targetPlayerId: string
-    /** Slot to break if the shot is a critical hit. */
-    criticalTarget: SubsystemId
-    /** Railgun only: engines cancel the recoil (1 mass, engine heat). */
-    compensateRecoil?: boolean
-    /**
-     * Missiles only: how many of the tile's remaining rounds this launch puts
-     * in the air, all at the same ship and the same critical slot. Absent is
-     * one. The whole salvo is one use of the tile, so it costs the tile's
-     * cubes in heat once whatever its size: the magazine is what limits
-     * missiles, not the heat.
-     */
-    count?: number
-  }
-}
+const FireWeaponActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('fire_weapon'),
+    data: z
+      .object({
+        /** Which weapon fires. */
+        subsystemId: actionId,
+        targetPlayerId: actionId,
+        /** Slot to break if the shot is a critical hit. */
+        criticalTarget: actionId,
+        /** Railgun only: engines cancel the recoil (1 mass, engine heat). */
+        compensateRecoil: z.boolean().optional(),
+        /**
+         * Missiles only: how many of the tile's remaining rounds this launch puts
+         * in the air, all at the same ship and the same critical slot. Absent is
+         * one. The whole salvo is one use of the tile, so it costs the tile's
+         * cubes in heat once whatever its size: the magazine is what limits
+         * missiles, not the heat. The validator bounds it against the rounds aboard.
+         */
+        count: z.number().int().min(1).optional(),
+      })
+      .strict(),
+  })
+  .strict()
 
-export interface ScanAction extends BaseAction {
-  type: 'scan'
-  data: {
-    targetPlayerId: string
-    /** Face-down slot of the target to look at. */
-    peekSlot: SubsystemId
-  }
-}
+const ScanActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('scan'),
+    data: z
+      .object({
+        targetPlayerId: actionId,
+        /** Face-down slot of the target to look at. */
+        peekSlot: actionId,
+      })
+      .strict(),
+  })
+  .strict()
 
-export interface WellTransferAction extends BaseAction {
-  type: 'well_transfer'
-  data: {
-    destinationWellId: GravityWellId
-    /**
-     * Phasing, as on a burn: sectors to shift the arrival for 1 fuel each,
-     * bounded by the arrival arc. 0 lands on the matching sector.
-     */
-    sectorAdjustment: number
-  }
-}
+const WellTransferActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('well_transfer'),
+    data: z
+      .object({
+        destinationWellId: actionId,
+        /**
+         * Phasing, as on a burn: sectors to shift the arrival for 1 fuel each,
+         * bounded by the arrival arc. 0 lands on the matching sector.
+         */
+        sectorAdjustment: actionInt,
+      })
+      .strict(),
+  })
+  .strict()
 
 /**
  * A standing order for the turn, not a tactical action: name the tile the crew
@@ -280,10 +334,13 @@ export interface WellTransferAction extends BaseAction {
  * it does not happen at a point in the turn: it happens at the end of it, and
  * only if nothing on the loadout made heat.
  */
-export interface RepairAction extends BaseAction {
-  type: 'repair'
-  data: { subsystemId: SubsystemId }
-}
+const RepairActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('repair'),
+    data: z.object({ subsystemId: actionId }).strict(),
+  })
+  .strict()
 
 /**
  * A standing order for the turn, like a repair: what the visit does if the
@@ -291,15 +348,22 @@ export interface RepairAction extends BaseAction {
  * docking happens after every action. A choice the visit cannot make is not
  * refused: the visit makes the default instead (`salesOnArrival`).
  */
-export interface DockSaleAction extends BaseAction {
-  type: 'dock_sale'
-  /**
-   * The item sold, by its cargo id; `SELL_FUEL` for a Tanker's pump;
-   * `LOAD_CRATES` to load the crates waiting instead of selling; or
-   * `SELL_NOTHING` to do nothing and keep the station for later.
-   */
-  data: { sale: string }
-}
+const DockSaleActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('dock_sale'),
+    data: z
+      .object({
+        /**
+         * The item sold, by its cargo id; `SELL_FUEL` for a Tanker's pump;
+         * `LOAD_CRATES` to load the crates waiting instead of selling; or
+         * `SELL_NOTHING` to do nothing and keep the station for later.
+         */
+        sale: actionId,
+      })
+      .strict(),
+  })
+  .strict()
 
 /**
  * Escort (RULES §Missions, Escort): put a marker on this carrier, at this
@@ -311,10 +375,13 @@ export interface DockSaleAction extends BaseAction {
  * that does not hold is refused. One per marker in hand, each naming a
  * different ship. Not a use of any subsystem: it puts no energy anywhere.
  */
-export interface EscortMarkAction extends BaseAction {
-  type: 'escort_mark'
-  data: { carrierId: string }
-}
+const EscortMarkActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('escort_mark'),
+    data: z.object({ carrierId: actionId }).strict(),
+  })
+  .strict()
 
 /**
  * Survey (RULES §Missions, Survey): take the data, at this point in the
@@ -322,10 +389,13 @@ export interface EscortMarkAction extends BaseAction {
  * no data aboard; the first such card in hand takes it. One dive a turn, and
  * no subsystem used.
  */
-export interface SurveyAction extends BaseAction {
-  type: 'survey'
-  data: Record<string, never>
-}
+const SurveyActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('survey'),
+    data: z.object({}).strict(),
+  })
+  .strict()
 
 /**
  * Salvage (RULES §Missions, Salvage): take a wreck's black box, at this
@@ -335,10 +405,13 @@ export interface SurveyAction extends BaseAction {
  * it takes the first wreck in the sector at that point (a kill earlier in the
  * turn leaves one there), and is skipped if there is none.
  */
-export interface SalvageAction extends BaseAction {
-  type: 'salvage'
-  data: { wreckId?: string }
-}
+const SalvageActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('salvage'),
+    data: z.object({ wreckId: actionId.optional() }).strict(),
+  })
+  .strict()
 
 /**
  * Piracy (RULES §Missions, Piracy): take this item off this ship, at this
@@ -349,39 +422,53 @@ export interface SalvageAction extends BaseAction {
  * else that does not hold is refused. Not a use of any subsystem: it puts no
  * energy anywhere.
  */
-export interface SeizeAction extends BaseAction {
-  type: 'seize'
-  data: { victimId: string; cargoId: string }
-}
+const SeizeActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('seize'),
+    data: z.object({ victimId: actionId, cargoId: z.string() }).strict(),
+  })
+  .strict()
 
-export type TacticalAction =
-  | RotateAction
-  | CoastAction
-  | BurnAction
-  | WellTransferAction
-  | FireWeaponAction
-  | ScanAction
-  | PowerAction
-  | SeizeAction
-  | SurveyAction
-  | SalvageAction
-  | EscortMarkAction
-
-export type PlayerAction = TacticalAction | RepairAction | DockSaleAction
-
-const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set([
-  'rotate',
-  'coast',
-  'burn',
-  'well_transfer',
-  'fire_weapon',
-  'scan',
-  'power',
-  'seize',
-  'survey',
-  'salvage',
-  'escort_mark',
+/** Every action a turn may submit, as the wire checks it. Deployment is not one: it has its own route. */
+export const PlayerActionSchema = z.discriminatedUnion('type', [
+  CoastActionSchema,
+  BurnActionSchema,
+  RotateActionSchema,
+  PowerActionSchema,
+  FireWeaponActionSchema,
+  ScanActionSchema,
+  WellTransferActionSchema,
+  RepairActionSchema,
+  DockSaleActionSchema,
+  EscortMarkActionSchema,
+  SeizeActionSchema,
+  SurveyActionSchema,
+  SalvageActionSchema,
 ])
+
+export type CoastAction = z.infer<typeof CoastActionSchema>
+export type BurnAction = z.infer<typeof BurnActionSchema>
+export type RotateAction = z.infer<typeof RotateActionSchema>
+export type PowerAction = z.infer<typeof PowerActionSchema>
+export type FireWeaponAction = z.infer<typeof FireWeaponActionSchema>
+export type ScanAction = z.infer<typeof ScanActionSchema>
+export type WellTransferAction = z.infer<typeof WellTransferActionSchema>
+export type RepairAction = z.infer<typeof RepairActionSchema>
+export type DockSaleAction = z.infer<typeof DockSaleActionSchema>
+export type EscortMarkAction = z.infer<typeof EscortMarkActionSchema>
+export type SurveyAction = z.infer<typeof SurveyActionSchema>
+export type SalvageAction = z.infer<typeof SalvageActionSchema>
+export type SeizeAction = z.infer<typeof SeizeActionSchema>
+
+export type PlayerAction = z.infer<typeof PlayerActionSchema>
+/** Every action but the two standing orders, which carry no sequence. */
+export type TacticalAction = Exclude<PlayerAction, RepairAction | DockSaleAction>
+
+/** Every action a turn may submit: the schema's own list. */
+export const PLAYER_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set(
+  PlayerActionSchema.options.map(option => option.shape.type.value)
+)
 
 /** The three moves; a turn takes at most one. */
 export const MOVE_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set([
@@ -391,16 +478,12 @@ export const MOVE_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set([
 ])
 
 /** Standing orders: named with the turn and settled at its end, so they carry no sequence. */
-const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction['type']> = new Set(['repair', 'dock_sale'])
-
-/** Every action a turn may submit. */
-export const PLAYER_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set([
-  ...TACTICAL_ACTION_TYPES,
-  ...STANDING_ORDER_TYPES,
-])
+const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction['type']> = new Set<
+  (RepairAction | DockSaleAction)['type']
+>(['repair', 'dock_sale'])
 
 export function isTacticalAction(action: PlayerAction): action is TacticalAction {
-  return TACTICAL_ACTION_TYPES.has(action.type)
+  return !STANDING_ORDER_TYPES.has(action.type)
 }
 
 export interface Player {
@@ -491,6 +574,4 @@ export interface GameState {
   rngSeed: number
   rngState: number
   nextEntityId: number
-  /** Test-only override for d10 rolls. */
-  forcedRollValue?: number
 }

@@ -124,9 +124,14 @@ round is for getting off the line.
 ## Key files
 
 ```
-engine/src/models/      game.ts (state, actions), subsystems.ts (tiles, ids), missions.ts,
-                        events.ts, gravityWells.ts (rings, lanes), rings.ts (costs)
-engine/src/game/        turns.ts (pipeline), actionProcessors.ts, validators.ts,
+engine/src/models/      game.ts (state, actions: zod schemas, types inferred), subsystems.ts
+                        (tiles, ids), missions.ts, events.ts, gravityWells.ts (rings, lanes),
+                        rings.ts (costs)
+engine/src/protocol/    every REST and socket payload: request schemas, response types
+engine/src/game/        turns.ts (pipeline), actionProcessors.ts, validators.ts (every
+                        refusal, asked of table.ts: the state's or a view's),
+                        refusals.ts (codes + words), walk.ts (walkTurn: a planned
+                        turn from a view, for the table's plan and the agents),
                         ship.ts (subsystem helpers, useSubsystem/reveal/break),
                         geometry.ts, movement.ts, targeting.ts, damage.ts, heat.ts,
                         missiles.ts, scan.ts, docking.ts, piracy.ts, escort.ts, survey.ts,
@@ -305,7 +310,9 @@ in-game rules dialog.
 
 **The words live in text files that hold only strings**, in on-screen order:
 `engine/src/text/missionCards.ts` (every card's name, title and rule),
-`engine/src/text/agentRules.ts` (the rules digest an agent seat reads) and
+`engine/src/text/agentRules.ts` (the rules digest an agent seat reads),
+`engine/src/text/refusals.ts` (why an action is refused: the referee's errors,
+the table's plan and an agent's notes all say these) and
 `ui/src/text/` (`cheatsheet.ts`, `printedCard.ts`, `turn.ts`, `windows.ts`,
 `rulesDialog.ts`, `missionProgress.ts`, `landing.ts`, `tools.ts`, and for the
 video game `table.ts`, `actions.ts`, `screens.ts`). A number is a `{name}`
@@ -1376,7 +1383,9 @@ Known open problems:
 
 1. Write it in one sentence for `RULES.md`; if you can't, simplify it.
 2. Types in `engine/src/models/`, logic in `engine/src/game/`, event(s) in
-   `models/events.ts` + text in `game/describe.ts`.
+   `models/events.ts` + text in `game/describe.ts`. A new refusal is a check
+   in `game/validators.ts` with its words in `text/refusals.ts`: the table's
+   plan and the agents read it through `walkTurn`, never a copy.
 3. Decide what is public and what is private (`view.ts`, event `privateTo`).
 4. Teach the bots (`engine/src/ai/`) and run the sim to see the effect.
 5. Tests, then server/UI.

@@ -5,14 +5,14 @@
 
 import { api } from './client'
 import type {
+  AddBotRequest,
   CreateLobbyRequest,
-  CreateLobbyResponse,
   JoinLobbyRequest,
-  JoinLobbyResponse,
   LobbyListItem,
-  ServerLobby,
+  PublicLobby,
   StartGameResponse,
-} from './types'
+  SuccessResponse,
+} from '@dangerous-inclinations/engine'
 
 /**
  * Get list of all available lobbies
@@ -24,8 +24,8 @@ export async function listLobbies(): Promise<LobbyListItem[]> {
 /**
  * Get details of a specific lobby
  */
-export async function getLobby(lobbyId: string): Promise<ServerLobby> {
-  return api.get<ServerLobby>(`/api/lobbies/${lobbyId}`)
+export async function getLobby(lobbyId: string): Promise<PublicLobby> {
+  return api.get<PublicLobby>(`/api/lobbies/${lobbyId}`)
 }
 
 /**
@@ -35,29 +35,29 @@ export async function createLobby(
   lobbyName: string,
   maxPlayers: number,
   password?: string
-): Promise<CreateLobbyResponse> {
-  return api.post<CreateLobbyResponse>('/api/lobbies', {
+): Promise<PublicLobby> {
+  return api.post<PublicLobby>('/api/lobbies', {
     lobbyName,
     maxPlayers,
     password,
-  } as CreateLobbyRequest)
+  } satisfies CreateLobbyRequest)
 }
 
 /**
  * Join an existing lobby
  */
-export async function joinLobby(lobbyId: string, password?: string): Promise<JoinLobbyResponse> {
-  return api.post<JoinLobbyResponse>('/api/lobbies/join', {
+export async function joinLobby(lobbyId: string, password?: string): Promise<PublicLobby> {
+  return api.post<PublicLobby>('/api/lobbies/join', {
     lobbyId,
     password,
-  } as JoinLobbyRequest)
+  } satisfies JoinLobbyRequest)
 }
 
 /**
  * Leave a lobby
  */
 export async function leaveLobby(lobbyId: string): Promise<void> {
-  await api.post(`/api/lobbies/${lobbyId}/leave`, {})
+  await api.post<SuccessResponse>(`/api/lobbies/${lobbyId}/leave`, {})
 }
 
 /**
@@ -70,13 +70,13 @@ export async function startGame(lobbyId: string): Promise<StartGameResponse> {
 /**
  * Add a bot to the lobby (host only)
  */
-export async function addBot(lobbyId: string, botName?: string): Promise<ServerLobby> {
-  return api.post<ServerLobby>(`/api/lobbies/${lobbyId}/bot`, { botName })
+export async function addBot(lobbyId: string, botName?: string): Promise<PublicLobby> {
+  return api.post<PublicLobby>(`/api/lobbies/${lobbyId}/bot`, { botName } satisfies AddBotRequest)
 }
 
 /**
  * Remove a bot from the lobby (host only)
  */
 export async function removeBot(lobbyId: string, botId: string): Promise<void> {
-  await api.delete(`/api/lobbies/${lobbyId}/bot/${botId}`)
+  await api.delete<SuccessResponse>(`/api/lobbies/${lobbyId}/bot/${botId}`)
 }

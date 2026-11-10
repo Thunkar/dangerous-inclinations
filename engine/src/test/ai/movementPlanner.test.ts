@@ -528,6 +528,54 @@ describe('a jump is made facing prograde', () => {
   })
 })
 
+describe('a route turns the ship from the facing it has, in either search', () => {
+  // BH R3 drifts four a turn; R5 S17 is on Alpha's departure arc.
+  const landing = at(PLANET_OUTER_RING, 5, ALPHA)
+  const searches = {
+    reverse: (origin: OrientedPosition, to: OrbitalPosition) =>
+      planMovement(origin, to, { availableMass: 10, maxTurns: 1 }),
+    forward: (origin: OrientedPosition, to: OrbitalPosition) =>
+      planMovementToTarget(origin, staticTarget(to), { availableMass: 10, maxTurns: 1 }),
+  }
+
+  it.each<[string, OrbitalPosition, OrbitalPosition, Facing, Facing, boolean]>([
+    ['a burn out, facing prograde', at(3, 0), at(4, 4), 'prograde', 'prograde', false],
+    ['a burn out, facing retrograde', at(3, 0), at(4, 4), 'retrograde', 'prograde', true],
+    ['a burn in, facing prograde', at(3, 0), at(2, 4), 'prograde', 'retrograde', true],
+    ['a burn in, facing retrograde', at(3, 0), at(2, 4), 'retrograde', 'retrograde', false],
+    ['a coast, facing retrograde', at(3, 0), at(3, 4), 'retrograde', 'retrograde', false],
+    ['a jump, facing prograde', at(5, 17), landing, 'prograde', 'prograde', false],
+    ['a jump, facing retrograde', at(5, 17), landing, 'retrograde', 'prograde', true],
+  ])('%s', (_label, from, to, ship, made, rotates) => {
+    for (const [name, search] of Object.entries(searches)) {
+      const plan = search(facing(from, ship), to)
+      expect({ name, step: plan?.steps.map(s => [s.from.facing, s.requiresRotation]) }).toEqual({
+        name,
+        step: [[made, rotates]],
+      })
+    }
+  })
+
+  it('carries the facing from step to step, out to a lane and through it', () => {
+    // BH R3 to the lane takes burns out and a jump: each step turns the ship
+    // against the facing the step before it left, not against the start's.
+    const plan = planMovementToTarget(facing(at(3, 0), 'retrograde'), staticTarget(landing), {
+      availableMass: 10,
+      maxTurns: 6,
+    })
+    expect(plan).not.toBeNull()
+    let current: Facing = 'retrograde'
+    for (const step of plan!.steps) {
+      expect(step.requiresRotation).toBe(step.from.facing !== current)
+      current = step.from.facing
+    }
+    expect(plan!.steps.at(-1)).toMatchObject({
+      actionType: 'well_transfer',
+      from: { facing: 'prograde' },
+    })
+  })
+})
+
 describe('planFromShip: the forward search behind the reverse one', () => {
   it('plans a route that scoops first, where the reverse search sees only a dry tank', () => {
     const ship = { ...makePlayer('p1', facing(at(3, 0))).ship, reactionMass: 0 }

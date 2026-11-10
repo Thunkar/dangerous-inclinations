@@ -24,13 +24,16 @@ import {
 import type {
   GameEvent,
   GameRecording,
+  GameSocketMessage,
   GameView,
+  LobbySeat,
   PlayerAction,
   ShipLoadout,
   ShipAppearance,
+  SubmitTurnMessage,
+  TurnSummary,
 } from '@dangerous-inclinations/engine'
 import { filterEventsFor, reconstructStateAtTurn, viewFor } from '@dangerous-inclinations/engine'
-import type { GameSocketMessage, SubmitTurnMessage, Seat, TurnSummary } from '../api/types'
 import {
   getGame,
   getTurnFrames,
@@ -103,7 +106,7 @@ export interface GameContextValue {
   /** Replays and spectators cannot act. */
   readOnly: boolean
   /** Who plays each seat, from the lobby: a person, a bot, or an agent and its model. Empty in a replay. */
-  seats: Seat[]
+  seats: LobbySeat[]
   nameOf: (playerId: string) => string
   submitTurn: (actions: PlayerAction[]) => void
   submitLoadout: (
@@ -317,7 +320,7 @@ interface LiveGameProps {
   initialView: GameView
   initialEvents: GameEvent[]
   children: ReactNode
-  seats: Seat[]
+  seats: LobbySeat[]
 }
 
 function LiveGameProvider({ gameId, initialView, initialEvents, seats, children }: LiveGameProps) {
@@ -510,7 +513,7 @@ export function GameProvider({
   const [initial, setInitial] = useState<{
     view: GameView
     events: GameEvent[]
-    seats: Seat[]
+    seats: LobbySeat[]
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -567,7 +570,7 @@ interface ReplayGameProviderProps {
 }
 
 /** A recording keeps no lobby either: who played each seat is not shown in a replay. */
-const NO_SEATS: Seat[] = []
+const NO_SEATS: LobbySeat[] = []
 const NO_HISTORY: TurnRecord[] = []
 
 function replayView(

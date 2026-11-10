@@ -15,12 +15,16 @@ export * from './utils/fill.ts'
 // Game logic
 export * from './game/index.ts'
 
+// The client/server protocol: request schemas and wire types
+export * from './protocol/index.ts'
+
 // Determinism / RNG
 export {
   Rng,
   rollD10,
   pickIndex,
   nextEntityId,
+  withRng,
   freshSeed,
   createDeterminismFields,
 } from './utils/rng.ts'

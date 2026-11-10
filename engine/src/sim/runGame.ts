@@ -28,7 +28,7 @@ import { executeTurn } from '../game/turns.ts'
 import { viewFor } from '../game/view.ts'
 import { isMooredAt } from '../game/stations.ts'
 import { isPlanet } from '../models/gravityWells.ts'
-import { pickIndex, freshSeed } from '../utils/rng.ts'
+import { pickIndex, freshSeed, withRng } from '../utils/rng.ts'
 import { botChooseDeployment, botChooseLoadout, botDecideActions } from '../ai/index.ts'
 
 export interface GameConfig {
@@ -142,24 +142,30 @@ function botIds(count: number): string[] {
  * `seatHands`, and a dealt hand is the two printed piles and nothing else.
  */
 function dealForcedPrimaries(state: GameState, botCount: number, seatHands: SeatHands): GameState {
+  let next = state
   for (const [seatId, type] of Object.entries(seatHands)) {
-    const seat = state.players.findIndex(p => p.id === seatId)
+    const seat = next.players.findIndex(p => p.id === seatId)
     if (seat === -1) continue
-    const offers = state.players[seat].missionOffers
+    const offers = next.players[seat].missionOffers
     if (offers.some(m => m.type === type)) continue
     const printed = buildPrimaryDeck(botCount).filter(card => card.type === type)
     const slot = offers.findIndex(m => isPrimaryType(m.type))
     if (printed.length === 0 || slot === -1) continue
-    const card = printed[pickIndex(state, printed)]
+    const [index, picked] = pickIndex(next, printed)
+    const card = printed[index]
     // An item token past the deal's range, so it is still one of a kind.
-    const dealt = state.players.reduce((n, p) => n + p.missionOffers.length, 0)
-    offers[slot] = assignMissionId(
-      cardForPlayer(card, seat, state.players),
+    const dealt = next.players.reduce((n, p) => n + p.missionOffers.length, 0)
+    const missionOffers = [...offers]
+    missionOffers[slot] = assignMissionId(
+      cardForPlayer(card, seat, next.players),
       `m-forced-${seatId}`,
       `item-${dealt + seat}`
     )
+    const players = [...picked.players]
+    players[seat] = { ...players[seat], missionOffers }
+    next = { ...picked, players }
   }
-  return state
+  return next
 }
 
 /**
@@ -185,12 +191,15 @@ export function setupBotGame(
     // A forced hull is offered to the bot, not stapled on: the bot keeps cards
     // that hull can fly, and a deal with no flyable trio (four of the six
     // offers needing a sensor array) leaves the seat its own loadout for that game.
-    const choice = botChooseLoadout(player.missionOffers, {
-      hull: seatLoadouts?.[player.id],
-      primary: seatHands?.[player.id],
-      // Seeded: the spread of hands across a batch replays exactly.
-      pick: n => pickIndex(state, Array.from({ length: n })),
-    })
+    const [choice, picked] = withRng(state, rng =>
+      botChooseLoadout(player.missionOffers, {
+        hull: seatLoadouts?.[player.id],
+        primary: seatHands?.[player.id],
+        // Seeded: the spread of hands across a batch replays exactly.
+        pick: n => rng.rollInt(n),
+      })
+    )
+    state = picked
     const result = submitLoadout(state, player.id, {
       loadout: choice.loadout,
       missionIds: choice.missionIds,
@@ -202,8 +211,8 @@ export function setupBotGame(
   while (state.phase === 'deployment') {
     const active = state.players[state.activePlayerIndex]
     const view = viewFor(state, active.id)
-    const pick = (n: number) => pickIndex(state, Array.from({ length: n }))
-    const choice = botChooseDeployment(view, pick)
+    const [choice, picked] = withRng(state, rng => botChooseDeployment(view, n => rng.rollInt(n)))
+    state = picked
     const result = deployShip(state, active.id, choice.sector, choice.ring)
     if (!result.success) throw new Error(`Bot ${active.id} deployment rejected: ${result.error}`)
     state = transitionToActivePhase(result.state)

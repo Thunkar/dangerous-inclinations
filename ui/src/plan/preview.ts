@@ -29,20 +29,18 @@ import type {
   Position,
   SaleOffer,
   SeizableItem,
-  Station,
+  StepRefusal,
   Subsystem,
   SubsystemId,
+  TurnWalk,
+  WalkPoint,
   Wreck,
 } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
-  MAX_REACTION_MASS,
   SCAN_SECTOR_RANGE,
   SELL_NOTHING,
-  SURVEY_RING,
   WELL_TRANSFER_COSTS,
-  calculateBurnMassCost,
-  calculateJumpMassCost,
   canBeTargeted,
   canSurvey,
   isTouchable,
@@ -52,45 +50,32 @@ import {
   escortCandidates,
   fill,
   freePiracyCards,
-  findJump,
-  getAdjustmentRange,
-  getJumpAdjustmentRange,
   getJumpOptions,
   getStationAt,
   getSubsystemConfig,
-  hasWorkingCompressor,
   heatFromCubes,
   inScanRange,
   isDestroyed,
   isInWeaponRange,
   isMooredAt,
-  isMooredMidTurn,
   isOnBoard,
-  isOpeningRound,
   isPowerableType,
-  isQuietTurn,
   isWeaponType,
   lowestCriticalFace,
-  onSurveyRing,
   oppositeFacing,
-  phasedJumpDestination,
-  projectPosition,
-  recoilRing,
-  ringAfter,
-  ringVelocity,
+  refusal,
+  refusalText,
   salesOnArrival,
   salvageToTake,
   salvageableWrecks,
   samePosition,
   seizableItems,
-  surveyToTake,
   unplacedEscorts,
+  walkTurn,
 } from '@dangerous-inclinations/engine'
 import { hullOf, slotWithSubsystem } from '../utils/slots'
 import { ACTIONS } from '../text/actions'
 
-const W = ACTIONS.words
-const R = ACTIONS.readiness
 const I = ACTIONS.issues
 
 export type MoveChoice =
@@ -148,10 +133,8 @@ export interface Target {
 }
 
 /**
- * Whether a move is available, and what is in the way if it is not. Every
- * check is the one the validator makes (`game/validators.ts`), read off the
- * loadout as the player has planned it. `reason` is a clause, so a tooltip can
- * end a sentence with it.
+ * Whether a move is available, and what is in the way if it is not: the
+ * engine's own reason, from its walk of the plan with that move in it.
  */
 export interface MoveReadiness {
   ok: boolean
@@ -265,70 +248,170 @@ function loadoutFor(
   })
 }
 
+/** The facing each step starts with: only a rotation turns the ship. */
+function facingsBefore(me: Player, steps: readonly PlanStep[]): Facing[] {
+  let facing = me.ship.facing
+  return steps.map(step => {
+    const before = facing
+    if (step.kind === 'rotate') facing = oppositeFacing(facing)
+    return before
+  })
+}
+
 /**
- * Where the ship is at the start of each step, and where the plan leaves it.
- * A rotation flips the facing, the move goes where the engine projects it,
- * and a railgun that is not compensated recoils one ring against its facing
- * (`recoilRing`). A coast holds a berth only when the ship began the turn on
- * it and is still there (`isMooredMidTurn`): a recoil onto a station drifts off.
+ * The action a step is sent as, at its place in the sequence. A shot or a
+ * scan still missing its target, or a scan its slot, is walked with an empty
+ * name, so it is drawn where it goes and refused for that reason alone
+ * (`issuesOf` says which choice is missing); `planActions` does not send it.
  */
-function walkSteps(
+function stepAction(me: Player, step: PlanStep, facing: Facing, sequence: number): PlayerAction {
+  const playerId = me.id
+  switch (step.kind) {
+    case 'rotate':
+      return { playerId, type: 'rotate', sequence, data: { targetFacing: oppositeFacing(facing) } }
+    case 'move':
+      return step.move.kind === 'coast'
+        ? { playerId, type: 'coast', sequence, data: { activateScoop: step.move.scoop } }
+        : step.move.kind === 'burn'
+          ? {
+              playerId,
+              type: 'burn',
+              sequence,
+              data: { burnIntensity: step.move.intensity, sectorAdjustment: step.move.adjustment },
+            }
+          : {
+              playerId,
+              type: 'well_transfer',
+              sequence,
+              data: {
+                destinationWellId: step.move.destinationWellId,
+                sectorAdjustment: step.move.adjustment,
+              },
+            }
+    case 'fire': {
+      // Only a missiles tile takes a count: the engine refuses one on any
+      // other weapon, so it is sent for a launcher and nothing else.
+      const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
+      return {
+        playerId,
+        type: 'fire_weapon',
+        sequence,
+        data: {
+          subsystemId: step.subsystemId,
+          targetPlayerId: step.targetId ?? '',
+          criticalTarget: step.criticalTarget,
+          ...(step.compensateRecoil ? { compensateRecoil: true } : {}),
+          ...(weapon?.type === 'missiles' ? { count: step.count } : {}),
+        },
+      }
+    }
+    case 'scan':
+      return {
+        playerId,
+        type: 'scan',
+        sequence,
+        data: { targetPlayerId: step.targetId ?? '', peekSlot: step.peekSlot ?? '' },
+      }
+    case 'seize':
+      return {
+        playerId,
+        type: 'seize',
+        sequence,
+        data: { victimId: step.victimId, cargoId: step.cargoId },
+      }
+    case 'survey':
+      return { playerId, type: 'survey', sequence, data: {} }
+    case 'salvage':
+      return {
+        playerId,
+        type: 'salvage',
+        sequence,
+        data: step.wreckId === null ? {} : { wreckId: step.wreckId },
+      }
+    case 'mark':
+      return { playerId, type: 'escort_mark', sequence, data: { carrierId: step.carrierId } }
+  }
+}
+
+/** Power first, in loadout order: a sensor powered now widens every shot the turn takes. */
+function powerActionsFor(me: Player, powers: Record<SubsystemId, number>): PlayerAction[] {
+  return me.ship.subsystems
+    .filter(sub => (powers[sub.id] ?? 0) > 0)
+    .map((sub, index) => ({
+      playerId: me.id,
+      type: 'power',
+      sequence: index + 1,
+      data: { subsystemId: sub.id, amount: powers[sub.id] },
+    }))
+}
+
+/**
+ * The engine's walk of the plan (`walkTurn`): its powers, then every step in
+ * order. `offset` is where the steps start among the actions walked.
+ */
+function walkPlan(
+  view: GameView,
   me: Player,
   steps: readonly PlanStep[],
-  loadout: readonly Subsystem[],
-  stations: Station[]
+  powers: Record<SubsystemId, number>
+): { walk: TurnWalk; offset: number } {
+  const power = powerActionsFor(me, powers)
+  const facings = facingsBefore(me, steps)
+  const actions = [
+    ...power,
+    ...steps.map((step, i) => stepAction(me, step, facings[i], power.length + i + 1)),
+  ]
+  return { walk: walkTurn(view, actions), offset: power.length }
+}
+
+const contextOf = (point: WalkPoint): StepContext => ({
+  position: point.position,
+  facing: point.facing,
+})
+
+/** Where the ship is at the start of each step, and where the plan leaves it: the engine's walk. */
+function stepStarts(
+  view: GameView,
+  me: Player,
+  steps: readonly PlanStep[]
 ): { stepStart: StepContext[]; finalPosition: StepContext } {
-  let position: Position = { wellId: me.ship.wellId, ring: me.ship.ring, sector: me.ship.sector }
-  let facing: Facing = me.ship.facing
-  const starts: StepContext[] = []
-  for (const step of steps) {
-    starts.push({ position, facing })
-    switch (step.kind) {
-      case 'rotate':
-        facing = oppositeFacing(facing)
-        break
-      case 'move': {
-        const move = step.move
-        const shipHere = { ...me.ship, ...position, facing }
-        if (move.kind === 'jump') {
-          const jump = findJump(position, move.destinationWellId)
-          const landing = jump && phasedJumpDestination(jump, move.adjustment)
-          if (landing) position = landing
-        } else {
-          const p =
-            move.kind === 'burn'
-              ? projectPosition(shipHere, facing, {
-                  kind: 'burn',
-                  burnIntensity: move.intensity,
-                  sectorAdjustment: move.adjustment,
-                })
-              : projectPosition(shipHere, facing, {
-                  kind: 'coast',
-                  moored: isMooredMidTurn(stations, me.ship, position),
-                })
-          position = { wellId: p.wellId, ring: p.ring, sector: p.sector }
-        }
-        break
-      }
-      case 'fire': {
-        const weapon = loadout.find(s => s.id === step.subsystemId)
-        const recoils =
-          weapon && getSubsystemConfig(weapon.type).weaponStats?.hasRecoil && !step.compensateRecoil
-        if (recoils) {
-          const ring = recoilRing({ ...position, facing })
-          if (ring !== null) position = { ...position, ring }
-        }
-        break
-      }
-      case 'scan':
-      case 'seize':
-      case 'survey':
-      case 'salvage':
-      case 'mark':
-        break
-    }
+  const { walk, offset } = walkPlan(view, me, steps, {})
+  return {
+    stepStart: steps.map((_, i) => contextOf(walk.at[offset + i])),
+    finalPosition: contextOf(walk.end),
   }
-  return { stepStart: starts, finalPosition: { position, facing } }
+}
+
+/**
+ * What the engine would refuse, walked in order, in its words with the
+ * table's slot names, and a salvage that can only come to nothing. A step
+ * still missing a choice says which one instead.
+ */
+function issuesOf(
+  me: Player,
+  steps: readonly PlanStep[],
+  walk: TurnWalk,
+  offset: number
+): string[] {
+  const hull = hullOf(me)
+  const slotName = (sub: { id: SubsystemId; type: Subsystem['type'] }) =>
+    slotWithSubsystem(sub.id, sub.type, hull)
+  const text = (r: StepRefusal): string => {
+    const step = r.step === null ? undefined : steps[r.step - offset]
+    if (step?.kind === 'fire' && step.targetId === null && r.code === 'noPlayer') {
+      const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
+      return fill(I.pickTarget, { slot: weapon ? slotName(weapon) : step.subsystemId })
+    }
+    if (step?.kind === 'scan' && step.targetId === null && r.code === 'noPlayer')
+      return fill(I.scanPick, { range: SCAN_SECTOR_RANGE })
+    if (step?.kind === 'scan' && step.peekSlot === null && r.code === 'peekNotSlot')
+      return I.scanPeek
+    return refusalText(r, slotName)
+  }
+  return [
+    ...walk.refusals.map(text),
+    ...walk.warnings.filter(w => w.code === 'salvageNothing').map(text),
+  ]
 }
 
 /**
@@ -394,7 +477,7 @@ export function shotIndex(
   loadout: readonly Subsystem[]
 ): number {
   const moveIndex = steps.findIndex(s => s.kind === 'move')
-  const { stepStart, finalPosition } = walkSteps(me, steps, loadout, view.stations)
+  const { stepStart, finalPosition } = stepStarts(view, me, steps)
   const targets = targetsFor(view)
   const reaches = (at: StepContext) =>
     targetsInRange(view, me, shot, at, loadout, targets).length > 0
@@ -416,7 +499,7 @@ export function reachesOnlyBeforeMove(
   const moveIndex = steps.findIndex(s => s.kind === 'move')
   const index = steps.findIndex(s => s.id === step.id)
   if (step.kind !== 'fire' || moveIndex < 0 || index < moveIndex) return false
-  const { stepStart } = walkSteps(me, steps, loadout, view.stations)
+  const { stepStart } = stepStarts(view, me, steps)
   const targets = targetsFor(view)
   const reaches = (at: StepContext) =>
     targetsInRange(view, me, step, at, loadout, targets).length > 0
@@ -446,313 +529,94 @@ export function targetsOutOfReach(
 }
 
 /**
- * Whether each move can be taken from the loadout as planned, so a control
- * the engine would refuse is not offered. The fuel asked about is the tank
- * at the start of the turn; the issues walk prices the plan in order.
+ * The steps with the rotation (if one is wanted) just before the move: a
+ * turn has one, and a move that needs a facing takes it from there.
+ */
+export function withRotation(
+  steps: readonly PlanStep[],
+  rotate: boolean,
+  newId: () => string
+): PlanStep[] {
+  const next: PlanStep[] = steps.filter(s => s.kind !== 'rotate')
+  const moveIndex = Math.max(
+    0,
+    next.findIndex(s => s.kind === 'move')
+  )
+  if (rotate) next.splice(moveIndex, 0, { id: newId(), kind: 'rotate' })
+  return next
+}
+
+/**
+ * Whether each control would make a turn the engine takes, so one it would
+ * refuse is not offered: the plan is walked with the rotation put in, or
+ * with each move in place of the one planned (a jump with its rotation to
+ * prograde, as its button puts it in), and the first refusal at that step is
+ * the reason. Fuel is the tank as the plan reaches the move.
  */
 export function moveReadiness(
+  view: GameView,
   me: Player,
-  loadout: readonly Subsystem[],
-  moveFrom: StepContext,
-  move: MoveChoice
+  steps: readonly PlanStep[],
+  powers: Record<SubsystemId, number>
 ): {
   rotateReady: MoveReadiness
   burnReady: Record<BurnIntensity, MoveReadiness>
   jumpReady: MoveReadiness
 } {
-  const thrusters = loadout.find(s => s.id === 'rotation')
-  const rotateReady =
-    !thrusters || thrusters.isBroken
-      ? blocked(R.thrustersBroken)
-      : thrusters.usedThisTurn
-        ? blocked(R.thrustersUsed)
-        : READY
+  const newId = () => 'readiness'
+  /** The first refusal at a step of this kind, walked with `plan`. */
+  const readiness = (plan: PlanStep[], kinds: PlanStep['kind'][]): MoveReadiness => {
+    const { walk, offset } = walkPlan(view, me, plan, powers)
+    const refused = walk.refusals.find(
+      r => r.step !== null && kinds.includes(plan[r.step - offset]?.kind)
+    )
+    return refused
+      ? blocked(issuesOf(me, plan, { ...walk, refusals: [refused] }, offset)[0])
+      : READY
+  }
+  const withMove = (move: MoveChoice) =>
+    steps.map(s => (s.kind === 'move' ? { ...s, move } : s)) as PlanStep[]
+  const planned = steps.find((s): s is MoveStep => s.kind === 'move')?.move
 
-  const engines = loadout.find(s => s.id === 'engines')
-  const fuel = me.ship.reactionMass
-  // Phasing is part of the fuel bill, so the burn already being planned is
-  // priced with the sectors it is shifting; the mode button asks about a
-  // plain burn.
-  const burnAdjustment = move.kind === 'burn' ? move.adjustment : 0
-  const direction = moveFrom.facing === 'prograde' ? W.outward : W.inward
-  const from = { ...moveFrom.position, facing: moveFrom.facing }
+  const rotateReady = readiness(withRotation(steps, true, newId), ['rotate'])
   const burnReady = Object.fromEntries(
-    BURN_INTENSITIES.map(intensity => {
-      const cost = BURN_COSTS[intensity]
-      const rings = fill(cost.rings === 1 ? W.rings.one : W.rings.many, {
-        rings: cost.rings,
-        direction,
-      })
-      const mass = calculateBurnMassCost(cost.mass, burnAdjustment)
-      const state =
-        !engines || engines.isBroken
-          ? blocked(R.enginesBroken)
-          : ringAfter(from, cost.rings) === null
-            ? blocked(fill(R.offRings, { rings, ring: moveFrom.position.ring }))
-            : engines.usedThisTurn
-              ? blocked(R.enginesUsed)
-              : fuel < mass
-                ? blocked(fill(R.fuel, { mass, fuel }))
-                : READY
-      return [intensity, state]
-    })
+    BURN_INTENSITIES.map(intensity => [
+      intensity,
+      readiness(
+        withMove({
+          kind: 'burn',
+          intensity,
+          // Phasing is part of the fuel bill, so the burn already planned is
+          // priced with the sectors it shifts; the mode button asks about a plain burn.
+          adjustment: planned?.kind === 'burn' ? planned.adjustment : 0,
+        }),
+        ['move']
+      ),
+    ])
   ) as Record<BurnIntensity, MoveReadiness>
 
-  let jumpReady = READY
-  if (getJumpOptions(moveFrom.position).length === 0) jumpReady = blocked(R.noLane)
-  else if (!engines || engines.isBroken) jumpReady = blocked(R.enginesBroken)
-  else if (moveFrom.facing !== 'prograde' && !rotateReady.ok) jumpReady = blocked(R.cannotFace)
-  else if (engines.usedThisTurn) jumpReady = blocked(R.enginesUsed)
-  else {
-    const adjustment = move.kind === 'jump' ? move.adjustment : 0
-    const compressor = hasWorkingCompressor({ ...me.ship, subsystems: [...loadout] })
-    const mass = calculateJumpMassCost(adjustment, compressor)
-    if (fuel < mass) jumpReady = blocked(fill(R.fuel, { mass, fuel }))
-  }
+  const moveIndex = steps.findIndex(s => s.kind === 'move')
+  const moveFrom = moveIndex >= 0 ? stepStarts(view, me, steps).stepStart[moveIndex] : undefined
+  const options = getJumpOptions(moveFrom?.position ?? me.ship)
+  const lane =
+    planned?.kind === 'jump'
+      ? (options.find(o => o.destination.wellId === planned.destinationWellId) ?? options[0])
+      : options[0]
+  const jumpReady = !lane
+    ? blocked(refusalText(refusal('noLane')))
+    : readiness(
+        withRotation(
+          withMove({
+            kind: 'jump',
+            destinationWellId: lane.destination.wellId,
+            adjustment: planned?.kind === 'jump' ? planned.adjustment : 0,
+          }),
+          me.ship.facing !== 'prograde',
+          newId
+        ),
+        ['move', 'rotate']
+      )
   return { rotateReady, burnReady, jumpReady }
-}
-
-/**
- * What the engine would refuse, walked in order. Fuel is spent *and earned*
- * as the turn plays out, so a scoop earlier in the sequence pays for a burn or
- * a recoil compensation later in it, exactly as the engine sees it. Heat is
- * not walked: energy refuses nothing, and a turn that lights more than the
- * ship can cool is legal and costs hull.
- */
-export function planIssues(
-  view: GameView,
-  me: Player,
-  steps: readonly PlanStep[],
-  loadout: readonly Subsystem[],
-  stepStart: readonly StepContext[],
-  targets: readonly Target[]
-): { projectedFuel: number; issues: string[] } {
-  let fuel = me.ship.reactionMass
-  const problems: string[] = []
-  let engineUses = 0
-  let reportedShortFuel = false
-  const engines = loadout.find(s => s.id === 'engines')
-  const enginesBroken = !engines || engines.isBroken
-  const compressor = hasWorkingCompressor({ ...me.ship, subsystems: [...loadout] })
-  const quiet = isQuietTurn(view.turn, me)
-  const opening = isOpeningRound(view.turn)
-  const seat = (id: string) => view.players.find(p => p.id === id)
-  const nameOf = (id: string) => seat(id)?.name ?? id
-  // A ship that just came back is off every target list until its own turn
-  // is over, so a step still aimed at one is named rather than reported as
-  // out of range.
-  const untouchable = (id: string) => seat(id)?.recovering === true
-  const freeCards = freePiracyCards(me.missions, me.cargo).length
-  const seized = new Set<string>()
-  // Items the plan's seizures take off each ship before a later step: a
-  // carrier a pirate has emptied takes no Escort marker.
-  const seizedFrom = new Map<string, number>()
-  const start: Position = { wellId: me.ship.wellId, ring: me.ship.ring, sector: me.ship.sector }
-  const markers = unplacedEscorts(me.missions).length
-  const marked = new Set<string>()
-  let surveys = 0
-  let salvages = 0
-  // Ships a shot before a step aims to hurt: a salvage naming no wreck takes
-  // the one such a ship leaves if it dies in the salvage's sector.
-  const shotAt: string[] = []
-
-  const spend = (amount: number, what: string) => {
-    if (amount > fuel && !reportedShortFuel) {
-      reportedShortFuel = true
-      problems.push(fill(I.shortFuel, { what, amount, fuel }))
-    }
-    fuel = Math.max(0, fuel - amount)
-  }
-  const inRange = (step: PlanStep, at: StepContext, id: string) =>
-    targetsInRange(view, me, step, at, loadout, targets).some(t => t.id === id)
-
-  steps.forEach((step, index) => {
-    const at = stepStart[index]
-    const facingShip = { ...at.position, facing: at.facing }
-    switch (step.kind) {
-      case 'rotate': {
-        const thrusters = loadout.find(s => s.id === 'rotation')
-        if (!thrusters || thrusters.isBroken) problems.push(I.thrustersBroken)
-        break
-      }
-      case 'move': {
-        const move = step.move
-        if (move.kind === 'burn') {
-          const cost = BURN_COSTS[move.intensity]
-          const range = getAdjustmentRange(ringVelocity(at.position.wellId, at.position.ring))
-          const intensity = W.intensity[move.intensity]
-          engineUses++
-          if (enginesBroken) problems.push(I.enginesNoBurn)
-          if (move.adjustment < range.min || move.adjustment > range.max)
-            problems.push(fill(I.phasing, { min: range.min, max: range.max }))
-          if (ringAfter(facingShip, cost.rings) === null) {
-            problems.push(
-              fill(I.burnOffRings, {
-                intensity,
-                direction: at.facing === 'prograde' ? W.outward : W.inward,
-                ring: at.position.ring,
-              })
-            )
-          }
-          spend(calculateBurnMassCost(cost.mass, move.adjustment), fill(I.aBurn, { intensity }))
-        } else if (move.kind === 'jump') {
-          engineUses++
-          const option = findJump(at.position, move.destinationWellId)
-          if (!option) problems.push(I.noLane)
-          else {
-            const range = getJumpAdjustmentRange(option)
-            if (move.adjustment < range.min || move.adjustment > range.max)
-              problems.push(fill(I.jumpPhasing, { min: range.min, max: range.max }))
-          }
-          if (enginesBroken) problems.push(I.enginesNoJump)
-          if (at.facing !== 'prograde') problems.push(I.jumpFacing)
-          spend(calculateJumpMassCost(move.adjustment, compressor), I.aJump)
-        } else if (move.scoop) {
-          const scoop = loadout.find(s => s.id === 'scoop')
-          if (!scoop || scoop.isBroken) problems.push(I.scoopBroken)
-          // Fuel equal to this ring's velocity, up to the tank's capacity.
-          else
-            fuel = Math.min(
-              MAX_REACTION_MASS,
-              fuel + ringVelocity(at.position.wellId, at.position.ring)
-            )
-        }
-        break
-      }
-      case 'fire': {
-        const weapon = loadout.find(s => s.id === step.subsystemId)
-        if (!weapon || !isWeaponType(weapon.type)) break
-        const config = getSubsystemConfig(weapon.type)
-        const name = slotWithSubsystem(weapon.id, weapon.type, hullOf(me))
-        if (quiet) problems.push(opening ? I.openingNoFire : I.backNoFire)
-        // A salvo is one use of the tile, its energy once however big the
-        // launch (RULES §Weapons → Missiles).
-        if (weapon.isBroken) problems.push(fill(I.broken, { slot: name }))
-        if (weapon.type === 'missiles') {
-          const ammo = weapon.ammo ?? 0
-          if (ammo <= 0) problems.push(fill(I.noMissiles, { slot: name }))
-          else if (step.count > ammo)
-            problems.push(fill(I.tooManyMissiles, { slot: name, count: step.count, ammo }))
-          if (step.count < 1) problems.push(fill(I.emptySalvo, { slot: name }))
-        }
-        const target = step.targetId ? seat(step.targetId) : undefined
-        if (step.targetId && !config.weaponStats?.disrupts) shotAt.push(step.targetId)
-        if (!canFireFrom(me.ship, at.position, view.stations)) problems.push(I.mooredNoFire)
-        else if (!step.targetId) problems.push(fill(I.pickTarget, { slot: name }))
-        else if (untouchable(step.targetId))
-          problems.push(fill(I.untouchableTarget, { name: nameOf(step.targetId) }))
-        else if (target && isOnBoard(target) && !canBeTargeted(target, view.stations))
-          problems.push(fill(I.mooredTarget, { name: nameOf(step.targetId) }))
-        else if (!inRange(step, at, step.targetId))
-          problems.push(fill(I.outOfRange, { slot: name }))
-        if (config.weaponStats?.hasRecoil) {
-          if (step.compensateRecoil) {
-            engineUses++
-            if (enginesBroken) problems.push(I.enginesNoRecoil)
-            spend(BURN_COSTS.soft.mass, I.recoilCompensation)
-          } else if (recoilRing(facingShip) === null) {
-            problems.push(I.recoilOffRings)
-          }
-        }
-        break
-      }
-      case 'scan': {
-        const sensor = loadout.find(s => s.type === 'sensor_array')
-        if (quiet) problems.push(opening ? I.openingNoScan : I.backNoScan)
-        if (!sensor) problems.push(I.noSensor)
-        else if (sensor.isBroken)
-          problems.push(
-            fill(I.broken, { slot: slotWithSubsystem(sensor.id, sensor.type, hullOf(me)) })
-          )
-        if (!step.targetId) problems.push(fill(I.scanPick, { range: SCAN_SECTOR_RANGE }))
-        else if (untouchable(step.targetId))
-          problems.push(fill(I.untouchableTarget, { name: nameOf(step.targetId) }))
-        else if (!targetable(view, step.targetId))
-          problems.push(fill(I.mooredScan, { name: nameOf(step.targetId) }))
-        else if (!inRange(step, at, step.targetId))
-          problems.push(fill(I.scanRange, { range: SCAN_SECTOR_RANGE }))
-        if (!step.peekSlot) problems.push(I.scanPeek)
-        break
-      }
-      case 'seize': {
-        // One item per free Piracy card, each a different item, and the item
-        // is taken from where the ship is when the step comes.
-        const victim = nameOf(step.victimId)
-        const key = seizeKey(step)
-        if (seized.has(key)) problems.push(fill(I.seizeTwice, { name: victim }))
-        else if (seized.size >= freeCards)
-          problems.push(
-            freeCards === 0
-              ? I.seizeNoCard
-              : freeCards === 1
-                ? I.seizeCards.one
-                : fill(I.seizeCards.many, { count: freeCards })
-          )
-        else if (quiet) problems.push(opening ? I.openingNoSeize : I.backNoSeize)
-        else if (untouchable(step.victimId)) problems.push(fill(I.untouchable, { name: victim }))
-        else if (isMooredMidTurn(view.stations, me.ship, at.position))
-          problems.push(I.mooredNoSeize)
-        else if (!seizableItems(view, me.id, at.position).some(i => seizeKey(i) === key))
-          problems.push(fill(I.seizeAway, { name: victim }))
-        if (!seized.has(key))
-          seizedFrom.set(step.victimId, (seizedFrom.get(step.victimId) ?? 0) + 1)
-        seized.add(key)
-        break
-      }
-      // Survey, salvage and a marker touch nobody, so a quiet turn takes them.
-      case 'survey': {
-        surveys++
-        if (surveys > 1) problems.push(I.surveyTwice)
-        else if (!surveyToTake(me)) problems.push(I.surveyNoCard)
-        else if (!onSurveyRing(at.position))
-          problems.push(fill(I.surveyRing, { ring: SURVEY_RING }))
-        break
-      }
-      case 'salvage': {
-        salvages++
-        if (salvages > 1) problems.push(I.salvageTwice)
-        else if (!salvageToTake(me)) problems.push(I.salvageNoCard)
-        else if (step.wreckId === null) {
-          // Naming none, it holds with a wreck there now or a kill before it
-          // there: whether the shot kills is the dice's, not an issue.
-          const prey = shotAt.some(id => {
-            const ship = seat(id)?.ship
-            return !!ship && isOnBoard(seat(id)!) && samePosition(ship, at.position)
-          })
-          if (!prey && !view.wrecks.some(w => samePosition(w, at.position)))
-            problems.push(I.salvageNothing)
-        } else if (!view.wrecks.some(w => w.id === step.wreckId)) problems.push(I.wreckGone)
-        else if (!salvageableWrecks(me, view.wrecks, at.position).some(w => w.id === step.wreckId))
-          problems.push(I.wreckAway)
-        break
-      }
-      case 'mark': {
-        // One marker per undone Escort in hand, each on a different ship, put
-        // on from where the ship is when the step comes.
-        const carrier = nameOf(step.carrierId)
-        const left = (seat(step.carrierId)?.cargoCount ?? 0) - (seizedFrom.get(step.carrierId) ?? 0)
-        if (marked.has(step.carrierId)) problems.push(fill(I.markTwice, { name: carrier }))
-        else if (marked.size >= markers)
-          problems.push(
-            markers === 0
-              ? I.markNone
-              : markers === 1
-                ? I.markers.one
-                : fill(I.markers.many, { count: markers })
-          )
-        else if (untouchable(step.carrierId)) problems.push(fill(I.untouchable, { name: carrier }))
-        else if (isMooredMidTurn(view.stations, me.ship, at.position)) problems.push(I.mooredNoMark)
-        else if (left <= 0) problems.push(fill(I.markEmpty, { name: carrier }))
-        else if (!escortCandidates(view, me.id, at.position, start).includes(step.carrierId))
-          problems.push(fill(I.markAway, { name: carrier }))
-        marked.add(step.carrierId)
-        break
-      }
-    }
-  })
-
-  if (engineUses > 1) problems.push(I.enginesTwice)
-  return { projectedFuel: fuel, issues: problems }
 }
 
 /**
@@ -1022,7 +886,9 @@ export function previewPlan(
   const used = tilesUsedBy(me, steps)
   const powers = standingPowers(me, powerChoices, used)
   const loadout = loadoutFor(me, powers, drawsFor(me, steps))
-  const { stepStart, finalPosition } = walkSteps(me, steps, loadout, view.stations)
+  const { walk, offset } = walkPlan(view, me, steps, powers)
+  const stepStart = steps.map((_, i) => contextOf(walk.at[offset + i]))
+  const finalPosition = contextOf(walk.end)
   const moveIndex = steps.findIndex(s => s.kind === 'move')
   const moveFrom =
     moveIndex >= 0
@@ -1032,7 +898,8 @@ export function previewPlan(
           facing: me.ship.facing,
         }
   const targets = targetsFor(view)
-  const { projectedFuel, issues } = planIssues(view, me, steps, loadout, stepStart, targets)
+  const projectedFuel = walk.end.fuel
+  const issues = issuesOf(me, steps, walk, offset)
   return {
     used,
     powers,
@@ -1060,123 +927,22 @@ export interface PlanExtras {
 }
 
 /**
- * The actions the plan is sent as. Power comes first, in loadout order: a
- * sensor powered now widens every shot the turn takes, and a wall or a rack
- * is up whatever else happens. A step still missing its target is not sent,
- * and neither is a repair or a sale the preview no longer offers.
+ * The actions the plan is sent as: the ones the engine walked, numbered
+ * again without a step still missing its target, and a repair or a sale only
+ * while the preview still offers it.
  */
 export function planActions(
   me: Player,
   steps: readonly PlanStep[],
-  preview: Pick<PlanPreview, 'powers' | 'stepStart' | 'repairable' | 'dockOffer'>,
+  preview: Pick<PlanPreview, 'powers' | 'repairable' | 'dockOffer'>,
   extras: PlanExtras
 ): PlayerAction[] {
-  const list: PlayerAction[] = []
-  let sequence = 0
-  for (const sub of me.ship.subsystems) {
-    const amount = preview.powers[sub.id]
-    if (!amount) continue
-    list.push({
-      playerId: me.id,
-      type: 'power',
-      sequence: ++sequence,
-      data: { subsystemId: sub.id, amount },
-    })
-  }
-  steps.forEach((step, index) => {
-    const at = preview.stepStart[index]
-    switch (step.kind) {
-      case 'rotate':
-        list.push({
-          playerId: me.id,
-          type: 'rotate',
-          sequence: ++sequence,
-          data: { targetFacing: oppositeFacing(at.facing) },
-        })
-        break
-      case 'move':
-        if (step.move.kind === 'coast') {
-          list.push({
-            playerId: me.id,
-            type: 'coast',
-            sequence: ++sequence,
-            data: { activateScoop: step.move.scoop },
-          })
-        } else if (step.move.kind === 'burn') {
-          list.push({
-            playerId: me.id,
-            type: 'burn',
-            sequence: ++sequence,
-            data: { burnIntensity: step.move.intensity, sectorAdjustment: step.move.adjustment },
-          })
-        } else {
-          list.push({
-            playerId: me.id,
-            type: 'well_transfer',
-            sequence: ++sequence,
-            data: {
-              destinationWellId: step.move.destinationWellId,
-              sectorAdjustment: step.move.adjustment,
-            },
-          })
-        }
-        break
-      case 'fire': {
-        if (!step.targetId) break
-        // Only a missiles tile takes a count: the engine refuses one on any
-        // other weapon, so it is sent for a launcher and nothing else.
-        const weapon = me.ship.subsystems.find(s => s.id === step.subsystemId)
-        list.push({
-          playerId: me.id,
-          type: 'fire_weapon',
-          sequence: ++sequence,
-          data: {
-            subsystemId: step.subsystemId,
-            targetPlayerId: step.targetId,
-            criticalTarget: step.criticalTarget,
-            ...(step.compensateRecoil ? { compensateRecoil: true } : {}),
-            ...(weapon?.type === 'missiles' ? { count: step.count } : {}),
-          },
-        })
-        break
-      }
-      case 'scan':
-        if (!step.targetId || !step.peekSlot) break
-        list.push({
-          playerId: me.id,
-          type: 'scan',
-          sequence: ++sequence,
-          data: { targetPlayerId: step.targetId, peekSlot: step.peekSlot },
-        })
-        break
-      case 'seize':
-        list.push({
-          playerId: me.id,
-          type: 'seize',
-          sequence: ++sequence,
-          data: { victimId: step.victimId, cargoId: step.cargoId },
-        })
-        break
-      case 'survey':
-        list.push({ playerId: me.id, type: 'survey', sequence: ++sequence, data: {} })
-        break
-      case 'salvage':
-        list.push({
-          playerId: me.id,
-          type: 'salvage',
-          sequence: ++sequence,
-          data: step.wreckId === null ? {} : { wreckId: step.wreckId },
-        })
-        break
-      case 'mark':
-        list.push({
-          playerId: me.id,
-          type: 'escort_mark',
-          sequence: ++sequence,
-          data: { carrierId: step.carrierId },
-        })
-        break
-    }
+  const facings = facingsBefore(me, steps)
+  const list: PlayerAction[] = powerActionsFor(me, preview.powers)
+  steps.forEach((step, i) => {
+    if (step.kind === 'fire' && !step.targetId) return
+    if (step.kind === 'scan' && (!step.targetId || !step.peekSlot)) return
+    list.push(stepAction(me, step, facings[i], list.length + 1))
   })
   if (extras.repair !== null && preview.repairable.includes(extras.repair))
     list.push({ playerId: me.id, type: 'repair', data: { subsystemId: extras.repair } })

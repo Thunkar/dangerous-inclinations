@@ -91,8 +91,7 @@ export function MoveControls() {
   const burnReason = (intensity: BurnIntensity) => {
     const cost = BURN_COSTS[intensity]
     const ready = plan.burnReady[intensity]
-    if (!ready.ok)
-      return fill(T.noIntensity, { intensity: W.intensity[intensity], reason: ready.reason })
+    if (!ready.ok) return ready.reason
     return fill(T.intensityTip, {
       rings: ringsPhrase(cost.rings, burnDirection),
       energy: cost.energy,
@@ -114,7 +113,7 @@ export function MoveControls() {
         />
         <Segment
           label={T.burn}
-          title={anyBurn ? T.burnTip : fill(T.noBurn, { reason: plan.burnReady.soft.reason })}
+          title={anyBurn ? T.burnTip : plan.burnReady.soft.reason}
           selected={move.kind === 'burn'}
           icon="engines"
           disabled={disabled || !anyBurn}
@@ -127,7 +126,7 @@ export function MoveControls() {
           title={
             plan.jumpReady.ok
               ? fill(T.jumpTip, { well: getWellName(plan.jumpOptions[0].destination.wellId) })
-              : fill(T.noJump, { reason: plan.jumpReady.reason })
+              : plan.jumpReady.reason
           }
           selected={move.kind === 'jump'}
           icon={compressor ? 'fuel_compressor' : 'engines'}

@@ -4,9 +4,13 @@
  * `JSON.stringify(state, Object.keys(state).sort())` dropped every nested key.
  */
 import { describe, it, expect } from 'vitest'
+import { Rng, nextEntityId, pickIndex, rollD10, withRng } from '../utils/rng.ts'
+import { executeTurn } from '../game/turns.ts'
+import { runGame } from '../sim/runGame.ts'
 import {
   canonicalJson,
   coast,
+  deepFreeze,
   eventsOf,
   executeTurnAs,
   expectRefused,
@@ -15,6 +19,7 @@ import {
   getShip,
   makeTwoPlayerGame,
   playScripted,
+  rolling,
   scriptedGameStart,
   withPower,
 } from './testUtils.ts'
@@ -52,11 +57,7 @@ describe('determinism: scripted games', () => {
 
 describe('determinism: the RNG on the state', () => {
   const duel = withPower(
-    makeTwoPlayerGame(
-      { ring: 3, sector: 0 },
-      { ring: 4, sector: 0 },
-      { forcedRollValue: undefined }
-    ),
+    makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 4, sector: 0 }),
     'p1',
     'side-0',
     2
@@ -70,11 +71,27 @@ describe('determinism: the RNG on the state', () => {
     expect(drift.gameState.rngState).toBe(duel.rngState)
   })
 
-  it('forcedRollValue pins the die without touching the RNG', () => {
-    const pinned = { ...duel, forcedRollValue: 7 }
+  it.each([1, 7, 10])('a test pins the die by where the RNG starts: %i', roll => {
+    const pinned = { ...duel, ...rolling(roll) }
     const result = executeTurnAs(pinned, fire(1, 'side-0', 'p2'))
-    expect(eventsOf(result.events, 'attack_resolved')[0].roll).toBe(7)
-    expect(result.gameState.rngState).toBe(pinned.rngState)
+    expect(eventsOf(result.events, 'attack_resolved')[0].roll).toBe(roll)
+    expect(result.gameState.rngState).not.toBe(pinned.rngState)
+  })
+
+  it('the helpers hand back a new state and leave theirs alone', () => {
+    const state = deepFreeze(structuredClone(duel))
+    const [roll, rolled] = rollD10(state)
+    expect(roll).toBe(new Rng(duel.rngState).rollD10())
+    expect(rolled.rngState).not.toBe(duel.rngState)
+    const [index, picked] = pickIndex(rolled, ['a', 'b', 'c'])
+    expect(index).toBeGreaterThanOrEqual(0)
+    expect(picked.rngState).not.toBe(rolled.rngState)
+    const [id, counted] = nextEntityId(state, 'wreck')
+    expect(id).toBe(`wreck-${duel.nextEntityId}`)
+    expect(counted.nextEntityId).toBe(duel.nextEntityId + 1)
+    const [none, untouched] = withRng(state, () => 0)
+    expect(none).toBe(0)
+    expect(untouched).toBe(state)
   })
 })
 
@@ -104,6 +121,28 @@ describe('determinism: executeTurn is pure', () => {
     // The first shot rolled a die before the second was rejected; the roll must not stick.
     expect(state.rngState).toBe(rngBefore)
     expect(getShip(state, 'p2').hitPoints).toBe(10)
+  })
+})
+
+describe('determinism: executeTurn never writes to the state it is given', () => {
+  // Every turn of a bot game replayed from a deep-frozen state: a write
+  // anywhere in the input throws, and the replay must still end where the
+  // game did, event for event.
+  it.each([
+    [3, 1],
+    [6, 2],
+  ])('%i bots, seed %i', (botCount, seed) => {
+    const game = runGame({ seed, botCount, record: true })
+    expect(game.failure).toBeUndefined()
+    const recording = game.recording!
+    let state = recording.initialState
+    for (const turn of recording.turns) {
+      const result = executeTurn(deepFreeze(state), deepFreeze(turn.actions))
+      expect(result.errors, `turn ${turn.turnNumber}`).toBeUndefined()
+      expect(result.events).toEqual(turn.events)
+      state = result.gameState
+    }
+    expect(canonicalJson(state)).toBe(canonicalJson(game.finalState))
   })
 })
 

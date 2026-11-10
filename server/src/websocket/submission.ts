@@ -2,12 +2,14 @@
  * The game socket's messages that do not depend on the socket itself, so the
  * smoke test can run them against an in-memory game service.
  */
-import type { PlayerAction } from '@dangerous-inclinations/engine'
-import { SubmitTurnSchema, issueLines } from '../schemas/game.ts'
-import type { ServerGameMessage } from '../protocol.ts'
+import {
+  SubmitTurnSchema,
+  issueLines,
+  type GameSocketMessage,
+} from '@dangerous-inclinations/engine'
 import { StaleGameError, type GameService } from '../services/gameService.ts'
 
-export function connectedMessage(gameId: string): ServerGameMessage {
+export function connectedMessage(gameId: string): GameSocketMessage {
   return { type: 'CONNECTED', room: 'game', roomId: gameId }
 }
 
@@ -21,7 +23,7 @@ export async function answerSubmission(
   gameId: string,
   playerId: string,
   raw: string
-): Promise<ServerGameMessage | null> {
+): Promise<GameSocketMessage | null> {
   let message: unknown
   try {
     message = JSON.parse(raw)
@@ -35,7 +37,7 @@ export async function answerSubmission(
   }
   const { actions, turn, activePlayerId } = parsed.data.payload
   try {
-    const result = await games.submitTurn(gameId, playerId, actions as PlayerAction[], {
+    const result = await games.submitTurn(gameId, playerId, actions, {
       turn,
       activePlayerId,
     })
@@ -46,6 +48,6 @@ export async function answerSubmission(
   }
 }
 
-function turnError(error?: string, errors?: string[]): ServerGameMessage {
+function turnError(error?: string, errors?: string[]): GameSocketMessage {
   return { type: 'TURN_ERROR', payload: { error, errors } }
 }

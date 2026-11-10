@@ -107,7 +107,7 @@ describe('scan: a successful scan', () => {
   })
 
   it('does not consume the dice', () => {
-    const state = { ...scanner(), forcedRollValue: undefined }
+    const state = scanner()
     const result = executeTurnAs(state, scan(1, 'p2'))
     expect(result.errors).toBeUndefined()
     expect(result.gameState.rngState).toBe(state.rngState)

@@ -12,15 +12,21 @@
  */
 import { randomUUID } from 'node:crypto'
 import type {
+  ChatMessage,
   GameEvent,
+  GameSocketMessage,
   GameState,
   GameView,
+  LoadoutSubmission,
   Mission,
   Player,
   PlayerAction,
   PlayerSpec,
-  ShipAppearance,
+  PreviewResponse,
   ShipLoadout,
+  TurnFrames,
+  TurnSummary,
+  ViewPayload,
 } from '@dangerous-inclinations/engine'
 import {
   PRIMARIES_PER_PLAYER,
@@ -38,26 +44,18 @@ import {
   isPrimaryType,
   missionsMissingRequirements,
   missionTargetsPlayer,
-  pickIndex,
   RECORDING_SCHEMA_VERSION,
   staleRecordingReason,
   stampEvents,
   submitLoadout as engineSubmitLoadout,
   transitionToActivePhase,
   viewFor,
+  withRng,
 } from '@dangerous-inclinations/engine'
 import type { Kv } from './kv.ts'
 import { createKeyedLock } from './lock.ts'
 import type { RecordingService } from './recordingService.ts'
 import { log as defaultLog, type ServiceLogger } from './logger.ts'
-import type {
-  ChatMessage,
-  PreviewPayload,
-  ServerGameMessage,
-  TurnFrames,
-  TurnSummary,
-  ViewPayload,
-} from '../protocol.ts'
 
 // ---------------------------------------------------------------------------
 // Dependencies
@@ -65,7 +63,7 @@ import type {
 
 export interface GameTransport {
   /** `build` answers null for a seat that gets nothing. */
-  broadcastViews(gameId: string, build: (playerId: string) => ServerGameMessage | null): void
+  broadcastViews(gameId: string, build: (playerId: string) => GameSocketMessage | null): void
 }
 
 /** What a bot decides, from exactly the information a human has. */
@@ -102,12 +100,6 @@ interface GameServiceDeps {
 export type Result<T = object> =
   | ({ ok: true } & T)
   | { ok: false; error?: string; errors?: string[] }
-
-export interface LoadoutSubmission {
-  appearance?: ShipAppearance
-  loadout: ShipLoadout
-  missionIds: string[]
-}
 
 export interface ForkOptions {
   /** Recorded player the forking human takes over. */
@@ -381,11 +373,14 @@ export function createGameService(deps: GameServiceDeps) {
 
       let submission: LoadoutSubmission
       try {
-        const choice = bots.chooseLoadout(player.missionOffers, {
-          // The bots spread across the hands they could fly; seeded off the
-          // game's own RNG so a recording replays the same table.
-          pick: n => pickIndex(state, Array.from({ length: n })),
-        })
+        const [choice, picked] = withRng(state, rng =>
+          bots.chooseLoadout(player.missionOffers, {
+            // The bots spread across the hands they could fly; seeded off the
+            // game's own RNG so a recording replays the same table.
+            pick: n => rng.rollInt(n),
+          })
+        )
+        state = picked
         submission = { loadout: choice.loadout, missionIds: choice.missionIds }
       } catch (error) {
         log.error(
@@ -423,10 +418,14 @@ export function createGameService(deps: GameServiceDeps) {
       if (humans.has(bot.id)) break
 
       // The bot draws from the game's seeded RNG so live games replay from their seed.
-      const pick = (n: number) => pickIndex(state, Array.from({ length: n }))
       let choice: DeploymentChoice
       try {
-        choice = bots.chooseDeployment(viewFor(state, bot.id), pick)
+        const view = viewFor(state, bot.id)
+        const [chosen, picked] = withRng(state, rng =>
+          bots.chooseDeployment(view, n => rng.rollInt(n))
+        )
+        choice = chosen
+        state = picked
       } catch (error) {
         log.error(`Bot ${bot.id} failed to choose a deployment: ${String(error)}`)
         choice = fallbackDeployment(state)
@@ -600,7 +599,7 @@ export function createGameService(deps: GameServiceDeps) {
       gameId: string,
       playerId: string,
       actions: PlayerAction[]
-    ): Promise<PreviewPayload> {
+    ): Promise<PreviewResponse> {
       const state = await loadState(gameId)
       if (!state) return { ok: false, error: 'Game not found' }
       if (state.phase !== 'active')

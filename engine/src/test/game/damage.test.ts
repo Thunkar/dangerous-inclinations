@@ -16,6 +16,7 @@ import {
   withPower,
   withShip,
   withSub,
+  rolling,
 } from '../testUtils.ts'
 
 /** p1 at R3 S0 with a powered port laser; p2 one ring out where the laser reaches. */
@@ -330,7 +331,7 @@ describe('damage: resolveAttack', () => {
   it.each(['engines', 'rotation', 'scoop', 'forward-0', 'side-0'])(
     'a critical breaks %s like any other slot',
     named => {
-      const state = { ...laserDuel(), forcedRollValue: 10 }
+      const state = { ...laserDuel(), ...rolling(10) }
       const result = executeTurnAs(state, fire(1, 'side-0', 'p2', named))
       expect(result.errors).toBeUndefined()
       expect(getSub(result.gameState, 'p2', named).isBroken).toBe(true)
@@ -340,7 +341,7 @@ describe('damage: resolveAttack', () => {
 
 describe('damage: through executeTurn', () => {
   it('a forced roll of 1 misses: hull intact, attack_resolved with zero damage', () => {
-    const result = executeTurnAs({ ...laserDuel(), forcedRollValue: 1 }, fire(1, 'side-0', 'p2'))
+    const result = executeTurnAs({ ...laserDuel(), ...rolling(1) }, fire(1, 'side-0', 'p2'))
     expect(result.errors).toBeUndefined()
     expect(eventsOf(result.events, 'attack_resolved')[0]).toMatchObject({
       roll: 1,
@@ -372,7 +373,7 @@ describe('damage: through executeTurn', () => {
     // (RULES §Hidden Information).
     const state = laserDuel(undefined, LOADOUTS.sensor)
     const result = executeTurnAs(
-      { ...state, forcedRollValue: 8 },
+      { ...state, ...rolling(8) },
       power(1, 'forward-0'),
       fire(2, 'side-0', 'p2', 'engines')
     )

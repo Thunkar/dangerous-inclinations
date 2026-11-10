@@ -5,45 +5,31 @@
  * every client then fetches its own view.
  */
 import { randomUUID } from 'node:crypto'
-import type { PlayerSpec } from '@dangerous-inclinations/engine'
+import type {
+  CreateLobbyOptions,
+  LobbySeat,
+  PlayerRecord,
+  PlayerSpec,
+  PublicLobby,
+} from '@dangerous-inclinations/engine'
 import { MAX_PLAYERS, MIN_PLAYERS } from '@dangerous-inclinations/engine'
 import { getRedis } from './redis.ts'
 import { createKeyedLock } from './lock.ts'
 import { broadcastToRoom } from '../websocket/rooms.ts'
-import type { CreateLobbyInput } from '../schemas/lobby.ts'
 import { getPlayer } from './playerService.ts'
-import type { AgentInfo, PlayerAuth } from '../schemas/player.ts'
 import { gameService } from './live.ts'
 import { log } from './logger.ts'
 
 const LOBBY_KEY_PREFIX = 'lobby:'
 const LOBBY_LIST_KEY = 'lobbies'
 
-export interface LobbyPlayer {
-  playerId: string
-  playerName: string
-  /** The server's own AI. */
-  isBot: boolean
-  /** An outside agent (Claude, Codex) playing this seat; absent for people and bots. */
-  agent?: AgentInfo
-}
-
-export interface Lobby {
-  lobbyId: string
-  lobbyName: string
+/** A lobby as the server stores it: the public lobby with its password in place of the flag. */
+export interface Lobby extends Omit<PublicLobby, 'hasPassword'> {
   password?: string
-  maxPlayers: number
-  players: LobbyPlayer[]
-  hostPlayerId: string
-  /** Set when the host starts the game. */
-  gameId?: string
-  createdAt: number
 }
 
 /** A lobby as a client sees it: whether it has a password, never the password. */
-export function publicLobby({ password, ...lobby }: Lobby): Omit<Lobby, 'password'> & {
-  hasPassword: boolean
-} {
+export function publicLobby({ password, ...lobby }: Lobby): PublicLobby {
   return { ...lobby, hasPassword: !!password }
 }
 
@@ -57,7 +43,7 @@ const lobbyKey = (lobbyId: string) => `${LOBBY_KEY_PREFIX}${lobbyId}`
 const withLobbyLock = createKeyedLock()
 
 /** A person's or an agent's seat, as the lobby shows it to everyone. */
-function seatFor(playerId: string, player: PlayerAuth): LobbyPlayer {
+function seatFor(playerId: string, player: PlayerRecord): LobbySeat {
   return {
     playerId,
     playerName: player.playerName,
@@ -82,7 +68,7 @@ function broadcastLobbyUpdate(lobby: Lobby): void {
   })
 }
 
-export async function createLobby(input: CreateLobbyInput, hostPlayerId: string): Promise<Lobby> {
+export async function createLobby(input: CreateLobbyOptions, hostPlayerId: string): Promise<Lobby> {
   const hostPlayer = await getPlayer(hostPlayerId)
   if (!hostPlayer) throw new Error('Host player not found')
 
@@ -188,7 +174,7 @@ export function addBot(
     if (lobby.players.length >= lobby.maxPlayers) return { success: false, error: 'Lobby is full' }
     if (lobby.gameId) return { success: false, error: 'Game already started' }
 
-    const newBot: LobbyPlayer = {
+    const newBot: LobbySeat = {
       playerId: `bot-${randomUUID()}`,
       playerName: botName || `Bot ${lobby.players.filter(p => p.isBot).length + 1}`,
       isBot: true,

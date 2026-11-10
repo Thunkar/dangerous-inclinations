@@ -67,7 +67,7 @@ import {
   hullThrough,
   hullPotential,
 } from './behaviors/combat.ts'
-import type { ShotOption } from './behaviors/combat.ts'
+import type { FiringContext, ShotOption, TargetOption } from './behaviors/combat.ts'
 import { scanOption } from './behaviors/scanning.ts'
 import type { ScanIntent } from './behaviors/scanning.ts'
 import { assignDefensiveEnergy } from './behaviors/survival.ts'
@@ -142,6 +142,34 @@ const CARGO_DENIAL = 4
  */
 const LOADED_DENIAL = 0.5
 
+/** One shot the candidate takes: the ship and the weapon's intent. */
+type Shot = { opponent: Opponent; intent: ShotOption }
+
+/** Hull damage a shot is queued to do, as `hullThrough` reads it. */
+type QueuedHit = { damage: number; shieldPerCube: number | null }
+
+/**
+ * The turn's heat as the candidate spends it: the cubes it means to put on
+ * each subsystem it uses, and the heat those make. Heat is the only budget: a
+ * subsystem's cubes are its heat at the check.
+ */
+interface Budget {
+  targets: EnergyTargets
+  heatUsed: number
+  readonly heatBudget: number
+}
+
+const fits = (budget: Budget, heat: number, overflow = 0) =>
+  budget.heatUsed + heat <= budget.heatBudget + overflow
+
+function spend(budget: Budget, id: SubsystemId, cubes: number, heat = cubes): void {
+  budget.targets.set(id, cubes)
+  budget.heatUsed += heat
+}
+
+/** The facing before the move and after it: the thrusters turn the ship once a turn. */
+type FacingPlan = { pre: Facing; post: Facing }
+
 /**
  * Build the full action sequence for one movement choice.
  */
@@ -153,25 +181,10 @@ function buildCandidate(
   followsGoal: boolean
 ): ActionPlan {
   const { me, ship, status, view } = situation
-  let movement = movementIn
   // Moored at a station: a coast holds the berth instead of drifting and the
   // station carries the ship at the end of the round (RULES §Stations).
   const moored = status.moored
-
-  // A movement whose heat alone would gut the hull is not worth it. Heat is
-  // hull damage only above the top of the track (RULES §Energy and Heat). On
-  // a move that arrives at a station the check is paid from the hull the ship
-  // has and the dock refills it afterwards, so it is out only if the check
-  // would destroy the ship. A coast from a berth arrives nowhere.
-  const arrives =
-    !moored &&
-    getStationAt(
-      view.stations,
-      projectPosition(ship, movement.requiredFacing ?? ship.facing, movement.preview)
-    ) !== undefined
-  if (moveOverheats(status.hull, status.heat, movement.engineEnergy, arrives)) {
-    movement = coastChoice(false)
-  }
+  const movement = gateOverheat(situation, movementIn)
 
   const preview =
     movement.kind === 'coast' && moored ? { ...movement.preview, moored: true } : movement.preview
@@ -183,108 +196,17 @@ function buildCandidate(
   // markers, seizures, a survey's data and a black box, each an action in
   // the sequence (RULES §Missions).
   const takings = turnTakings(situation, status.position, landing)
-  const escortMarks = [...takings.before.marks, ...takings.after.marks]
-  const marking = escortMarks.length > 0
+  const marking = takings.before.marks.length + takings.after.marks.length > 0
   const seizing = takings.after.seizes.length > 0
-  // Ships not to fire on: those `holdFireIds` names, and the ones this turn
-  // marks or seizes from (a kill empties the hold, and an empty ship takes no
-  // marker and gives up nothing). A Destroy target stays fair game: the kill
-  // is worth two, and a shot that does not kill leaves the item to take.
-  const prey = destroyTargetIds(me)
-  const holdFire = new Set([
-    ...holdFireIds(situation),
-    ...escortMarks,
-    ...[...takings.before.seizes, ...takings.after.seizes]
-      .map(i => i.victimId)
-      .filter(id => !prey.has(id)),
-  ])
-  /** Whether this turn may fire at `o` from `at` at all, whatever the weapon. */
-  const mayFireAt = (o: Opponent, at: Position) =>
-    !isQuietTurn(view.turn, me) &&
-    canFireFrom(status.position, at, view.stations) &&
-    o.sameWell &&
-    canBeTargeted(o.player, view.stations) &&
-    !holdFire.has(o.player.id)
+  const holdFire = holdFireThisTurn(situation, takings)
 
-  // Facing: the burn direction, or whatever gives the turn a mission scan, the
-  // railgun a shot it may actually take, or a peek at a rival's face-down
-  // slot, in that order (2, 1 and a half). The sensor scans into the
-  // railgun's box (RULES §Scanning), so a scan can need the ship turned as
-  // much as a railgun shot does. The thrusters turn the ship once a turn:
-  // before everything when the move leaves the facing free, or right after
-  // the move when the ship already faces the way the move needs, so a burn
-  // onto a target's ring can still turn to scan it. A turn after the move is
-  // only taken for a scan; the railgun keeps the plans it had.
-  const canRotate = !status.rotation.isBroken && !status.rotation.usedThisTurn
-  type FacingPlan = { pre: Facing; post: Facing }
-  const held: Facing = movement.requiredFacing ?? ship.facing
-  const other = oppositeFacing(held)
-  const plans: FacingPlan[] = [{ pre: held, post: held }]
-  if (canRotate && movement.requiredFacing === null) plans.push({ pre: other, post: other })
-  if (canRotate && held === ship.facing) plans.push({ pre: held, post: other })
-  const unturned = plans[0]
-  const railgun =
-    canRotate && movement.requiredFacing === null
-      ? status.weapons.find(w => w.type === 'railgun' && isWeaponReady(w))
-      : undefined
-  const railgunShot = (f: Facing) =>
-    !!railgun &&
-    situation.opponents.some(
-      o => mayFireAt(o, landing) && isInWeaponRange(railgun, { ...landing, facing: f }, o.position)
-    )
-  // The other guns' shots a facing leaves bearing, before or after the move:
-  // a turn for a peek must not cost one (side-restricted guns fire off one side).
-  const bearing = (plan: FacingPlan) =>
-    status.weapons
-      .filter(w => w.type !== 'railgun' && isWeaponReady(w))
-      .reduce(
-        (n, w) =>
-          n +
-          situation.opponents.filter(
-            o =>
-              (mayFireAt(o, status.position) &&
-                canEngage(w, { ...status.position, facing: plan.pre }, o.position)) ||
-              (mayFireAt(o, landing) && canEngage(w, { ...landing, facing: plan.post }, o.position))
-          ).length,
-        0
-      )
-  // A rotation for a scan is only worth its cube if the scan fits the turn's
-  // heat after it.
-  const rotationHeat = getSubsystemConfig('rotation').minEnergy
-  const scanAfterRotationFits =
-    movement.engineEnergy + rotationHeat + getSubsystemConfig('sensor_array').minEnergy <=
-    status.heatBudget
-  const turns = (plan: FacingPlan) => plan.pre !== ship.facing || plan.post !== plan.pre
-  /** The scan a plan's facings allow, if a rotation the plan needs leaves room for it. */
-  const scanWith = (plan: FacingPlan): ScanIntent | null => {
-    const scan = scanOption(
-      situation,
-      { ...status.position, facing: plan.pre },
-      { ...landing, facing: plan.post },
-      parameters
-    )
-    if (!scan || (turns(plan) && plan !== unturned && !scanAfterRotationFits)) return null
-    // A peek is the least of the three: a turn for it gives up no other gun's shot.
-    if (!scan.forMission && plan !== unturned && bearing(plan) < bearing(unturned)) return null
-    return scan
-  }
-  let facingPlan = unturned
-  let bestScore = -1
-  let peekTurn = false
-  for (const plan of plans) {
-    const scan = scanWith(plan)
-    // A turn after the move is for a scan only.
-    if (plan.post !== plan.pre && !scan) continue
-    const mission = scan?.forMission === true
-    const rail = railgunShot(plan.post)
-    const score = (mission ? 2 : 0) + (rail ? 1 : 0) + (scan && !mission ? 0.5 : 0)
-    if (score > bestScore) {
-      bestScore = score
-      facingPlan = plan
-      // Turned for nothing but the peek: the peek is what the rotation bought.
-      peekTurn = plan !== unturned && !!scan && !mission && rail === railgunShot(unturned.post)
-    }
-  }
+  const { plan: facingPlan, peekTurn } = chooseFacing(
+    situation,
+    parameters,
+    movement,
+    landing,
+    holdFire
+  )
   const facing = facingPlan.pre
   const rotate = facing !== ship.facing
   const rotateAfterMove = facingPlan.post !== facingPlan.pre
@@ -319,54 +241,311 @@ function buildCandidate(
     seizing
 
   // Budgets.
-  const targets: EnergyTargets = new Map()
-  let heatUsed = 0
-  if (movement.engineEnergy > 0) {
-    targets.set(status.engines.id, movement.engineEnergy)
-    heatUsed += movement.engineEnergy
-  }
-  if (rotate || rotateAfterMove) {
-    targets.set(status.rotation.id, rotationHeat)
-    heatUsed += rotationHeat
-  }
-  const heatBudget = status.heatBudget
-  // Heat is the only budget: a subsystem's cubes are its heat at the check.
-  const fits = (heat: number, overflow = 0) => heatUsed + heat <= heatBudget + overflow
+  const budget: Budget = { targets: new Map(), heatUsed: 0, heatBudget: status.heatBudget }
+  if (movement.engineEnergy > 0) spend(budget, status.engines.id, movement.engineEnergy)
+  if (rotate || rotateAfterMove)
+    spend(budget, status.rotation.id, getSubsystemConfig('rotation').minEnergy)
 
   // Scoop the plan relies on comes before weapons; low-fuel scooping after.
-  const scoopEnergy = getSubsystemConfig('scoop').minEnergy
-  let scoop = false
   const canScoop = movement.kind === 'coast' && !status.scoop.isBroken && !status.scoop.usedThisTurn
-  const tryScoop = () => {
-    if (scoop || !canScoop || status.reactionMass >= status.maxReactionMass) return
-    if (!fits(scoopEnergy)) return
-    targets.set(status.scoop.id, scoopEnergy)
-    heatUsed += scoopEnergy
-    scoop = true
-  }
-  if (movement.wantsScoop) tryScoop()
+  let scoop = false
+  if (movement.wantsScoop) scoop = takeScoop(situation, budget, canScoop, scoop)
 
   // Mission scan first: it completes a mission step.
   const scan: ScanIntent | null = scanOption(situation, pre, post, parameters)
   let scanChosen: ScanIntent | null = null
-  const tryScan = () => {
-    if (!scan || scanChosen || !fits(scan.heat)) return
-    targets.set(scan.sensor.id, scan.heat)
-    heatUsed += scan.heat
-    scanChosen = scan
-  }
   // A turn bought for a peek is spent before the guns can take its heat.
-  if (scan?.forMission || peekTurn) tryScan()
+  if (scan?.forMission || peekTurn) scanChosen = takeScan(budget, scan, scanChosen)
 
-  // Weapons: concentrate on one target, biggest hits first, spilling
-  // over to the next once that one is already accounted for.
-  const ctx = {
+  const volley = allocateFire(situation, parameters, budget, holdFire, landsOnStation, {
     pre,
     post,
     enginesUsedByMovement: movement.kind !== 'coast',
     massAfterMovement: status.reactionMass - movement.massCost,
     postPositionMatters,
+  })
+  const { target, shots, hullOn } = volley
+  const score = scoreVolley(situation, volley)
+
+  // Opportunistic scan and low-fuel scoop with what is left.
+  scanChosen = takeScan(budget, scan, scanChosen)
+  if (status.reactionMass < parameters.lowFuelThreshold)
+    scoop = takeScoop(situation, budget, canScoop, scoop)
+
+  const { powered, poweredHeat } = standingPower(situation, budget, shots)
+
+  const tactical = assembleTactical(situation, {
+    powered,
+    takings,
+    rotate,
+    facingPlan,
+    scanChosen,
+    shots,
+    movement,
+    scoop,
+    // A kill the volley expects on a ship in the sector the move ends on leaves
+    // its wreck there at once (RULES §Destruction and Respawn), so a Salvage
+    // that wants a black box takes it last, naming no wreck: if the dice spare
+    // the ship there is none and the salvage is simply not taken. Not after an
+    // uncompensated railgun, whose recoil moves the ship off the sector.
+    salvageLast:
+      !salvaging &&
+      salvageToTake(me) !== undefined &&
+      !shots.some(s => s.intent.weapon.type === 'railgun' && !s.intent.compensateRecoil) &&
+      volley.options.some(
+        o => hullOn(o.opponent) >= o.opponent.hull && samePosition(o.opponent.position, post)
+      ),
+  })
+
+  const massSpent =
+    movement.massCost + (shots.some(s => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0)
+  // Docking reads the tank after every action: the scoop's gain on a coast
+  // is in, a compensated recoil's fuel is out.
+  const scooped = scoop ? scoopYield(ship, status.reactionMass) : 0
+  const visit = landsOnStation
+    ? arrivalVisit(situation, post.wellId, status.reactionMass + scooped - massSpent)
+    : null
+
+  const actions: PlayerAction[] = [
+    ...tactical,
+    ...(visit?.sale
+      ? [{ type: 'dock_sale', playerId: me.id, data: { sale: visit.sale } } as const]
+      : []),
+  ]
+  const killsTarget = target !== null && hullOn(target) >= target.hull
+  const scansForMission = scanChosen !== null && scanChosen.forMission
+  const heat = status.heat + budget.heatUsed + poweredHeat
+
+  return {
+    actions,
+    description,
+    expectedDamage: score.expectedDamage,
+    expectedHullDamage: score.expectedHullDamage,
+    killsTarget,
+    targetId: target?.player.id,
+    followsGoal,
+    scans: scanChosen !== null,
+    heatDamage: heatDamage(heat),
+    heatCarried: heatAfterCheck(heat, status.dissipation),
+    massSpent,
+    completesStep:
+      visit?.completesStep === true ||
+      surveying ||
+      salvaging ||
+      marking ||
+      seizing ||
+      scansForMission ||
+      killsTarget,
+    denialValue: score.denialValue,
   }
+}
+
+/**
+ * A movement whose heat alone would gut the hull is not worth it: the bot
+ * coasts instead. Heat is hull damage only above the top of the track (RULES
+ * §Energy and Heat). On a move that arrives at a station the check is paid
+ * from the hull the ship has and the dock refills it afterwards, so it is out
+ * only if the check would destroy the ship. A coast from a berth arrives
+ * nowhere.
+ */
+function gateOverheat(situation: TacticalSituation, movement: MovementChoice): MovementChoice {
+  const { ship, status, view } = situation
+  const arrives =
+    !status.moored &&
+    getStationAt(
+      view.stations,
+      projectPosition(ship, movement.requiredFacing ?? ship.facing, movement.preview)
+    ) !== undefined
+  return moveOverheats(status.hull, status.heat, movement.engineEnergy, arrives)
+    ? coastChoice(false)
+    : movement
+}
+
+/**
+ * Ships not to fire on: those `holdFireIds` names, and the ones this turn
+ * marks or seizes from (a kill empties the hold, and an empty ship takes no
+ * marker and gives up nothing). A Destroy target stays fair game: the kill
+ * is worth two, and a shot that does not kill leaves the item to take.
+ */
+function holdFireThisTurn(
+  situation: TacticalSituation,
+  takings: { before: Takings; after: Takings }
+): Set<string> {
+  const prey = destroyTargetIds(situation.me)
+  return new Set([
+    ...holdFireIds(situation),
+    ...takings.before.marks,
+    ...takings.after.marks,
+    ...[...takings.before.seizes, ...takings.after.seizes]
+      .map(i => i.victimId)
+      .filter(id => !prey.has(id)),
+  ])
+}
+
+/** Whether this turn may fire at `o` from `at` at all, whatever the weapon. */
+function mayFireAt(
+  situation: TacticalSituation,
+  holdFire: ReadonlySet<string>,
+  o: Opponent,
+  at: Position
+): boolean {
+  const { me, status, view } = situation
+  return (
+    !isQuietTurn(view.turn, me) &&
+    canFireFrom(status.position, at, view.stations) &&
+    o.sameWell &&
+    canBeTargeted(o.player, view.stations) &&
+    !holdFire.has(o.player.id)
+  )
+}
+
+/**
+ * Facing: the burn direction, or whatever gives the turn a mission scan, the
+ * railgun a shot it may actually take, or a peek at a rival's face-down
+ * slot, in that order (2, 1 and a half). The sensor scans into the
+ * railgun's box (RULES §Scanning), so a scan can need the ship turned as
+ * much as a railgun shot does. The thrusters turn the ship once a turn:
+ * before everything when the move leaves the facing free, or right after
+ * the move when the ship already faces the way the move needs, so a burn
+ * onto a target's ring can still turn to scan it. A turn after the move is
+ * only taken for a scan; the railgun keeps the plans it had. `peekTurn` is
+ * a turn bought for nothing but the peek.
+ */
+function chooseFacing(
+  situation: TacticalSituation,
+  parameters: BotParameters,
+  movement: MovementChoice,
+  landing: Position,
+  holdFire: ReadonlySet<string>
+): { plan: FacingPlan; peekTurn: boolean } {
+  const { ship, status } = situation
+  const canFire = (o: Opponent, at: Position) => mayFireAt(situation, holdFire, o, at)
+  const canRotate = !status.rotation.isBroken && !status.rotation.usedThisTurn
+  const held: Facing = movement.requiredFacing ?? ship.facing
+  const other = oppositeFacing(held)
+  const plans: FacingPlan[] = [{ pre: held, post: held }]
+  if (canRotate && movement.requiredFacing === null) plans.push({ pre: other, post: other })
+  if (canRotate && held === ship.facing) plans.push({ pre: held, post: other })
+  const unturned = plans[0]
+  const railgun =
+    canRotate && movement.requiredFacing === null
+      ? status.weapons.find(w => w.type === 'railgun' && isWeaponReady(w))
+      : undefined
+  const railgunShot = (f: Facing) =>
+    !!railgun &&
+    situation.opponents.some(
+      o => canFire(o, landing) && isInWeaponRange(railgun, { ...landing, facing: f }, o.position)
+    )
+  // The other guns' shots a facing leaves bearing, before or after the move:
+  // a turn for a peek must not cost one (side-restricted guns fire off one side).
+  const bearing = (plan: FacingPlan) =>
+    status.weapons
+      .filter(w => w.type !== 'railgun' && isWeaponReady(w))
+      .reduce(
+        (n, w) =>
+          n +
+          situation.opponents.filter(
+            o =>
+              (canFire(o, status.position) &&
+                canEngage(w, { ...status.position, facing: plan.pre }, o.position)) ||
+              (canFire(o, landing) && canEngage(w, { ...landing, facing: plan.post }, o.position))
+          ).length,
+        0
+      )
+  // A rotation for a scan is only worth its cube if the scan fits the turn's
+  // heat after it.
+  const scanAfterRotationFits =
+    movement.engineEnergy +
+      getSubsystemConfig('rotation').minEnergy +
+      getSubsystemConfig('sensor_array').minEnergy <=
+    status.heatBudget
+  const turns = (plan: FacingPlan) => plan.pre !== ship.facing || plan.post !== plan.pre
+  /** The scan a plan's facings allow, if a rotation the plan needs leaves room for it. */
+  const scanWith = (plan: FacingPlan): ScanIntent | null => {
+    const scan = scanOption(
+      situation,
+      { ...status.position, facing: plan.pre },
+      { ...landing, facing: plan.post },
+      parameters
+    )
+    if (!scan || (turns(plan) && plan !== unturned && !scanAfterRotationFits)) return null
+    // A peek is the least of the three: a turn for it gives up no other gun's shot.
+    if (!scan.forMission && plan !== unturned && bearing(plan) < bearing(unturned)) return null
+    return scan
+  }
+  let facingPlan = unturned
+  let bestScore = -1
+  let peekTurn = false
+  for (const plan of plans) {
+    const scan = scanWith(plan)
+    // A turn after the move is for a scan only.
+    if (plan.post !== plan.pre && !scan) continue
+    const mission = scan?.forMission === true
+    const rail = railgunShot(plan.post)
+    const score = (mission ? 2 : 0) + (rail ? 1 : 0) + (scan && !mission ? 0.5 : 0)
+    if (score > bestScore) {
+      bestScore = score
+      facingPlan = plan
+      // Turned for nothing but the peek: the peek is what the rotation bought.
+      peekTurn = plan !== unturned && !!scan && !mission && rail === railgunShot(unturned.post)
+    }
+  }
+  return { plan: facingPlan, peekTurn }
+}
+
+/** Put the scoop on if the turn may and the tank wants it; whether it is on. */
+function takeScoop(
+  situation: TacticalSituation,
+  budget: Budget,
+  canScoop: boolean,
+  scoop: boolean
+): boolean {
+  const { status } = situation
+  if (scoop || !canScoop || status.reactionMass >= status.maxReactionMass) return scoop
+  const scoopEnergy = getSubsystemConfig('scoop').minEnergy
+  if (!fits(budget, scoopEnergy)) return scoop
+  spend(budget, status.scoop.id, scoopEnergy)
+  return true
+}
+
+/** Take `scan` if none is taken yet and it fits; the scan the turn takes. */
+function takeScan(
+  budget: Budget,
+  scan: ScanIntent | null,
+  chosen: ScanIntent | null
+): ScanIntent | null {
+  if (!scan || chosen || !fits(budget, scan.heat)) return chosen
+  spend(budget, scan.sensor.id, scan.heat)
+  return scan
+}
+
+/** The volley a candidate fires, and how much hull it puts on each ship. */
+interface Volley {
+  /** The ship the volley concentrates on. */
+  target: Opponent | null
+  /** Every ship with a damage shot, and those shots. */
+  options: TargetOption[]
+  /** The shots taken, in the order they were chosen. */
+  shots: Shot[]
+  queued: Map<string, QueuedHit[]>
+  /** Hull damage queued on `o`, with `extra` on top. */
+  hullOn: (o: Opponent, extra?: QueuedHit) => number
+}
+
+/**
+ * Weapons: concentrate on one target, biggest hits first, spilling over to
+ * the next once that one is already accounted for, then the disruptor.
+ * Every shot taken is spent from `budget`.
+ */
+function allocateFire(
+  situation: TacticalSituation,
+  parameters: BotParameters,
+  budget: Budget,
+  holdFire: ReadonlySet<string>,
+  landsOnStation: boolean,
+  ctx: FiringContext
+): Volley {
+  const { status } = situation
   // A volley the visible shields soak still pays: the cubes it strips cost
   // their owner heat, and a critical breaks the slot it names whether or not
   // the shot reached the hull (RULES §Critical hits). So every ship with a
@@ -390,90 +569,130 @@ function buildCandidate(
   // gained by firing past the hull, and the engine skips shots at a ship
   // that died earlier in the turn anyway, so the later weapons are offered
   // to the next target in range instead.
-  const queued = new Map<string, Array<{ damage: number; shieldPerCube: number | null }>>()
-  const hullOn = (o: Opponent, extra?: { damage: number; shieldPerCube: number | null }) =>
+  const queued = new Map<string, QueuedHit[]>()
+  const hullOn = (o: Opponent, extra?: QueuedHit) =>
     hullThrough([...(queued.get(o.player.id) ?? []), ...(extra ? [extra] : [])], o.shieldAbsorption)
   const byDamage = (a: ShotOption, b: ShotOption) => b.damage - a.damage
-  const queue: Array<{ opponent: Opponent; intent: ShotOption }> = []
+  const queue: Shot[] = []
   for (const option of chosen ? [chosen, ...options.filter(o => o !== chosen)] : []) {
     for (const intent of [...option.intents].sort(byDamage)) {
       queue.push({ opponent: option.opponent, intent })
     }
   }
 
-  const shots: Array<{ opponent: Opponent; intent: ShotOption }> = []
+  const shots: Shot[] = []
   const fired = new Set<string>()
-  /**
-   * A salvo of `count` rounds off the same launcher: the cubes and the heat
-   * are unchanged (a launch is one use of the subsystem however big it is)
-   * and the damage is per missile.
-   */
-  const sized = (intent: ShotOption, count: number): ShotOption =>
-    count === intent.count
-      ? intent
-      : { ...intent, count, damage: (intent.damage / intent.count) * count }
   for (const { opponent, intent: offered } of queue) {
     if (fired.has(offered.weapon.id)) continue
     if (hullOn(opponent) >= opponent.hull) continue
-    // Heat over the redline is hull damage at the end of the turn. It is
-    // worth paying for a shot that finishes a ship, and for any shot at a
-    // player about to win, whatever else the bot was doing this turn, because
-    // the shot costs them cargo and tempo they cannot buy back.
-    const room = (decisive: boolean) =>
-      decisive || opponent.danger.score >= INTERDICT_DANGER
-        ? Math.max(
-            0,
-            Math.min(
-              MAX_OVERHEAT,
-              status.hull - hullToKeep(landsOnStation) - heatDamage(status.heat + heatUsed)
-            )
-          )
-        : 0
-    // A salvo is one use of its subsystem whatever its size, so the only reason to
-    // hold rounds back is the next target: spend the fewest that still finish
-    // the ship, and if none of them does, spend as many as the budget takes.
-    // Everything else fires once and has only itself to offer.
-    const kills = (count: number) => hullOn(opponent, sized(offered, count)) >= opponent.hull
-    let smallestKill = 0
-    for (let c = 1; c <= offered.count; c++) {
-      if (kills(c)) {
-        smallestKill = c
-        break
-      }
-    }
-    const candidates: number[] = []
-    if (smallestKill > 0) candidates.push(smallestKill)
-    for (let c = offered.count; c >= 1; c--) if (c !== smallestKill) candidates.push(c)
-    let intent: ShotOption | null = null
-    for (const count of candidates) {
-      const candidate = sized(offered, count)
-      if (!fits(candidate.heat, room(kills(count)))) continue
-      intent = candidate
-      break
-    }
+    const intent = sizeShot(situation, budget, opponent, offered, hullOn, landsOnStation)
     if (!intent) continue
     if (intent.compensateRecoil)
-      targets.set(
+      budget.targets.set(
         status.engines.id,
-        Math.max(targets.get(status.engines.id) ?? 0, BURN_COSTS.soft.energy)
+        Math.max(budget.targets.get(status.engines.id) ?? 0, BURN_COSTS.soft.energy)
       )
-    targets.set(intent.weapon.id, weaponEnergy(intent.weapon))
-    heatUsed += intent.heat
+    spend(budget, intent.weapon.id, weaponEnergy(intent.weapon), intent.heat)
     fired.add(intent.weapon.id)
     queued.set(opponent.player.id, [...(queued.get(opponent.player.id) ?? []), intent])
     shots.push({ opponent, intent })
   }
 
-  // The disruptor, once the damage shots are queued: a hit breaks the slot it
-  // names unless any powered shield is up, so it fires only at a ship whose
-  // shields look down by the time it shoots. It goes last in its phase, so
-  // the shots at the same ship before it (the pre phase's, and the post
-  // phase's too when it fires after the move) have stripped what cubes they
-  // can. A salvo counts when it lands on its launch flight and no rack of
-  // theirs may be up to shoot it down; one still flying strips nothing in
-  // time. A railgun goes after it (its recoil would move the ship out of the
-  // range the disruptor was checked from), so it strips nothing in time either.
-  const strips = (s: { opponent: Opponent; intent: ShotOption }) =>
+  const disruption = chooseDisruption(situation, target, disruptOptions, shots, fired, hullOn)
+  if (disruption && fits(budget, disruption.intent.heat)) {
+    spend(
+      budget,
+      disruption.intent.weapon.id,
+      weaponEnergy(disruption.intent.weapon),
+      disruption.intent.heat
+    )
+    fired.add(disruption.intent.weapon.id)
+    shots.push({ opponent: disruption.opponent, intent: disruption.intent })
+  }
+
+  return { target, options, shots, queued, hullOn }
+}
+
+/**
+ * A salvo of `count` rounds off the same launcher: the cubes and the heat
+ * are unchanged (a launch is one use of the subsystem however big it is)
+ * and the damage is per missile.
+ */
+const sized = (intent: ShotOption, count: number): ShotOption =>
+  count === intent.count
+    ? intent
+    : { ...intent, count, damage: (intent.damage / intent.count) * count }
+
+/**
+ * The shot to take with `offered` at `opponent` within the budget, or null
+ * when none fits: for a salvo, how many rounds.
+ */
+function sizeShot(
+  situation: TacticalSituation,
+  budget: Budget,
+  opponent: Opponent,
+  offered: ShotOption,
+  hullOn: Volley['hullOn'],
+  landsOnStation: boolean
+): ShotOption | null {
+  const { status } = situation
+  // Heat over the redline is hull damage at the end of the turn. It is
+  // worth paying for a shot that finishes a ship, and for any shot at a
+  // player about to win, whatever else the bot was doing this turn, because
+  // the shot costs them cargo and tempo they cannot buy back.
+  const room = (decisive: boolean) =>
+    decisive || opponent.danger.score >= INTERDICT_DANGER
+      ? Math.max(
+          0,
+          Math.min(
+            MAX_OVERHEAT,
+            status.hull - hullToKeep(landsOnStation) - heatDamage(status.heat + budget.heatUsed)
+          )
+        )
+      : 0
+  // A salvo is one use of its subsystem whatever its size, so the only reason to
+  // hold rounds back is the next target: spend the fewest that still finish
+  // the ship, and if none of them does, spend as many as the budget takes.
+  // Everything else fires once and has only itself to offer.
+  const kills = (count: number) => hullOn(opponent, sized(offered, count)) >= opponent.hull
+  let smallestKill = 0
+  for (let c = 1; c <= offered.count; c++) {
+    if (kills(c)) {
+      smallestKill = c
+      break
+    }
+  }
+  const candidates: number[] = []
+  if (smallestKill > 0) candidates.push(smallestKill)
+  for (let c = offered.count; c >= 1; c--) if (c !== smallestKill) candidates.push(c)
+  for (const count of candidates) {
+    const candidate = sized(offered, count)
+    if (fits(budget, candidate.heat, room(kills(count)))) return candidate
+  }
+  return null
+}
+
+/**
+ * The disruptor, once the damage shots are queued: a hit breaks the slot it
+ * names unless any powered shield is up, so it fires only at a ship whose
+ * shields look down by the time it shoots. It goes last in its phase, so
+ * the shots at the same ship before it (the pre phase's, and the post
+ * phase's too when it fires after the move) have stripped what cubes they
+ * can. A salvo counts when it lands on its launch flight and no rack of
+ * theirs may be up to shoot it down; one still flying strips nothing in
+ * time. A railgun goes after it (its recoil would move the ship out of the
+ * range the disruptor was checked from), so it strips nothing in time either.
+ */
+function chooseDisruption(
+  situation: TacticalSituation,
+  target: Opponent | null,
+  disruptOptions: Shot[],
+  shots: Shot[],
+  fired: ReadonlySet<string>,
+  hullOn: Volley['hullOn']
+): Shot | undefined {
+  const { me } = situation
+  const strips = (s: Shot) =>
     s.intent.weapon.type === 'missiles'
       ? s.intent.landsOnLaunch === true && !rackMayAnswer(s.opponent)
       : s.intent.weapon.type !== 'railgun'
@@ -481,36 +700,45 @@ function buildCandidate(
     shots
       .filter(s => s.opponent === o && strips(s) && (s.intent.phase === 'pre' || phase === 'post'))
       .map(s => s.intent)
-  const disruption = disruptOptions
-    .filter(
-      ({ opponent, intent }) => !fired.has(intent.weapon.id) && hullOn(opponent) < opponent.hull
-    )
-    .map(d => ({ ...d, block: disruptBlockChance(d.opponent, ahead(d.opponent, d.intent.phase)) }))
-    .filter(d => d.block <= MAX_DISRUPT_BLOCK)
-    // The volley's own target first, then a ship worth killing, then the one
-    // nearest the win; the likelier hit, then the earlier phase, breaks ties.
-    .sort(
-      (a, b) =>
-        Number(b.opponent === target) - Number(a.opponent === target) ||
-        Number(isKillTarget(me, b.opponent)) - Number(isKillTarget(me, a.opponent)) ||
-        b.opponent.danger.score - a.opponent.danger.score ||
-        a.block - b.block
-    )[0]
-  if (disruption && fits(disruption.intent.heat)) {
-    targets.set(disruption.intent.weapon.id, weaponEnergy(disruption.intent.weapon))
-    heatUsed += disruption.intent.heat
-    fired.add(disruption.intent.weapon.id)
-    shots.push({ opponent: disruption.opponent, intent: disruption.intent })
-  }
+  return (
+    disruptOptions
+      .filter(
+        ({ opponent, intent }) => !fired.has(intent.weapon.id) && hullOn(opponent) < opponent.hull
+      )
+      .map(d => ({
+        ...d,
+        block: disruptBlockChance(d.opponent, ahead(d.opponent, d.intent.phase)),
+      }))
+      .filter(d => d.block <= MAX_DISRUPT_BLOCK)
+      // The volley's own target first, then a ship worth killing, then the one
+      // nearest the win; the likelier hit, then the earlier phase, breaks ties.
+      .sort(
+        (a, b) =>
+          Number(b.opponent === target) - Number(a.opponent === target) ||
+          Number(isKillTarget(me, b.opponent)) - Number(isKillTarget(me, a.opponent)) ||
+          b.opponent.danger.score - a.opponent.danger.score ||
+          a.block - b.block
+      )[0]
+  )
+}
 
+/** What the volley is worth: the damage it does, the hull it takes and what it denies. */
+function scoreVolley(
+  situation: TacticalSituation,
+  volley: Volley
+): { expectedDamage: number; expectedHullDamage: number; denialValue: number } {
+  const { me } = situation
   let expectedDamage = 0
   let expectedHullDamage = 0
   let denialValue = 0
   const onMe = escortsOnMe(situation)
-  for (const option of options) {
-    const raw = (queued.get(option.opponent.player.id) ?? []).reduce((s, q) => s + q.damage, 0)
+  for (const option of volley.options) {
+    const raw = (volley.queued.get(option.opponent.player.id) ?? []).reduce(
+      (s, q) => s + q.damage,
+      0
+    )
     expectedDamage += raw
-    const hull = hullOn(option.opponent)
+    const hull = volley.hullOn(option.opponent)
     expectedHullDamage += hull
     if (hull <= 0) continue
     // What the hit costs them (hull, and on a kill their hold and their next
@@ -526,11 +754,19 @@ function buildCandidate(
     const loaded = tokens > 0
     denialValue += loss * Math.max(danger.score, loaded ? LOADED_DENIAL : 0)
   }
+  return { expectedDamage, expectedHullDamage, denialValue }
+}
 
-  // Opportunistic scan and low-fuel scoop with what is left.
-  tryScan()
-  if (status.reactionMass < parameters.lowFuelThreshold) tryScoop()
-
+/**
+ * What to have up until the bot's next turn, beyond the turn's own draws:
+ * the subsystems to power and the heat their cubes add at the check.
+ */
+function standingPower(
+  situation: TacticalSituation,
+  budget: Budget,
+  shots: Shot[]
+): { powered: EnergyTargets; poweredHeat: number } {
+  const { status } = situation
   // Spare energy goes to defence, but powered shields charge their cubes as
   // heat at the check, so they come out of the same budget as the volley, and
   // what is left of the track after that is all they may cost.
@@ -576,25 +812,49 @@ function buildCandidate(
     shields: status.shields,
     racks: status.racks,
     sensors: status.sensors,
-    derived: targets,
+    derived: budget.targets,
     wantShields: enemiesNear || situation.incomingMissiles > 0,
     wantRacks,
     wantSensor,
-    heatRoom: Math.max(0, heatBudget - heatUsed),
+    heatRoom: Math.max(0, budget.heatBudget - budget.heatUsed),
   })
-  const powered: EnergyTargets = new Map([...upWants].filter(([id]) => !targets.has(id)))
+  const powered: EnergyTargets = new Map([...upWants].filter(([id]) => !budget.targets.has(id)))
   /**
    * Heat the check will bill beyond the turn's own draws: the power actions'
    * cubes. A subsystem holds its cubes once, so a rack that fires and stays up
    * costs two, not four.
    */
   const poweredHeat = [...powered].reduce((sum, [, cubes]) => sum + cubes, 0)
+  return { powered, poweredHeat }
+}
 
-  // Assemble. Power first: a sensor widens only the shots after it.
-  const tactical: TacticalAction[] = powerActions(me, powered)
+/**
+ * The turn's tactical actions in the order the engine takes them: power,
+ * what is taken where the ship starts, a rotation, the shots and scan before
+ * the move, the move, a rotation after it, what is taken where it ends, the
+ * shots and scan after the move, and a last salvage.
+ */
+function assembleTactical(
+  situation: TacticalSituation,
+  turn: {
+    powered: EnergyTargets
+    takings: { before: Takings; after: Takings }
+    rotate: boolean
+    facingPlan: FacingPlan
+    scanChosen: ScanIntent | null
+    shots: Shot[]
+    movement: MovementChoice
+    scoop: boolean
+    salvageLast: boolean
+  }
+): TacticalAction[] {
+  const { me } = situation
+  const { takings, facingPlan, scanChosen, shots, movement } = turn
+  // Power first: a sensor widens only the shots after it.
+  const tactical: TacticalAction[] = powerActions(me, turn.powered)
   let sequence = tactical.length + 1
   const next = () => sequence++
-  const fire = (shot: { opponent: Opponent; intent: ShotOption }): FireWeaponAction => ({
+  const fire = (shot: Shot): FireWeaponAction => ({
     type: 'fire_weapon',
     playerId: me.id,
     sequence: sequence++,
@@ -632,15 +892,14 @@ function buildCandidate(
 
   // What is taken goes before every shot: an item taken is kept whatever the shot does.
   tactical.push(...takingActions(me.id, takings.before, next))
-  if (rotate)
+  if (turn.rotate)
     tactical.push({
       type: 'rotate',
       playerId: me.id,
       sequence: sequence++,
-      data: { targetFacing: facing },
+      data: { targetFacing: facingPlan.pre },
     })
-  if (scanChosen && (scanChosen as ScanIntent).phase === 'pre')
-    tactical.push(scanAction(scanChosen))
+  if (scanChosen && scanChosen.phase === 'pre') tactical.push(scanAction(scanChosen))
   for (const s of inPhase('pre')) tactical.push(fire(s))
 
   switch (movement.kind) {
@@ -649,7 +908,7 @@ function buildCandidate(
         type: 'coast',
         playerId: me.id,
         sequence: sequence++,
-        data: { activateScoop: scoop },
+        data: { activateScoop: turn.scoop },
       })
       break
     case 'burn':
@@ -676,7 +935,7 @@ function buildCandidate(
       break
   }
 
-  if (rotateAfterMove)
+  if (facingPlan.post !== facingPlan.pre)
     tactical.push({
       type: 'rotate',
       playerId: me.id,
@@ -684,64 +943,11 @@ function buildCandidate(
       data: { targetFacing: facingPlan.post },
     })
   tactical.push(...takingActions(me.id, takings.after, next))
-  if (scanChosen && (scanChosen as ScanIntent).phase === 'post')
-    tactical.push(scanAction(scanChosen))
+  if (scanChosen && scanChosen.phase === 'post') tactical.push(scanAction(scanChosen))
   for (const s of inPhase('post')) tactical.push(fire(s))
-  // A kill the volley expects on a ship in the sector the move ends on leaves
-  // its wreck there at once (RULES §Destruction and Respawn), so a Salvage
-  // that wants a black box takes it last, naming no wreck: if the dice spare
-  // the ship there is none and the salvage is simply not taken. Not after an
-  // uncompensated railgun, whose recoil moves the ship off the sector.
-  if (
-    !salvaging &&
-    salvageToTake(me) &&
-    !shots.some(s => s.intent.weapon.type === 'railgun' && !s.intent.compensateRecoil) &&
-    options.some(
-      o => hullOn(o.opponent) >= o.opponent.hull && samePosition(o.opponent.position, post)
-    )
-  )
+  if (turn.salvageLast)
     tactical.push({ type: 'salvage', playerId: me.id, sequence: sequence++, data: {} })
-
-  const massSpent =
-    movement.massCost + (shots.some(s => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0)
-  // Docking reads the tank after every action: the scoop's gain on a coast
-  // is in, a compensated recoil's fuel is out.
-  const scooped = scoop ? scoopYield(ship, status.reactionMass) : 0
-  const visit = landsOnStation
-    ? arrivalVisit(situation, post.wellId, status.reactionMass + scooped - massSpent)
-    : null
-
-  const actions: PlayerAction[] = [
-    ...tactical,
-    ...(visit?.sale
-      ? [{ type: 'dock_sale', playerId: me.id, data: { sale: visit.sale } } as const]
-      : []),
-  ]
-  const killsTarget = target !== null && hullOn(target) >= target.hull
-  const scansForMission = scanChosen !== null && (scanChosen as ScanIntent).forMission
-
-  return {
-    actions,
-    description,
-    expectedDamage,
-    expectedHullDamage,
-    killsTarget,
-    targetId: target?.player.id,
-    followsGoal,
-    scans: scanChosen !== null,
-    heatDamage: heatDamage(status.heat + heatUsed + poweredHeat),
-    heatCarried: heatAfterCheck(status.heat + heatUsed + poweredHeat, status.dissipation),
-    massSpent,
-    completesStep:
-      visit?.completesStep === true ||
-      surveying ||
-      salvaging ||
-      marking ||
-      seizing ||
-      scansForMission ||
-      killsTarget,
-    denialValue,
-  }
+  return tactical
 }
 
 /**
