@@ -161,6 +161,14 @@ export const TABLE_TEXT = {
     option: '{speed}x',
   },
 
+  /** The tooltips on the board's missiles, flying and planned. */
+  board: {
+    missile:
+      "{owner}'s missile → {target} · {left} flight(s) left. Rides its orbit, then flies up to {steps} steps toward the target (rings first). The turn it is launched it flies at once, from where it was launched, with no ride. {moves} flights max.",
+    plannedSalvo: 'Planned salvo of {count} at {target} · each flies up to {steps} steps this turn',
+    plannedMissile: 'Planned missile at {target} · flies up to {steps} steps this turn',
+  },
+
   /** The chat plate, under the log at the table and beside the setup screens. */
   talk: {
     title: 'Table talk',

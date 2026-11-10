@@ -9,18 +9,12 @@
 import {
   DEFAULT_DISSIPATION_CAPACITY,
   MAX_HEAT,
-  PLANETS,
-  STATION_RING,
-  SUBSYSTEM_CONFIGS,
+  STATION_DRIFT,
   fill,
-  ringVelocity,
+  getMissileStats,
 } from '@dangerous-inclinations/engine'
 import { RADIATOR_DISSIPATION } from './numbers'
 import { TURN } from '../text/turn'
-
-const MISSILE_STEPS = SUBSYSTEM_CONFIGS.missiles.weaponStats?.stepsPerMove ?? 0
-/** A station rides its ring like a ship, and advances once a round. */
-export const STATION_DRIFT = ringVelocity(PLANETS[0].id, STATION_RING)
 
 export interface TurnStep {
   title: string
@@ -45,8 +39,8 @@ export const TURN_STEPS: TurnStep[] = [
   T.actions,
   {
     title: T.missiles.title,
-    blurb: fill(T.missiles.blurb, { steps: MISSILE_STEPS }),
-    terse: fill(T.missiles.terse, { steps: MISSILE_STEPS }),
+    blurb: fill(T.missiles.blurb, { steps: getMissileStats().stepsPerMove }),
+    terse: fill(T.missiles.terse, { steps: getMissileStats().stepsPerMove }),
   },
   {
     title: T.heatCheck.title,

@@ -243,6 +243,7 @@ export {
   BOT_ROLES,
   PRESETS_BY_ROLE,
   PRESET_NAMES,
+  ROLE_PRIMARY,
   presetRole,
   presetSecondaries,
 } from './behaviors/loadout.ts'

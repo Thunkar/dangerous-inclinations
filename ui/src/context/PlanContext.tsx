@@ -104,6 +104,8 @@ interface PlanContextValue {
   /** Fuel left when the plan is done, scoop gain included. */
   projectedFuel: number
   issues: string[]
+  /** The engine's warnings on each step, by step id (`PlanPreview.warnings`). */
+  warnings: Record<string, string[]>
   actions: PlayerAction[]
   picking: Picking
   /** Weapon whose range is drawn on the board. */
@@ -585,6 +587,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       projectedHeat,
       projectedFuel: preview.projectedFuel,
       issues: preview.issues,
+      warnings: preview.warnings,
       actions,
       picking,
       focusWeaponId:

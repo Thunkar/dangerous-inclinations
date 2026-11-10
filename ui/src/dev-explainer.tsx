@@ -38,11 +38,13 @@ import {
   SECONDARY_OFFERS_PER_PLAYER,
   SECTOR_ADJUSTMENT_COST_PER_SECTOR,
   SIDE_SLOT_COUNT,
+  STATION_DRIFT,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
   fill,
   getMissileStats,
   heatAfterCheck,
+  heatDamage,
 } from '@dangerous-inclinations/engine'
 import './index.css'
 import { theme } from './theme'
@@ -65,7 +67,6 @@ import {
   phasingStrip,
   tileName,
 } from './site/numbers'
-import { STATION_DRIFT } from './site/turn'
 import { TileIcon } from './art/glyphs'
 import { MissionCard } from './components/common/MissionCard'
 import { CHEATSHEET } from './text/cheatsheet'
@@ -870,7 +871,7 @@ function HeatCheckSlide({ t, out }: { t: number; out: number }) {
     },
     { value: `${atCheck}`, label: L.atCheck, rule: true },
     {
-      value: `−${Math.max(0, atCheck - MAX_HEAT)}`,
+      value: `−${heatDamage(atCheck)}`,
       label: fill(L.hull, { maxHeat: MAX_HEAT }),
       tone: 'red' as const,
     },
@@ -1005,14 +1006,13 @@ function FightSlide({ t, out }: { t: number; out: number }) {
 
 // ---- 06 Missiles -----------------------------------------------------------
 
-const MISSILE = getMissileStats()
-
 function MissilesSlide({ t, out }: { t: number; out: number }) {
   const R = S.missiles
+  const missile = getMissileStats()
   const vars = {
-    steps: MISSILE.stepsPerMove,
-    damage: MISSILE.damage,
-    turns: MISSILE.maxMoves,
+    steps: missile.stepsPerMove,
+    damage: missile.damage,
+    turns: missile.maxMoves,
     on: INTERCEPT_ON,
     heat: INTERCEPT_HEAT,
   }

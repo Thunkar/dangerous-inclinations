@@ -142,6 +142,27 @@ export const ACTIONS = {
     take: "take step 1 as this turn's move",
   },
 
+  /**
+   * A route read out loud (`utils/route.ts`), the same at the table, in the
+   * route planner tool and on the board: a place, and each step of a route.
+   */
+  route: {
+    place: '{well} R{ring} S{sector}',
+    coast: 'coast',
+    coastScoop: 'coast + scoop',
+    jump: 'jump → {well}',
+    burn: '{intensity} burn {direction}',
+    intensities: { soft: 'soft', medium: 'medium', hard: 'hard' },
+    /** A burn facing prograde climbs out; facing retrograde it drops in. */
+    out: 'out',
+    in: 'in',
+    /** A burn or a jump phased by `{phase}` sectors ("+2"). */
+    phased: '{leg} {phase}',
+    rotateFirst: '{leg} (rotate first)',
+    /** A route the engine gave no label. */
+    unnamed: 'route {n}',
+  },
+
   systems: {
     broken: 'Broken: it does nothing until repaired.',
     noMissiles: 'No missiles left: the magazine refills at a station.',

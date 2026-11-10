@@ -38,11 +38,13 @@ import type {
 } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
+  BURN_INTENSITIES,
   SCAN_SECTOR_RANGE,
   SELL_NOTHING,
   WELL_TRANSFER_COSTS,
   canBeTargeted,
   canSurvey,
+  coldAtCheck,
   isTouchable,
   canEngage,
   canFireFrom,
@@ -53,7 +55,6 @@ import {
   getJumpOptions,
   getStationAt,
   getSubsystemConfig,
-  heatFromCubes,
   inScanRange,
   isDestroyed,
   isInWeaponRange,
@@ -68,6 +69,7 @@ import {
   salesOnArrival,
   salvageToTake,
   salvageableWrecks,
+  scoopYield,
   samePosition,
   seizableItems,
   unplacedEscorts,
@@ -143,8 +145,6 @@ export interface MoveReadiness {
 
 const READY: MoveReadiness = { ok: true, reason: '' }
 const blocked = (reason: string): MoveReadiness => ({ ok: false, reason })
-
-const BURN_INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
 
 /**
  * The tile each step uses. Each tile does one thing a turn, so a tile a step
@@ -850,7 +850,7 @@ function markOfferFor(
  * anywhere on the loadout, which is the same sentence as the heat rule.
  */
 function repairableFor(me: Player, loadout: readonly Subsystem[]): SubsystemId[] {
-  return me.ship.heat.currentHeat === 0 && heatFromCubes([...loadout]) === 0
+  return coldAtCheck({ ...me.ship, subsystems: [...loadout] })
     ? me.ship.subsystems.filter(s => s.isBroken).map(s => s.id)
     : []
 }
@@ -868,7 +868,15 @@ export interface PlanPreview {
   moveFrom: StepContext
   targets: Target[]
   projectedFuel: number
+  /** Fuel a coast with the scoop would take aboard where the move starts. */
+  scoopGain: number
   issues: string[]
+  /**
+   * What the engine takes but the dice may undo, by step id: the codes of
+   * its walk's warnings (`walkTurn`), such as a seizure after a shot at the
+   * same ship.
+   */
+  warnings: Record<string, string[]>
   dockOffer: (SaleOffer & { planetId: string }) | null
   seizeOffer: { items: SeizeOption[]; cards: number } | null
   surveyOffer: SurveyOption | null
@@ -899,7 +907,15 @@ export function previewPlan(
         }
   const targets = targetsFor(view)
   const projectedFuel = walk.end.fuel
+  const fuelAtMove = moveIndex >= 0 ? walk.at[offset + moveIndex].fuel : me.ship.reactionMass
+  const scoop = me.ship.subsystems.find(s => s.id === 'scoop')
+  const scoopGain = scoop && !scoop.isBroken ? scoopYield(moveFrom.position, fuelAtMove) : 0
   const issues = issuesOf(me, steps, walk, offset)
+  const warnings: Record<string, string[]> = {}
+  for (const w of walk.warnings) {
+    const step = w.step === null ? undefined : steps[w.step - offset]
+    if (step) (warnings[step.id] ??= []).push(w.code)
+  }
   return {
     used,
     powers,
@@ -909,7 +925,9 @@ export function previewPlan(
     moveFrom,
     targets,
     projectedFuel,
+    scoopGain,
     issues,
+    warnings,
     dockOffer: dockOfferFor(view, me, finalPosition.position, projectedFuel),
     seizeOffer: seizeOfferFor(view, me, steps, stepStart, finalPosition),
     surveyOffer: surveyOfferFor(me, steps, stepStart, finalPosition),

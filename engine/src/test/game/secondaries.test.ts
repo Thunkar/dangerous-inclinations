@@ -12,7 +12,7 @@ import { STATION_RING } from '../../models/gravityWells.ts'
 import { filterEventsFor } from '../../models/events.ts'
 import { positionOf, ringVelocity, wrapSector } from '../../game/geometry.ts'
 import { escortCandidates, escortCandidatesNow, unplacedEscorts } from '../../game/escort.ts'
-import { viewFor } from '../../game/view.ts'
+import { holdCounts, viewFor } from '../../game/view.ts'
 import {
   LOADOUTS,
   ALPHA,
@@ -351,7 +351,7 @@ describe('salvage: wrecks', () => {
     expect(result.gameState.wrecks).toEqual([])
     expect(getPlayer(result.gameState, 'p1').cargo).toEqual([blackBoxOf(card)])
     // Data on the table: everyone sees a piece of data aboard, and no crate.
-    expect(viewFor(result.gameState, 'p2').players[0].cargoAboard).toEqual({ crates: 0, data: 1 })
+    expect(holdCounts(viewFor(result.gameState, 'p2').players[0])).toEqual({ crates: 0, data: 1 })
     expect(eventTypes(filterEventsFor(result.events, 'p2'))).toContain('wreck_salvaged')
   })
 

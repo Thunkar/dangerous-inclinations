@@ -2,7 +2,9 @@ import { Box, Chip, Slider, Typography } from '@mui/material'
 import type { BurnIntensity } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
+  BURN_INTENSITIES,
   COMPRESSED_JUMP_MASS,
+  STATION_DRIFT,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
   calculateJumpMassCost,
@@ -16,15 +18,12 @@ import { usePlan } from '../../../context/PlanContext'
 import { FONT_MONO } from '../../../theme'
 import { TABLE } from '../../../design/tokens'
 import { placeLabel } from '../../../utils/route'
-import { STATION_DRIFT } from '../../../site/turn'
 import { ACTIONS } from '../../../text/actions'
 import { Segment, SegmentedRow } from './parts'
 import { inWords, ringsPhrase, signed } from './words'
 
 const T = ACTIONS.move
 const W = ACTIONS.words
-
-const INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
 
 /** What a compressor saves on a jump, in words, from the engine's two prices. */
 const COMPRESSOR_NOTE = fill(T.compressor, {
@@ -99,7 +98,7 @@ export function MoveControls() {
     })
   }
   /** The mode button offers a burn when any intensity is available. */
-  const anyBurn = INTENSITIES.find(i => plan.burnReady[i].ok)
+  const anyBurn = BURN_INTENSITIES.find(i => plan.burnReady[i].ok)
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
@@ -184,7 +183,7 @@ export function MoveControls() {
       {move.kind === 'burn' && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
           <SegmentedRow testId="burn-intensities">
-            {INTENSITIES.map(intensity => (
+            {BURN_INTENSITIES.map(intensity => (
               <Segment
                 key={intensity}
                 label={W.intensityLabel[intensity]}

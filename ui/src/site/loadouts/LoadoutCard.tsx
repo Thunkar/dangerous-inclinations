@@ -15,6 +15,7 @@ import {
   MISSION_CARDS,
   MISSION_FAMILY,
   PRESET_NAMES,
+  ROLE_PRIMARY,
   getSubsystemConfig,
   presetRole,
   presetSecondaries,
@@ -26,7 +27,7 @@ import { MissionGlyph } from '../../components/common/MissionGlyph'
 import { MOUNTS } from '../../ships/mounts'
 import { LOADOUT_CARDS as T } from '../../text/loadoutCards'
 import { Insignia } from './Insignia'
-import { PRIMARY, SIGNATURE, roleInk } from './presets'
+import { SIGNATURE, roleInk } from './presets'
 
 const BOW = MOUNTS.find(m => m.group === 'forward')!
 const SIDE = MOUNTS.filter(m => m.group === 'side')
@@ -111,7 +112,7 @@ export function LoadoutCard({ id }: { id: BotPresetId }) {
       <div className="di-lo-bar">
         <div className="di-lo-eyebrow di-lo-for">{T.recommended}</div>
         <div className="di-lo-keep">
-          <Mission type={PRIMARY[role]} />
+          <Mission type={ROLE_PRIMARY[role]} />
           <span className="di-lo-mission">+</span>
           {secondaries.length === 0 ? (
             <span className="di-lo-mission">{T.any}</span>

@@ -248,7 +248,7 @@ export function analyzeSituation(view: GameView, parameters: BotParameters): Tac
   // uses on everyone else, so "am I ahead of them?" is one comparison.
   const mine = view.players.find(p => p.isMe)
   const myDanger = assessDanger(
-    mine ?? { cargoAboard: { crates: 0, data: 0 }, points: 0, completedMissions: [] },
+    mine ?? { hold: [], points: 0, completedMissions: [] },
     status.position,
     view.stations,
     view.pointsToWin

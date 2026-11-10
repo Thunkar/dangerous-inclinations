@@ -2,7 +2,8 @@
  * What each range card draws: the sectors round a ship that a weapon (or the
  * sensor's scan) reaches, in the ship's own frame. Nothing here is a rule of
  * its own: every cell is asked of the engine's targeting (`isInWeaponRange`,
- * `inScanRange`) from a ship on black hole ring 3 facing prograde.
+ * `inScanRange`, a missile's `planMissileMove`) from a ship on black hole
+ * ring 3 facing prograde.
  *
  * The frame is the ship's: `ahead` counts sectors in the direction it faces,
  * `port` counts rings to its left. Facing prograde, port looks outward, and
@@ -14,6 +15,7 @@ import {
   SUBSYSTEM_CONFIGS,
   inScanRange,
   isInWeaponRange,
+  planMissileMove,
 } from '@dangerous-inclinations/engine'
 import type { Position, Subsystem, SubsystemType } from '@dangerous-inclinations/engine'
 
@@ -96,11 +98,11 @@ export function reach(type: RangeCardType): Cell[] {
     )
   const stats = SUBSYSTEM_CONFIGS[type].weaponStats!
   if (stats.arc === 'turret') {
-    // Anyone in the well; the first flight's steps are what the card counts.
-    const steps = stats.stepsPerMove ?? 0
+    // Anyone in the well; the launch flight's steps, where it lands, are what the card counts.
     return each((ahead, port) => {
-      const n = Math.abs(ahead) + Math.abs(port)
-      return { ahead, port, zone: 'any', wellwide: true, steps: n <= steps ? n : undefined }
+      const flight = planMissileMove({ ...SHIP, movesMade: 0 }, target(ahead, port))
+      const steps = flight.hits ? flight.path.length - 1 : undefined
+      return { ahead, port, zone: 'any', wellwide: true, steps }
     })
   }
   const slots = SUBSYSTEM_CONFIGS[type].slotType

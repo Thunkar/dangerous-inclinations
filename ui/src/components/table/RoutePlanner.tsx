@@ -33,7 +33,7 @@ import MyLocationIcon from '@mui/icons-material/MyLocation'
 import RotateRightIcon from '@mui/icons-material/RotateRight'
 import RouteIcon from '@mui/icons-material/Route'
 import type { MovementPlan, MovementStep, Position, Station } from '@dangerous-inclinations/engine'
-import { fill, getWellName } from '@dangerous-inclinations/engine'
+import { STATION_DRIFT, fill, getWellName } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { moveOfRouteStep, useRoutePlan, type RouteMode } from '../../context/RoutePlanContext'
 import type { MoveChoice } from '../../plan/preview'
@@ -47,7 +47,6 @@ import {
 import { SectionLabel } from '../common/Panel'
 import { FONT_MONO } from '../../theme'
 import { TABLE } from '../../design/tokens'
-import { STATION_DRIFT } from '../../site/turn'
 import { ACTIONS } from '../../text/actions'
 
 const T = ACTIONS.routePlanner

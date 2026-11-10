@@ -146,7 +146,7 @@ describe("view: what an opponent's loadout shows", () => {
       points: 1,
     })
     const opponent = viewFor(state, 'p1').players[1]
-    expect(opponent.cargoCount).toBe(1)
+    expect(opponent.hold).toHaveLength(1)
     expect(opponent.points).toBe(1)
     expect(opponent.completedMissions.map(m => m.id)).toEqual(['t'])
   })
@@ -188,31 +188,9 @@ describe("view: the viewer's own side", () => {
     expect(view.players[1].isMe).toBe(false)
   })
 
-  it('myStats reflect my loadout and the sensor I have up', () => {
-    let state = makeTwoPlayerGame(
-      { loadout: LOADOUTS.sensorRadiator },
-      { loadout: LOADOUTS.compressor }
-    )
-    state = withPower(state, 'p1', 'forward-0', 2)
-    // A sensor with energy on it widens every critical while it holds it.
-    // Nothing on the loadout is billed at my next check, which is why there is
-    // no heat figure here: it is cleared when my turn starts.
-    expect(viewFor(state, 'p1').myStats).toEqual({
-      dissipationCapacity: 7,
-      maxReactionMass: 10,
-      lowestCriticalFace: 8,
-    })
-    expect(viewFor(state, 'p2').myStats).toEqual({
-      dissipationCapacity: 5,
-      maxReactionMass: 10,
-      lowestCriticalFace: 10,
-    })
-  })
-
-  it('a spectator has no me and no stats', () => {
+  it('a spectator has no me', () => {
     const view = viewFor(knownGame(), null)
     expect(view.me).toBeNull()
-    expect(view.myStats).toBeNull()
     expect(view.players.every(p => !p.isMe)).toBe(true)
   })
 

@@ -8,8 +8,12 @@
  * subsystem's energy onto the track. `heatMat.test.ts` holds them to the
  * engine on a built ship.
  */
-import type { SubsystemType } from '@dangerous-inclinations/engine'
-import { INTERCEPT_HEAT, SHIELD_POINTS_PER_ENERGY } from '@dangerous-inclinations/engine'
+import type { Subsystem, SubsystemType } from '@dangerous-inclinations/engine'
+import {
+  INTERCEPT_HEAT,
+  SHIELD_POINTS_PER_ENERGY,
+  absorbOnShields,
+} from '@dangerous-inclinations/engine'
 import { MOUNTS } from '../../ships/mounts'
 import type { MountId } from '../../ships/mounts'
 
@@ -40,45 +44,44 @@ export interface Mat {
 export const typeAt = (mat: Mat, slot: SlotId): SubsystemType =>
   slot in mat.loadout ? mat.loadout[slot as MountId] : (slot as FixedId)
 
-/** The working shields with energy on them, in the slot order the engine walks them. */
-function upShields(mat: Mat): SlotId[] {
-  return SLOTS.filter(
-    slot => typeAt(mat, slot) === 'shields' && !mat.broken.includes(slot) && ready(mat, slot) > 0
-  )
+/** The mat as the engine's subsystems, in slot order, for the engine's rules to read. */
+function subsystemsOf(mat: Mat): Subsystem[] {
+  return SLOTS.map(slot => ({
+    id: slot,
+    type: typeAt(mat, slot),
+    allocatedEnergy: mat.energy[slot] ?? 0,
+    usedThisTurn: false,
+    spentThisTurn: mat.spent[slot] ?? 0,
+    isBroken: mat.broken.includes(slot),
+    isRevealed: true,
+  }))
 }
-
-/** A shield's energy not yet spent this player-turn. */
-const ready = (mat: Mat, slot: SlotId) => (mat.energy[slot] ?? 0) - (mat.spent[slot] ?? 0)
 
 /** The shield that soaks the next point: the first, in slot order, with energy ready. */
 export function absorbingShield(mat: Mat): SlotId | undefined {
-  return upShields(mat)[0]
+  return absorbOnShields(subsystemsOf(mat), 1, 1).shields[0]?.id as SlotId | undefined
 }
 
 /**
- * A shot of `damage` meets the shields, as `resolveAttack` meets it: each
- * shield in turn takes what its ready energy can (`pointsPerEnergy` a cube),
- * the cubes that absorbed are spent for the turn (a cube is spent whole) but
- * stay on, and every point
- * absorbed goes onto the track. What the shields cannot take is hull, which
- * the mat does not keep.
+ * A shot of `damage` meets the shields as the engine meets it
+ * (`absorbOnShields`): the cubes that absorbed are spent for the turn but
+ * stay on, and every point absorbed goes onto the track. What the shields
+ * cannot take is hull, which the mat does not keep.
  */
 export function absorb(
   mat: Mat,
   damage: number,
   pointsPerEnergy: number = SHIELD_POINTS_PER_ENERGY
 ): Mat {
-  let remaining = damage
-  let absorbed = 0
+  const { shields } = absorbOnShields(subsystemsOf(mat), damage, pointsPerEnergy)
+  if (shields.length === 0) return mat
   const spent = { ...mat.spent }
-  for (const shield of upShields(mat)) {
-    if (remaining <= 0) break
-    const take = Math.min(remaining, ready({ ...mat, spent }, shield) * pointsPerEnergy)
-    spent[shield] = (spent[shield] ?? 0) + Math.ceil(take / pointsPerEnergy)
-    remaining -= take
-    absorbed += take
+  let absorbed = 0
+  for (const shield of shields) {
+    const slot = shield.id as SlotId
+    spent[slot] = (spent[slot] ?? 0) + shield.spent
+    absorbed += shield.absorbed
   }
-  if (absorbed === 0) return mat
   return { ...mat, spent, track: Math.min(TRACK_CEILING, mat.track + absorbed) }
 }
 

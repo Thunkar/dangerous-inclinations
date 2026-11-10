@@ -12,8 +12,8 @@
  * |------------------------------|------------------------------------------------|
  * | `points`                     | their points: at two of three, any card wins    |
  * | `completedMissions`          | whether their primary is still to come          |
- * | `cargoAboard.crates` > 0     | a Deliver crate or Piracy loot; it ends at a station |
- * | `cargoAboard.data` > 0       | Intercept, Survey or Salvage data; it ends at a station |
+ * | crates aboard (`holdCounts`) | a Deliver crate or Piracy loot; it ends at a station |
+ * | data aboard                  | Intercept, Survey or Salvage data; it ends at a station |
  * | the well they are in         | a crate loaded there goes to the next planet round the circuit |
  *
  * Stations sit on planet ring 2 and drift 4 sectors a round, and the lanes
@@ -50,6 +50,7 @@ import { forwardDistance, sectorDistance } from '../../game/geometry.ts'
 import { getStationForPlanet, stationPosition } from '../../game/stations.ts'
 import { circuitRoutes } from '../../game/missions/missionDeck.ts'
 import type { PlayerView } from '../../game/view.ts'
+import { holdCounts } from '../../game/view.ts'
 import type { OpponentDanger } from '../types.ts'
 import type { MovementPlan, PlannerTarget } from '../movementPlanner/index.ts'
 import { nearDriftingShip, planFromShip, planShipToTarget } from '../movementPlanner/index.ts'
@@ -228,14 +229,13 @@ export function predictedDeliveryPlanets(
  * secondary.
  */
 export function assessDanger(
-  player: Pick<PlayerView, 'cargoAboard' | 'points' | 'completedMissions'>,
+  player: Pick<PlayerView, 'hold' | 'points' | 'completedMissions'>,
   position: Position,
   stations: Station[],
   /** What this game plays to (`view.pointsToWin`). */
   pointsToWin: number
 ): OpponentDanger {
-  const crates = player.cargoAboard.crates
-  const data = player.cargoAboard.data
+  const { crates, data } = holdCounts(player)
   const points = player.points
   const carrying = crates + data > 0
   const primaryDone = player.completedMissions.some(m => isPrimaryType(m.type))

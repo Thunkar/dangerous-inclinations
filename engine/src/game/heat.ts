@@ -41,6 +41,15 @@ export function heatAtCheck(ship: ShipState): number {
   return ship.heat.currentHeat + heatFromCubes(ship.subsystems)
 }
 
+/**
+ * Whether a ship would be cold at its check (heat 0: no cube on the loadout
+ * and nothing carried on the track), the one time it repairs a tile without a
+ * station.
+ */
+export function coldAtCheck(ship: ShipState): boolean {
+  return heatAtCheck(ship) === 0
+}
+
 /** Hull a check at this heat costs: every point above the top of the track. */
 export function heatDamage(heat: number): number {
   return Math.max(0, heat - MAX_HEAT)
@@ -93,7 +102,7 @@ export function resolveEndOfTurnHeat(
   const events: EventDraft[] = []
   let next = ship
 
-  if (heat === 0 && repairChoice !== undefined) {
+  if (coldAtCheck(ship) && repairChoice !== undefined) {
     const sub = findSubsystem(next, repairChoice)
     if (sub?.isBroken) {
       next = updateSubsystem(next, repairChoice, { isBroken: false })

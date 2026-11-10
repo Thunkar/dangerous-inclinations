@@ -333,13 +333,9 @@ function dockAnywhereGoal(
 
 /** Undocked opponents with anything aboard: prey for a pirate, a mark for an escort. */
 function undockedCarriers(view: GameView, opponents: Opponent[]): Opponent[] {
-  // Who is carrying is public (`PlayerView.cargoAboard`), and a moored ship
+  // Who is carrying is public (`PlayerView.hold`), and a moored ship
   // neither loses cargo nor takes a marker.
-  return opponents.filter(
-    o =>
-      o.player.cargoAboard.crates + o.player.cargoAboard.data > 0 &&
-      !isMooredAt(view.stations, o.position)
-  )
+  return opponents.filter(o => o.player.hold.length > 0 && !isMooredAt(view.stations, o.position))
 }
 
 /**
@@ -426,7 +422,7 @@ function carrierChaseGoal(
  * anyone can see coming and is no goal.
  */
 function rideGoal(from: Position, mission: Mission, carrier: Opponent | undefined): BotGoal | null {
-  if (!carrier || carrier.player.cargoCount === 0) return null
+  if (!carrier || carrier.player.hold.length === 0) return null
   const well = carrier.position.wellId
   const reach =
     isPlanet(well) && from.wellId === well ? 0 : cheapTurnEstimate(from, carrier.position)

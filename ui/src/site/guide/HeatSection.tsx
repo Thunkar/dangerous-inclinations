@@ -17,6 +17,7 @@ import {
   WELL_TRANSFER_COSTS,
   fill,
   heatAfterCheck,
+  heatDamage,
 } from '@dangerous-inclinations/engine'
 import { TileIcon } from '../../art/glyphs'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
@@ -36,7 +37,7 @@ const EXAMPLE = {
   spent: energy('railgun') + BURN_COSTS.hard.energy + SUBSYSTEM_CONFIGS.shields.maxEnergy,
 }
 const atCheck = EXAMPLE.carried + EXAMPLE.spent
-const hull = Math.max(0, atCheck - MAX_HEAT)
+const hull = heatDamage(atCheck)
 const carries = heatAfterCheck(atCheck, DEFAULT_DISSIPATION_CAPACITY)
 
 /** One action's energy: its mark and name, and the figure it puts on the subsystem. */

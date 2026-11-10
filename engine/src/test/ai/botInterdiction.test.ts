@@ -228,7 +228,14 @@ describe('danger: reading the scoreboard and the hold', () => {
       ([crates]) => `${crates} crates`,
       ([crates, station]) => {
         const danger = assessDanger(
-          { cargoAboard: { crates, data: 0 }, points: ONE_FROM_WINNING, completedMissions: [] },
+          {
+            hold: Array.from({ length: crates }, (_, i) => ({
+              cargoId: `item-${i}`,
+              kind: 'crate' as const,
+            })),
+            points: ONE_FROM_WINNING,
+            completedMissions: [],
+          },
           { wellId: ALPHA, ring: STATION_RING, sector: 4 },
           makeGameState([]).stations,
           DEFAULT_POINTS_TO_WIN

@@ -25,7 +25,7 @@ import { ShipMark } from '../../ships/ShipMark'
 import { Box, IconButton, Tooltip, Typography } from '@mui/material'
 import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
-import { MAX_HEAT, STARTING_HIT_POINTS, fill } from '@dangerous-inclinations/engine'
+import { MAX_HEAT, STARTING_HIT_POINTS, fill, holdCounts } from '@dangerous-inclinations/engine'
 import { FONT_MONO } from '../../theme'
 import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
@@ -265,11 +265,7 @@ export function OpponentCard({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
           <Tooltip title={T.cargoTip}>
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-              <CargoTokens
-                crates={player.cargoAboard.crates}
-                data={player.cargoAboard.data}
-                size={8}
-              />
+              <CargoTokens {...holdCounts(player)} size={8} />
             </Box>
           </Tooltip>
           <EscortedBy player={player} />

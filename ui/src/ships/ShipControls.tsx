@@ -10,6 +10,7 @@ import {
   HULLS,
   LIVERIES,
   canInstallInSlot,
+  fill,
   getSubsystemConfig,
   presetRole,
   type BotPresetId,
@@ -25,34 +26,15 @@ import { MODULE_NOTES, MOUNTS, moduleAt, setModule, type MountId, type ShipConfi
 import { mountLabel } from './mounts'
 import { HULL_INFO } from './hulls'
 import { ShipMark } from './ShipMark'
+import { SCREENS } from '../text/screens'
 
 const DEFAULT_ROLE: BotRole = 'hauler'
 
 /** The order the roles are offered in, the way a table says them. */
 const ROLE_ORDER: readonly BotRole[] = ['hunter', 'interceptor', 'hauler']
 
-/** The role is the plan you came with: one for each two-point card. */
-const ROLE_NAME: Record<BotRole, string> = {
-  hunter: 'Hunter',
-  interceptor: 'Interceptor',
-  hauler: 'Hauler',
-}
-
-/** What each preset carries, what it is for, and the card that asks for it. */
-const PRESET_NOTE: Record<BotPresetId, string> = {
-  gunship: 'Railgun, laser and rack: shots through shields, and point defence',
-  lancer: 'Railgun, two plasma and a laser, no shields: run a carrier down, for Piracy',
-  corsair: 'Missile bow and three lasers, no shields: finish wrecks from range, for Salvage',
-  warden: 'Disruptor bow and two plasma: strip a wall, break what is behind, for Escort',
-  raider: 'Shields, disruptor and plasma: strip a wall, then break what is behind it',
-  watcher: 'Two shields and a laser: keep the data you scanned, for Survey',
-  picket: 'Two launchers and shields: hits from across the well, for Salvage',
-  sentry: 'Laser, rack and shields: ride beside a carrier, for Escort',
-  freighter: 'Two shields and a laser: the safe cargo run',
-  convoy: 'Two racks and shields: point defence, for Piracy or Escort',
-  smuggler: 'Two launchers and shields: hits from across the well, for Salvage',
-  ghost: 'Disruptor, laser and plasma, no shields: break a pursuer, for Tanker',
-}
+const S = SCREENS.shipyard.systems
+const A = SCREENS.shipyard.appearance
 
 const templateFor = (preset: BotPresetId): ShipLoadout =>
   structuredClone(BOT_PRESET_LOADOUTS[preset])
@@ -170,7 +152,7 @@ export function SystemControls({
   return (
     <>
       <Typography variant="overline" color="text.secondary">
-        01 / Mission profile (presets)
+        {S.profile}
       </Typography>
       {/*
         Two decisions. The role is the plan you came with, one for each
@@ -179,19 +161,19 @@ export function SystemControls({
       */}
       <Box sx={{ mt: 1 }}>
         <NotedChoice
-          label="Role"
+          label={S.role}
           options={ROLE_ORDER}
-          name={r => ROLE_NAME[r]}
+          name={r => S.roles[r]}
           horizontal
           value={role}
           onChange={r => onChange(templateFor(PRESETS_BY_ROLE[r][0]))}
           disabled={disabled}
         />
         <NotedChoice
-          label="Preset"
+          label={S.preset}
           options={PRESETS_BY_ROLE[role]}
           name={p => PRESET_NAMES[p]}
-          note={p => PRESET_NOTE[p]}
+          note={p => S.presets[p]}
           value={preset}
           onChange={next => onChange(templateFor(next))}
           disabled={disabled}
@@ -199,22 +181,24 @@ export function SystemControls({
       </Box>
       {preset === null && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, display: 'block', mb: 2.5 }}>
-          Loadout of your own: pick a preset to start from, or leave it.
+          {S.ownLoadout}
         </Typography>
       )}
 
       <Typography variant="overline" color="text.secondary">
-        02 / Attachment points
+        {S.mounts}
       </Typography>
       <Box sx={{ display: 'grid', gap: 0.75, mt: 1 }}>
         {MOUNTS.map(m => {
           const type = moduleAt(config, m.id)
+          const mountName = mountLabel(m.id, config.appearance?.hull ?? 'corvette')
+          const moduleName = type ? getSubsystemConfig(type).name : S.emptyMount
           return (
             <Button
               key={m.id}
               onClick={() => onSelect(m.id)}
               aria-pressed={selected === m.id}
-              aria-label={`${mountLabel(m.id, config.appearance?.hull ?? 'corvette')}: ${type ? getSubsystemConfig(type).name : 'Empty mount'}`}
+              aria-label={fill(S.mountAria, { mount: mountName, module: moduleName })}
               variant="outlined"
               sx={{
                 justifyContent: 'flex-start',
@@ -245,10 +229,10 @@ export function SystemControls({
                   variant="caption"
                   sx={{ color: selected === m.id ? 'inherit' : 'text.secondary', opacity: 0.8 }}
                 >
-                  {mountLabel(m.id, config.appearance?.hull ?? 'corvette')}
+                  {mountName}
                 </Typography>
                 <Typography component="span" variant="body2">
-                  {type ? getSubsystemConfig(type).name : 'Empty mount'}
+                  {moduleName}
                 </Typography>
               </Box>
             </Button>
@@ -257,14 +241,14 @@ export function SystemControls({
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2 }}>
         <Typography variant="overline" color="text.secondary">
-          Refit {mount.short}
+          {fill(S.refit, { mount: mount.short })}
         </Typography>
         <Button
           size="small"
           disabled={disabled || !current}
           onClick={() => onChange(setModule(config, selected, null).loadout)}
         >
-          Remove module
+          {S.remove}
         </Button>
       </Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.75, mt: 1 }}>
@@ -273,7 +257,7 @@ export function SystemControls({
             key={type}
             disabled={disabled}
             aria-pressed={type === current}
-            aria-label={`Fit ${getSubsystemConfig(type).name}`}
+            aria-label={fill(S.fit, { module: getSubsystemConfig(type).name })}
             title={MODULE_NOTES[type]}
             variant="outlined"
             onClick={() => onChange(setModule(config, selected, type).loadout)}
@@ -293,13 +277,13 @@ export function SystemControls({
         ))}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.7 }}>
-        {current ? MODULE_NOTES[current] : 'Choose a compatible system for this mount.'}
+        {current ? MODULE_NOTES[current] : S.choose}
       </Typography>
       {detail && (
         <Typography variant="caption" sx={{ display: 'block', mt: 1, color: TABLE.accent }}>
           {detail.maxEnergy === 0
-            ? 'Passive · no energy required'
-            : `Energy ${detail.minEnergy}–${detail.maxEnergy} · its cubes are heat at every check`}
+            ? S.passive
+            : fill(S.energy, { min: detail.minEnergy, max: detail.maxEnergy })}
         </Typography>
       )}
       <Typography
@@ -307,7 +291,7 @@ export function SystemControls({
         color="text.secondary"
         sx={{ display: 'block', mt: 3, pt: 2, borderTop: `1px solid ${TABLE.line}` }}
       >
-        Built into every hull: main drive, maneuvering thrusters, and fuel scoop.
+        {S.builtIn}
       </Typography>
     </>
   )
@@ -359,7 +343,7 @@ function PaintRow({
           <Button
             key={paint}
             disabled={disabled}
-            aria-label={`${label}: ${paint}`}
+            aria-label={fill(A.swatch, { label, paint })}
             aria-pressed={value.toLowerCase() === paint}
             onClick={() => onChange(paint)}
             sx={{
@@ -372,7 +356,7 @@ function PaintRow({
         ))}
         <Box
           component="label"
-          title={`${label}: any colour`}
+          title={fill(A.anyColour, { label })}
           sx={{
             ...CHIP,
             position: 'relative',
@@ -386,7 +370,7 @@ function PaintRow({
         >
           <input
             type="color"
-            aria-label={`${label}: any colour`}
+            aria-label={fill(A.anyColour, { label })}
             disabled={disabled}
             value={value}
             onChange={event => onChange(event.target.value)}
@@ -405,14 +389,6 @@ function PaintRow({
       </Box>
     </Box>
   )
-}
-
-const LIVERY_NAME: Record<Livery, string> = {
-  band: 'Band',
-  split: 'Split',
-  chevron: 'Chevron',
-  stern: 'Stern',
-  spine: 'Spine',
 }
 
 /** The hull's profile, masked the way `model.ts` masks it, in the paints chosen. */
@@ -469,14 +445,14 @@ export function AppearanceControls({
   return (
     <Box component="fieldset" disabled={disabled} sx={{ border: 0, m: 0, p: 0, minWidth: 0 }}>
       <Typography variant="overline" color="text.secondary">
-        01 / Hull
+        {A.hull}
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
-        Every hull carries the same five mounts and flies the same.
+        {A.hullNote}
       </Typography>
       <Box
         role="radiogroup"
-        aria-label="Hull"
+        aria-label={A.hullGroup}
         sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 0.75, mt: 1 }}
       >
         {HULLS.map(hull => {
@@ -514,29 +490,29 @@ export function AppearanceControls({
         })}
       </Box>
       <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-        02 / Paint
+        {A.paint}
       </Typography>
       <PaintRow
-        label="Hull"
+        label={A.hullPaint}
         value={value.paint}
         disabled={disabled}
         onChange={paint => patch({ paint })}
       />
       <PaintRow
-        label="Trim and panels"
+        label={A.trimPaint}
         value={value.secondaryPaint}
         disabled={disabled}
         onChange={secondaryPaint => patch({ secondaryPaint })}
       />
       <Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-        03 / Livery
+        {A.livery}
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
-        Sprayed in your seat's colour, the same as your token on the board.
+        {A.liveryNote}
       </Typography>
       <Box
         role="radiogroup"
-        aria-label="Livery"
+        aria-label={A.liveryGroup}
         sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 0.75, mt: 1 }}
       >
         {LIVERIES.map(livery => {
@@ -562,7 +538,7 @@ export function AppearanceControls({
             >
               <LiveryMark livery={livery} paint={value.paint} ink={seatColor} />
               <Box component="span" sx={{ fontSize: '0.75rem' }}>
-                {LIVERY_NAME[livery]}
+                {A.liveries[livery]}
               </Box>
             </Button>
           )
@@ -575,7 +551,7 @@ export function AppearanceControls({
         onClick={() => onChange({ ...DEFAULT_SHIP_APPEARANCE })}
         sx={{ mt: 3 }}
       >
-        Reset appearance
+        {A.reset}
       </Button>
     </Box>
   )

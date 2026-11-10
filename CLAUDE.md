@@ -139,10 +139,14 @@ engine/src/game/        turns.ts (pipeline), actionProcessors.ts, validators.ts 
                         deployment.ts, setup.ts (createGame/submitLoadout),
                         missions/ (deck, checks), view.ts, describe.ts
 engine/src/ai/          botDecideActions(view), botChooseLoadout, botChooseDeployment
+engine/src/agent/       the arena's seat: digest, options, intent → actions
+engine/src/text/        the engine's words: mission cards, refusals, agent rules
 engine/src/sim/         runGame, runBatch (workers), stats (from events), cli
 engine/src/test/        vitest; helpers in testUtils.ts
 server/src/             services/gameService.ts, websocket/roomHandler.ts, routes/
-ui/src/                 context/ (game, animation, plan, boardMode, navigation),
+ui/src/                 context/ (game, animation, plan + planReadout, routePlan,
+                        boardMode, navigation), plan/preview.ts (the plan walked
+                        by the engine's walkTurn), text/ (every word on screen),
                         components/table/, art/ (subsystemArt.ts: the subsystems' marks)
 ui/src/site/            routes.ts (the four sections), Landing, Tools, Cheatsheet,
                         turn.ts (the turn, stated once), numbers.ts, poster.tsx,

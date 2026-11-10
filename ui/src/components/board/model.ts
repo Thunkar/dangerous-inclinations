@@ -20,6 +20,7 @@ import type {
   Subsystem,
 } from '@dangerous-inclinations/engine'
 import {
+  fill,
   getJumpOptions,
   getMissileStats,
   legalDeploymentsAgainst,
@@ -37,6 +38,7 @@ import { usePlanOptional } from '../../context/PlanContext'
 import { useRoutePlanOptional } from '../../context/RoutePlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { TABLE } from '../../design/tokens'
+import { TABLE_TEXT } from '../../text/table'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
 import { STATION_BERTHS } from '../../ships/station'
 import {
@@ -187,17 +189,14 @@ export interface MissilePreview {
 /** How far apart missiles sharing a sector stand, in board units. */
 const MISSILE_SPREAD = 9
 
-/** The missile rules the tooltips quote, read off the engine once. */
-const MISSILE = getMissileStats()
-const MISSILE_TOOLTIP =
-  `Rides its orbit, then flies up to ${MISSILE.stepsPerMove} steps toward the target (rings first). ` +
-  `The turn it is launched it flies at once, from where it was launched, with no ride. ${MISSILE.maxMoves} flights max.`
+const BT = TABLE_TEXT.board
 
 /** The label a planned launch carries. */
 function missilePreviewLabel(targetName: string, count: number): string {
+  const { stepsPerMove: steps } = getMissileStats()
   return count > 1
-    ? `Planned salvo of ${count} at ${targetName} · each flies up to ${MISSILE.stepsPerMove} steps this turn`
-    : `Planned missile at ${targetName} · flies up to ${MISSILE.stepsPerMove} steps this turn`
+    ? fill(BT.plannedSalvo, { count, target: targetName, steps })
+    : fill(BT.plannedMissile, { target: targetName, steps })
 }
 
 /** A planned launch's flight: a missile flies as it is fired, from where it is fired, with no ride. */
@@ -225,6 +224,7 @@ function missileTokens(
   colorOf: (playerId: string) => string,
   nameOf: (playerId: string) => string
 ): MissileToken[] {
+  const { stepsPerMove: steps, maxMoves: moves } = getMissileStats()
   return missiles.map(missile => {
     const position: Position = {
       wellId: missile.wellId,
@@ -249,9 +249,13 @@ function missileTokens(
         x: centre.x + Math.cos(heading + Math.PI / 2) * step,
         y: centre.y + Math.sin(heading + Math.PI / 2) * step,
       },
-      tooltip: `${nameOf(missile.ownerId)}'s missile → ${nameOf(missile.targetId)} · ${
-        MISSILE.maxMoves - missile.movesMade
-      } flight(s) left. ${MISSILE_TOOLTIP}`,
+      tooltip: fill(BT.missile, {
+        owner: nameOf(missile.ownerId),
+        target: nameOf(missile.targetId),
+        left: moves - missile.movesMade,
+        steps,
+        moves,
+      }),
     }
   })
 }

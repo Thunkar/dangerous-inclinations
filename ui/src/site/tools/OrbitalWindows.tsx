@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from 'react'
 import { Box } from '@mui/material'
 import {
   PLANETS,
+  STATION_DRIFT,
   STATION_INITIAL_SECTOR,
   STATION_RING,
   TANKER_FUEL,
@@ -22,7 +23,6 @@ import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { SiteLink } from '../SiteLink'
 import { Body, Display, Kicker } from '../poster'
 import { SubHead } from '../guide/parts'
-import { STATION_DRIFT } from '../turn'
 import {
   CIRCUIT,
   CLOCK,

@@ -24,7 +24,7 @@ export function subsystemGroup(type: SubsystemType): SubsystemGroup {
   if (isPowerableType(type)) return 'defence'
   const config = getSubsystemConfig(type)
   if (config.weaponStats) return 'weapon'
-  if (config.isPassive) return 'passive'
+  if (config.passiveEffect) return 'passive'
   return 'utility'
 }
 

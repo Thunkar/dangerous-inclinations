@@ -132,6 +132,64 @@ export const SCREENS = {
       disruptor:
         "Either slot, {energy} cubes, the rack's reach, no damage: a hit breaks the subsystem you name, unless any shield is powered. Have you tried turning it off and on again?",
     },
+    /** The Systems tab (`ships/ShipControls.tsx`): role and preset, the mounts, the refit. */
+    systems: {
+      profile: '01 / Mission profile (presets)',
+      role: 'Role',
+      preset: 'Preset',
+      /** The role is the plan you came with: one for each two-point card. */
+      roles: { hunter: 'Hunter', interceptor: 'Interceptor', hauler: 'Hauler' },
+      /** What each preset carries, what it is for, and the card that asks for it. */
+      presets: {
+        gunship: 'Railgun, laser and rack: shots through shields, and point defence',
+        lancer: 'Railgun, two plasma and a laser, no shields: run a carrier down, for Piracy',
+        corsair: 'Missile bow and three lasers, no shields: finish wrecks from range, for Salvage',
+        warden: 'Disruptor bow and two plasma: strip a wall, break what is behind, for Escort',
+        raider: 'Shields, disruptor and plasma: strip a wall, then break what is behind it',
+        watcher: 'Two shields and a laser: keep the data you scanned, for Survey',
+        picket: 'Two launchers and shields: hits from across the well, for Salvage',
+        sentry: 'Laser, rack and shields: ride beside a carrier, for Escort',
+        freighter: 'Two shields and a laser: the safe cargo run',
+        convoy: 'Two racks and shields: point defence, for Piracy or Escort',
+        smuggler: 'Two launchers and shields: hits from across the well, for Salvage',
+        ghost: 'Disruptor, laser and plasma, no shields: break a pursuer, for Tanker',
+      },
+      ownLoadout: 'Loadout of your own: pick a preset to start from, or leave it.',
+      mounts: '02 / Attachment points',
+      /** A mount's button for a screen reader: "Bow: Railgun". */
+      mountAria: '{mount}: {module}',
+      emptyMount: 'Empty mount',
+      refit: 'Refit {mount}',
+      remove: 'Remove module',
+      fit: 'Fit {module}',
+      choose: 'Choose a compatible system for this mount.',
+      passive: 'Passive · no energy required',
+      energy: 'Energy {min}–{max} · its cubes are heat at every check',
+      builtIn: 'Built into every hull: main drive, maneuvering thrusters, and fuel scoop.',
+    },
+    /** The Appearance tab: hull, paint and livery. */
+    appearance: {
+      hull: '01 / Hull',
+      hullNote: 'Every hull carries the same five mounts and flies the same.',
+      hullGroup: 'Hull',
+      paint: '02 / Paint',
+      hullPaint: 'Hull',
+      trimPaint: 'Trim and panels',
+      /** A swatch for a screen reader: "Hull: #d6cfbd". */
+      swatch: '{label}: {paint}',
+      anyColour: '{label}: any colour',
+      livery: '03 / Livery',
+      liveryNote: "Sprayed in your seat's colour, the same as your token on the board.",
+      liveryGroup: 'Livery',
+      liveries: {
+        band: 'Band',
+        split: 'Split',
+        chevron: 'Chevron',
+        stern: 'Stern',
+        spine: 'Spine',
+      },
+      reset: 'Reset appearance',
+    },
   },
 
   deployment: {

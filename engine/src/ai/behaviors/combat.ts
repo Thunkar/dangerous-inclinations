@@ -69,7 +69,7 @@ export function holdFireIds(situation: TacticalSituation): Set<string> {
  * not fired on at all.
  */
 export function denialTokens(opponent: Opponent, myId: string, onMe: readonly string[]): number {
-  const cargo = opponent.player.cargoAboard.crates + opponent.player.cargoAboard.data
+  const cargo = opponent.player.hold.length
   const escorts = opponent.player.escortedBy.filter(id => id !== myId).length
   return cargo + escorts + Number(onMe.includes(opponent.player.id))
 }
@@ -447,7 +447,7 @@ export function chooseDisruptTarget(
   const biggest = biggestGun(working)
   if (biggest) return biggest.slotId
   const engines = target.player.fixed.find(f => f.type === 'engines' && !f.isBroken)
-  const cargo = target.player.cargoAboard.crates + target.player.cargoAboard.data
+  const cargo = target.player.hold.length
   if (engines && (cargo > 0 || target.danger.score >= INTERDICT_DANGER)) return engines.id
   return chooseCriticalTarget(target, intent)
 }

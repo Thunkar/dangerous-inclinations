@@ -18,6 +18,7 @@ import {
 } from 'react'
 import type { MovementPlan, MovementStep, Position, Station } from '@dangerous-inclinations/engine'
 import {
+  MAX_REACTION_MASS,
   getStationAt,
   hasWorkingCompressor,
   planMovementAlternatives,
@@ -115,7 +116,7 @@ export function RoutePlanProvider({ children }: { children: ReactNode }) {
     const options = {
       availableMass: me.ship.reactionMass,
       hasFuelScoop: Boolean(scoop && !scoop.isBroken),
-      maxFuelCapacity: view.myStats?.maxReactionMass ?? me.ship.reactionMass,
+      maxFuelCapacity: MAX_REACTION_MASS,
       hasFuelCompressor: hasWorkingCompressor(me.ship),
       allowWellTransfers: true,
       maxTurns: ROUTE_SEARCH_TURNS,
@@ -139,7 +140,7 @@ export function RoutePlanProvider({ children }: { children: ReactNode }) {
       return plan ? [plan] : []
     }
     return planMovementAlternatives(origin, routeDestination, options)?.alternatives ?? []
-  }, [routeDestination, routeStation, routeMode, routeReserve, me.ship, view.myStats])
+  }, [routeDestination, routeStation, routeMode, routeReserve, me.ship])
   const route = routes[Math.min(routeIndex, Math.max(0, routes.length - 1))] ?? null
 
   // Arrived: the route has done its job. Meeting a station ends when the ship

@@ -166,8 +166,6 @@ function tileEnergy(
 const addCubes = (live: GameView, playerId: string, id: SubsystemId, heat: number) =>
   heat === 0 ? live : tileEnergy(live, playerId, id, e => e + heat)
 
-const MAX_AMMO = getMissileStats().maxAmmo
-
 /**
  * A slot the viewer now sees face-up. A launcher that was face-down has never
  * fired (firing turns it over), so its magazine is full, unless this turn's
@@ -175,7 +173,7 @@ const MAX_AMMO = getMissileStats().maxAmmo
  */
 function faceUp(slot: SlotView, type: SubsystemType, via: 'revealed' | 'scanned'): SlotView {
   const knownVia = slot.knownVia === 'own' || slot.knownVia === 'revealed' ? slot.knownVia : via
-  const ammo = type === 'missiles' ? (slot.ammo ?? MAX_AMMO) : null
+  const ammo = type === 'missiles' ? (slot.ammo ?? getMissileStats().maxAmmo) : null
   const isBroken = slot.isBroken ?? false
   if (
     slot.type === type &&
@@ -271,12 +269,13 @@ export function foldEvent(live: GameView, event: GameEvent, next: GameView): Gam
       const fired = addCubes(live, event.attackerId, event.subsystemId, event.heat)
       if (event.weaponType !== 'missiles') return fired
       const count = event.count ?? 1
+      const full = getMissileStats().maxAmmo
       // A face-down launcher's magazine is full until it fires; the event is
       // public and names the weapon, and the tile stays face-down until its
       // reveal, which follows.
       return patchTile(fired, event.attackerId, event.subsystemId, {
-        slot: s => ({ ...s, ammo: (s.ammo ?? MAX_AMMO) - count }),
-        own: t => ({ ...t, ammo: (t.ammo ?? MAX_AMMO) - count }),
+        slot: s => ({ ...s, ammo: (s.ammo ?? full) - count }),
+        own: t => ({ ...t, ammo: (t.ammo ?? full) - count }),
       })
     }
     case 'scanned':
@@ -370,16 +369,17 @@ function repair(live: GameView, playerId: string, ids: SubsystemId[]): GameView 
 
 /** A dock fills every launcher; one still face-down to this seat shows nothing either way. */
 function reload(live: GameView, playerId: string): GameView {
+  const full = getMissileStats().maxAmmo
   return patchPlayer(live, playerId, {
     view: p => {
       const slots = mapSame(p.slots, s =>
-        s.type === 'missiles' && s.ammo !== MAX_AMMO ? { ...s, ammo: MAX_AMMO } : s
+        s.type === 'missiles' && s.ammo !== full ? { ...s, ammo: full } : s
       )
       return slots === p.slots ? p : { ...p, slots }
     },
     me: m => {
       const subsystems = mapSame(m.ship.subsystems, t =>
-        t.type === 'missiles' && t.ammo !== MAX_AMMO ? { ...t, ammo: MAX_AMMO } : t
+        t.type === 'missiles' && t.ammo !== full ? { ...t, ammo: full } : t
       )
       return subsystems === m.ship.subsystems ? m : { ...m, ship: { ...m.ship, subsystems } }
     },

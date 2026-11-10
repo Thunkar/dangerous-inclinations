@@ -37,7 +37,15 @@ export type BotPresetId =
   | 'smuggler'
   | 'ghost'
 
+/** The roles, in the order a hand is read for them (see `classifyRole`). */
 export const BOT_ROLES: readonly BotRole[] = ['interceptor', 'hunter', 'hauler']
+
+/** The primary each role is for: the card that chooses it. */
+export const ROLE_PRIMARY: Record<BotRole, MissionType> = {
+  interceptor: 'intercept_transmission',
+  hunter: 'destroy_ship',
+  hauler: 'deliver_cargo',
+}
 
 /** Each role's presets, the default first. */
 export const PRESETS_BY_ROLE: Record<BotRole, readonly BotPresetId[]> = {
@@ -190,9 +198,7 @@ function count(missions: Mission[], ...types: Mission['type'][]): number {
  */
 function classifyRole(missions: Mission[]): BotRole {
   const active = missions.filter(isOpenMission)
-  if (count(active, 'intercept_transmission') > 0) return 'interceptor'
-  if (count(active, 'destroy_ship') > 0) return 'hunter'
-  return 'hauler'
+  return BOT_ROLES.find(role => count(active, ROLE_PRIMARY[role]) > 0) ?? 'hauler'
 }
 
 /**

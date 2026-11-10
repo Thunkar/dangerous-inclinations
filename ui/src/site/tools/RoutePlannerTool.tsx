@@ -6,7 +6,7 @@
  * (body, ring, sector, which is quicker on a phone) or clicked on the board.
  * A destination is a sector or a planet's station, and a station moves, so a
  * route to one is planned against where the station will be when the ship
- * gets there (the forward search with `orbitingTarget`, as the bots do), not
+ * gets there (the forward search with `stationTarget`, as the bots do), not
  * against the sector it is on now. Every destination gets the same three
  * alternatives, fastest, balanced and economical: from the reverse search to
  * a fixed sector, from the forward search to a station or when the route
@@ -33,6 +33,7 @@ import {
   GRAVITY_WELLS,
   MAX_REACTION_MASS,
   SECTORS_PER_RING,
+  STATION_DRIFT,
   STATION_RING,
   STARTING_HIT_POINTS,
   createInitialStations,
@@ -40,13 +41,12 @@ import {
   getMaxRing,
   getWellName,
   isPlanet,
-  orbitingTarget,
   staticTarget,
   stationSectors,
   planAlternativesToTarget,
   planMovementAlternatives,
   samePosition,
-  wrapSector,
+  stationTarget,
 } from '@dangerous-inclinations/engine'
 import { stationMarkers, type BoardModel } from '../../components/board/model'
 import { GameBoardSvg } from '../../components/board/svg/GameBoardSvg'
@@ -55,7 +55,6 @@ import { ROUTE_SEARCH_TURNS, placeLabel, routeLegs, routeName } from '../../util
 import { FONT_SANS } from '../../theme'
 import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
-import { STATION_DRIFT } from '../turn'
 import { Field, Label, Plate, Segments, Stepper, Toggle } from './controls'
 import { OrbitalWindows } from './OrbitalWindows'
 import { TOOLS } from '../../text/tools'
@@ -173,7 +172,7 @@ export function RoutePlannerTool() {
     const origin = { ...from, facing }
     if (destination.kind === 'station') {
       if (!station) return []
-      const target = orbitingTarget(stationAt(station), STATION_DRIFT)
+      const target = stationTarget(station)
       return planAlternativesToTarget(origin, target, options)?.alternatives ?? []
     }
     if (samePosition(from, destination.at)) return []
@@ -255,7 +254,7 @@ export function RoutePlannerTool() {
         : ''
   const arrival =
     destination.kind === 'station' && station && route
-      ? wrapSector(station.sector + STATION_DRIFT * Math.max(0, route.totalTurns - 1))
+      ? stationTarget(station).positionAt(route.totalTurns).sector
       : null
 
   return (

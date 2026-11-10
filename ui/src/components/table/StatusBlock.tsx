@@ -9,12 +9,13 @@
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import {
-  DEFAULT_DISSIPATION_CAPACITY,
   MAX_HEAT,
   MAX_REACTION_MASS,
   fill,
+  getDissipationCapacity,
   getMissileStats,
   heatAfterCheck,
+  heatDamage,
 } from '@dangerous-inclinations/engine'
 import { FONT_MONO } from '../../theme'
 import { TABLE } from '../../design/tokens'
@@ -63,9 +64,8 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const me = live ? live.me : (plan?.me ?? view.me)
   if (!me) return null
 
-  const stats = view.myStats
-  const dissipation = stats?.dissipationCapacity ?? DEFAULT_DISSIPATION_CAPACITY
-  const maxFuel = stats?.maxReactionMass ?? MAX_REACTION_MASS
+  const dissipation = getDissipationCapacity(me.ship.subsystems)
+  const maxFuel = MAX_REACTION_MASS
 
   const heatNow = me.ship.heat.currentHeat
   /**
@@ -79,7 +79,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const planning = plan?.isMyTurn === true && !live
   const heatAfter = planning ? plan.projectedHeat : heatNow
   const heatMax = MAX_HEAT
-  const overHeat = Math.max(0, heatAfter - MAX_HEAT)
+  const overHeat = heatDamage(heatAfter)
   /** What is still on the track when the next turn starts. */
   const carried = heatAfterCheck(heatAfter, dissipation)
 

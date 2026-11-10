@@ -171,8 +171,7 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
 
         {step.kind === 'fire' && <FireControls step={step} />}
         {step.kind === 'scan' && <ScanControls step={step} />}
-        {step.kind === 'seize' && <SeizeControls step={step} index={index} />}
-        {step.kind === 'mark' && <MarkControls step={step} index={index} />}
+        {(step.kind === 'seize' || step.kind === 'mark') && <AfterShotNote step={step} />}
       </Box>
 
       {step.kind !== 'move' && (
@@ -457,45 +456,18 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
 }
 
 /**
- * A seizure after a shot at the same ship takes nothing if the shot destroys
- * it: the cargo goes down with the ship. The dice decide that, so it is said
- * here rather than refused.
+ * A seizure or a marker after a shot at the same ship comes to nothing if the
+ * shot destroys it: the cargo goes down with the ship, the marker stays in
+ * hand. The dice decide that, so the engine's walk warns rather than refuses,
+ * and the step says so.
  */
-function SeizeControls({
-  step,
-  index,
-}: {
-  step: Extract<PlanStep, { kind: 'seize' }>
-  index: number
-}) {
+function AfterShotNote({ step }: { step: Extract<PlanStep, { kind: 'seize' | 'mark' }> }) {
   const plan = usePlan()
-  const shotFirst = plan.steps
-    .slice(0, index)
-    .some(s => s.kind === 'fire' && s.targetId === step.victimId)
-  if (!shotFirst) return null
+  const code = step.kind === 'seize' ? 'seizeAfterShot' : 'markAfterShot'
+  if (!plan.warnings[step.id]?.includes(code)) return null
   return (
     <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.3, mt: 0.5 }}>
-      {T.seizeAfterShot}
-    </Typography>
-  )
-}
-
-/** As for a seizure: a marker after a shot that destroys its carrier is not placed. */
-function MarkControls({
-  step,
-  index,
-}: {
-  step: Extract<PlanStep, { kind: 'mark' }>
-  index: number
-}) {
-  const plan = usePlan()
-  const shotFirst = plan.steps
-    .slice(0, index)
-    .some(s => s.kind === 'fire' && s.targetId === step.carrierId)
-  if (!shotFirst) return null
-  return (
-    <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.3, mt: 0.5 }}>
-      {T.markAfterShot}
+      {T[code]}
     </Typography>
   )
 }

@@ -8,14 +8,19 @@
  */
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
-import { PLANET_RINGS, SECTORS_PER_RING, STATION_RING, fill } from '@dangerous-inclinations/engine'
+import {
+  PLANET_RINGS,
+  SECTORS_PER_RING,
+  STATION_DRIFT,
+  STATION_RING,
+  fill,
+} from '@dangerous-inclinations/engine'
 import { FONT_SANS } from '../../theme'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Body } from '../poster'
 import { useArrowHeads, type ArrowHeadSet } from '../diagram'
 import { ArrowHeads } from '../DiagramParts'
 import type { Row } from './windows'
-import { STATION_DRIFT } from '../turn'
 import { CLOCK, PLANET_ARRIVE, PLANET_LEAVE, bestClocks, span } from './windows'
 import { WINDOWS as T } from '../../text/windows'
 

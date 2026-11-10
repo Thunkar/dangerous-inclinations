@@ -33,7 +33,6 @@ import { rich } from '../../utils/rich'
 
 const T = CHEATSHEET.fight.missile
 
-const MISSILE = getMissileStats()
 /** The two outer rings of the black hole: the slowest, so two turns fit across a page. */
 const OUTER = BLACK_HOLE_OUTER_RING
 const INNER = OUTER - 1
@@ -60,7 +59,7 @@ function flyTurn(from: Position, target: Position, ride: boolean): Turn {
   const rode = ride ? driftPosition(from) : from
   const steps: Position[] = []
   let here = rode
-  for (let left = MISSILE.stepsPerMove; left > 0 && !same(here, target); left--) {
+  for (let left = getMissileStats().stepsPerMove; left > 0 && !same(here, target); left--) {
     here = stepToward(here, target, 1)
     steps.push(here)
   }
@@ -318,12 +317,13 @@ function Key() {
       {item(dot(PRESS.red), T.key.turn1)}
       {item(dot(PRESS.ink), T.key.turn2)}
       {item(line(true), T.key.rides)}
-      {item(line(false), fill(T.key.flies, { steps: MISSILE.stepsPerMove }))}
+      {item(line(false), fill(T.key.flies, { steps: getMissileStats().stepsPerMove }))}
     </Box>
   )
 }
 
 export function MissileFlight() {
+  const missile = getMissileStats()
   const launch = at(OUTER, 0)
   // Fire, then coast: the ship rides on and leaves the missile where it was dropped.
   return (
@@ -334,10 +334,10 @@ export function MissileFlight() {
       </Box>
       <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1.5 }}>
         {rich(T.caption, {
-          steps: MISSILE.stepsPerMove,
-          damage: MISSILE.damage,
+          steps: missile.stepsPerMove,
+          damage: missile.damage,
           on: INTERCEPT_ON,
-          turns: MISSILE.maxMoves,
+          turns: missile.maxMoves,
         })}
       </Body>
     </Box>

@@ -180,7 +180,7 @@ export interface SubsystemConfig {
   minEnergy: number // Minimum energy to function (0 for passive)
   maxEnergy: number
   slotType: SlotType
-  isPassive?: boolean
+  /** What a subsystem that is never powered does by being there: one is passive by having it. */
   passiveEffect?: PassiveEffect
   /** Sensor array: while it has energy on it, its owner's shots crit on this d10 face or higher. */
   criticalFace?: number
@@ -303,7 +303,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     minEnergy: 0,
     maxEnergy: 0,
     slotType: 'side',
-    isPassive: true,
     passiveEffect: { dissipationBonus: 2 },
   },
   fuel_compressor: {
@@ -312,7 +311,6 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     minEnergy: 0,
     maxEnergy: 0,
     slotType: 'forward',
-    isPassive: true,
     passiveEffect: { cheapensJump: true },
   },
 

@@ -4,12 +4,7 @@
  * guessing, so an illegal move is never their only option.
  */
 import type { Facing, Position } from '../models/game.ts'
-import {
-  DEFAULT_DISSIPATION_CAPACITY,
-  isOpeningRound,
-  isQuietTurn,
-  oppositeFacing,
-} from '../models/game.ts'
+import { isOpeningRound, isQuietTurn, oppositeFacing } from '../models/game.ts'
 import type { SubsystemId } from '../models/subsystems.ts'
 import { getSubsystemConfig, isPowerableType } from '../models/subsystems.ts'
 import type { GameView } from '../game/view.ts'
@@ -25,6 +20,7 @@ import {
 } from '../game/movement.ts'
 import { isMooredAt } from '../game/stations.ts'
 import { heatBudget } from '../game/heat.ts'
+import { getDissipationCapacity } from '../game/ship.ts'
 import { escortCandidates, unplacedEscorts } from '../game/escort.ts'
 import { freePiracyCards, seizableItems, type SeizableItem } from '../game/piracy.ts'
 import { onSurveyRing, surveyToTake } from '../game/survey.ts'
@@ -226,7 +222,7 @@ export function seatOptions(view: GameView): SeatOptions {
         }
       : null
 
-  const dissipation = view.myStats?.dissipationCapacity ?? DEFAULT_DISSIPATION_CAPACITY
+  const dissipation = getDissipationCapacity(ship.subsystems)
   const power = ship.subsystems
     .filter(s => isPowerableType(s.type) && !s.isBroken)
     .map(s => {

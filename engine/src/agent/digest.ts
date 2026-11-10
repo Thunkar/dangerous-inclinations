@@ -29,7 +29,7 @@ import {
   interceptsPerRack,
   shieldPointsPerEnergyOf,
 } from '../models/subsystems.ts'
-import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT } from '../models/game.ts'
+import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, MAX_REACTION_MASS } from '../models/game.ts'
 import type { RingConfig } from '../models/game.ts'
 import {
   BLACKHOLE_RINGS,
@@ -52,7 +52,7 @@ import {
 } from '../models/rings.ts'
 import type { GameView, PlayerView } from '../game/view.ts'
 import { describeEvent, describeMission } from '../game/describe.ts'
-import { lowestCriticalFace } from '../game/ship.ts'
+import { getDissipationCapacity, lowestCriticalFace } from '../game/ship.ts'
 import { rollToResult } from '../game/damage.ts'
 import { AGENT_RULES } from '../text/agentRules.ts'
 import { seatOptions } from './options.ts'
@@ -278,10 +278,9 @@ export function describeViewForAgent(
     } You are ${me.name} (${me.id}), seat ${view.players.findIndex(p => p.id === me.id) + 1} of ${view.players.length}.`
   )
   const ship = me.ship
-  const stats = view.myStats
   out.push('')
   out.push(
-    `YOUR SHIP: ${pos(ship)}, facing ${ship.facing}. Hull ${ship.hitPoints}/${ship.maxHitPoints}. Heat ${ship.heat.currentHeat}/${MAX_HEAT} carried, dissipates ${stats?.dissipationCapacity ?? '?'}. Fuel ${ship.reactionMass}/${stats?.maxReactionMass ?? '?'}.${
+    `YOUR SHIP: ${pos(ship)}, facing ${ship.facing}. Hull ${ship.hitPoints}/${ship.maxHitPoints}. Heat ${ship.heat.currentHeat}/${MAX_HEAT} carried, dissipates ${getDissipationCapacity(ship.subsystems)}. Fuel ${ship.reactionMass}/${MAX_REACTION_MASS}.${
       me.recovering
         ? ' UNTOUCHABLE: you came back at Home last turn, and this turn is a first round of your own. Nobody touches you until it is over, and you fire at nobody and scan nobody on it.'
         : ''

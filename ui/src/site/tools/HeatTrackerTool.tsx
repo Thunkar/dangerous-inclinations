@@ -33,6 +33,7 @@ import {
   fill,
   getDissipationCapacity,
   heatAfterCheck,
+  heatDamage,
 } from '@dangerous-inclinations/engine'
 import { TOOLS } from '../../text/tools'
 import { TileIcon } from '../../art/glyphs'
@@ -184,7 +185,7 @@ export function HeatTrackerTool() {
   const radiators = hull.filter(s => s.type === 'radiator' && !s.isBroken).length
   const dissipation = getDissipationCapacity(hull)
   const atCheck = mat.track + onMat
-  const damage = Math.max(0, atCheck - MAX_HEAT)
+  const damage = heatDamage(atCheck)
   const next = heatAfterCheck(atCheck, dissipation)
 
   const rows: LedgerRow[] = [

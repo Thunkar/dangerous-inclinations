@@ -27,11 +27,10 @@ import type {
   GamePhase,
   Wreck,
 } from '../models/game.ts'
-import { MAX_REACTION_MASS } from '../models/game.ts'
 import type { HoldItemKind, Mission } from '../models/missions.ts'
 import { aboard, holdItemKind } from '../models/missions.ts'
 import type { SlotGroup, SubsystemId, SubsystemType } from '../models/subsystems.ts'
-import { getDissipationCapacity, isDestroyed, lowestCriticalFace } from './ship.ts'
+import { isDestroyed } from './ship.ts'
 import { completedMissions } from './missions/missionChecks.ts'
 
 interface PublicShipView {
@@ -98,10 +97,6 @@ export interface PlayerView {
   ship: PublicShipView | null
   fixed: FixedSystemView[]
   slots: SlotView[]
-  /** Tokens aboard (public: they sit on the ship). */
-  cargoAboard: { crates: number; data: number }
-  /** Total tokens aboard. */
-  cargoCount: number
   points: number
   completedMissions: Mission[]
   /**
@@ -124,13 +119,6 @@ export interface PlayerView {
   hold: { cargoId: string; kind: HoldItemKind }[]
 }
 
-interface OwnShipStats {
-  dissipationCapacity: number
-  maxReactionMass: number
-  /** The lowest d10 face that is a critical for my shots now (`lowestCriticalFace`). */
-  lowestCriticalFace: number
-}
-
 export interface GameView {
   turn: number
   phase: GamePhase
@@ -151,7 +139,15 @@ export interface GameView {
   pointsToWin: number
   /** A copy of the viewer's full player record, or null for a spectator. */
   me: Player | null
-  myStats: OwnShipStats | null
+}
+
+/**
+ * A hold counted as the table counts it: crates (a Deliver crate or loot,
+ * both crate tokens) and data.
+ */
+export function holdCounts(player: Pick<PlayerView, 'hold'>): { crates: number; data: number } {
+  const data = player.hold.filter(item => item.kind === 'data').length
+  return { crates: player.hold.length - data, data }
 }
 
 function shipView(player: Player): PublicShipView | null {
@@ -218,11 +214,6 @@ function playerViewFor(state: GameState, player: Player, viewer: Player | null):
         allocatedEnergy: s.allocatedEnergy,
       })),
     slots,
-    cargoAboard: {
-      crates: aboard(player.cargo).filter(c => c.kind === 'crate').length,
-      data: aboard(player.cargo).filter(c => c.kind === 'data').length,
-    },
-    cargoCount: aboard(player.cargo).length,
     points: player.points,
     completedMissions: structuredClone(completedMissions(player)),
     soldAt: [...player.soldAt],
@@ -252,12 +243,5 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
     finalRound: state.finalRound === true,
     pointsToWin: state.pointsToWin,
     me: me ? structuredClone(me) : null,
-    myStats: me
-      ? {
-          dissipationCapacity: getDissipationCapacity(me.ship.subsystems),
-          maxReactionMass: MAX_REACTION_MASS,
-          lowestCriticalFace: lowestCriticalFace(me.ship.subsystems),
-        }
-      : null,
   }
 }

@@ -17,7 +17,7 @@ import {
   getAdjustmentRange,
   getJumpAdjustmentRange,
   getJumpOptions,
-  heatFromCubes,
+  heatAtCheck,
   isMooredMidTurn,
   ringVelocity,
 } from '@dangerous-inclinations/engine'
@@ -59,7 +59,7 @@ export function usePlanReadout(
     [steps, defaultMove]
   )
 
-  const projectedHeat = me.ship.heat.currentHeat + heatFromCubes(pendingSubsystems)
+  const projectedHeat = heatAtCheck({ ...me.ship, subsystems: [...pendingSubsystems] })
 
   const criticalFrom = useCallback(
     (step: PlanStep) => criticalFromPlan(me, preview.powers, steps, step),
@@ -112,11 +112,7 @@ export function usePlanReadout(
     () => moveReadiness(view, me, steps, preview.powers),
     [view, me, steps, preview.powers]
   )
-  const scoopGain = useMemo(() => {
-    const scoop = pendingSubsystems.find(s => s.id === 'scoop')
-    if (!scoop || scoop.isBroken) return 0
-    return ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
-  }, [pendingSubsystems, moveFrom])
+  const { scoopGain } = preview
 
   const { dockOffer } = preview
   const dockSale = !dockOffer
