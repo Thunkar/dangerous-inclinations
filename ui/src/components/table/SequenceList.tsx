@@ -24,6 +24,7 @@ import MyLocationIcon from '@mui/icons-material/MyLocation'
 import {
   BASE_CRITICAL_FACE,
   BURN_COSTS,
+  D10_FACES,
   SCAN_SECTOR_RANGE,
   fill,
   getMissileStats,
@@ -263,7 +264,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
    */
   const critFrom = plan.criticalFrom(step)
   const sensor = plan.me.ship.subsystems.find(s => s.type === 'sensor_array' && !s.isBroken)
-  const crit = { from: critFrom, base: BASE_CRITICAL_FACE, sensor: SENSOR_CRIT }
+  const crit = { from: critFrom, base: BASE_CRITICAL_FACE, sensor: SENSOR_CRIT, top: D10_FACES }
   const critTip =
     weapon?.type === 'missiles'
       ? critFrom < BASE_CRITICAL_FACE
@@ -348,7 +349,10 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
             cursor: 'help',
           }}
         >
-          {fill(critFrom < BASE_CRITICAL_FACE ? F.critRange : F.critBare, { from: critFrom })}
+          {fill(critFrom < BASE_CRITICAL_FACE ? F.critRange : F.critBare, {
+            from: critFrom,
+            top: D10_FACES,
+          })}
         </Typography>
       </Tooltip>
 

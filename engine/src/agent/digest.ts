@@ -29,7 +29,12 @@ import {
   interceptsPerRack,
   shieldPointsPerEnergyOf,
 } from '../models/subsystems.ts'
-import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT, MAX_REACTION_MASS } from '../models/game.ts'
+import {
+  D10_FACES,
+  DEFAULT_DISSIPATION_CAPACITY,
+  MAX_HEAT,
+  MAX_REACTION_MASS,
+} from '../models/game.ts'
 import type { RingConfig } from '../models/game.ts'
 import {
   BLACKHOLE_RINGS,
@@ -55,11 +60,12 @@ import { describeEvent, describeMission } from '../game/describe.ts'
 import { getDissipationCapacity, lowestCriticalFace } from '../game/ship.ts'
 import { rollToResult } from '../game/damage.ts'
 import { AGENT_RULES } from '../text/agentRules.ts'
+import { AGENT_INTENT } from '../text/agentIntent.ts'
 import { seatOptions } from './options.ts'
 import { isMooredAt } from '../game/stations.ts'
 
 /** Every face of the d10 the game rolls. */
-const D10_FACES = Array.from({ length: 10 }, (_, i) => i + 1)
+const DIE_FACES = Array.from({ length: D10_FACES }, (_, i) => i + 1)
 
 /** A weapon's stats and a subsystem's cubes, read from the configs when asked. */
 const weapon = (t: WeaponType) => SUBSYSTEM_CONFIGS[t].weaponStats as Required<WeaponStats>
@@ -88,7 +94,7 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
   const sensorCrit = lowestCriticalFace([
     { type: 'sensor_array', allocatedEnergy: cubes('sensor_array'), isBroken: false },
   ])
-  const miss = D10_FACES.filter(f => rollToResult(f) === 'miss')
+  const miss = DIE_FACES.filter(f => rollToResult(f) === 'miss')
   const firstHit = miss.length + 1
   const T = AGENT_RULES
   return [
@@ -188,15 +194,15 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
       disruptorRings: weapon('disruptor').ringRange,
       disruptorSectors: weapon('disruptor').sectorRange,
       miss: faces(1, miss.length),
-      disruptorHits: faces(firstHit, D10_FACES.length),
+      disruptorHits: faces(firstHit, D10_FACES),
     }),
     T.pointBlank,
     fill(T.firstRound, { homeRings: orList(HOME_RINGS), deploymentGap: DEPLOYMENT_GAP }),
     fill(T.hitRoll, {
       miss: faces(1, miss.length),
       hits: faces(firstHit, crit - 1),
-      crits: faces(crit, D10_FACES.length),
-      sensorCrits: faces(sensorCrit, D10_FACES.length),
+      crits: faces(crit, D10_FACES),
+      sensorCrits: faces(sensorCrit, D10_FACES),
       railgun: cubes('railgun'),
       shieldMin: shields.minEnergy,
       shieldMax: shields.maxEnergy,
@@ -418,20 +424,36 @@ export function describeViewForAgent(
   return out.join('\n')
 }
 
-/** How an agent describes a turn: the intent JSON the builder accepts. */
-export const AGENT_INTENT_GUIDE = `INTENT FORMAT (JSON). Everything optional; omitted = nothing powered and a coast.
-{
-  "power": { "side-2": 2, "forward-0": 2 },    // shields ${SUBSYSTEM_CONFIGS.shields.minEnergy}|${SUBSYSTEM_CONFIGS.shields.maxEnergy}, rack ${cubes('ballistic_rack')}, sensor ${cubes('sensor_array')}: up until your next turn; not named = off
-  "rotate": false,                             // flip facing (${cubes('rotation')} cube on the thrusters, ${cubes('rotation')} heat), once a turn: true = before a coast or a burn naming no facing, AFTER a burn naming the facing you have or a jump while prograde (turn to scan or fire along the ring you arrive on); or "before" | "after"
-  "move": { "kind": "coast", "scoop": false }  // or { "kind": "burn", "intensity": "soft|medium|hard", "adjustment": 0, "facing": "prograde|retrograde" }
-                                               // or { "kind": "jump", "destinationWellId": "planet-alpha", "adjustment": 0 }
-  "fire": [ { "weapon": "forward-0", "target": "<playerId>", "critical": "engines", "compensateRecoil": false, "when": "after" } ],
-  "scan": { "target": "<playerId>", "slot": "side-1" },
-  "repair": "engines",                         // a broken subsystem to fix at the heat check; only lands if the turn makes NO heat
-  "sell": "item-4",                            // a cargo id in your hold, "fuel", "load" or "none": what the visit does if this turn arrives at a station; omitted = the sale worth most points, else load
-  "escort": ["<playerId>"],                    // put an Escort marker on each (one per marker in hand) on your ring, before the move if it qualifies now, else after; omitted = no marker
-  "survey": true,                              // Survey: take the data on BH ring ${SURVEY_RING}, before the move if you are on it now, else after; omitted = nothing taken
-  "salvage": "<wreckId>" | true,               // Salvage: take that wreck's black box in your sector, before the move if it is there now, else after; true = the first wreck in your sector, after your shots if none is there yet (your kill's); omitted = nothing taken
-  "seize": [{ "victim": "<playerId>", "cargoId": "<id>" }]  // Piracy: take that item (one per free card) from a ship in your sector, before the move if it is there now, else after; omitted = nothing taken
+/**
+ * How an agent describes a turn: the intent JSON the builder accepts. Built
+ * when it is asked for, like the rules digest, so its numbers are the game's
+ * constants as they stand.
+ */
+export function agentIntentGuide(): string {
+  const T = AGENT_INTENT
+  const shields = SUBSYSTEM_CONFIGS.shields
+  return [
+    T.heading,
+    T.open,
+    T.power.code +
+      fill(T.power.note, {
+        shieldMin: shields.minEnergy,
+        shieldMax: shields.maxEnergy,
+        rack: cubes('ballistic_rack'),
+        sensor: cubes('sensor_array'),
+      }),
+    T.rotate.code + fill(T.rotate.note, { thrusters: cubes('rotation') }),
+    T.move,
+    T.jump,
+    T.fire,
+    T.scan,
+    T.repair,
+    T.sell,
+    T.escort,
+    T.survey.code + fill(T.survey.note, { surveyRing: SURVEY_RING }),
+    T.salvage,
+    T.seize,
+    T.close,
+    T.how,
+  ].join('\n')
 }
-A burn, rotation, shot or scan needs no cubes from you: the engine powers its subsystem. Do not also power a rack you fire or a sensor you scan with: a subsystem does one thing a turn, and using it leaves it up. The builder just orders the actions (power, a rotation before the move, then what you take where you start: markers, seizures, the survey, the salvage; the scan if its target is in range where you start, shots marked "before", the move, a rotation after the move, then what you take where the move ends, the scan otherwise, other shots, and last a "salvage": true with no wreck in reach yet), turns you prograde for a jump or to the facing a burn names, and notes anything in the turn the engine will refuse. Preview it before submitting; if the preview reports errors, fix the intent or fall back to a coast.`

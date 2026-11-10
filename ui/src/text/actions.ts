@@ -184,7 +184,7 @@ export const ACTIONS = {
       shieldsUp: 'absorbs {points} · {energy} energy',
       shields: 'absorbs {points} an energy ({plasma} of plasma)',
       rack: 'rolls at {count} missiles',
-      sensor: 'crits {from}–10 while up',
+      sensor: 'crits {from}–{top} while up',
     },
     fire: {
       queuedTip: 'In the sequence below: pick the target there, or take it back with its ×.',
@@ -313,16 +313,16 @@ export const ACTIONS = {
         'This one runs out of fuel before it catches them: {moves} moves of {steps} steps, and they keep drifting.',
       crit: {
         launchSensed:
-          'Your sensor has energy on it by this launch: a missile that lands now criticals on {from}–10. One still flying rolls on a later turn, with the sensor you have up then.',
+          'Your sensor has energy on it by this launch: a missile that lands now criticals on {from}–{top}. One still flying rolls on a later turn, with the sensor you have up then.',
         launchSensor:
-          'Criticals on {base}. Power the sensor, or scan before this launch, and a missile that lands now is {sensor}–10.',
+          'Criticals on {base}. Power the sensor, or scan before this launch, and a missile that lands now is {sensor}–{top}.',
         shotSensed:
-          'Your sensor has energy on it by this shot (powered, or it scanned earlier in the turn): criticals on {from}–10.',
+          'Your sensor has energy on it by this shot (powered, or it scanned earlier in the turn): criticals on {from}–{top}.',
         shotSensor:
-          'Criticals on {base}. Power the sensor, or scan before this shot, and it is {sensor}–10.',
+          'Criticals on {base}. Power the sensor, or scan before this shot, and it is {sensor}–{top}.',
         bare: 'Criticals on {base}.',
       },
-      critRange: 'crit {from}–10',
+      critRange: 'crit {from}–{top}',
       critBare: 'crit {from}',
       critTargetTip: 'Name the slot a critical hit would break: click it on their loadout',
       critTarget: 'crit: {slot}',

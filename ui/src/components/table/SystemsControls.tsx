@@ -20,6 +20,7 @@ import CheckIcon from '@mui/icons-material/Check'
 import type { ReactNode } from 'react'
 import type { Subsystem } from '@dangerous-inclinations/engine'
 import {
+  D10_FACES,
   SCAN_SECTOR_RANGE,
   SHIELD_POINTS_PER_ENERGY,
   SLOT_IDS,
@@ -165,7 +166,7 @@ function defenceCaption(sub: Subsystem, level: number): string {
 
 function sensorCaption(sub: Subsystem): string {
   if (sub.isBroken) return C.broken
-  return fill(C.sensor, { from: SENSOR_CRIT })
+  return fill(C.sensor, { from: SENSOR_CRIT, top: D10_FACES })
 }
 
 /** A kind of subsystem, under a faint rule. */

@@ -17,7 +17,7 @@ import type {
   PowerAction,
   FireWeaponAction,
   WellTransferAction,
-  ScanAction,
+  TacticalAction,
   Player,
   EscortMarkAction,
   SeizeAction,
@@ -109,14 +109,12 @@ export function processActions(
   let current = state
   const events: EventDraft[] = []
 
-  const run = <A extends PlayerAction>(
-    action: A,
-    process: (s: GameState, a: A) => Step
-  ): string[] | null => {
+  /** Validate an action against the state as it stands, then apply it. */
+  const run = (action: TacticalAction, process: (s: GameState) => Step): string[] | null => {
     const actor = current.players.find(p => p.id === action.playerId)!
     const errors = refusalsFor(tableOf(current, turn.start), actor, action)
     if (errors.length > 0) return errors.map(r => refusalText(r))
-    const step = process(current, action)
+    const step = process(current)
     current = step.state
     events.push(...step.events)
     // A ship this action destroyed is settled here, before the next action
@@ -133,105 +131,85 @@ export function processActions(
   // Ships alive when the turn began: shots at one of these that dies mid-turn are skipped, not errors.
   const aliveAtStart = new Set(state.players.filter(isOnBoard).map(p => p.id))
   for (const a of tactical) {
-    let err: string[] | null = null
-    switch (a.type) {
-      case 'power':
-        err = run(a, processPower)
-        break
-      case 'rotate':
-        err = run(a, processRotation)
-        break
-      case 'coast':
-        err = run(a, (s, c) => processCoast(s, c, turn))
-        break
-      case 'burn':
-        err = run(a, processBurn)
-        break
-      case 'well_transfer':
-        err = run(a, processWellTransfer)
-        break
-      case 'fire_weapon':
-        if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
-          events.push({
-            type: 'action_skipped',
-            playerId: a.playerId,
-            action: 'fire_weapon',
-            targetId: a.data.targetPlayerId,
-            reason: 'target_destroyed',
-          })
-          break
-        }
-        err = run(a, processFireWeapon)
-        break
-      case 'scan':
-        if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
-          events.push({
-            type: 'action_skipped',
-            playerId: a.playerId,
-            action: 'scan',
-            targetId: a.data.targetPlayerId,
-            reason: 'target_destroyed',
-          })
-          break
-        }
-        err = run(a, (s, sa: ScanAction) => processScan(s, sa))
-        break
-      case 'seize':
-        // A ship a shot destroyed earlier in the turn drops what it carried:
-        // there is nothing left to take (RULES §Missions, Piracy).
-        if (aliveAtStart.has(a.data.victimId) && targetGone(current, a.data.victimId)) {
-          events.push({
-            type: 'action_skipped',
-            playerId: a.playerId,
-            action: 'seize',
-            targetId: a.data.victimId,
-            reason: 'target_destroyed',
-          })
-          break
-        }
-        err = run(a, processSeize)
-        break
-      case 'escort_mark':
-        // A carrier a shot destroyed earlier in the turn is off the board:
-        // there is nothing to put a marker on (RULES §Missions, Escort).
-        if (aliveAtStart.has(a.data.carrierId) && targetGone(current, a.data.carrierId)) {
-          events.push({
-            type: 'action_skipped',
-            playerId: a.playerId,
-            action: 'escort_mark',
-            targetId: a.data.carrierId,
-            reason: 'target_destroyed',
-          })
-          break
-        }
-        err = run(a, processEscortMark)
-        break
-      case 'survey':
-        err = run(a, processSurvey)
-        break
-      case 'salvage':
-        err = run(a, processSalvage)
-        break
+    const target = targetOf(a)
+    if (target && aliveAtStart.has(target.id) && targetGone(current, target.id)) {
+      events.push({
+        type: 'action_skipped',
+        playerId: a.playerId,
+        action: target.action,
+        targetId: target.id,
+        reason: 'target_destroyed',
+      })
+      continue
     }
+    const err = run(a, stepFor(a, turn))
     if (err) return { success: false, state, events: [], errors: err }
   }
 
   // Orbital drift is not optional: a turn without a movement action coasts.
   if (!tactical.some(a => MOVE_ACTION_TYPES.has(a.type))) {
     const active = current.players[current.activePlayerIndex]
-    const err = run(
-      {
-        type: 'coast',
-        playerId: active.id,
-        sequence: tactical.length + 1,
-        data: { activateScoop: false },
-      } as CoastAction,
-      (s, c) => processCoast(s, c, turn)
-    )
+    const coast: CoastAction = {
+      type: 'coast',
+      playerId: active.id,
+      sequence: tactical.length + 1,
+      data: { activateScoop: false },
+    }
+    const err = run(coast, s => processCoast(s, coast, turn))
     if (err) return { success: false, state, events: [], errors: err }
   }
 
   return { success: true, state: current, events }
+}
+
+/**
+ * The ship an action is aimed at, for the four that are not taken once it
+ * dies mid-turn: a shot or a scan, a seizure (a destroyed ship drops what it
+ * carried, RULES §Missions, Piracy) and an Escort marker (a destroyed carrier
+ * is off the board, RULES §Missions, Escort).
+ */
+function targetOf(
+  a: TacticalAction
+): { id: string; action: 'fire_weapon' | 'scan' | 'seize' | 'escort_mark' } | null {
+  switch (a.type) {
+    case 'fire_weapon':
+    case 'scan':
+      return { id: a.data.targetPlayerId, action: a.type }
+    case 'seize':
+      return { id: a.data.victimId, action: a.type }
+    case 'escort_mark':
+      return { id: a.data.carrierId, action: a.type }
+    default:
+      return null
+  }
+}
+
+/** What applying an action does to the state, by its type. */
+function stepFor(a: TacticalAction, turn: TurnContext): (s: GameState) => Step {
+  switch (a.type) {
+    case 'power':
+      return s => processPower(s, a)
+    case 'rotate':
+      return s => processRotation(s, a)
+    case 'coast':
+      return s => processCoast(s, a, turn)
+    case 'burn':
+      return s => processBurn(s, a)
+    case 'well_transfer':
+      return s => processWellTransfer(s, a)
+    case 'fire_weapon':
+      return s => processFireWeapon(s, a)
+    case 'scan':
+      return s => processScan(s, a)
+    case 'seize':
+      return s => processSeize(s, a)
+    case 'escort_mark':
+      return s => processEscortMark(s, a)
+    case 'survey':
+      return s => processSurvey(s, a)
+    case 'salvage':
+      return s => processSalvage(s, a)
+  }
 }
 
 // ---------------------------------------------------------------------------

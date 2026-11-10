@@ -51,8 +51,11 @@ export const MIN_PLAYERS = 3
  */
 export const MAX_PLAYERS = 6
 
-/** The lowest d10 face that is a critical: a 10, unless a powered sensor widens it. */
-export const BASE_CRITICAL_FACE = 10
+/** The d10 every roll in the game uses: faces 1 to this. */
+export const D10_FACES = 10
+
+/** The lowest d10 face that is a critical: the top face, unless a powered sensor widens it. */
+export const BASE_CRITICAL_FACE = D10_FACES
 
 export const MAX_REACTION_MASS = 10
 export const STARTING_REACTION_MASS = 10

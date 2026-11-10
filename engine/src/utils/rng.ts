@@ -12,7 +12,7 @@
  * deal shuffles with an `Rng` directly.
  */
 
-import type { GameState } from '../models/game.ts'
+import { D10_FACES, type GameState } from '../models/game.ts'
 
 export class Rng {
   state: number
@@ -34,9 +34,9 @@ export class Rng {
     return Math.floor(this.next() * max)
   }
 
-  /** d10 roll, returns 1..10. */
+  /** d10 roll, returns 1..D10_FACES. */
   rollD10(): number {
-    return this.rollInt(10) + 1
+    return this.rollInt(D10_FACES) + 1
   }
 
   /** Random index into a non-empty array. */

@@ -81,7 +81,7 @@ import type {
 } from '@dangerous-inclinations/engine'
 import {
   AGENT_DRIVERS,
-  AGENT_INTENT_GUIDE,
+  agentIntentGuide,
   agentRulesDigest,
   BOT_PRESET_LOADOUTS,
   PRESET_NAMES,
@@ -581,7 +581,7 @@ ${agentRulesDigest()}
 
 ${digest(payload, { rules: false, turns: 2 })}
 ${talk}
-${AGENT_INTENT_GUIDE}
+${agentIntentGuide()}
 ${help}${rejected}
 Reply with ONE JSON object: {"think": "<your reasoning in 1-3 sentences; your own seat and the people at the table see it, never another agent>", "say": "<optional table talk heard by everyone, or empty>", "intent": {...}}`
 }
@@ -1138,7 +1138,7 @@ async function main(): Promise<void> {
       return
     }
     case 'guide':
-      console.log(agentRulesDigest(), '\n\n', AGENT_INTENT_GUIDE)
+      console.log(agentRulesDigest(), '\n\n', agentIntentGuide())
       return
     case 'try': {
       const { view } = await getView()
