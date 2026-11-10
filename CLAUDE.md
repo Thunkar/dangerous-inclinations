@@ -518,7 +518,9 @@ mount in a bay at the base's edge (`pieces/bay.ts`, the hull's recess and
 magnet slot), boxed in under a door (the box's front and roof) whose hinge
 runs under the module: knuckles joined by 45-degree cones in conical
 sockets, printed in place with the door open flat on the bed, so the door
-folds out over the edge and lies on the table; energy cubes (8.1mm) stand
+folds out over the edge and lies on the table; energy cubes (8.1mm, printed
+with their edges chamfered, `pieces/cube.ts`: 24 energy and 12 heat a
+player, in the table's energy cream and heat red) stand
 in continuous channels ticked at each cube, one per slot beside its bay,
 the fixed subsystems' and the heat track's astern and in the bow's corners;
 hull and fuel have no track on the base (each is a d10 on a stand beside it);

@@ -281,7 +281,9 @@ function checkBoard() {
   const want = new Map()
   for (const dir of readdirSync('parts/board'))
     for (const file of readdirSync(`parts/board/${dir}`)) {
-      const name = readFileSync(`parts/board/${dir}/${file}`, 'utf8').match(/part\("([^"]*)"/)[1]
+      const name = readFileSync(`parts/board/${dir}/${file}`, 'utf8').match(
+        /part\(\s*(['"`])(.*?)\1/s
+      )[2]
       want.set(
         `board/${dir}/${file.replace('.part.js', '')}`,
         +(name.match(/\(print (\d+)/)?.[1] ?? 1)

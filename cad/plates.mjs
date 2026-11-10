@@ -6,12 +6,14 @@
 // Every colour is the game's where the game draws the piece (`colours.ts`):
 // the seats, the planets (each planet's station, sale chips, sector numbers,
 // lane markers and coloured bands), the accretion disc, and hull and fuel
-// (each die's inlays: its numbers, its stand's icon, the fuel stand's 0). The
+// (each die's inlays: its numbers, its stand's icon, the fuel stand's 0), and
+// the energy and heat cubes. The
 // ship, its base and its subsystems are grey, for players who paint theirs;
 // the dice, their stands and the board are black, the black hole's numbers
 // and streaks and the planets' other bands white. A plate is one colour and
 // one job: a seat's set, the dice, a planet.
 import { PLANETS } from './colours.ts'
+import { CUBE } from './spec.ts'
 
 /**
  * The MK4S bed, the margin kept clear round it, the gap between pieces, and
@@ -77,6 +79,23 @@ export const PLATES = [
       ['modules/radiator', 1],
     ],
   },
+  ...[
+    ['energy', 'The energy cubes'],
+    ['heat', 'The heat cubes'],
+  ].flatMap(([kind, title]) => [
+    {
+      id: `${kind}-cubes`,
+      title: `${title}, for the table`,
+      colour: kind,
+      parts: [['tokens/cube', CUBE[kind] * SEATS]],
+    },
+    {
+      id: `${kind}-cubes-player`,
+      title: `${title}, for one player`,
+      colour: kind,
+      parts: [['tokens/cube', CUBE[kind]]],
+    },
+  ]),
   {
     id: 'dice',
     title: "The hull and fuel dice, their stands and the stands' plugs",

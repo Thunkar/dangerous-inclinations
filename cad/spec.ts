@@ -81,6 +81,16 @@ export const CUBE = {
   pocketDepth: 3,
   /** Plastic between two pockets in a row; the cubes stand 5 mm proud, so fingers still get round them. */
   wall: 1.2,
+  /** The printed cube's edges, chamfered so its first layer does not flare and catch in a pocket. */
+  chamfer: 0.4,
+  /**
+   * The cubes a player is printed: every channel on the base full (23, set
+   * by the subsystems' capacities) rounded to a 6 by 4 block, and the heat
+   * track's 10 with two over for the heat a shield or a rack puts on it
+   * before the check.
+   */
+  energy: 24,
+  heat: 12,
 }
 
 /**
