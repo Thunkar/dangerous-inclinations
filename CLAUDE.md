@@ -43,7 +43,7 @@ Data flow: `UI → WebSocket → server → engine → new state → viewFor →
 
 ## Game summary
 
-2–6 players. Ships orbit a black hole (5 rings) and three planets (4 rings
+3–6 players (two has no rules of its own yet). Ships orbit a black hole (5 rings) and three planets (4 rings
 each); every ring has 24 sectors. Everyone deploys on black hole ring 2, 3 or 4, at least three
 sectors from every placed ship; that position is their Home (destroyed ships respawn there, drift one turn, and
 their next turn is a first round of their own: untouchable until it is over, and
@@ -227,7 +227,7 @@ never fails; the gate is below.
 
 Balance regression: `yarn balance` (engine) answers the designer's four
 questions in six sections, every forced row at 3 players on seat 1: **natural**
-play at 3/2/4; **baselines** (seat 1 dealt Destroy, Deliver or Intercept with
+play at 3/4; **baselines** (seat 1 dealt Destroy, Deliver or Intercept with
 its own loadout: the bar every row with that card is read against); **logical**
 (the twelve presets, four per role, with the card their role is for); **illogical** (a preset
 with a card that fights it: sensor bow hauling, compressor hunting); **off-book**
@@ -1346,8 +1346,9 @@ Known open problems:
   the engines and thrusters are broken. Teaching it is a bot change to
   measure first, because a hunter that strands its prey is a different
   hunter.
-- **Two players is thin**: seat 1 wins 55–59% on the balance seeds. The
-  designer wants no artificial limit; special rules for two may come later.
+- **Two players has no rules of its own**: seat 1 won 55–59% on the
+  balance seeds, so since 10 Nov 2026 a game is 3–6 seats (`MIN_PLAYERS`)
+  until the designer writes special rules for two.
 - **Length** (2 Oct 2026, benchmark, 120 games a seat count): 27 / 26 / 29 /
   27 rounds at 3 / 4 / 5 / 6 seats, 1h21 to 2h42 at a minute a turn, kills
   1.9 / 3.5 / 8.0 / 9.1, 0.6–0.7 lead changes a game, the first card at

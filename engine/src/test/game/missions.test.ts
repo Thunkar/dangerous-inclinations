@@ -486,6 +486,7 @@ describe("missions: the points the table plays to", () => {
   const SPECS = [
     { id: "p1", name: "One" },
     { id: "p2", name: "Two" },
+    { id: "p3", name: "Three" },
   ];
 
   it("is three when the table agrees nothing", () => {

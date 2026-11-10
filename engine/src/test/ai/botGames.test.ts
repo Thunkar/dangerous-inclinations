@@ -31,7 +31,7 @@ const FORCED_HULLS: Array<[string, ShipLoadout]> = [
 ];
 
 describe("bot-vs-bot games", () => {
-  for (const botCount of [2, 3, 4]) {
+  for (const botCount of [3, 4]) {
     for (const seed of SEEDS) {
       it(`${botCount} bots, seed ${seed}: every turn is accepted by the engine`, () => {
         const result = runGame({ seed, botCount, maxTurns: MAX_TURNS, record: false });

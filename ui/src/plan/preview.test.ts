@@ -215,7 +215,7 @@ function playedTurns(config: GameConfig): Turn[] {
 const GAMES: GameConfig[] = [
   { seed: 1, botCount: 3 },
   { seed: 2, botCount: 4 },
-  { seed: 3, botCount: 2 },
+  { seed: 3, botCount: 5 },
   {
     seed: 4,
     botCount: 3,

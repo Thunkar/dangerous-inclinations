@@ -32,7 +32,7 @@ describe("missionsToWin", () => {
     ["the default when the batch says nothing", undefined, DEFAULT_POINTS_TO_WIN],
     ["four when the batch asks for four", 4, 4],
   ])("creates the batch's games playing to %s", (_case, override, expected) => {
-    expect(setupBotGame(11, 2, undefined, undefined, override).pointsToWin).toBe(expected);
+    expect(setupBotGame(11, 3, undefined, undefined, override).pointsToWin).toBe(expected);
   });
 
   it("changes nothing in the process, so a game made beside it still plays to three", () => {
@@ -43,6 +43,7 @@ describe("missionsToWin", () => {
       createGame([
         { id: "a", name: "A" },
         { id: "b", name: "B" },
+        { id: "c", name: "C" },
       ]).pointsToWin
     ).toBe(DEFAULT_POINTS_TO_WIN);
   });

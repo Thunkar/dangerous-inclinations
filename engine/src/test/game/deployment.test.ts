@@ -46,6 +46,7 @@ import {
 const SPECS = [
   { id: "p1", name: "Ada" },
   { id: "p2", name: "Bo" },
+  { id: "p3", name: "Cy" },
 ];
 
 /** A legal hand: one primary, and any two secondaries. */
@@ -86,7 +87,22 @@ function readyToDeploy(seed = 11): GameState {
     loadout: LOADOUTS.sensor,
     missionIds: pickHand(state, "p2"),
   }).state;
+  state = submitLoadout(state, "p3", {
+    loadout: LOADOUTS.sensor,
+    missionIds: pickHand(state, "p3"),
+  }).state;
   return state;
+}
+
+/**
+ * `readyToDeploy` with the last seat, p3, already placed on ring 2 sector 21,
+ * clear of every sector the tests below use: deployment runs from the last
+ * seat to the first, so p2 places next and p1 last.
+ */
+function twoLeft(seed = 11): GameState {
+  const placed = deployShip(readyToDeploy(seed), "p3", 21, 2);
+  if (!placed.success) throw new Error(placed.error);
+  return placed.state;
 }
 
 describe("setup: createGame", () => {
@@ -112,7 +128,7 @@ describe("setup: createGame", () => {
         intel: {},
       });
     }
-    expect(state.players.map((p) => p.name)).toEqual(["Ada", "Bo"]);
+    expect(state.players.map((p) => p.name)).toEqual(["Ada", "Bo", "Cy"]);
   });
 
   it("is reproducible from its seed and differs between seeds", () => {
@@ -423,7 +439,7 @@ describe("deployment", () => {
   });
 
   it("refuses a ring that is not a deployment ring, and a sector too close to a placed ship", () => {
-    const state = deployShip(readyToDeploy(), "p2", 5, HOME_RING).state; // p1 places next
+    const state = deployShip(twoLeft(), "p2", 5, HOME_RING).state; // p1 places next
     expect(deployShip(state, "p1", 5, 5).success).toBe(false); // black hole ring 5
     expect(deployShip(state, "p1", 9, 1).success).toBe(false); // black hole ring 1
     expect(deployShip(state, "p1", 7, HOME_RING).success).toBe(false); // two sectors away
@@ -434,7 +450,7 @@ describe("deployment", () => {
   });
 
   it("places the ship facing prograde and plants the Home marker there", () => {
-    const result = deployShip(readyToDeploy(), "p2", 9, HOME_RING);
+    const result = deployShip(twoLeft(), "p2", 9, HOME_RING);
     expect(result.success).toBe(true);
     const p1 = getPlayer(result.state, "p2");
     expect(p1.hasDeployed).toBe(true);
@@ -458,7 +474,7 @@ describe("deployment", () => {
   });
 
   it("deploys in reverse turn order: the last seat first, the first seat last", () => {
-    const state = readyToDeploy();
+    const state = twoLeft();
     expect(deployShip(state, "p1", 9, HOME_RING)).toMatchObject({ success: false, state });
     const p2First = deployShip(state, "p2", 0, HOME_RING);
     expect(p2First.success).toBe(true);
@@ -476,7 +492,7 @@ describe("deployment", () => {
     ["a fractional sector", 1.5],
     ["an occupied sector", 5],
   ])("rejects deploying on %s", (_label, sector) => {
-    let state = readyToDeploy();
+    let state = twoLeft();
     state = deployShip(state, "p2", 5, HOME_RING).state; // p1 places next
     const result = deployShip(state, "p1", sector, HOME_RING);
     expect(result.success).toBe(false);
@@ -488,14 +504,14 @@ describe("deployment", () => {
 
   it("rejects deploying outside the deployment phase or for unknown players", () => {
     // The last seat places first, so p2 is the one the deployment phase waits on.
-    const ready = readyToDeploy();
+    const ready = twoLeft();
     expect(deployShip(ready, "p2", 0, HOME_RING).success).toBe(true);
     expect(deployShip(createGame(SPECS, 1), "p2", 0, HOME_RING).success).toBe(false);
     expect(deployShip(ready, "p9", 0, HOME_RING).success).toBe(false);
   });
 
   it("becomes active once everyone has deployed, starting with the first player", () => {
-    let state = readyToDeploy();
+    let state = twoLeft();
     expect(transitionToActivePhase(state)).toBe(state);
     state = deployShip(state, "p2", 0, HOME_RING).state;
     expect(transitionToActivePhase(state)).toBe(state);
@@ -505,7 +521,7 @@ describe("deployment", () => {
   });
 
   it("no turn is taken before the game is active, and a freshly started game plays", () => {
-    const state = readyToDeploy();
+    const state = twoLeft();
     const early = executeTurn(state, [{ ...coast(1), playerId: "p1" }]);
     expect(early.errors?.length).toBeGreaterThan(0);
     expect(early.gameState).toBe(state);

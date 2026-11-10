@@ -31,6 +31,7 @@ const fresh = () =>
     [
       { id: "p1", name: "One" },
       { id: "p2", name: "Two" },
+      { id: "p3", name: "Three" },
     ],
     123
   );

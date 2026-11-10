@@ -11,7 +11,7 @@
 | Hold | no limit; a pirate names the item it seizes |
 | Stations | each buys one item from each player, once |
 | The deal | 3 primaries keep 1; 3 secondaries keep any 2 from a shuffled pile of Survey, Piracy, Tanker, Escort, Salvage |
-| Seats allowed | 2–6 |
+| Seats allowed | 3–6 |
 | Drift | black hole 8/6/4/2/1, planet 6/4/2/1 (station on planet ring 2) |
 | Starting hull | 10 |
 | Heat track | 10; above it is hull damage, then dissipate 5 (+2 per radiator) and carry the rest |

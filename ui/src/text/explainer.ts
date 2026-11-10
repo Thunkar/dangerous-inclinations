@@ -220,7 +220,7 @@ export const EXPLAINER = {
    */
   narration: {
     title:
-      'Dangerous Inclinations. A tabletop game of orbits, heat and hidden weapons, for two to six players.',
+      'Dangerous Inclinations. A tabletop game of orbits, heat and hidden weapons, for three to six players.',
     goal: 'You play for secret mission cards. You are dealt three primaries, worth two points, and keep one. Then three secondaries, worth one point, and keep two. When anyone reaches three points, the round plays out, and the highest score wins.',
     hand: 'Your missions lie face-down in front of you until you complete them.',
     build:

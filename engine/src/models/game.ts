@@ -31,13 +31,18 @@ export const DEFAULT_LOADOUT: ShipLoadout = {
   sideSlots: ["laser", "laser", "shields", "missiles"],
 };
 
-export const MIN_PLAYERS = 2;
+/**
+ * Three seats. Two players is not offered until it has rules of its own: on
+ * the balance seeds seat 1 won 55-59% of two-seat games, and the rival cards
+ * count seats a table of two cannot fill.
+ */
+export const MIN_PLAYERS = 3;
 /**
  * Six seats. The board holds them comfortably (everyone deploys on the black
  * hole's three home rings, 24 sectors each), but the table changes shape as
  * seats are added: each opponent puts another Destroy and another Intercept in
  * every deck, so a six-player game is a fight and a three-player game is a
- * trade route. Two seats is still legal and still thin.
+ * trade route.
  */
 export const MAX_PLAYERS = 6;
 

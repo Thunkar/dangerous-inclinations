@@ -1,6 +1,6 @@
 # Dangerous Inclinations: Rules
 
-A game of orbital manoeuvre, heat management and hidden objectives for 2–6 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to three points from secret missions.
+A game of orbital manoeuvre, heat management and hidden objectives for 3–6 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to three points from secret missions.
 
 **The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the secondary cards are worth 1. So your primary and either of your secondary cards wins, and two secondary cards on their own do not.
 

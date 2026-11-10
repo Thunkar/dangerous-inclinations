@@ -696,7 +696,7 @@ async function main() {
     console.error(`[balance ${Math.round((Date.now() - started) / 1000)}s] ${s}`);
 
   const natural: NaturalRow[] = [];
-  for (const bots of [3, 2, 4]) {
+  for (const bots of [3, 4]) {
     if (!want(`natural:${bots}p`)) continue;
     log(`natural play, ${bots} players`);
     natural.push(naturalRow(bots, await runBatch({ ...common, botCount: bots })));
