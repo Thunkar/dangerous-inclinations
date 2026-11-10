@@ -19,7 +19,7 @@ export const TABLE_TEXT = {
     turn: 'Turn {turn}',
     finalRound: 'FINAL ROUND',
     finalRoundTip:
-      'Someone reached {points} points. The round is played out, then highest score wins (hull breaks ties).',
+      'Someone reached {points} points. The round is played out, then highest score wins (hull, then fuel, break ties).',
     toAct: '{name} to act',
     nobody: 'Nobody',
     watching: 'Watching',
@@ -169,11 +169,8 @@ export const TABLE_TEXT = {
     thinking: 'thinking',
     empty: 'Nobody has said anything yet.',
     sayPlaceholder: 'Say something…',
-    thinkPlaceholder: 'Think to yourself…',
     message: 'Table talk message',
     send: 'Send',
-    thinkTip: 'Post as reasoning: only you see it, in italics and tagged.',
-    think: 'think aside',
     enter: 'Enter sends',
   },
 } as const

@@ -6,7 +6,6 @@ import { api } from './client'
 import type { ShipLoadout, ShipAppearance } from '@dangerous-inclinations/engine'
 import type {
   ChatHistoryResponse,
-  ChatKind,
   ChatPostResponse,
   ForkResponse,
   GameViewResponse,
@@ -54,13 +53,9 @@ export async function getChat(gameId: string): Promise<ChatHistoryResponse> {
   return api.get<ChatHistoryResponse>(`/api/games/${gameId}/chat`)
 }
 
-/** Say something at the table, or note a `think` that only this seat gets back. */
-export async function postChat(
-  gameId: string,
-  text: string,
-  kind: ChatKind = 'say'
-): Promise<ChatPostResponse> {
-  return api.post<ChatPostResponse>(`/api/games/${gameId}/chat`, { text, kind })
+/** Say something at the table. A `think` is an agent's, posted by `yarn seat`, never by the UI. */
+export async function postChat(gameId: string, text: string): Promise<ChatPostResponse> {
+  return api.post<ChatPostResponse>(`/api/games/${gameId}/chat`, { text, kind: 'say' })
 }
 
 /** Fork a finished recording into a fresh live game. */

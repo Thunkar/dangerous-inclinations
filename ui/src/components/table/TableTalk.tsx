@@ -2,25 +2,18 @@
  * Table talk: the chat channel every seat shares, humans and agents alike.
  *
  * Two lanes on the same pad. A `say` is a line spoken at the table, in the
- * speaker's colour. A `think` is the reasoning behind a move, set in italics,
- * dimmed and tagged, so nobody mistakes reasoning for table talk. The server
- * sends a `think` only to the seat that wrote it.
+ * speaker's colour. A `think` is an agent's reasoning behind a move, set in
+ * italics, dimmed and tagged, so nobody mistakes reasoning for table talk: it
+ * is there for the people supervising a game, and only agents post one. The
+ * server sends it to its author and the human seats, never another agent.
  *
  * Purely presentational: it renders what the server has broadcast and posts
  * what is typed. Nothing here touches the game state.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  Box,
-  Button,
-  TextField,
-  Tooltip,
-  Typography,
-  type SxProps,
-  type Theme,
-} from '@mui/material'
+import { Box, Button, TextField, Typography, type SxProps, type Theme } from '@mui/material'
 import { fill } from '@dangerous-inclinations/engine'
-import type { ChatKind, ChatMessage } from '../../api/types'
+import type { ChatMessage } from '../../api/types'
 import { useChat } from '../../context/ChatContext'
 import { useGame } from '../../context/GameContext'
 import { TABLE_TEXT } from '../../text/table'
@@ -129,7 +122,6 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
   const { gameId, view, readOnly } = useGame()
   const { chat, sendChat } = useChat()
   const [draft, setDraft] = useState('')
-  const [thinkAside, setThinkAside] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -152,24 +144,21 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
     stickRef.current = pad.scrollHeight - pad.scrollTop - pad.clientHeight < STICK_THRESHOLD
   }, [])
 
-  const send = useCallback(
-    async (kind: ChatKind) => {
-      const text = draft.trim()
-      if (!text || sending) return
-      setSending(true)
-      setError(null)
-      try {
-        await sendChat(text, kind)
-        setDraft('')
-        stickRef.current = true
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
-      } finally {
-        setSending(false)
-      }
-    },
-    [draft, sending, sendChat]
-  )
+  const send = useCallback(async () => {
+    const text = draft.trim()
+    if (!text || sending) return
+    setSending(true)
+    setError(null)
+    try {
+      await sendChat(text)
+      setDraft('')
+      stickRef.current = true
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSending(false)
+    }
+  }, [draft, sending, sendChat])
 
   // A replay has no channel to talk on; a table you have no seat at has no voice.
   if (!gameId) return null
@@ -216,12 +205,12 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
                 fullWidth
                 size="small"
                 value={draft}
-                placeholder={thinkAside ? T.thinkPlaceholder : T.sayPlaceholder}
+                placeholder={T.sayPlaceholder}
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   e.preventDefault()
-                  void send(thinkAside ? 'think' : 'say')
+                  void send()
                 }}
                 inputProps={{ maxLength: 2000, 'aria-label': T.message }}
                 sx={{
@@ -238,7 +227,7 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
               <Button
                 variant="outlined"
                 size="small"
-                onClick={() => void send(thinkAside ? 'think' : 'say')}
+                onClick={() => void send()}
                 disabled={!draft.trim() || sending}
                 sx={{ flexShrink: 0, minWidth: 54, px: 1, py: 0.55, color: TABLE.ink }}
               >
@@ -246,28 +235,6 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
               </Button>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-              {/* describeChild: the button keeps its own name, the tooltip only explains it. */}
-              <Tooltip describeChild title={T.thinkTip}>
-                <Button
-                  size="small"
-                  onClick={() => setThinkAside(v => !v)}
-                  aria-pressed={thinkAside}
-                  sx={{
-                    flexShrink: 0,
-                    px: 0.75,
-                    py: 0.2,
-                    minWidth: 0,
-                    fontSize: '0.72rem',
-                    letterSpacing: '0.1em',
-                    color: thinkAside ? TABLE.onSelected : TABLE.inkSoft,
-                    border: `1px solid ${thinkAside ? TABLE.selected : TABLE.plateEdge}`,
-                    bgcolor: thinkAside ? TABLE.selected : 'transparent',
-                    '&:hover': { bgcolor: thinkAside ? TABLE.inkSoft : TABLE.hover },
-                  }}
-                >
-                  {T.think}
-                </Button>
-              </Tooltip>
               <Typography sx={{ fontSize: '0.75rem', color: TABLE.inkFaint }} noWrap>
                 {T.enter}
               </Typography>

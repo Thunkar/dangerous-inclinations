@@ -167,8 +167,10 @@ function parseGame(data: string): GameState {
 }
 
 /**
- * A `say` is heard by the table; a `think` by the player who thought it and
- * by every seat a person plays, never by another agent.
+ * A `say` is heard by the table. A `think` is an agent's reasoning, there so
+ * the people supervising a game can watch it and spot problems in the rules:
+ * it is heard by the agent that thought it and by every seat a person plays,
+ * never by another agent. `agents` holds the table's seats an agent plays.
  */
 function mayHear(message: ChatMessage, playerId: string, agents: ReadonlySet<string>): boolean {
   return message.kind === 'say' || message.playerId === playerId || !agents.has(playerId)
@@ -611,7 +613,8 @@ export function createGameService(deps: GameServiceDeps) {
 
     /**
      * Table talk: append a line and tell the seats that may hear it. A `say`
-     * goes to every seat; a `think` to its author and to the seats people play.
+     * goes to every seat; a `think`, which only an agent may post, to its
+     * author and to the seats people play.
      */
     async postChat(
       gameId: string,
@@ -623,6 +626,8 @@ export function createGameService(deps: GameServiceDeps) {
       if (!state) return { ok: false, error: 'Game not found' }
       const player = state.players.find(p => p.id === playerId)
       if (!player) return { ok: false, error: 'Not a player in this game' }
+      if (kind === 'think' && !(await isAgent(playerId)))
+        return { ok: false, error: 'Only an agent seat posts a think' }
       const message: ChatMessage = {
         id: randomUUID(),
         gameId,
@@ -644,7 +649,8 @@ export function createGameService(deps: GameServiceDeps) {
     /** Every line said at this table so far that `playerId` may hear, oldest first. */
     async listChat(gameId: string, playerId: string): Promise<ChatMessage[]> {
       const raw = await kv.lrange(chatKey(gameId))
-      const agents = await agentSeats([playerId])
+      const state = await loadState(gameId)
+      const agents = await agentSeats(state ? state.players.map(p => p.id) : [playerId])
       return raw
         .map(line => JSON.parse(line) as ChatMessage)
         .filter(message => mayHear(message, playerId, agents))

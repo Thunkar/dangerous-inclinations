@@ -5,8 +5,8 @@
  * The history is fetched on arrival, every `CHAT` broadcast after it is added,
  * and so is the line this seat has just posted. The same message can reach us
  * twice (the POST answer and the broadcast), so the id is the identity and the
- * order a line first arrived in is the order it is shown in. A `think` reaches
- * only the seat that wrote it: the server sends nobody else's.
+ * order a line first arrived in is the order it is shown in. A `think` is an
+ * agent's reasoning: the server sends it to its author and the human seats.
  *
  * Mounted by the live game's provider. A replay keeps no table talk, so with
  * no provider the chat is empty and posting does nothing.
@@ -20,7 +20,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { ChatKind, ChatMessage, GameSocketMessage } from '../api/types'
+import type { ChatMessage, GameSocketMessage } from '../api/types'
 import { getChat, postChat } from '../api/game'
 import { useWebSocket } from './WebSocketContext'
 
@@ -28,7 +28,8 @@ export interface ChatContextValue {
   /** Table talk, oldest first: what was said at this table, and this seat's own reasoning. */
   chat: ChatMessage[]
   /** Post a line to the table; empty text does nothing. */
-  sendChat: (text: string, kind?: ChatKind) => Promise<void>
+  /** Say something at the table: a person never posts a `think`. */
+  sendChat: (text: string) => Promise<void>
 }
 
 const NO_CHAT: ChatContextValue = { chat: [], sendChat: async () => {} }
@@ -83,10 +84,10 @@ export function ChatProvider({ gameId, children }: { gameId: string; children: R
   }, [client, gameId, merge])
 
   const sendChat = useCallback(
-    async (text: string, kind: ChatKind = 'say') => {
+    async (text: string) => {
       const trimmed = text.trim()
       if (!trimmed) return
-      const { message } = await postChat(gameId, trimmed, kind)
+      const { message } = await postChat(gameId, trimmed)
       merge([message])
     },
     [gameId, merge]

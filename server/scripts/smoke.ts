@@ -486,24 +486,11 @@ console.log(
   const notMine = await games.previewTurn(GAME_ID, BOT_A, [])
   check(notMine.ok === false, 'a preview by the wrong seat is refused')
   const said = await games.postChat(GAME_ID, HUMAN, 'say', 'good luck, all')
-  const thought = await games.postChat(GAME_ID, HUMAN, 'think', 'going for the Alpha crate first')
-  check(said.ok && thought.ok, 'players can say and think at the table')
-  const chat = await games.listChat(GAME_ID, HUMAN)
-  check(
-    chat.length === 2 &&
-      chat[0].kind === 'say' &&
-      chat[1].kind === 'think' &&
-      chat[1].turn === afterDeploy.turn,
-    'table talk is stored in order with its kind and turn'
-  )
-  // A think reaches its author and every seat a person plays, never another
+  check(said.ok, 'a person says something to the table')
+  const humanThought = await games.postChat(GAME_ID, HUMAN, 'think', 'going for the Alpha crate')
+  check(!humanThought.ok, 'only an agent seat posts a think')
+  // An agent's think reaches it and every seat a person plays, never another
   // agent, on the socket and on GET /chat.
-  check(
-    toHuman.some(
-      m => m.type === 'CHAT' && m.payload.kind === 'think' && m.payload.playerId === HUMAN
-    ),
-    "the human's own think comes back to the human"
-  )
   const sentBefore = toHuman.length
   const botThought = await games.postChat(GAME_ID, BOT_A, 'think', 'the human is heading for Alpha')
   check(botThought.ok, 'an agent seat can think at the table')
@@ -516,16 +503,19 @@ console.log(
   const humanHears = await games.listChat(GAME_ID, HUMAN)
   const botHears = await games.listChat(GAME_ID, BOT_A)
   check(
-    humanHears.length === 3 && humanHears.some(m => m.playerId === BOT_A && m.kind === 'think'),
-    "an agent's think is in the human's chat history"
+    humanHears.length === 2 &&
+      humanHears[0].kind === 'say' &&
+      humanHears[1].kind === 'think' &&
+      humanHears[1].playerId === BOT_A &&
+      humanHears[1].turn === afterDeploy.turn,
+    "the human's history holds the say and the agent's think, in order with its turn"
   )
   check(
-    botHears.length === 2 &&
-      botHears.some(m => m.kind === 'say') &&
-      botHears.some(m => m.playerId === BOT_A && m.kind === 'think') &&
-      !botHears.some(m => m.playerId === HUMAN && m.kind === 'think'),
-    "an agent hears every say and its own thinks, never another seat's"
+    botHears.length === 2 && botHears.some(m => m.playerId === BOT_A && m.kind === 'think'),
+    'an agent hears every say and its own think'
   )
+  const otherAgent = await games.listChat(GAME_ID, BOT_B)
+  check(!otherAgent.some(m => m.kind === 'think'), "an agent never hears another agent's think")
   const stranger = await games.postChat(GAME_ID, 'nobody', 'say', 'hi')
   check(!stranger.ok, 'only seated players talk at the table')
 }

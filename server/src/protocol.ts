@@ -47,9 +47,9 @@ interface TurnErrorPayload {
 
 /**
  * Table talk. One channel per game, two lanes: `say` is heard by everyone at
- * the table (humans and agents alike); `think` is a player's reasoning, and
- * the server sends it to its author and to the seats people play, never to
- * another agent's seat.
+ * the table (humans and agents alike); `think` is an agent's reasoning, which
+ * only an agent seat may post, sent to its author and to the seats people
+ * play (the supervisors), never to another agent.
  */
 export interface ChatMessage {
   id: string

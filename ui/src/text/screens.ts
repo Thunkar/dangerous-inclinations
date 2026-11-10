@@ -186,8 +186,8 @@ export const SCREENS = {
     table: 'Table game',
     turn: '{count} turn',
     turns: '{count} turns',
-    won: '{turns} · three missions completed',
-    unfinished: '{turns} · nobody reached three missions',
+    won: '{turns} · won',
+    unfinished: '{turns} · unfinished',
   },
 
   replay: {
