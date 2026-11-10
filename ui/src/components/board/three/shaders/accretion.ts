@@ -1,12 +1,10 @@
 /**
  * The accretion disc: matter queueing to fall in, and visibly going round.
  *
- * The disc is drawn as a sheet of its own rather than as a flat annulus, so one
- * shader serves every treatment in `bodies.ts`. The vertex stage takes a unit
- * disc, an attribute carrying (fraction along the radius, azimuth), and puts
- * it where the treatment says: tilted out of the board plane, optionally warped
- * so the tilt relaxes and the outer edge settles into the floor of the pit, and
- * offset along the normal by a flared scale height so the same geometry can be
+ * The disc is drawn as a sheet of its own rather than as a flat annulus. The
+ * vertex stage takes a unit disc, an attribute carrying (fraction along the
+ * radius, azimuth), and puts it where `bodies.ts` says: tilted out of the
+ * board plane, and offset along the normal by a flared scale height so the same geometry can be
  * drawn three times as a midplane and two shells and read as something with a
  * thickness instead of a decal. **`sheetPoint` and `sheetPuff` in `bodies.ts`
  * are mirrors of `discSheet` and `discPuff` below**: the budget solver has to
@@ -101,15 +99,12 @@ const GLSL_SHEET = /* glsl */ `
     return (1.0 - exp(-u * 9.0)) * exp(-u * 2.2);
   }
 
-  /* The sheet: a circle rotated about the board's x axis, the rotation relaxing
-     with radius when warped, and the whole thing settling toward the floor. */
-  vec3 discSheet(float u, float theta, float radius, float tilt, float warp, float lift) {
-    float lean = tilt * (1.0 - warp * smoothstep(0.0, 1.0, u));
-    float settle = lift * warp * smoothstep(0.0, 1.0, (u - 0.12) / 0.88);
+  /* The sheet: a circle rotated about the board's x axis. */
+  vec3 discSheet(float theta, float radius, float tilt) {
     return vec3(
       radius * cos(theta),
-      radius * sin(theta) * sin(lean) - settle,
-      radius * sin(theta) * cos(lean)
+      radius * sin(theta) * sin(tilt),
+      radius * sin(theta) * cos(tilt)
     );
   }
 `
@@ -121,8 +116,6 @@ export const ACCRETION_VERTEX = /* glsl */ `
   uniform float uInner;
   uniform float uOuter;
   uniform float uTilt;
-  uniform float uWarp;
-  uniform float uLift;
   uniform float uPuff;
   uniform float uShell;
   varying vec2 vPolar;
@@ -132,11 +125,10 @@ export const ACCRETION_VERTEX = /* glsl */ `
     float theta = aPolar.y;
     float radius = mix(uInner, uOuter, u);
     vPolar = vec2(radius, theta);
-    vec3 p = discSheet(u, theta, radius, uTilt, uWarp, uLift);
+    vec3 p = discSheet(theta, radius, uTilt);
     // The shells stand off along the sheet's own normal.
-    float lean = uTilt * (1.0 - uWarp * smoothstep(0.0, 1.0, u));
     float h = uShell * uPuff * discPuff(u);
-    p += h * vec3(0.0, cos(lean), -sin(lean));
+    p += h * vec3(0.0, cos(uTilt), -sin(uTilt));
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
   }
 `

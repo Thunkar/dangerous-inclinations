@@ -4,8 +4,9 @@
  * It holds what the player chose (the steps, the powers, a repair, the dock
  * sale, what a click is currently picking) and the verbs that
  * edit them. Every number shown for the plan is `plan/preview.ts`, which reads
- * the choices against the engine's pure functions; the server is the referee
- * and nothing here advances state. The route planner keeps its own state in
+ * the choices against the engine's pure functions, asked once per change in
+ * `planReadout.ts`; the server is the referee and nothing here advances
+ * state. The route planner keeps its own state in
  * `RoutePlanContext`.
  */
 import {
@@ -28,37 +29,21 @@ import type {
   Subsystem,
   SubsystemId,
 } from '@dangerous-inclinations/engine'
-import {
-  SELL_NOTHING,
-  chosenSale,
-  getAdjustmentRange,
-  getJumpAdjustmentRange,
-  getJumpOptions,
-  getSubsystemConfig,
-  heatFromCubes,
-  isMooredMidTurn,
-  ringVelocity,
-} from '@dangerous-inclinations/engine'
+import { SELL_NOTHING, getSubsystemConfig } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
+import { usePlanReadout } from './planReadout'
 import {
-  criticalFrom as criticalFromPlan,
-  moveReadiness,
-  planActions,
   powerableTile,
   placementIndex,
   salvageOptionKey,
   salvageStepKey,
-  previewPlan,
   seizeKey,
   type MarkOption,
   type KillSalvageOption,
   type SalvageOption,
   type SeizeOption,
   type SurveyOption,
-  targetsInRange as targetsInRangeOf,
-  reachesOnlyBeforeMove,
   shotIndex,
-  targetsOutOfReach as targetsOutOfReachOf,
   type FireStep,
   type MoveChoice,
   type MoveReadiness,
@@ -240,6 +225,7 @@ const bySlotOrder = (a: SlotView, b: SlotView) =>
 function defaultSteps(): PlanStep[] {
   return [{ id: stepId(), kind: 'move', move: { kind: 'coast', scoop: false } }]
 }
+const defaultMove = () => defaultSteps()[0] as MoveStep
 
 /** The steps with the rotation (if one is needed) just before the move. */
 function withRotation(steps: PlanStep[], rotate: boolean): PlanStep[] {
@@ -288,79 +274,31 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     // Keying on the turn and the active seat is what actually means "new turn".
   }, [view.turn, view.activePlayerId, readOnly, reset])
 
-  const preview = useMemo(() => previewPlan(view, me, steps, powers), [view, me, steps, powers])
+  const {
+    preview,
+    moveStep,
+    projectedHeat,
+    criticalFrom,
+    usedBy,
+    targetsInRange,
+    targetsOutOfReach,
+    reachesBeforeMove,
+    jumpOptions,
+    moored,
+    jumpAdjustmentRange,
+    adjustmentRange,
+    rotateReady,
+    burnReady,
+    jumpReady,
+    scoopGain,
+    dockSale,
+    seizeChoices,
+    salvageChoice,
+    markChoices,
+    actions,
+  } = usePlanReadout(view, me, { steps, powers, repairChoice, dockChoice }, defaultMove)
   const { used, loadout: pendingSubsystems, stepStart, finalPosition, moveFrom, targets } = preview
-
-  const moveStep = useMemo(
-    () => steps.find((s): s is MoveStep => s.kind === 'move') ?? (defaultSteps()[0] as MoveStep),
-    [steps]
-  )
-
-  const projectedHeat = me.ship.heat.currentHeat + heatFromCubes(pendingSubsystems)
-
-  const criticalFrom = useCallback(
-    (step: PlanStep) => criticalFromPlan(me, preview.powers, steps, step),
-    [me, preview.powers, steps]
-  )
-  const usedBy = useCallback((subsystemId: SubsystemId) => used[subsystemId] ?? null, [used])
-
-  /** Where a step starts: a step not in the plan is asked about from where the ship is now. */
-  const startOf = useCallback(
-    (step: PlanStep): StepContext => {
-      const index = steps.findIndex(s => s.id === step.id)
-      return index >= 0 ? stepStart[index] : { position: me.ship, facing: me.ship.facing }
-    },
-    [steps, stepStart, me.ship]
-  )
-  const targetsInRange = useCallback(
-    (step: PlanStep) => targetsInRangeOf(view, me, step, startOf(step), pendingSubsystems, targets),
-    [view, me, startOf, pendingSubsystems, targets]
-  )
-  const targetsOutOfReach = useCallback(
-    (step: PlanStep) =>
-      targetsOutOfReachOf(view, me, step, startOf(step), pendingSubsystems, targets),
-    [view, me, startOf, pendingSubsystems, targets]
-  )
-  const reachesBeforeMove = useCallback(
-    (step: PlanStep) => reachesOnlyBeforeMove(view, me, steps, step, pendingSubsystems),
-    [view, me, steps, pendingSubsystems]
-  )
-
-  const jumpOptions = useMemo(() => getJumpOptions(moveFrom.position), [moveFrom])
-  // Moored only on a berth held since the turn began: a railgun's recoil onto
-  // a station before the move does not dock the ship, and its coast drifts.
-  const moored = useMemo(
-    () => isMooredMidTurn(view.stations, me.ship, moveFrom.position),
-    [view.stations, me.ship, moveFrom]
-  )
-  const jumpAdjustmentRange = useMemo(() => {
-    const move = moveStep.move
-    const option =
-      (move.kind === 'jump'
-        ? jumpOptions.find(o => o.destination.wellId === move.destinationWellId)
-        : undefined) ?? jumpOptions[0]
-    return option ? getJumpAdjustmentRange(option) : { min: 0, max: 0 }
-  }, [jumpOptions, moveStep])
-  const adjustmentRange = useMemo(
-    () => getAdjustmentRange(ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)),
-    [moveFrom]
-  )
-  const { rotateReady, burnReady, jumpReady } = useMemo(
-    () => moveReadiness(me, pendingSubsystems, moveFrom, moveStep.move),
-    [me, pendingSubsystems, moveFrom, moveStep]
-  )
-  const scoopGain = useMemo(() => {
-    const scoop = pendingSubsystems.find(s => s.id === 'scoop')
-    if (!scoop || scoop.isBroken) return 0
-    return ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)
-  }, [pendingSubsystems, moveFrom])
-
   const { dockOffer, seizeOffer, surveyOffer, salvageOffer, markOffer, repairable } = preview
-  const dockSale = !dockOffer
-    ? null
-    : dockChoice === SELL_NOTHING && dockOffer.options.length > 0
-      ? SELL_NOTHING
-      : (chosenSale(dockOffer, dockChoice ?? undefined)?.sale ?? null)
   // A pick the plan no longer offers is dropped rather than refused, so editing
   // the move never leaves an illegal action on the sheet.
   useEffect(() => {
@@ -372,23 +310,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a pick the plan no longer offers is dropped for good
     if (!offered) setDockChoice(null)
   }, [dockChoice, dockOffer])
-  // A seize, salvage or mark step stays where it was put when the move
-  // changes: if it no longer holds there, the sequence says so (`planIssues`).
-  const seizeChoices = useMemo(
-    () => steps.flatMap(s => (s.kind === 'seize' ? [seizeKey(s)] : [])),
-    [steps]
-  )
-  const salvageChoice = useMemo(
-    () =>
-      steps
-        .filter((s): s is Extract<PlanStep, { kind: 'salvage' }> => s.kind === 'salvage')
-        .map(salvageStepKey)[0] ?? null,
-    [steps]
-  )
-  const markChoices = useMemo(
-    () => steps.flatMap(s => (s.kind === 'mark' ? [s.carrierId] : [])),
-    [steps]
-  )
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a repair the plan no longer offers is dropped for good
     if (repairChoice !== null && !repairable.includes(repairChoice)) setRepairChoiceState(null)
@@ -469,15 +390,6 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     [markOffer]
   )
   const setRepairChoice = useCallback((id: SubsystemId | null) => setRepairChoiceState(id), [])
-
-  const actions = useMemo(
-    () =>
-      planActions(me, steps, preview, {
-        repair: repairChoice,
-        dockSale: dockChoice,
-      }),
-    [me, steps, preview, repairChoice, dockChoice]
-  )
 
   // --- mutators ------------------------------------------------------------
 

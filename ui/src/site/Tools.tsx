@@ -7,6 +7,8 @@
  * gone.
  */
 import { Box } from '@mui/material'
+import { MAX_HEAT, fill } from '@dangerous-inclinations/engine'
+import { TOOLS as T } from '../text/tools'
 import { FONT_DISPLAY, PRESS } from '../design/press'
 import type { ToolName } from './routes'
 import { TOOL_NAMES } from './routes'
@@ -24,24 +26,9 @@ interface Tool {
 }
 
 const TOOLS: Record<ToolName, Tool> = {
-  route: {
-    name: 'route',
-    title: 'Route planner',
-    blurb:
-      'The game’s own board: click where the ship is, click where it is going, and the engine lays out the turns, the burns, the phasing and the lane; under it, the orbital windows say when to set off.',
-  },
-  heat: {
-    name: 'heat',
-    title: 'Heat check',
-    blurb:
-      'Your loadout on a mat: click a subsystem to power it, right click to take it off. The check bills the hull for anything over 10, dissipates and carries the rest.',
-  },
-  dice: {
-    name: 'dice',
-    title: 'Dice',
-    blurb:
-      'A d10, or a fistful of them for a salvo and the rack that answers it, read for hits and criticals.',
-  },
+  route: { name: 'route', title: T.route.title, blurb: T.route.blurb },
+  heat: { name: 'heat', title: T.heat.title, blurb: fill(T.heat.blurb, { maxHeat: MAX_HEAT }) },
+  dice: { name: 'dice', title: T.dice.title, blurb: T.dice.blurb },
 }
 
 const ORDER = TOOL_NAMES.map(name => TOOLS[name])
@@ -50,7 +37,7 @@ function ToolTabs({ current }: { current: ToolName }) {
   return (
     <Box
       component="nav"
-      aria-label="Tools"
+      aria-label={T.tabs}
       sx={{ display: 'flex', flexWrap: 'wrap', gap: '4px', mb: { xs: 3, sm: 4 } }}
     >
       {ORDER.map((tool, index) => {
@@ -90,11 +77,7 @@ function ToolTabs({ current }: { current: ToolName }) {
 function ToolsIndex() {
   return (
     <>
-      <PageTitle
-        kicker="Table tools"
-        title="The sums, done for you"
-        blurb="For a game at a real table. Each tool does the arithmetic of a turn with the engine that runs the video game."
-      />
+      <PageTitle kicker={T.kicker} title={T.index.title} blurb={T.index.blurb} />
       <Box
         sx={{
           display: 'grid',
@@ -148,7 +131,7 @@ export function Tools({ tool }: { tool: ToolName | null }) {
   return (
     <SitePage>
       <ToolTabs current={tool} />
-      <PageTitle kicker="Table tools" title={meta.title} blurb={meta.blurb} />
+      <PageTitle kicker={T.kicker} title={meta.title} blurb={meta.blurb} />
       {tool === 'route' && <RoutePlannerTool />}
       {tool === 'heat' && <HeatTrackerTool />}
       {tool === 'dice' && <DiceTool />}

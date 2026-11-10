@@ -18,12 +18,14 @@
 import { Box, Chip, Tooltip, Typography } from '@mui/material'
 import FastForwardIcon from '@mui/icons-material/FastForward'
 import VisibilityIcon from '@mui/icons-material/Visibility'
+import { fill } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
 import { useAnimationControls, usePulses } from '../../context/AnimationContext'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
+import { TABLE_TEXT } from '../../text/table'
 import { Mark } from '../../site/poster'
 import { FoldHeader, useCollapsed } from '../common/Panel'
 import { GameBoard } from '../board/GameBoard'
@@ -42,6 +44,8 @@ import { TurnTransport } from './TurnTransport'
 const LEFT_WIDTH = 252
 /** Your own column: the loadout sets the floor at 252 + the plate's padding. */
 const RIGHT_WIDTH = 348
+
+const T = TABLE_TEXT.header
 
 export function TableScreen({
   headerRight,
@@ -116,12 +120,12 @@ export function TableScreen({
             }}
             noWrap
           >
-            Dangerous Inclinations
+            {T.title}
           </Typography>
         </Box>
         <Chip
           size="small"
-          label={`Turn ${view.turn}`}
+          label={fill(T.turn, { turn: view.turn })}
           variant="outlined"
           sx={{
             bgcolor: 'transparent',
@@ -131,12 +135,10 @@ export function TableScreen({
           }}
         />
         {view.finalRound && view.phase === 'active' && (
-          <Tooltip
-            title={`Someone reached ${view.pointsToWin} points. The round is played out, then highest score wins (hull breaks ties).`}
-          >
+          <Tooltip title={fill(T.finalRoundTip, { points: view.pointsToWin })}>
             <Chip
               size="small"
-              label="FINAL ROUND"
+              label={T.finalRound}
               sx={{
                 bgcolor: TABLE.selected,
                 color: TABLE.onSelected,
@@ -164,7 +166,9 @@ export function TableScreen({
               }}
             />
           }
-          label={`${view.players.find(p => p.id === view.activePlayerId)?.name ?? 'Nobody'} to act`}
+          label={fill(T.toAct, {
+            name: view.players.find(p => p.id === view.activePlayerId)?.name ?? T.nobody,
+          })}
           sx={{
             bgcolor: TABLE.accentBlock,
             color: TABLE.onAccent,
@@ -173,17 +177,11 @@ export function TableScreen({
           }}
         />
         {readOnly && (
-          <Tooltip
-            title={
-              view.me
-                ? 'Nothing here can be played.'
-                : 'Everything shown here is public information.'
-            }
-          >
+          <Tooltip title={view.me ? T.watchingSeatTip : T.watchingTip}>
             <Chip
               size="small"
               icon={<VisibilityIcon sx={{ fontSize: 15 }} />}
-              label={view.me ? `Watching · ${view.me.name}'s seat` : 'Watching'}
+              label={view.me ? fill(T.watchingSeat, { name: view.me.name }) : T.watching}
               variant="outlined"
               sx={{
                 bgcolor: 'transparent',
@@ -195,11 +193,11 @@ export function TableScreen({
           </Tooltip>
         )}
         {isAnimating && (
-          <Tooltip title="Skip to the end of this turn">
+          <Tooltip title={T.skipTip}>
             <Chip
               size="small"
               icon={<FastForwardIcon sx={{ fontSize: 15 }} />}
-              label="skip"
+              label={T.skip}
               onClick={skip}
               variant="outlined"
               sx={{
@@ -237,7 +235,7 @@ export function TableScreen({
             rivals you are not watching and the pads take the height back.
           */}
           <FoldHeader
-            label="Rivals"
+            label={TABLE_TEXT.rivals}
             summary={`${opponents.length}`}
             collapsed={rivalsFolded.collapsed}
             onToggle={rivalsFolded.toggle}

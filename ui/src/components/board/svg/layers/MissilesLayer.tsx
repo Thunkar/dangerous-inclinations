@@ -19,7 +19,7 @@
 import { memo } from 'react'
 import type { Position } from '@dangerous-inclinations/engine'
 import { samePosition } from '@dangerous-inclinations/engine'
-import { TABLE } from '../../../../theme'
+import { TABLE } from '../../../../design/tokens'
 import type { MissilePreview, MissileToken } from '../../model'
 import { BOARD } from '../palette'
 import { positionPoint } from '../../geometry'

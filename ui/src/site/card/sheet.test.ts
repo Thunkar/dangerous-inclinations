@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { CARD_HEIGHT_MM, CARD_WIDTH_MM, SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from './cardStyles'
-import { cropMarks, gridSlots, sheetPages, type PrintMode, type Rect } from './sheet'
+import { CARD_GRID, cropMarks, gridSlots, sheetPages, type PrintMode, type Rect } from './sheet'
 
 const MODES: PrintMode[] = ['sheet', 'duplex-long', 'duplex-short']
 
@@ -15,7 +15,7 @@ function overlaps(a: Rect, b: Rect) {
 
 describe('the print sheet', () => {
   it('centres the grid on the page', () => {
-    const slots = gridSlots()
+    const slots = gridSlots(CARD_GRID)
     const left = Math.min(...slots.map(s => s.x))
     const right = SHEET_WIDTH_MM - Math.max(...slots.map(s => s.x + CARD_WIDTH_MM))
     const top = Math.min(...slots.map(s => s.y))

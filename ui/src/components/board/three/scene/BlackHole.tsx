@@ -32,8 +32,6 @@
  * hole bigger and nothing here has to be touched. The whole group floats at the
  * elevation `blackHoleBody()` computes, so a deeper gravity funnel carries it
  * down without the disc cutting into the wall.
- *
- * `?bh=blaze|warp|halo` picks a treatment; `bodies.ts` describes them.
  */
 import { useEffect, useMemo, useRef } from 'react'
 import {
@@ -271,8 +269,6 @@ export function BlackHole({
       uBright: { value: body.discBright },
       uOuter: { value: body.discOuter },
       uTilt: { value: body.tilt },
-      uWarp: { value: body.warp },
-      uLift: { value: body.lift },
       uPuff: { value: body.puff },
       uSpiral: { value: body.spiral },
       uTime: sceneTime,
@@ -300,7 +296,7 @@ export function BlackHole({
   // The shells are the expensive half of the disc (the same fragment shader
   // over again, twice) so a machine that has already been stepped down draws
   // the midplane alone.
-  const shells = quality === 'cheap' ? [0] : body.shells ? [0, 1, -1] : [0]
+  const shells = quality === 'cheap' ? [0] : [0, 1, -1]
 
   useFrame(({ camera }) => {
     if (facing.current) facing.current.quaternion.copy(camera.quaternion)

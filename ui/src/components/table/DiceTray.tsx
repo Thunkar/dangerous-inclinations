@@ -7,7 +7,8 @@ import { Box, Typography } from '@mui/material'
 import { useDice } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { DieResult } from '../common/DieFace'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
+import { TABLE_TEXT } from '../../text/table'
 
 export function DiceTray() {
   const dice = useDice()
@@ -35,7 +36,7 @@ export function DiceTray() {
       }}
     >
       <Typography variant="overline" sx={{ color: TABLE.ink, lineHeight: 1.4 }}>
-        Dice
+        {TABLE_TEXT.dice}
       </Typography>
       {dice.slice(-4).map(die => (
         <DieResult key={die.id} die={die} nameOf={nameOf} />

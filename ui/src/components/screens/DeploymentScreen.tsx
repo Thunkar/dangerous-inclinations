@@ -21,6 +21,7 @@ import {
   orList,
   BLACK_HOLE_ID,
   SECTORS_PER_RING,
+  fill,
   legalDeploymentsAgainst,
   placedShipPositions,
 } from '@dangerous-inclinations/engine'
@@ -30,10 +31,16 @@ import { BoardModeToggle } from '../board/BoardModeToggle'
 import { Panel } from '../common/Panel'
 import { MissionHand } from '../common/MissionHand'
 import { getPlayerColor } from '../../utils/playerColors'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { TableTalk } from '../table/TableTalk'
 import { Centered, Header } from './ScreenChrome'
 import { placeLabel } from '../../utils/route'
+import { SCREENS } from '../../text/screens'
+
+const S = SCREENS.deployment
+/** The rule as every line here states it: the rings and the gap. */
+const RULE = { rings: orList(HOME_RINGS), gap: DEPLOYMENT_GAP }
 
 /** What a ring does to a ship sitting on it, straight from the ring table. */
 function driftOf(ring: number): number {
@@ -56,7 +63,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
     [legal, ring]
   )
 
-  if (!me) return <Centered>Watching the table: no ship to place.</Centered>
+  if (!me) return <Centered>{S.spectator}</Centered>
 
   const onDeploy = async (position: Position) => {
     if (!myTurn || placing) return
@@ -76,8 +83,8 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <Header
-        title="Place your ship"
-        subtitle={`${deployed} of ${view.players.length} placed · Black Hole Ring ${orList(HOME_RINGS)}, ${DEPLOYMENT_GAP}+ sectors from every ship already placed`}
+        title={S.title}
+        subtitle={fill(S.subtitle, { placed: deployed, seats: view.players.length, ...RULE })}
         right={
           <>
             <BoardModeToggle />
@@ -100,17 +107,16 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
             overflow: 'auto',
           }}
         >
-          <Panel title="Ring and sector" dense sx={{ flexShrink: 0 }}>
+          <Panel title={S.ring.title} dense sx={{ flexShrink: 0 }}>
             <Typography variant="body2" sx={{ color: TABLE.inkSoft, lineHeight: 1.4 }}>
-              Black Hole Ring {orList(HOME_RINGS)}, at least {DEPLOYMENT_GAP} sectors from every
-              ship already placed. That position becomes your Home.
+              {fill(S.ring.rule, RULE)}
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.75, mt: 0.75 }}>
               {HOME_RINGS.map(r => (
                 <Chip
                   key={r}
                   size="small"
-                  label={`Ring ${r} · drifts ${driftOf(r)}`}
+                  label={fill(S.ring.chip, { ring: r, drift: driftOf(r) })}
                   onClick={() => setRing(r)}
                   aria-pressed={r === ring}
                   sx={{
@@ -163,10 +169,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                 return open ? (
                   <Box key={sector}>{cell}</Box>
                 ) : (
-                  <Tooltip
-                    key={sector}
-                    title={`closer than ${DEPLOYMENT_GAP} sectors to a placed ship`}
-                  >
+                  <Tooltip key={sector} title={fill(S.ring.tooClose, RULE)}>
                     <Box>{cell}</Box>
                   </Tooltip>
                 )
@@ -174,7 +177,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
             </Box>
           </Panel>
 
-          <Panel title="Turn order · last seat places first" dense sx={{ flexShrink: 0 }}>
+          <Panel title={S.order.title} dense sx={{ flexShrink: 0 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
               {view.players.map((player, index) => (
                 <Box key={player.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -194,7 +197,7 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                     }}
                   >
                     {player.name}
-                    {player.isMe ? ' (you)' : ''}
+                    {player.isMe ? S.order.you : ''}
                   </Typography>
                   <Box sx={{ flex: 1 }} />
                   {player.hasDeployed && player.home ? (
@@ -212,11 +215,11 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                     />
                   ) : player.id === view.activePlayerId ? (
                     <Typography variant="overline" sx={{ color: TABLE.accent, lineHeight: 1 }}>
-                      placing
+                      {S.order.placing}
                     </Typography>
                   ) : (
                     <Typography variant="overline" sx={{ color: TABLE.inkSoft, lineHeight: 1 }}>
-                      waiting
+                      {S.order.waiting}
                     </Typography>
                   )}
                 </Box>
@@ -226,9 +229,9 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
 
           {/* The hand is one card tall and no shorter: a column that squeezed
               it would cut the cards off again. */}
-          <Panel title="Your missions" dense sx={{ flexShrink: 0 }}>
+          <Panel title={S.missions.title} dense sx={{ flexShrink: 0 }}>
             <Typography variant="body2" sx={{ color: TABLE.inkSoft, lineHeight: 1.4 }}>
-              They should decide which ring and sector Home goes in.
+              {S.missions.hint}
             </Typography>
             {/* The same hand you will hold at the table: one card tall, no
                 column of cards to scroll past the board. */}
@@ -241,16 +244,11 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
           {!myTurn && (
             <Alert severity="info">
               {me.hasDeployed
-                ? 'Your ship is placed. Waiting for the others.'
-                : `Waiting for ${active?.name ?? 'the next player'} to place.`}
+                ? S.placed
+                : fill(S.waitingFor, { name: active?.name ?? S.nextPlayer })}
             </Alert>
           )}
-          {myTurn && (
-            <Alert severity="success">
-              Place your ship on Black Hole Ring {orList(HOME_RINGS)}, at least {DEPLOYMENT_GAP}{' '}
-              sectors from every ship already placed. That position becomes your Home.
-            </Alert>
-          )}
+          {myTurn && <Alert severity="success">{fill(S.yourTurn, RULE)}</Alert>}
 
           {/* The table is already talking while the ships go down. */}
           <TableTalk sx={{ flex: '1 0 auto', minHeight: 220 }} />

@@ -16,6 +16,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Box, Tooltip, Typography } from '@mui/material'
 import ReplayIcon from '@mui/icons-material/Replay'
+import { fill } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import {
   PLAYBACK_SPEEDS,
@@ -23,8 +24,12 @@ import {
   type PlaybackSpeed,
 } from '../../context/AnimationContext'
 import { getPlayerColor } from '../../utils/playerColors'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
+import { TABLE_TEXT } from '../../text/table'
+
+const T = TABLE_TEXT.transport
 
 /**
  * One style for every tick, so the styling is resolved twice rather than once
@@ -51,7 +56,7 @@ const TICK_IDLE = { ...TICK, cursor: 'default', opacity: 0.4, '&:hover': {} } as
 
 /** What one tick says when you hover it. */
 function tickTitle(name: string, turn: number, lines: number): string {
-  return `Replay ${name}'s turn (round ${turn}, ${lines} ${lines === 1 ? 'event' : 'events'})`
+  return fill(lines === 1 ? T.tickOne : T.tickMany, { name, turn, lines })
 }
 
 export function TurnTransport() {
@@ -110,7 +115,7 @@ export function TurnTransport() {
           flexShrink: 0,
         }}
       >
-        {history.length} {history.length === 1 ? 'turn' : 'turns'}
+        {fill(history.length === 1 ? T.turn : T.turns, { count: history.length })}
       </Typography>
 
       <Box
@@ -166,13 +171,12 @@ export function TurnTransport() {
           flexShrink: 0,
         }}
       >
-        Speed
+        {T.speed}
       </Typography>
       <Box sx={{ display: 'flex', gap: 0.25, flexShrink: 0 }}>
         {PLAYBACK_SPEEDS.map((option: PlaybackSpeed) => {
           const on = option === speed
-          const title =
-            option === 1 ? 'Turns play at reading pace' : `Turns play ${option} times faster`
+          const title = option === 1 ? T.readingPace : fill(T.faster, { speed: option })
           return (
             <Tooltip key={option} title={title}>
               <Box
@@ -195,7 +199,7 @@ export function TurnTransport() {
                   '&:focus-visible': { outline: `2px solid ${TABLE.accent}`, outlineOffset: 2 },
                 }}
               >
-                {option}x
+                {fill(T.option, { speed: option })}
               </Box>
             </Tooltip>
           )

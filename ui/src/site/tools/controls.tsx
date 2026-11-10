@@ -11,7 +11,9 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
 import type { SxProps, Theme } from '@mui/material'
+import { fill } from '@dangerous-inclinations/engine'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
+import { TOOLS } from '../../text/tools'
 
 const TAP = 44
 
@@ -196,12 +198,12 @@ function StepButton({
   onClick: () => void
   disabled: boolean
 }) {
-  const verb = sign === '−' ? 'decrease' : 'increase'
+  const verb = sign === '−' ? TOOLS.controls.decrease : TOOLS.controls.increase
   return (
     <Box
       component="button"
       type="button"
-      aria-label={what ? `${verb} ${what}` : verb}
+      aria-label={what ? fill(TOOLS.controls.step, { verb, what }) : verb}
       onClick={onClick}
       disabled={disabled}
       sx={{

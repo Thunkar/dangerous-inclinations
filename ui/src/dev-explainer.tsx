@@ -26,6 +26,7 @@ import {
   COMPRESSED_JUMP_MASS,
   DEFAULT_DISSIPATION_CAPACITY,
   DEFAULT_POINTS_TO_WIN,
+  FORWARD_SLOT_COUNT,
   INTERCEPT_HEAT,
   MAX_HEAT,
   MAX_PLAYERS,
@@ -35,6 +36,8 @@ import {
   PRIMARY_OFFERS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
   SECONDARY_OFFERS_PER_PLAYER,
+  SECTOR_ADJUSTMENT_COST_PER_SECTOR,
+  SIDE_SLOT_COUNT,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
   fill,
@@ -421,7 +424,7 @@ function BuildSlide({ t, out }: { t: number; out: number }) {
     <Slide tone="deep" n={B.n} kicker={B.kicker} title={B.title} t={t} out={out}>
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.45fr 0.9fr', gap: 6 }}>
         <Box sx={show(t, 0.8)}>
-          <Head>{B.forward}</Head>
+          <Head>{fill(B.forward, { count: FORWARD_SLOT_COUNT })}</Head>
           <SlotBox label="FWD" size={150} type={EXAMPLE.forward} lit={(t - fillAt) / 0.5} />
           <Options
             types={FORWARD_TILES}
@@ -431,7 +434,7 @@ function BuildSlide({ t, out }: { t: number; out: number }) {
           />
         </Box>
         <Box sx={show(t, 2.2)}>
-          <Head>{B.side}</Head>
+          <Head>{fill(B.side, { count: SIDE_SLOT_COUNT })}</Head>
           <Box sx={{ display: 'flex', gap: 2 }}>
             {EXAMPLE.sides.map((type, i) => (
               <SlotBox
@@ -655,7 +658,7 @@ function Phasing({ t, at }: { t: number; at: number }) {
       <Box sx={{ width: 480 }}>
         <Display size="3.2rem">{P.title}</Display>
         <Line size="1.8rem" sx={{ mt: 1 }}>
-          {P.text}
+          {fill(P.text, { fuel: SECTOR_ADJUSTMENT_COST_PER_SECTOR })}
         </Line>
       </Box>
       <Box sx={{ display: 'flex', gap: '6px' }}>
@@ -722,15 +725,23 @@ function Phasing({ t, at }: { t: number; at: number }) {
 function MovesSlide({ t, out }: { t: number; out: number }) {
   const M = S.moves
   const panels = [
-    { k: M.coast, diagram: <CoastDiagram />, cost: M.coast.cost },
-    { k: M.burn, diagram: <BurnDiagram />, cost: M.burn.cost },
+    { k: M.coast, diagram: <CoastDiagram />, cost: M.coast.cost, text: M.coast.text },
+    {
+      k: M.burn,
+      diagram: <BurnDiagram />,
+      cost: fill(M.burn.cost, { fuel: BURN_COSTS.soft.mass, energy: BURN_COSTS.soft.energy }),
+      text: fill(M.burn.text, {
+        fewest: BURN_COSTS.soft.rings,
+        most: Math.max(...Object.values(BURN_COSTS).map(burn => burn.rings)),
+      }),
+    },
     {
       k: M.jump,
       diagram: <JumpDiagram />,
       cost: fill(M.jump.cost, { fuel: WELL_TRANSFER_COSTS.mass, compressed: COMPRESSED_JUMP_MASS }),
+      text: M.jump.text,
     },
   ]
-  void BURN_COSTS
   return (
     <Slide n={M.n} kicker={M.kicker} title={M.title} t={t} out={out} zoom={1.12}>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
@@ -760,7 +771,7 @@ function MovesSlide({ t, out }: { t: number; out: number }) {
               {p.cost}
             </Box>
             <Line size="1.8rem" sx={{ mt: 1.5 }}>
-              {p.k.text}
+              {p.text}
             </Line>
           </Box>
         ))}
@@ -1336,7 +1347,13 @@ function Caption({ text, vars, u }: { text: string; vars?: Vars; u: number }) {
         opacity: smooth(u),
       }}
     >
-      {fill(String(X.captions[key] ?? text), { points: POINTS, ...vars })}
+      {fill(String(X.captions[key] ?? text), {
+        points: POINTS,
+        dissipation: DEFAULT_DISSIPATION_CAPACITY,
+        radiator: RADIATOR_DISSIPATION,
+        drift: STATION_DRIFT,
+        ...vars,
+      })}
     </Box>
   )
 }

@@ -18,62 +18,32 @@
  * glance away. Everything previewed here (costs, heat, range) comes from the
  * engine; the server is the referee.
  */
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  Divider,
-  Slider,
-  ToggleButton,
-  Tooltip,
-  Typography,
-} from '@mui/material'
+import { Alert, Box, Button, Divider, Tooltip, Typography } from '@mui/material'
 import SendIcon from '@mui/icons-material/Send'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
-import type { ReactNode } from 'react'
-import type {
-  BurnIntensity,
-  Mission,
-  SaleOption,
-  SeizableItem,
-  SubsystemType,
-} from '@dangerous-inclinations/engine'
-import {
-  BURN_COSTS,
-  SELL_NOTHING,
-  COMPRESSED_JUMP_MASS,
-  WELL_TRANSFER_COSTS,
-  calculateBurnMassCost,
-  calculateJumpMassCost,
-  getSubsystemConfig,
-  getWellName,
-  hasWorkingCompressor,
-  oppositeFacing,
-  phasedJumpDestination,
-} from '@dangerous-inclinations/engine'
+import { fill } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
-import { useLiveView } from '../../context/AnimationContext'
-import { salvageOptionKey, seizeKey } from '../../plan/preview'
 import { useGame } from '../../context/GameContext'
-import { Panel, SectionLabel } from '../common/Panel'
-import { SubsystemIcon } from '../common/SubsystemIcon'
-import { FONT_MONO, TABLE } from '../../theme'
-import { hullOf, slotWithSubsystem } from '../../utils/slots'
+import { SectionLabel } from '../common/Panel'
+import { TABLE } from '../../design/tokens'
+import { ACTIONS } from '../../text/actions'
 import { RoutePlanner } from './RoutePlanner'
 import { SequenceList } from './SequenceList'
 import { ShipEnergyLoadout } from './ShipEnergyLoadout'
 import { SystemsControls } from './SystemsControls'
-import { StatusBlock } from './StatusBlock'
-import { placeLabel } from '../../utils/route'
+import { DockSaleControl } from './actions/DockSaleControl'
+import { MarkControl } from './actions/MarkControl'
+import { MoveControls } from './actions/MoveControls'
+import { OrientationControls } from './actions/OrientationControls'
+import { RepairControl } from './actions/RepairControl'
+import { SalvageControl } from './actions/SalvageControl'
+import { SeizeControl } from './actions/SeizeControl'
+import { StandingLoadout } from './actions/StandingLoadout'
+import { Step } from './actions/parts'
+import { SurveyControl } from './actions/SurveyControl'
+import { TurnShell } from './actions/TurnShell'
 
-const INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
-
-/** What a compressor saves on a jump, in words, from the engine's two prices. */
-const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five']
-const COMPRESSOR_NOTE = ` (the compressor pays ${
-  NUMBER_WORDS[WELL_TRANSFER_COSTS.mass - COMPRESSED_JUMP_MASS]
-} of the jump's ${NUMBER_WORDS[WELL_TRANSFER_COSTS.mass]} fuel, never the phasing)`
+const T = ACTIONS.panel
 
 export function ActionPanel() {
   const { view, submitTurn, isAnimating, turnErrors, clearTurnErrors, readOnly } = useGame()
@@ -98,12 +68,12 @@ export function ActionPanel() {
   if (view.phase === 'ended' || readOnly || waiting || destroyed || isAnimating) {
     const title =
       view.phase === 'ended'
-        ? 'Game over'
+        ? T.title.ended
         : readOnly
-          ? 'Watching'
+          ? T.title.watching
           : sittingOut
-            ? 'Your turn'
-            : 'The table'
+            ? T.title.yours
+            : T.title.table
     return (
       <TurnShell title={title} slab={sittingOut}>
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pt: 0.75 }}>
@@ -111,15 +81,15 @@ export function ActionPanel() {
           <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
             {view.phase === 'ended'
               ? winner
-                ? `${winner} wins.`
-                : 'The game has ended.'
+                ? fill(T.winner, { winner })
+                : T.ended
               : readOnly
-                ? 'Nothing here can be played.'
+                ? T.watching
                 : sittingOut
-                  ? 'Your ship is lost. You return to Home this turn with a full hull and tank and drift; nobody can touch you until your next turn is over.'
+                  ? T.sittingOut
                   : isAnimating
-                    ? 'Watching the turn play out…'
-                    : `Waiting for ${active?.name ?? 'the next player'} to act.`}
+                    ? T.animating
+                    : fill(T.waiting, { name: active?.name ?? T.nextPlayer })}
           </Typography>
         </Box>
         {sittingOut && (
@@ -132,7 +102,7 @@ export function ActionPanel() {
               disabled={isAnimating}
               onClick={() => submitTurn([])}
             >
-              Continue
+              {T.continue}
             </Button>
           </Box>
         )}
@@ -144,10 +114,10 @@ export function ActionPanel() {
 
   return (
     <TurnShell
-      title="Your turn"
+      title={T.title.yours}
       slab
       action={
-        <Tooltip title="Clear the plan and start again">
+        <Tooltip title={T.resetTip}>
           <Button
             size="small"
             startIcon={<RestartAltIcon />}
@@ -159,7 +129,7 @@ export function ActionPanel() {
               '&:hover': { bgcolor: TABLE.shade },
             }}
           >
-            reset
+            {T.reset}
           </Button>
         </Tooltip>
       }
@@ -179,30 +149,30 @@ export function ActionPanel() {
       >
         {turnErrors.length > 0 && (
           <Alert severity="error" onClose={clearTurnErrors} sx={{ py: 0 }}>
-            {turnErrors.join(' · ')}
+            {turnErrors.join(T.errorsJoin)}
           </Alert>
         )}
 
         {/* What the turn puts on the loadout: read here, set by the steps below. */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
-          <SectionLabel sx={{ lineHeight: 1.35 }}>Loadout · energy this turn</SectionLabel>
+          <SectionLabel sx={{ lineHeight: 1.35 }}>{T.loadout}</SectionLabel>
           <ShipEnergyLoadout subsystems={plan.pendingSubsystems} planned />
         </Box>
 
         <Divider />
-        <Step n={1} label="Orientation">
+        <Step n={1} label={T.steps.orientation}>
           <OrientationControls />
         </Step>
 
         <Divider />
-        <Step n={2} label="Move · one per turn">
+        <Step n={2} label={T.steps.move}>
           <MoveControls />
         </Step>
         {/* Not a fourth move: an instrument that proposes one. Its own plate. */}
         <RoutePlanner />
 
         <Divider />
-        <Step n={3} label="Systems">
+        <Step n={3} label={T.steps.systems}>
           <SystemsControls />
         </Step>
 
@@ -214,7 +184,7 @@ export function ActionPanel() {
         <MarkControl />
 
         <Divider />
-        <Step n={4} label="Sequence">
+        <Step n={4} label={T.steps.sequence}>
           <SequenceList />
         </Step>
       </Box>
@@ -249,7 +219,7 @@ export function ActionPanel() {
               noWrap
             >
               {plan.issues[0]}
-              {plan.issues.length > 1 ? ` · +${plan.issues.length - 1} more` : ''}
+              {plan.issues.length > 1 ? fill(T.moreIssues, { count: plan.issues.length - 1 }) : ''}
             </Typography>
           </Tooltip>
         )}
@@ -261,771 +231,9 @@ export function ActionPanel() {
           disabled={plan.disabled || blocked}
           onClick={() => submitTurn(plan.actions)}
         >
-          End turn
+          {T.endTurn}
         </Button>
       </Box>
     </TurnShell>
-  )
-}
-
-/**
- * Off your turn: what really stands on your tiles and what is broken, as the
- * turn playing leaves them. Its own component, so only it re-renders with the
- * beats of a playback.
- */
-function StandingLoadout() {
-  const { view } = useGame()
-  const live = useLiveView()
-  const me = live ? live.me : view.me
-  if (!me) return null
-  return <ShipEnergyLoadout subsystems={me.ship.subsystems} />
-}
-
-/**
- * The column itself: the plate, your status pinned to the top of it, and
- * whatever the turn needs under that. A turn that is yours to take wears its
- * title on the red slab; waiting for someone else, it is a plain plate.
- */
-function TurnShell({
-  title,
-  slab = false,
-  action,
-  children,
-}: {
-  title: string
-  slab?: boolean
-  action?: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <Panel
-      title={title}
-      slab={slab}
-      dense
-      action={action}
-      sx={{ flex: 1, minWidth: 0, minHeight: 0 }}
-    >
-      <Box
-        sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: 0.5 }}
-      >
-        <StatusBlock accent={slab ? TABLE.accentBlock : TABLE.plateEdge} />
-        {children}
-      </Box>
-    </Panel>
-  )
-}
-
-/**
- * Naming the tile a cold ship's crew will fix. It appears only when the turn as
- * built would end at 0 heat and something is broken, because those are exactly
- * the turns on which it can happen. A control that offered itself and then did
- * nothing would be worse than none.
- */
-function RepairControl() {
-  const plan = usePlan()
-  const disabled = plan.disabled
-  const broken = plan.me.ship.subsystems.filter(s => s.isBroken)
-  if (broken.length === 0) return null
-
-  const offered = plan.repairable
-  return (
-    <>
-      <Divider />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-        <SectionLabel>Repair · one a turn, and only cold</SectionLabel>
-        {offered.length === 0 ? (
-          <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.74rem', color: TABLE.inkSoft }}>
-            This turn makes heat. A repair needs no energy on any subsystem: a plain coast, no
-            scoop, no shot, no scan, nothing powered.
-          </Typography>
-        ) : (
-          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-            {broken.map(sub => {
-              const can = offered.includes(sub.id)
-              const on = plan.repairChoice === sub.id
-              return (
-                <ChoiceChip
-                  key={sub.id}
-                  title={`${slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))} · repaired at your heat check`}
-                  selected={on}
-                  disabled={disabled || !can}
-                  opacity={can ? 1 : 0.45}
-                  onClick={() => plan.setRepairChoice(on ? null : sub.id)}
-                >
-                  {slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))}
-                </ChoiceChip>
-              )
-            })}
-          </Box>
-        )}
-      </Box>
-    </>
-  )
-}
-
-/** What an option on offer is: the load, or a sale in the words of the card it pays. */
-function saleLabel(option: SaleOption, missions: readonly Mission[], loads: number): string {
-  const mission = missions.find(m => m.id === option.missionId)
-  switch (option.kind) {
-    case 'load':
-      return `Load ${loads} crate${loads === 1 ? '' : 's'}`
-    case 'fuel':
-      return 'Tanker fuel'
-    case 'loot':
-      return 'Piracy loot'
-    case 'crate':
-      return mission?.type === 'deliver_cargo'
-        ? `Deliver crate to ${getWellName(mission.deliveryPlanetId)}`
-        : 'Crate'
-    case 'data':
-      return mission?.type === 'intercept_transmission'
-        ? 'Intercept data'
-        : mission?.type === 'salvage'
-          ? 'Salvage black box'
-          : 'Survey data'
-  }
-}
-
-/**
- * What the visit does (RULES §Stations): load your crates or sell one item,
- * and each station buys from you once per game. It appears when the turn as
- * built arrives at a station; the options, their points and the default come
- * from the engine, and the default is lit until another is picked. Doing
- * nothing keeps the station for later. A station that has bought from you
- * already says so.
- */
-function DockSaleControl() {
-  const plan = usePlan()
-  const disabled = plan.disabled
-  const offer = plan.dockOffer
-  if (!offer) return null
-  const station = getWellName(offer.planetId)
-  return (
-    <>
-      <Divider />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-        <SectionLabel>
-          {offer.soldHere
-            ? `At the dock · ${station} buys nothing more from you`
-            : `At the dock · load or sell one item`}
-        </SectionLabel>
-        {offer.options.length > 0 && (
-          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-            {offer.options.map(option => (
-              <ChoiceChip
-                key={option.sale}
-                title={`${option.kind === 'load' ? 'Not a sale' : `${option.points} point${option.points === 1 ? '' : 's'}`}${
-                  option.sale === offer.default?.sale ? ' · the default' : ''
-                }`}
-                selected={plan.dockSale === option.sale}
-                disabled={disabled}
-                onClick={() => plan.setDockSale(option.sale)}
-              >
-                {saleLabel(option, plan.me.missions, offer.loads)}
-                {option.kind === 'load' ? '' : ` · ${option.points}`}
-              </ChoiceChip>
-            ))}
-            <ChoiceChip
-              title={`Keep ${station} for later`}
-              selected={plan.dockSale === SELL_NOTHING}
-              disabled={disabled}
-              onClick={() => plan.setDockSale(SELL_NOTHING)}
-            >
-              Do nothing
-            </ChoiceChip>
-          </Box>
-        )}
-      </Box>
-    </>
-  )
-}
-
-const ITEM_WORD: Record<SeizableItem['kind'], string> = {
-  crate: 'crate',
-  loot: 'loot',
-  data: 'data',
-}
-
-/**
- * Piracy is a "you may" (RULES §Missions), and a step in the sequence. The
- * choice appears only when a Piracy card is free and an undocked ship
- * carrying cargo shares the sector where the turn starts or where the move
- * ends; a pick puts a seize step in the sequence (first, or right after the
- * move), and at one pick per free card the rest wait until one is taken back.
- */
-function SeizeControl() {
-  const plan = usePlan()
-  const disabled = plan.disabled
-  const { nameOf } = useGame()
-  const offer = plan.seizeOffer
-  if (!offer) return null
-  const full = plan.seizeChoices.length >= offer.cards
-  return (
-    <>
-      <Divider />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-        <SectionLabel>
-          Piracy · you may take {offer.cards === 1 ? 'one item' : `${offer.cards} items`}
-        </SectionLabel>
-        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-          {offer.items.map(item => {
-            const key = seizeKey(item)
-            const on = plan.seizeChoices.includes(key)
-            const name = nameOf(item.victimId)
-            const off = disabled || (!on && full)
-            return (
-              <ChoiceChip
-                key={key}
-                title={`A step in your sequence, ${
-                  item.before ? 'before your move and your shots' : 'right after your move'
-                }. Sell it at any station. ${name}'s card goes back to undone.`}
-                selected={on}
-                disabled={off}
-                opacity={!on && full ? 0.5 : 1}
-                onClick={() => plan.toggleSeize(item)}
-              >
-                Take {ITEM_WORD[item.kind]} from {name} · {item.before ? 'now' : 'after the move'}
-              </ChoiceChip>
-            )
-          })}
-        </Box>
-      </Box>
-    </>
-  )
-}
-
-/** Where a step offered before or after the move goes, said on its chip. */
-const when = (before: boolean) => (before ? 'now' : 'after the move')
-const whenTitle = (before: boolean) =>
-  `A step in your sequence, ${before ? 'before your move and your shots' : 'right after your move'}.`
-
-/**
- * Survey is a "you may" (RULES §Missions) and a step in the sequence: offered
- * when a Survey card wants data and the ship is on Black Hole Ring 1 where
- * the turn starts or where the move ends.
- */
-function SurveyControl() {
-  const plan = usePlan()
-  const offer = plan.surveyOffer
-  if (!offer) return null
-  return (
-    <>
-      <Divider />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-        <SectionLabel>Survey · you may take the data</SectionLabel>
-        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-          <ChoiceChip
-            title={`${whenTitle(offer.before)} File it at any station.`}
-            selected={plan.steps.some(s => s.kind === 'survey')}
-            disabled={plan.disabled}
-            onClick={plan.toggleSurvey}
-          >
-            Take the data · {when(offer.before)}
-          </ChoiceChip>
-        </Box>
-      </Box>
-    </>
-  )
-}
-
-/**
- * Salvage is a "you may" (RULES §Missions) and a step in the sequence:
- * offered when a Salvage card wants a black box and a wreck is on the sector
- * where the turn starts or where the move ends, or when a shot of the plan
- * could destroy a ship in the sector the ship is in after it (the wreck is
- * there at once, so the step goes right after the shot). One wreck a turn.
- */
-function SalvageControl() {
-  const plan = usePlan()
-  const { nameOf } = useGame()
-  const offer = plan.salvageOffer
-  if (!offer) return null
-  const chosen = plan.salvageChoice
-  return (
-    <>
-      <Divider />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-        <SectionLabel>Salvage · you may take a black box</SectionLabel>
-        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-          {offer.kills.map(kill => {
-            const key = salvageOptionKey(kill)
-            const on = chosen === key
-            const full = chosen !== null && !on
-            return (
-              <ChoiceChip
-                key={key}
-                title={`Right after your shot. Nothing is taken if ${nameOf(kill.victimId)} survives. File it at any station.`}
-                selected={on}
-                disabled={plan.disabled || full}
-                opacity={full ? 0.5 : 1}
-                onClick={() => plan.toggleSalvage(kill)}
-              >
-                Salvage {nameOf(kill.victimId)} · if it dies
-              </ChoiceChip>
-            )
-          })}
-          {offer.wrecks.map((wreck, index) => {
-            const on = chosen === salvageOptionKey(wreck)
-            const full = chosen !== null && !on
-            return (
-              <ChoiceChip
-                key={wreck.id}
-                title={`${whenTitle(wreck.before)} File it at any station.`}
-                selected={on}
-                disabled={plan.disabled || full}
-                opacity={full ? 0.5 : 1}
-                onClick={() => plan.toggleSalvage(wreck)}
-              >
-                {offer.wrecks.length > 1 ? `Salvage wreck ${index + 1}` : 'Salvage the wreck'} ·{' '}
-                {when(wreck.before)}
-              </ChoiceChip>
-            )
-          })}
-        </Box>
-      </Box>
-    </>
-  )
-}
-
-/**
- * An Escort marker is a "you may" (RULES §Missions, Escort) and a step in the
- * sequence: offered when a carrier the engine would let a marker go on shares
- * the ring where the turn starts or where the move ends. At one pick per
- * marker in hand the rest wait until one is taken back.
- */
-function MarkControl() {
-  const plan = usePlan()
-  const { nameOf } = useGame()
-  const offer = plan.markOffer
-  if (!offer) return null
-  const full = plan.markChoices.length >= offer.markers
-  return (
-    <>
-      <Divider />
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-        <SectionLabel>
-          Escort · you may place {offer.markers === 1 ? 'your marker' : `${offer.markers} markers`}
-        </SectionLabel>
-        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
-          {offer.carriers.map(option => {
-            const on = plan.markChoices.includes(option.carrierId)
-            const name = nameOf(option.carrierId)
-            return (
-              <ChoiceChip
-                key={option.carrierId}
-                title={`${whenTitle(option.before)} Done the next time ${name} sells or pumps fuel with you in its well; back to you if either ship is destroyed first.`}
-                selected={on}
-                disabled={plan.disabled || (!on && full)}
-                opacity={!on && full ? 0.5 : 1}
-                onClick={() => plan.toggleMark(option)}
-              >
-                Mark {name} · {when(option.before)}
-              </ChoiceChip>
-            )
-          })}
-        </Box>
-      </Box>
-    </>
-  )
-}
-
-/**
- * One pick among a few (a subsystem to repair, a sale, a carrier to mark,
- * an item to take, a wreck): a cream block when chosen, an outlined one when not.
- */
-function ChoiceChip({
-  title,
-  selected,
-  disabled,
-  opacity = 1,
-  onClick,
-  children,
-}: {
-  title: string
-  selected: boolean
-  disabled: boolean
-  opacity?: number
-  onClick: () => void
-  children: ReactNode
-}) {
-  return (
-    <Tooltip title={title}>
-      <Box
-        component="button"
-        type="button"
-        disabled={disabled}
-        aria-pressed={selected}
-        onClick={onClick}
-        sx={{
-          fontFamily: FONT_MONO,
-          fontSize: '0.75rem',
-          fontWeight: 700,
-          px: 0.7,
-          py: '2px',
-          borderRadius: 0,
-          cursor: disabled ? 'default' : 'pointer',
-          color: selected ? TABLE.onSelected : TABLE.inkSoft,
-          border: `1px solid ${selected ? TABLE.selected : TABLE.plateEdge}`,
-          bgcolor: selected ? TABLE.selected : 'transparent',
-          opacity,
-        }}
-      >
-        {children}
-      </Box>
-    </Tooltip>
-  )
-}
-
-/**
- * One numbered block of the turn, so the column reads top to bottom. The
- * numeral is printed in the red, the way the cheatsheet numbers its sections.
- */
-function Step({ n, label, children }: { n: number; label: string; children: ReactNode }) {
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}>
-      <SectionLabel sx={{ lineHeight: 1.35, color: TABLE.ink }}>
-        <Box
-          component="span"
-          sx={{ color: TABLE.accent, fontWeight: 700, fontSize: '0.95rem', mr: 0.6 }}
-        >
-          {n}.
-        </Box>
-        {label}
-      </SectionLabel>
-      {children}
-    </Box>
-  )
-}
-
-/**
- * The mark of the subsystem an action puts its energy on, in the colour of the
- * type beside it: the same silhouette the loadout below draws on that tile,
- * so a button and the tile it will light read as one thing.
- */
-function ActionIcon({ type, className }: { type: SubsystemType; className?: string }) {
-  // A Chip positions its icon by the class it clones in, so the class has to reach the SVG.
-  return (
-    <SubsystemIcon type={type} size={14} color="currentColor" opacity={1} className={className} />
-  )
-}
-
-/**
- * A segment of a segmented control. Each button carries its own tooltip
- * (including the reason it cannot be pressed) so the row itself stays as
- * narrow as the column, whatever the reason is.
- */
-function Segment({
-  label,
-  title,
-  selected,
-  disabled,
-  icon,
-  onClick,
-}: {
-  label: string
-  title: ReactNode
-  selected: boolean
-  disabled?: boolean
-  /** The subsystem this choice uses, when it uses one. */
-  icon?: SubsystemType
-  onClick: () => void
-}) {
-  return (
-    <Tooltip title={title} placement="top">
-      <Box component="span" sx={{ flex: 1, display: 'flex', minWidth: 0 }}>
-        <ToggleButton
-          value={label}
-          size="small"
-          selected={selected}
-          disabled={disabled}
-          onClick={onClick}
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            py: 0.25,
-            px: 0.5,
-            fontSize: '0.78rem',
-            lineHeight: 1.2,
-            whiteSpace: 'nowrap',
-            gap: 0.6,
-          }}
-        >
-          {icon && <ActionIcon type={icon} />}
-          {label}
-        </ToggleButton>
-      </Box>
-    </Tooltip>
-  )
-}
-
-function SegmentedRow({ children, testId }: { children: ReactNode; testId?: string }) {
-  return (
-    <Box data-testid={testId} sx={{ display: 'flex', gap: 0.5, width: '100%', minWidth: 0 }}>
-      {children}
-    </Box>
-  )
-}
-
-function OrientationControls() {
-  const plan = usePlan()
-  const disabled = plan.disabled
-  const rotating = plan.steps.some(s => s.kind === 'rotate')
-  const ready = plan.rotateReady
-  const facing = plan.me.ship.facing
-
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-      <Tooltip
-        title={
-          ready.ok || rotating
-            ? 'Flip facing: 1 energy on the thrusters, 1 heat at your check.'
-            : `No rotation: ${ready.reason}.`
-        }
-      >
-        <Box component="span" sx={{ display: 'flex' }}>
-          <Chip
-            size="small"
-            icon={<ActionIcon type="rotation" />}
-            label={rotating ? 'rotating' : 'rotate'}
-            color={rotating ? 'primary' : 'default'}
-            variant={rotating ? 'filled' : 'outlined'}
-            onClick={plan.toggleRotate}
-            // A queued rotation can always be taken back, whatever the loadout says.
-            disabled={disabled || (!rotating && !ready.ok)}
-          />
-        </Box>
-      </Tooltip>
-      <Typography variant="caption" sx={{ fontFamily: FONT_MONO, color: TABLE.inkSoft }} noWrap>
-        {facing}
-        {rotating ? ` → ${oppositeFacing(facing)}` : ''}
-      </Typography>
-    </Box>
-  )
-}
-
-/**
- * Phasing: the sectors a burn or a jump shifts its arrival by, 1 fuel each.
- * The same control for both, because it is the same rule.
- */
-function PhaseSlider({
-  value,
-  range,
-  disabled,
-  onChange,
-}: {
-  value: number
-  range: { min: number; max: number }
-  disabled: boolean
-  onChange: (value: number) => void
-}) {
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-      <Typography
-        variant="caption"
-        sx={{ fontFamily: FONT_MONO, color: TABLE.inkFaint, flexShrink: 0 }}
-      >
-        phase {value > 0 ? '+' : ''}
-        {value}
-      </Typography>
-      <Slider
-        size="small"
-        value={value}
-        min={range.min}
-        max={range.max}
-        step={1}
-        marks
-        valueLabelDisplay="auto"
-        disabled={disabled || range.min === range.max}
-        onChange={(_, next) => onChange(Array.isArray(next) ? next[0] : next)}
-        sx={{ mx: 0.5, flex: 1, minWidth: 0 }}
-      />
-    </Box>
-  )
-}
-
-function MoveControls() {
-  const plan = usePlan()
-  const disabled = plan.disabled
-  const move = plan.moveStep.move
-  const compressor = hasWorkingCompressor({ ...plan.me.ship, subsystems: plan.pendingSubsystems })
-  const scoop = plan.pendingSubsystems.find(s => s.id === 'scoop')
-  /**
-   * Whether coming back to a coast keeps the scoop running. The loadout is
-   * cleared every turn, so there is no running scoop to read: a coast keeps
-   * whatever the scoop chip was last set to, and starts off.
-   */
-  const scoopReady = Boolean(scoop && !scoop.isBroken && move.kind === 'coast' && move.scoop)
-  const burnDirection = plan.moveFrom.facing === 'prograde' ? 'outward' : 'inward'
-  const jumpFuel = move.kind === 'jump' ? calculateJumpMassCost(move.adjustment, compressor) : 0
-
-  /** What an intensity costs, or what is standing in its way. */
-  const burnReason = (intensity: BurnIntensity) => {
-    const cost = BURN_COSTS[intensity]
-    const ready = plan.burnReady[intensity]
-    if (!ready.ok) return `No ${intensity} burn: ${ready.reason}.`
-    return `${cost.rings} ring${cost.rings > 1 ? 's' : ''} ${burnDirection} · ${cost.energy} energy on the engines · ${cost.mass} fuel`
-  }
-  /** The mode button offers a burn when any intensity is available. */
-  const anyBurn = INTENSITIES.find(i => plan.burnReady[i].ok)
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
-      <SegmentedRow testId="move-modes">
-        <Segment
-          label="Coast"
-          title={
-            plan.moored
-              ? 'Moored: you hold this berth and ride the station when it advances. Burn to cast off.'
-              : 'Ride the ring: you drift its velocity in sectors, and nothing heats up.'
-          }
-          selected={move.kind === 'coast'}
-          disabled={disabled}
-          onClick={() => plan.setMove({ kind: 'coast', scoop: scoopReady })}
-        />
-        <Segment
-          label="Burn"
-          title={
-            anyBurn
-              ? 'Change ring with the engines. Prograde burns outward, retrograde inward.'
-              : `No burn: ${plan.burnReady.soft.reason}.`
-          }
-          selected={move.kind === 'burn'}
-          icon="engines"
-          disabled={disabled || !anyBurn}
-          onClick={() =>
-            anyBurn && plan.setMove({ kind: 'burn', intensity: anyBurn, adjustment: 0 })
-          }
-        />
-        <Segment
-          label="Jump"
-          title={
-            plan.jumpReady.ok
-              ? `Take the transfer lane to ${getWellName(plan.jumpOptions[0].destination.wellId)}.`
-              : `No jump: ${plan.jumpReady.reason}.`
-          }
-          selected={move.kind === 'jump'}
-          icon={compressor ? 'fuel_compressor' : 'engines'}
-          disabled={disabled || !plan.jumpReady.ok}
-          onClick={() =>
-            plan.jumpOptions[0] &&
-            // A jump is a burn out of the well: a rotation to prograde goes in first.
-            plan.applyMove(
-              {
-                kind: 'jump',
-                destinationWellId: plan.jumpOptions[0].destination.wellId,
-                adjustment: 0,
-              },
-              'prograde'
-            )
-          }
-        />
-      </SegmentedRow>
-
-      {move.kind === 'coast' && plan.moored && (
-        <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
-          The station carries you 4 sectors at the end of the round, and holding the berth repairs
-          nothing more: the dock happened on arrival.
-        </Typography>
-      )}
-
-      {/* A coast's own choice, the way a burn's is its intensity: drift, or
-          skim the ring for fuel with the scoop. */}
-      {move.kind === 'coast' && (
-        <SegmentedRow testId="coast-options">
-          <Segment
-            label="Drift"
-            title="Ride the ring and nothing more: no energy, no heat."
-            selected={!move.scoop}
-            disabled={disabled}
-            onClick={() => plan.setMove({ kind: 'coast', scoop: false })}
-          />
-          <Segment
-            label={`Scoop +${plan.scoopGain} fuel`}
-            title={
-              !scoop || scoop.isBroken
-                ? 'No scoop: it is broken.'
-                : `Recover fuel equal to this ring's velocity (${plan.scoopGain}). Puts ${
-                    getSubsystemConfig('scoop').minEnergy
-                  } energy on the scoop. A berth is as good a place to skim from as any.`
-            }
-            selected={Boolean(move.scoop)}
-            icon="scoop"
-            disabled={disabled || !scoop || scoop.isBroken}
-            onClick={() => plan.setMove({ kind: 'coast', scoop: true })}
-          />
-        </SegmentedRow>
-      )}
-
-      {move.kind === 'burn' && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
-          <SegmentedRow testId="burn-intensities">
-            {INTENSITIES.map(intensity => (
-              <Segment
-                key={intensity}
-                label={intensity[0].toUpperCase() + intensity.slice(1)}
-                title={burnReason(intensity)}
-                selected={move.intensity === intensity}
-                disabled={disabled || !plan.burnReady[intensity].ok}
-                onClick={() => plan.setMove({ ...move, intensity })}
-              />
-            ))}
-          </SegmentedRow>
-          <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }} noWrap>
-            {BURN_COSTS[move.intensity].rings} ring
-            {BURN_COSTS[move.intensity].rings > 1 ? 's' : ''} {burnDirection} ·{' '}
-            {BURN_COSTS[move.intensity].energy} energy ·{' '}
-            {calculateBurnMassCost(BURN_COSTS[move.intensity].mass, move.adjustment)} fuel
-          </Typography>
-          <PhaseSlider
-            value={move.adjustment}
-            range={plan.adjustmentRange}
-            disabled={disabled}
-            onChange={adjustment => plan.setMove({ ...move, adjustment })}
-          />
-        </Box>
-      )}
-
-      {move.kind === 'jump' && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
-          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-            {plan.jumpOptions.map(option => {
-              const selected = move.destinationWellId === option.destination.wellId
-              const landing =
-                (selected && phasedJumpDestination(option, move.adjustment)) || option.destination
-              return (
-                <Chip
-                  key={option.lane.id}
-                  size="small"
-                  label={placeLabel(landing)}
-                  color={selected ? 'primary' : 'default'}
-                  variant={selected ? 'filled' : 'outlined'}
-                  onClick={() =>
-                    plan.applyMove(
-                      {
-                        kind: 'jump',
-                        destinationWellId: option.destination.wellId,
-                        adjustment: 0,
-                      },
-                      'prograde'
-                    )
-                  }
-                  disabled={disabled}
-                />
-              )
-            })}
-          </Box>
-          <PhaseSlider
-            value={move.adjustment}
-            range={plan.jumpAdjustmentRange}
-            disabled={disabled}
-            onChange={adjustment => plan.setMove({ ...move, adjustment })}
-          />
-          <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
-            Engines at {WELL_TRANSFER_COSTS.energy}, {jumpFuel} fuel
-            {compressor ? COMPRESSOR_NOTE : ''}. Phasing never lands you outside the arrival arc.
-          </Typography>
-        </Box>
-      )}
-    </Box>
   )
 }

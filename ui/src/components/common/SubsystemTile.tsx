@@ -25,7 +25,8 @@ import { POWERABLE_TYPES, getSubsystemConfig } from '@dangerous-inclinations/eng
 import { subsystemGroupColor } from '../../utils/subsystemGroups'
 import { SubsystemIcon } from './SubsystemIcon'
 import { slotLabel, slotShortLabel, slotWithSubsystem } from '../../utils/slots'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { EnergyCubes } from './Tokens'
 
 export interface SubsystemTileProps {

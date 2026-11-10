@@ -39,13 +39,25 @@ import type {
   Position,
   Station,
 } from '@dangerous-inclinations/engine'
-import { getWellName } from '@dangerous-inclinations/engine'
+import { fill, getWellName } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
 import { moveOfRouteStep, useRoutePlan, type RouteMode } from '../../context/RoutePlanContext'
 import type { MoveChoice } from '../../plan/preview'
-import { describeStep, facingFor, placeLabel, routeLegs, routeName } from '../../utils/route'
+import {
+  ROUTE_SEARCH_TURNS,
+  describeStep,
+  facingFor,
+  placeLabel,
+  routeLegs,
+  routeName,
+} from '../../utils/route'
 import { SectionLabel } from '../common/Panel'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
+import { STATION_DRIFT } from '../../site/turn'
+import { ACTIONS } from '../../text/actions'
+
+const T = ACTIONS.routePlanner
 
 /** The board draws routes and their destination in the energy colour; so do we. */
 const ROUTE = TABLE.energy
@@ -178,8 +190,11 @@ export function RoutePlanner() {
               }}
             >
               {routePlan.routeReserve > 0
-                ? `No route there within 20 turns that arrives with ${Math.min(routePlan.routeReserve, plan.me.ship.reactionMass)} fuel.`
-                : 'No route there within 20 turns on the fuel aboard.'}
+                ? fill(T.noRouteReserve, {
+                    turns: ROUTE_SEARCH_TURNS,
+                    fuel: Math.min(routePlan.routeReserve, plan.me.ship.reactionMass),
+                  })
+                : fill(T.noRoute, { turns: ROUTE_SEARCH_TURNS })}
             </Typography>
           )}
 
@@ -254,7 +269,7 @@ function PlannerHeader({
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
         <RouteIcon sx={{ fontSize: 15, color: route ? ROUTE : TABLE.inkFaint, flexShrink: 0 }} />
         <SectionLabel sx={{ color: TABLE.inkSoft, lineHeight: 1.4, flexShrink: 0 }}>
-          Route planner
+          {T.title}
         </SectionLabel>
         <Box sx={{ flex: 1, minWidth: 0 }} />
         {!open && !dest && (
@@ -262,7 +277,7 @@ function PlannerHeader({
             sx={{ fontFamily: FONT_MONO, fontSize: '0.74rem', color: TABLE.inkFaint }}
             noWrap
           >
-            plot a route…
+            {T.plot}
           </Typography>
         )}
         {!open && taken && (
@@ -275,7 +290,7 @@ function PlannerHeader({
             }}
             noWrap
           >
-            step 1 taken
+            {T.taken}
           </Typography>
         )}
         <ExpandMoreIcon
@@ -294,15 +309,15 @@ function PlannerHeader({
           <Typography
             sx={{ fontFamily: FONT_MONO, fontSize: '0.74rem', color: ROUTE, flexShrink: 0 }}
           >
-            ◆
+            {T.mark}
           </Typography>
           <Typography
             sx={{ fontFamily: FONT_MONO, fontSize: '0.74rem', color: TABLE.inkSoft, minWidth: 0 }}
             noWrap
           >
             {placeLabel(dest)}
-            {route ? ` · ${route.totalTurns} turns · ${route.totalMassCost} fuel` : ''}
-            {!hasRoutes ? ' · no route' : ''}
+            {route ? fill(T.summary, { turns: route.totalTurns, fuel: route.totalMassCost }) : ''}
+            {!hasRoutes ? T.noRouteShort : ''}
           </Typography>
         </Box>
       )}
@@ -315,7 +330,7 @@ function PlannerHeader({
  * picking it is the loud amber state and the way straight back out of it.
  */
 /**
- * A station is not a place: it advances 4 sectors at the end of every round,
+ * A station is not a place: it advances STATION_DRIFT sectors at the end of every round,
  * so a route to the sector it is on now lands where it used to be. Clicking
  * one aims at where it will be when the ship gets there; this is the way back
  * to the fixed sector, for the rare turn when that is what you meant.
@@ -334,19 +349,19 @@ function StationAim({
   const options: Array<{ value: RouteMode; label: string; tip: string }> = [
     {
       value: 'meet',
-      label: 'meet it',
-      tip: 'Arrive where the station will be. It advances 4 sectors a round.',
+      label: T.meet,
+      tip: fill(T.meetTip, { drift: STATION_DRIFT }),
     },
     {
       value: 'sector',
-      label: `S${station.sector}`,
-      tip: 'Go to the sector it is on now. The station will have moved on.',
+      label: fill(T.sector, { sector: station.sector }),
+      tip: T.sectorTip,
     },
   ]
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
       <SectionLabel sx={{ flexShrink: 0, mr: 0.25 }}>
-        {getWellName(station.planetId)} station
+        {fill(T.station, { planet: getWellName(station.planetId) })}
       </SectionLabel>
       {options.map(option => {
         const on = mode === option.value
@@ -430,8 +445,8 @@ function ReserveRow({
       data-testid="route-reserve"
       sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}
     >
-      <SectionLabel sx={{ flexShrink: 0, mr: 0.25 }}>arrive with</SectionLabel>
-      {button(-1, '−', 'one less fuel on arrival')}
+      <SectionLabel sx={{ flexShrink: 0, mr: 0.25 }}>{T.arriveWith}</SectionLabel>
+      {button(-1, T.less, T.lessTip)}
       <Typography
         sx={{
           fontFamily: FONT_MONO,
@@ -442,9 +457,9 @@ function ReserveRow({
           textAlign: 'center',
         }}
       >
-        {reserve} fuel
+        {fill(T.reserve, { fuel: reserve })}
       </Typography>
-      {button(1, '+', 'one more fuel on arrival')}
+      {button(1, T.more, T.moreTip)}
     </Box>
   )
 }
@@ -499,7 +514,7 @@ function DestinationRow({
           }}
           noWrap
         >
-          click a sector on the board
+          {T.picking}
         </Typography>
         <Button
           size="small"
@@ -507,7 +522,7 @@ function DestinationRow({
           onClick={onPick}
           sx={{ minWidth: 0, px: 0.75, py: 0, fontSize: '0.72rem', color: TABLE.inkSoft }}
         >
-          cancel
+          {T.cancel}
         </Button>
       </Box>
     )
@@ -515,19 +530,19 @@ function DestinationRow({
 
   if (!dest) {
     return (
-      <Tooltip title="The planner lays out the turns it takes and offers you the first.">
+      <Tooltip title={T.pickTip}>
         <Button
           fullWidth
           size="small"
           variant="outlined"
           data-testid="route-pick-destination"
-          aria-label="pick a destination"
+          aria-label={T.pick}
           startIcon={<MyLocationIcon sx={{ fontSize: 15 }} />}
           disabled={disabled}
           onClick={onPick}
           sx={{ justifyContent: 'flex-start', py: 0.3, fontSize: '0.74rem' }}
         >
-          pick a destination
+          {T.pick}
         </Button>
       </Tooltip>
     )
@@ -536,7 +551,7 @@ function DestinationRow({
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
       <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.8rem', color: ROUTE, flexShrink: 0 }}>
-        ◆
+        {T.mark}
       </Typography>
       <Typography
         sx={{
@@ -551,23 +566,23 @@ function DestinationRow({
       >
         {placeLabel(dest)}
       </Typography>
-      <Tooltip title="Pick a different destination">
+      <Tooltip title={T.repickTip}>
         <Button
           size="small"
           data-testid="route-repick"
-          aria-label="pick a different destination"
+          aria-label={T.repickLabel}
           disabled={disabled}
           onClick={onPick}
           sx={{ minWidth: 0, px: 0.6, py: 0, fontSize: '0.72rem', flexShrink: 0 }}
         >
-          change
+          {T.repick}
         </Button>
       </Tooltip>
-      <Tooltip title="Forget this destination">
+      <Tooltip title={T.clearTip}>
         <Button
           size="small"
           data-testid="route-clear"
-          aria-label="forget this destination"
+          aria-label={T.clearLabel}
           onClick={onClear}
           sx={{ minWidth: 0, px: 0.4, py: 0, color: TABLE.inkFaint, flexShrink: 0 }}
         >
@@ -603,9 +618,9 @@ function RouteTable({
           pb: 0.1,
         }}
       >
-        <SectionLabel sx={{ lineHeight: 1.3 }}>route</SectionLabel>
-        <SectionLabel sx={{ lineHeight: 1.3, textAlign: 'right' }}>turns</SectionLabel>
-        <SectionLabel sx={{ lineHeight: 1.3, textAlign: 'right' }}>fuel</SectionLabel>
+        <SectionLabel sx={{ lineHeight: 1.3 }}>{T.columns.route}</SectionLabel>
+        <SectionLabel sx={{ lineHeight: 1.3, textAlign: 'right' }}>{T.columns.turns}</SectionLabel>
+        <SectionLabel sx={{ lineHeight: 1.3, textAlign: 'right' }}>{T.columns.fuel}</SectionLabel>
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2, minWidth: 0 }}>
         {routes.map((alt, i) => {
@@ -693,7 +708,7 @@ function Itinerary({
 
   return (
     <Box sx={{ minWidth: 0 }}>
-      <SectionLabel sx={{ lineHeight: 1.3, pl: 0.6 }}>itinerary</SectionLabel>
+      <SectionLabel sx={{ lineHeight: 1.3, pl: 0.6 }}>{T.itinerary}</SectionLabel>
       <Box sx={{ position: 'relative', pl: 0.6, minWidth: 0 }}>
         {/* the rail: the board's dotted track, stood on end */}
         <Box
@@ -716,9 +731,18 @@ function Itinerary({
           />
         ))}
         {hidden > 0 && (
-          <LegRow index={null} text={`+${hidden} more turn${hidden > 1 ? 's' : ''}`} now={false} />
+          <LegRow
+            index={null}
+            text={fill(hidden > 1 ? T.hidden.many : T.hidden.one, { count: hidden })}
+            now={false}
+          />
         )}
-        <LegRow index="◆" text={`arrive ${placeLabel(route.destination)}`} now={false} arrival />
+        <LegRow
+          index={T.mark}
+          text={fill(T.arrive, { place: placeLabel(route.destination) })}
+          now={false}
+          arrival
+        />
       </Box>
     </Box>
   )
@@ -774,7 +798,7 @@ function LegRow({
       </Box>
       {rotate && (
         <RotateRightIcon
-          titleAccess="rotate first"
+          titleAccess={T.rotateFirst}
           sx={{ fontSize: 13, color: colour, flexShrink: 0, opacity: now ? 1 : 0.8 }}
         />
       )}
@@ -804,7 +828,7 @@ function LegRow({
             opacity: 0.85,
           }}
         >
-          THIS TURN
+          {T.thisTurn}
         </Typography>
       )}
     </Box>
@@ -857,19 +881,14 @@ function FirstStep({
           }}
           noWrap
         >
-          step 1 is this turn&apos;s move
+          {T.stepTaken}
         </Typography>
       </Box>
     )
   }
 
   return (
-    <Tooltip
-      title={`Set this turn's move to the first turn of the route (${describeStep(
-        step,
-        facing
-      )}), the rotation and the cubes it needs included. Nothing else about the turn changes.`}
-    >
+    <Tooltip title={fill(T.takeTip, { step: describeStep(step, facing) })}>
       <Box component="span" sx={{ display: 'flex', mt: 0.1, minWidth: 0 }}>
         <Button
           fullWidth
@@ -887,7 +906,7 @@ function FirstStep({
             '&:hover': { borderColor: TABLE.accent, bgcolor: RED_TINT },
           }}
         >
-          take step 1 as this turn&apos;s move
+          {T.take}
         </Button>
       </Box>
     </Tooltip>

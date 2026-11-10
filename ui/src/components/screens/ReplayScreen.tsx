@@ -10,11 +10,14 @@
  */
 import { useEffect, useState } from 'react'
 import { Box, Button, CircularProgress, Typography } from '@mui/material'
-import type { GameRecording } from '@dangerous-inclinations/engine'
+import { fill, type GameRecording } from '@dangerous-inclinations/engine'
 import { fetchRecording } from '../../api/recordings'
 import { ForkFromReplay } from '../ForkFromReplay'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { RecordingTable } from './RecordingTable'
+import { SCREENS } from '../../text/screens'
+
+const S = SCREENS.replay
 
 export function ReplayScreen({ recordingId, onExit }: { recordingId: string; onExit: () => void }) {
   const [recording, setRecording] = useState<GameRecording | null>(null)
@@ -33,9 +36,9 @@ export function ReplayScreen({ recordingId, onExit }: { recordingId: string; onE
   if (error) {
     return (
       <Box sx={{ p: 4 }}>
-        <Typography color="error">Failed to load recording: {error}</Typography>
+        <Typography color="error">{fill(S.failed, { error })}</Typography>
         <Button onClick={onExit} sx={{ mt: 2 }} variant="outlined">
-          Back
+          {S.back}
         </Button>
       </Box>
     )
@@ -53,7 +56,7 @@ export function ReplayScreen({ recordingId, onExit }: { recordingId: string; onE
         }}
       >
         <CircularProgress size={22} />
-        <Typography sx={{ color: TABLE.ink }}>Loading recording…</Typography>
+        <Typography sx={{ color: TABLE.ink }}>{S.loading}</Typography>
       </Box>
     )
   }
@@ -65,7 +68,7 @@ export function ReplayScreen({ recordingId, onExit }: { recordingId: string; onE
         <>
           <ForkFromReplay recording={recording} turnIndex={turnIndex} />
           <Button size="small" variant="outlined" onClick={onExit}>
-            Back
+            {S.back}
           </Button>
         </>
       )}

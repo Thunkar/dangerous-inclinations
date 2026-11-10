@@ -4,19 +4,22 @@
  * itself is `common/MissionHand.tsx`. Deployment holds the same cards the same
  * way.
  */
-import type { Player } from '@dangerous-inclinations/engine'
+import { fill, type Player } from '@dangerous-inclinations/engine'
 import { Typography } from '@mui/material'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { Panel } from '../common/Panel'
 import { MissionHand } from '../common/MissionHand'
 import { useGame } from '../../context/GameContext'
+import { TABLE_TEXT } from '../../text/table'
+
+const T = TABLE_TEXT.missions
 
 export function MyMissions({ me }: { me: Player }) {
   const { nameOf, view } = useGame()
 
   return (
     <Panel
-      title={`Points ${me.points}/${view.pointsToWin}`}
+      title={fill(T.points, { points: me.points, toWin: view.pointsToWin })}
       dense
       collapseId="points"
       sx={{ flexShrink: 0, minWidth: 0 }}
@@ -29,7 +32,7 @@ export function MyMissions({ me }: { me: Player }) {
       />
       {me.missions.length === 0 && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-          No missions yet.
+          {T.none}
         </Typography>
       )}
     </Panel>

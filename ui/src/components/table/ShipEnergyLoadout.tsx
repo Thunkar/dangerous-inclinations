@@ -21,8 +21,9 @@
  */
 import { Box, Typography } from '@mui/material'
 import type { Hull, Subsystem, SubsystemId } from '@dangerous-inclinations/engine'
-import { SLOT_IDS, getSubsystemConfig, isPowerableType } from '@dangerous-inclinations/engine'
-import { FONT_MONO, TABLE } from '../../theme'
+import { SLOT_IDS, fill, getSubsystemConfig, isPowerableType } from '@dangerous-inclinations/engine'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { SubsystemTile } from '../common/SubsystemTile'
 import { ShipDisplay } from '../ship'
 import { useGame } from '../../context/GameContext'
@@ -31,6 +32,9 @@ import { usePlanOptional } from '../../context/PlanContext'
 import { usePulses } from '../../context/AnimationContext'
 import { hullOf, slotWithSubsystem } from '../../utils/slots'
 import { poweredEffect } from '../../site/numbers'
+import { TABLE_TEXT } from '../../text/table'
+
+const T = TABLE_TEXT.loadout
 
 const MAT_METRICS = { width: 252, height: 196, band: 44 }
 const TILE = 32
@@ -114,19 +118,23 @@ export function ShipEnergyLoadout({
           }}
         >
           {up.length === 0
-            ? 'Nothing up until your next turn.'
-            : `Up until your next turn: ${up
-                .map(
-                  s =>
-                    `${getSubsystemConfig(s.type).name} ${s.allocatedEnergy}${
-                      !plan || (plan.powers[s.id] ?? 0) > 0
+            ? T.nothingUp
+            : fill(T.up, {
+                tiles: up
+                  .map(
+                    s =>
+                      fill(T.upTile, {
+                        name: getSubsystemConfig(s.type).name,
+                        energy: s.allocatedEnergy,
+                      }) +
+                      (!plan || (plan.powers[s.id] ?? 0) > 0
                         ? ''
                         : s.type === 'sensor_array'
-                          ? ' (scans)'
-                          : ' (fires)'
-                    }`
-                )
-                .join(' · ')}.`}
+                          ? T.scans
+                          : T.fires)
+                  )
+                  .join(T.separator),
+              })}
         </Typography>
       )}
     </Box>
@@ -153,38 +161,38 @@ function TileTip({
       </Typography>
       {passive ? (
         <Typography variant="caption" sx={{ display: 'block' }}>
-          Passive: it works without energy.
+          {T.tip.passive}
         </Typography>
       ) : powerable && usedBy ? (
         <Typography variant="caption" sx={{ display: 'block' }}>
-          {usedBy === 'fire'
-            ? 'It fires this turn, and its energy stays on until your next turn, so it is up anyway.'
-            : 'It scans this turn, and its energy stays on until your next turn, so every shot after the scan has the wider range.'}
+          {usedBy === 'fire' ? T.tip.firesAnyway : T.tip.scansAnyway}
         </Typography>
       ) : powerable ? (
         <>
           <Typography variant="caption" sx={{ display: 'block' }}>
-            Power {sub.allocatedEnergy}/{config.maxEnergy} · powered, it works until your next turn:{' '}
-            {poweredEffect(sub.type)}. Every point of energy is heat at your check, and powering
-            does not turn it face-up.
+            {fill(T.tip.powered, {
+              energy: sub.allocatedEnergy,
+              max: config.maxEnergy,
+              effect: poweredEffect(sub.type),
+            })}
           </Typography>
           <Typography variant="caption" sx={{ display: 'block', color: TABLE.inkFaint }}>
-            Powered from the Systems step
+            {T.tip.poweredFrom}
           </Typography>
         </>
       ) : (
         <>
           <Typography variant="caption" sx={{ display: 'block' }}>
-            Takes {config.minEnergy} energy when it acts, and every point is heat at your check
+            {fill(T.tip.takes, { energy: config.minEnergy })}
           </Typography>
           <Typography variant="caption" sx={{ display: 'block', color: TABLE.inkFaint }}>
-            Powered by the step that uses it: nothing to set
+            {T.tip.takesFrom}
           </Typography>
         </>
       )}
       {sub.isBroken && (
         <Typography variant="caption" sx={{ display: 'block', color: TABLE.danger }}>
-          BROKEN · it takes no energy until repaired
+          {T.tip.broken}
         </Typography>
       )}
     </Box>

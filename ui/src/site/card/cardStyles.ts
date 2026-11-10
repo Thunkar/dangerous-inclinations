@@ -213,15 +213,16 @@ export const CARD_CSS = `
 .di-fork span::before { left: calc(-1.4mm - 0.3mm); }
 .di-fork span::after { right: calc(-1.4mm - 0.3mm); }
 
-/* The printed pages: hidden on screen, and drawn to the millimetre in print. */
-.di-sheets { display: none; --card-zoom: 1; }
+/* The printed pages of every print on the page (print/PrintPages.tsx):
+   hidden on screen, and every card drawn to the millimetre, at scale 1, in print. */
+.di-sheets { display: none; --card-zoom: 1; --lo-zoom: 1; --mc-zoom: 1; }
 .di-page {
   position: relative; width: ${SHEET_WIDTH_MM}mm; height: ${SHEET_HEIGHT_MM}mm;
   overflow: hidden; background: #fff;
 }
 .di-page + .di-page { break-before: page; }
 .di-marks { position: absolute; left: 0; top: 0; }
-.di-slot { position: absolute; width: ${CARD_WIDTH_MM}mm; height: ${CARD_HEIGHT_MM}mm; }
+.di-slot { position: absolute; }
 .di-slot.di-turned { transform: rotate(180deg); }
 
 @media print {

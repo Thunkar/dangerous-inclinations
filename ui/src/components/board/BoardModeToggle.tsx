@@ -8,7 +8,7 @@
  */
 import { Box, ButtonBase, Tooltip } from '@mui/material'
 import { useBoardMode, type BoardMode } from '../../context/BoardModeContext'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
 
 const MODES: Array<{ mode: BoardMode; label: string }> = [

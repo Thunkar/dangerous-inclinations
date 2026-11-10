@@ -25,7 +25,7 @@
  *    ink sets at `L·sin P`. So every unit of height costs 0.47 units of
  *    ceiling, and a tilted disc *has* to be lifted, or its low edge cuts the
  *    floor of the pit. This is the ceiling that decides how big the horizon may
- *    be, and it is why there are no polar jets (see the treatments below).
+ *    be, and it is why there are no polar jets (see the look below).
  *
  *    That sign used to be a minus, which said height *buys* ceiling, and while
  *    the hole was a marble at the bottom of a wide pit nothing came of it. Ring
@@ -52,7 +52,7 @@
  * disc followed on its own.
  */
 import type { GravityWellId } from '@dangerous-inclinations/engine'
-import { smoothstep, wellVisual } from '../geometry'
+import { wellVisual } from '../geometry'
 import { PRINT_SCALE, funnelFloorRadius, sectorLabelBand, surfaceElevation } from './world'
 
 /**
@@ -132,125 +132,45 @@ export function budget(): BlackHoleBudget {
   }
 }
 
-/* ------------------------------------------------------------- treatments */
+/* ------------------------------------------------------------------ look */
 
 /**
- * Three ways of spending the budget, for the designer to choose between.
+ * The disc as a disc: a flat sheet at a shallow tilt, lit right across the
+ * annulus instead of dying a third of the way out, with spiral filaments, a
+ * white-hot inner lip, a little vertical thickness and hard Doppler beaming.
  *
- *  - **blaze**, the disc as a disc: a flat sheet at a shallow tilt, lit right
- *    across the annulus instead of dying a third of the way out, with spiral
- *    filaments, a white-hot inner lip, a little vertical thickness and hard
- *    Doppler beaming. This is the existing black hole grown into its own room.
- *  - **warp**, the disc as the gravity well: the sheet leaves the hole's
- *    equator tilted and settles into the board plane at its outer edge, so the
- *    light lies in the funnel the board is already drawn as. Its outer edge is
- *    on the floor, which costs it no lift at all, so it may spread wider.
- *  - **halo**, the disc as a body of gas: half again as wide a scale height, so
- *    the shells stand well clear of the midplane and the inner disc is a fat
- *    torus rather than a sheet; calmer beaming, looser arms, and a photon ring
- *    and lensed arc strong enough to carry the picture. Mass, not fire.
- *
- * A fourth was drawn and thrown away: polar jets. Height looks free (nothing
- * is printed above the plate) but at the Table pitch every unit of height
- * buys 0.57 units of travel up the screen *toward* ring 1's far numbers, and a
- * jet leaning away from the camera adds its own lean on top. The arithmetic
- * comes out at 0.80 units of ceiling per unit of jet, which caps a legal jet at
+ * Polar jets were drawn and thrown away. Height looks free (nothing is
+ * printed above the plate) but at the Table pitch every unit of height buys
+ * 0.57 units of travel up the screen *toward* ring 1's far numbers, and a jet
+ * leaning away from the camera adds its own lean on top. The arithmetic comes
+ * out at 0.80 units of ceiling per unit of jet, which caps a legal jet at
  * about 1.3 horizon radii: a stub inside the lensed arc, not a jet. They
  * become possible if the board opens out far enough.
  */
-export type BlackHoleTreatment = 'blaze' | 'warp' | 'halo'
-
-const BLACK_HOLE_TREATMENTS: readonly BlackHoleTreatment[] = ['blaze', 'warp', 'halo']
-
-/** The one the board draws when nothing asks for another. */
-const DEFAULT_TREATMENT: BlackHoleTreatment = 'blaze'
-
-interface Tuning {
+const TUNING = {
   /** Inner edge of the disc, as a multiple of the horizon: the last stable orbit. */
-  isco: number
+  isco: 1.14,
   /** Where the disc's light is spent, as a fraction of what the budget allows. */
-  bright: number
-  /** Degrees the disc leaves the board plane at its inner edge. */
-  tilt: number
-  /** 0 keeps the sheet flat; 1 settles its outer edge onto the floor of the pit. */
-  warp: number
+  bright: 0.88,
+  /** Degrees the disc leaves the board plane. */
+  tilt: 18,
   /** Scale height of the disc, as a multiple of the horizon. */
-  puff: number
-  /** Shells drawn above and below the midplane: 0 draws a decal, 1 a thick disc. */
-  shells: 0 | 1
+  puff: 0.24,
   /** Turns of the spiral pattern per e-fold of radius. */
-  spiral: number
+  spiral: 2.2,
   /** Doppler beaming: how much brighter the limb turning toward you is. */
-  beaming: number
+  beaming: 0.46,
   /** Strength of the arc the far side of the disc is bent into over the top. */
-  arc: number
+  arc: 1.15,
   /** Strength of the photon ring at the silhouette. */
-  photon: number
+  photon: 1.25,
   /** Light pooling on the floor, as a fraction of what the budget allows. */
-  pool: number
-}
-
-const TUNING: Record<BlackHoleTreatment, Tuning> = {
-  blaze: {
-    isco: 1.14,
-    bright: 0.88,
-    tilt: 18,
-    warp: 0,
-    puff: 0.24,
-    shells: 1,
-    spiral: 2.2,
-    beaming: 0.46,
-    arc: 1.15,
-    photon: 1.25,
-    pool: 0.92,
-  },
-  warp: {
-    isco: 1.12,
-    bright: 0.9,
-    tilt: 34,
-    warp: 1,
-    puff: 0.2,
-    shells: 1,
-    spiral: 3.4,
-    beaming: 0.4,
-    arc: 1.0,
-    photon: 1.1,
-    pool: 0.45,
-  },
-  halo: {
-    isco: 1.1,
-    bright: 0.9,
-    tilt: 22,
-    warp: 0,
-    puff: 0.62,
-    shells: 1,
-    spiral: 1.6,
-    beaming: 0.3,
-    arc: 1.55,
-    photon: 1.7,
-    pool: 0.8,
-  },
-}
-
-/**
- * `?bh=blaze|warp|halo` picks a treatment for a screenshot. Read once, like
- * every other dev flag on this board; the default is what the table draws.
- */
-let asked: BlackHoleTreatment | null = null
-function blackHoleTreatment(): BlackHoleTreatment {
-  if (asked) return asked
-  const flag =
-    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('bh')
-  asked = BLACK_HOLE_TREATMENTS.includes(flag as BlackHoleTreatment)
-    ? (flag as BlackHoleTreatment)
-    : DEFAULT_TREATMENT
-  return asked
+  pool: 0.92,
 }
 
 /* ------------------------------------------------------------------ solve */
 
 export interface BlackHoleBody {
-  treatment: BlackHoleTreatment
   /** Event horizon radius: the radius the flat board prints, so the two agree. */
   radius: number
   /** World elevation of the centre of the horizon. */
@@ -263,13 +183,10 @@ export interface BlackHoleBody {
   discBright: number
   /** Radius its geometry stops at; the alpha is long gone before here. */
   discOuter: number
-  /** Radians the disc leaves the board plane at, at its inner edge. */
+  /** Radians the disc leaves the board plane at. */
   tilt: number
-  /** 0 a flat sheet, 1 a sheet that settles onto the floor at its outer edge. */
-  warp: number
   /** Scale height of the disc at its thickest, in board units. */
   puff: number
-  shells: 0 | 1
   spiral: number
   beaming: number
   arc: number
@@ -301,8 +218,6 @@ export interface SheetShape {
   inner: number
   outer: number
   tilt: number
-  warp: number
-  lift: number
 }
 
 /**
@@ -324,13 +239,10 @@ export function sheetPoint(
   shape: SheetShape
 ): { x: number; y: number; z: number } {
   const radius = shape.inner + (shape.outer - shape.inner) * u
-  // Smoothstep, the same curve GLSL's has, so the shader's mirror of this is exact.
-  const lean = shape.tilt * (1 - shape.warp * smoothstep(u))
-  const settle = shape.lift * shape.warp * smoothstep((u - 0.12) / 0.88)
   return {
     x: radius * Math.cos(theta),
-    y: radius * Math.sin(theta) * Math.sin(lean) - settle,
-    z: radius * Math.sin(theta) * Math.cos(lean),
+    y: radius * Math.sin(theta) * Math.sin(shape.tilt),
+    z: radius * Math.sin(theta) * Math.cos(shape.tilt),
   }
 }
 
@@ -345,8 +257,8 @@ export function sheetPoint(
  * every ceiling in `budget()`: found by bisection over the radius, testing the
  * sheet where it actually goes rather than a circle drawn around it.
  */
-function solveBlackHoleBody(treatment: BlackHoleTreatment): BlackHoleBody {
-  const tuning = TUNING[treatment]
+function solveBlackHoleBody(): BlackHoleBody {
+  const tuning = TUNING
   const room = budget()
   const cosPitch = Math.cos(TABLE_PITCH * RAD)
   const sinPitch = Math.sin(TABLE_PITCH * RAD)
@@ -367,11 +279,10 @@ function solveBlackHoleBody(treatment: BlackHoleTreatment): BlackHoleBody {
 
   /**
    * How high the centre has to ride for the sheet's lowest point to clear the
-   * floor. The warp's own settle is measured from the lift and lands exactly on
-   * the floor by construction, so only the tilt is asked about here.
+   * floor.
    */
   const liftFor = (outer: number): number => {
-    const shape: SheetShape = { inner, outer, tilt, warp: tuning.warp, lift: 0 }
+    const shape: SheetShape = { inner, outer, tilt }
     let lowest = 0
     for (let i = 0; i <= 16; i++) {
       const u = i / 16
@@ -386,7 +297,7 @@ function solveBlackHoleBody(treatment: BlackHoleTreatment): BlackHoleBody {
     // The lensed arc over the top of the horizon is the first thing to reach
     // ring 1's ink up the screen.
     if (radius * ARC_REACH + lift * cosPitch > room.screen) return false
-    const shape: SheetShape = { inner, outer, tilt, warp: tuning.warp, lift }
+    const shape: SheetShape = { inner, outer, tilt }
     for (let i = 0; i <= 16; i++) {
       const u = i / 16
       const r = inner + (outer - inner) * u
@@ -422,7 +333,7 @@ function solveBlackHoleBody(treatment: BlackHoleTreatment): BlackHoleBody {
   // squashes. Not the bright radius: the shader's own outer kill takes the
   // alpha to nothing by the last triangle and not a unit before it, so this is
   // where the black hole provably stops.
-  const shape: SheetShape = { inner, outer, tilt, warp: tuning.warp, lift }
+  const shape: SheetShape = { inner, outer, tilt }
   const extent = Math.max(radius * 1.55, Math.abs(sheetPoint(1, -Math.PI / 2, shape).z))
 
   // The lensed arc faces the camera, so unlike the disc it climbs the screen at
@@ -440,7 +351,6 @@ function solveBlackHoleBody(treatment: BlackHoleTreatment): BlackHoleBody {
   const arcOuter = radius * 1.78
 
   return {
-    treatment,
     radius,
     centerY: floor + lift,
     lift,
@@ -448,9 +358,7 @@ function solveBlackHoleBody(treatment: BlackHoleTreatment): BlackHoleBody {
     discBright: bright,
     discOuter: outer,
     tilt,
-    warp: tuning.warp,
     puff,
-    shells: tuning.shells,
     spiral: tuning.spiral,
     beaming: tuning.beaming,
     arc: tuning.arc,
@@ -464,17 +372,13 @@ function solveBlackHoleBody(treatment: BlackHoleTreatment): BlackHoleBody {
 }
 
 /**
- * The solve, once per treatment. Everything it reads is fixed for the life of
- * the page, and the camera asks for the hole on every frame.
+ * The solve, once. Everything it reads is fixed for the life of the page, and
+ * the camera asks for the hole on every frame.
  */
-const solved = new Map<BlackHoleTreatment, BlackHoleBody>()
-export function blackHoleBody(treatment = blackHoleTreatment()): BlackHoleBody {
-  let body = solved.get(treatment)
-  if (!body) {
-    body = solveBlackHoleBody(treatment)
-    solved.set(treatment, body)
-  }
-  return body
+let solved: BlackHoleBody | null = null
+export function blackHoleBody(): BlackHoleBody {
+  solved ??= solveBlackHoleBody()
+  return solved
 }
 
 /**

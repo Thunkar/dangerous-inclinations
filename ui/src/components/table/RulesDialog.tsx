@@ -32,6 +32,7 @@ import {
   INTERCEPT_HEAT,
   MAX_HEAT,
   MISSION_POINTS,
+  SURVEY_RING,
   SHIELD_POINTS_PER_ENERGY,
   STARTING_HIT_POINTS,
   SUBSYSTEM_CONFIGS,
@@ -40,7 +41,7 @@ import {
   WELL_TRANSFER_COSTS,
   fill,
 } from '@dangerous-inclinations/engine'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
 import { useGame } from '../../context/GameContext'
 // The turn is stated once. The cheatsheet and the printed card read the same
@@ -106,6 +107,9 @@ const NUMBERS = {
   secondaryOffers: SECONDARY_OFFERS_PER_PLAYER,
   secondaries: SECONDARIES_PER_PLAYER,
   handPoints: HAND_POINTS,
+  primaryPoints: MISSION_POINTS.destroy_ship,
+  secondaryPoints: MISSION_POINTS.survey,
+  surveyRing: SURVEY_RING,
 }
 
 /** The button that lives in the top bar, and the card it opens. */

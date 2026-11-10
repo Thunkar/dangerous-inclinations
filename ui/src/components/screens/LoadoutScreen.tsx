@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Alert, Box, Button, Drawer, Tab, Tabs, Typography } from '@mui/material'
 import {
   BOT_PRESET_LOADOUTS,
+  MISSION_POINTS,
   MISSIONS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
@@ -10,11 +11,11 @@ import {
   calculateShipStatsFromLoadout,
   describeMission,
   describeMissionRequirement,
+  fill,
   missionRequirementStatus,
   missionsMissingRequirements,
   resolveShipAppearance,
   validateLoadout,
-  type MissionType,
   type Player,
   type ShipAppearance,
   type ShipLoadout,
@@ -28,7 +29,11 @@ import { ShipStage } from '../../ships/ShipStage'
 import { DEFAULT_CONFIG, parseConfig, type MountId } from '../../ships/config'
 import { editorConfig } from '../../ships/visual'
 import { getPlayerColor } from '../../utils/playerColors'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
+import { SCREENS } from '../../text/screens'
+
+const S = SCREENS.shipyard
 
 interface Draft {
   loadout: ShipLoadout
@@ -46,51 +51,21 @@ function readDraft(key: string, me: Player): Draft {
     const preference = localStorage.getItem(PREFERENCE_KEY)
     if (preference) fallback.appearance = resolveShipAppearance(JSON.parse(preference))
     const saved = JSON.parse(localStorage.getItem(key) ?? 'null')
-    if (saved?.version !== 1) return fallback
+    if (!saved) return fallback
     const config = parseConfig({ ...DEFAULT_CONFIG, loadout: saved.loadout })
-    const offered = new Set(me.missionOffers.map(m => m.id))
     return {
       loadout: config.loadout,
       appearance: resolveShipAppearance(saved.appearance),
-      missionIds: Array.isArray(saved.missionIds)
-        ? legalHand(
-            [
-              ...new Set<string>(
-                saved.missionIds.filter(
-                  (id: unknown): id is string => typeof id === 'string' && offered.has(id)
-                )
-              ),
-            ],
-            me.missionOffers
-          )
-        : [],
+      missionIds: saved.missionIds,
     }
   } catch {
     return fallback
   }
 }
 
-/**
- * Trim a restored draft to a hand the referee will take: one primary mission
- * and two of your own. A draft saved before the deal changed, or edited by
- * hand, is not a reason to hand the server something it must refuse.
- */
-function legalHand(
-  ids: string[],
-  offers: ReadonlyArray<{ id: string; type: MissionType }>
-): string[] {
-  const of = (primary: boolean) =>
-    ids.filter(id => {
-      const card = offers.find(m => m.id === id)
-      return card !== undefined && isPrimaryType(card.type) === primary
-    })
-  return [...of(true).slice(0, PRIMARIES_PER_PLAYER), ...of(false).slice(0, SECONDARIES_PER_PLAYER)]
-}
-
 export function LoadoutScreen({ headerRight }: { headerRight?: ReactNode }) {
   const { view, gameId } = useGame()
-  if (!view.me)
-    return <Centered>You are watching this table; there is no ship to fit out.</Centered>
+  if (!view.me) return <Centered>{S.spectator}</Centered>
   return <LoadoutEditor key={`${gameId}:${view.me.id}`} me={view.me} headerRight={headerRight} />
 }
 
@@ -129,18 +104,27 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
   const blocked = !validation.valid
     ? validation.errors.join(' · ')
     : chosenPrimaries.length !== PRIMARIES_PER_PLAYER
-      ? 'Take one primary mission.'
+      ? S.blocked.primary
       : chosenSecondaries !== SECONDARIES_PER_PLAYER
-        ? `Take ${SECONDARIES_PER_PLAYER} of your own, ${SECONDARIES_PER_PLAYER - chosenSecondaries} to go.`
+        ? fill(S.blocked.secondaries, {
+            count: SECONDARIES_PER_PLAYER,
+            left: SECONDARIES_PER_PLAYER - chosenSecondaries,
+          })
         : gaps.length
-          ? `Fit ${[...new Set(gaps.flatMap(g => g.missing.map(r => `a ${r.label}`)))].join(' and ')}, or take a different primary mission.`
+          ? fill(S.blocked.fit, {
+              parts: [
+                ...new Set(
+                  gaps.flatMap(g => g.missing.map(r => fill(S.blocked.part, { label: r.label })))
+                ),
+              ].join(S.and),
+            })
           : null
 
   useEffect(() => {
     if (submitted || readOnly) return
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem(draftKey, JSON.stringify({ version: 1, ...draft }))
+        localStorage.setItem(draftKey, JSON.stringify(draft))
         localStorage.setItem(PREFERENCE_KEY, JSON.stringify(draft.appearance))
       } catch {
         setStorageError(true)
@@ -233,24 +217,27 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
       {pile(
         offers.filter(m => isPrimaryType(m.type)),
         PRIMARIES_PER_PLAYER,
-        'Primary mission',
-        `Worth 2 of the ${view.pointsToWin} points to win. Fit a ship that can fly it.`
+        S.primary.title,
+        fill(S.primary.hint, {
+          points: MISSION_POINTS.destroy_ship,
+          toWin: view.pointsToWin,
+        })
       )}
       {pile(
         offers.filter(m => !isPrimaryType(m.type)),
         SECONDARIES_PER_PLAYER,
-        'Secondary missions',
-        'Worth 1 each, any two, two of a kind included: the second is your spare.'
+        S.secondary.title,
+        fill(S.secondary.hint, { points: MISSION_POINTS.survey })
       )}
-      {offers.length === 0 && (
-        <Typography color="text.secondary">Waiting for the mission deal…</Typography>
-      )}
+      {offers.length === 0 && <Typography color="text.secondary">{S.waitingForDeal}</Typography>}
       {gaps.length > 0 && (
         <Alert severity="warning" sx={{ mt: 1.5 }}>
           {gaps
-            .map(
-              g =>
-                `${describeMission(g.mission, nameOf)} needs ${g.missing.map(describeMissionRequirement).join(' and ')}.`
+            .map(g =>
+              fill(S.needs, {
+                mission: describeMission(g.mission, nameOf),
+                requirements: g.missing.map(describeMissionRequirement).join(S.and),
+              })
             )
             .join(' ')}
         </Alert>
@@ -269,10 +256,10 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
       }}
     >
       <Header
-        title="Shipyard"
+        title={S.title}
         right={
           <>
-            <Button onClick={() => setTalk(true)}>Table talk</Button>
+            <Button onClick={() => setTalk(true)}>{S.tableTalk}</Button>
             {headerRight}
           </>
         }
@@ -319,30 +306,30 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         >
           <Box sx={{ px: 2.5, pt: 2.5, pb: 2 }}>
             <Typography variant="h5" sx={{ mt: 0.5 }}>
-              Vessel configuration{' '}
+              {S.aside}
             </Typography>
           </Box>
           <Tabs
             value={tab}
             onChange={(_, v) => setTab(v)}
             variant="fullWidth"
-            aria-label="Ship configuration"
+            aria-label={S.tabs.label}
             sx={{ borderTop: `1px solid ${TABLE.line}`, borderBottom: `1px solid ${TABLE.line}` }}
           >
             <Tab
-              label="Missions"
+              label={S.tabs.missions}
               value="missions"
               id="ship-tab-missions"
               aria-controls="ship-panel-missions"
             />
             <Tab
-              label="Systems"
+              label={S.tabs.systems}
               value="systems"
               id="ship-tab-systems"
               aria-controls="ship-panel-systems"
             />
             <Tab
-              label="Appearance"
+              label={S.tabs.appearance}
               value="appearance"
               id="ship-tab-appearance"
               aria-controls="ship-panel-appearance"
@@ -389,9 +376,9 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
             }}
           >
             {[
-              ['Dissipation', `${stats.dissipationCapacity}/turn`],
-              ['Reaction mass', stats.reactionMass],
-              ['Systems', `${filled}/${SLOT_IDS.length}`],
+              [S.stats.dissipation, fill(S.stats.perTurn, { value: stats.dissipationCapacity })],
+              [S.stats.fuel, stats.reactionMass],
+              [S.stats.systems, `${filled}/${SLOT_IDS.length}`],
             ].map(([label, value]) => (
               <Box key={label} sx={{ textAlign: 'center' }}>
                 <Typography sx={{ fontFamily: FONT_MONO, fontSize: 21, color: TABLE.ink }}>
@@ -425,7 +412,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         )}
         {storageError && (
           <Alert severity="warning" sx={{ mb: 1 }}>
-            Browser storage is unavailable. Keep this page open until you submit.
+            {S.storage}
           </Alert>
         )}
         <Box
@@ -433,14 +420,17 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         >
           <Box aria-live="polite">
             <Typography variant="body2">
-              {submitted
-                ? 'Ship submitted. Waiting for the other players.'
-                : (blocked ?? 'All systems fitted. Missions ready.')}
+              {submitted ? S.submitted : (blocked ?? S.ready)}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               {submitted
-                ? 'Your design is saved with this game.'
-                : `${filled}/${SLOT_IDS.length} systems · ${missionIds.length}/${MISSIONS_PER_PLAYER} missions · Appearance is cosmetic`}
+                ? S.saved
+                : fill(S.counts, {
+                    filled,
+                    slots: SLOT_IDS.length,
+                    missions: missionIds.length,
+                    maxMissions: MISSIONS_PER_PLAYER,
+                  })}
             </Typography>
           </Box>
           <Button
@@ -450,7 +440,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
             onClick={() => void submit()}
             sx={{ minWidth: 110 }}
           >
-            {submitted ? 'Ready' : submitting ? 'Saving…' : 'Ready'}
+            {submitting && !submitted ? S.saving : S.submit}
           </Button>
         </Box>
       </Box>
@@ -464,7 +454,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
             p: 1,
           }}
         >
-          <Button onClick={() => setTalk(false)}>Close table talk</Button>
+          <Button onClick={() => setTalk(false)}>{S.closeTalk}</Button>
           <TableTalk sx={{ flex: 1, minHeight: 0 }} />
         </Box>
       </Drawer>

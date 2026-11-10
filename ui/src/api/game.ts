@@ -54,7 +54,7 @@ export async function getChat(gameId: string): Promise<ChatHistoryResponse> {
   return api.get<ChatHistoryResponse>(`/api/games/${gameId}/chat`)
 }
 
-/** Say something at the table (or think out loud); the server tells every seat. */
+/** Say something at the table, or note a `think` that only this seat gets back. */
 export async function postChat(
   gameId: string,
   text: string,

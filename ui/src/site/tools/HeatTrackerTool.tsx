@@ -16,15 +16,13 @@
  * track, and a break dumps the subsystem's energy onto the track on the spot.
  * "Start my turn" clears the loadout, the rule's first step.
  *
- * Everything is kept in this browser, so a phone locking does not lose the
- * heat track, the one number a table cannot re-derive.
+ * Everything is kept in this browser (`heatMatStorage.ts`).
  */
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
-  BOT_PRESET_LOADOUTS,
   BURN_COSTS,
   COMPRESSED_JUMP_MASS,
   INTERCEPT_HEAT,
@@ -32,13 +30,15 @@ import {
   SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
+  fill,
   getDissipationCapacity,
   heatAfterCheck,
 } from '@dangerous-inclinations/engine'
+import { TOOLS } from '../../text/tools'
 import { TileIcon } from '../../art/glyphs'
 import { FONT_SANS } from '../../theme'
 import { BAND_ANGLE, FONT_DISPLAY, PRESS } from '../../design/press'
-import { MOUNTS, mountLabel } from '../../ships/mounts'
+import { mountLabel } from '../../ships/mounts'
 import type { MountId } from '../../ships/mounts'
 import { Body, Numeral, Slab } from '../poster'
 import {
@@ -68,8 +68,12 @@ import {
   type Mat,
   type SlotId,
 } from './heatMat'
+import { levelsOf, loadMat, saveMat } from './heatMatStorage'
 
-const STORAGE_KEY = 'di.tools.heat'
+const T = TOOLS.heat
+
+/** The point the "Shields absorb" button stops: one at a time, as the engine walks a hit. */
+const ONE_POINT = 1
 
 const CAPS = {
   fontFamily: FONT_DISPLAY,
@@ -78,100 +82,44 @@ const CAPS = {
   textTransform: 'uppercase',
 } as const
 
-const STARTING = BOT_PRESET_LOADOUTS.gunship
-
-function freshMat(): Mat {
-  return {
-    loadout: {
-      'forward-0': STARTING.forwardSlots[0] ?? 'railgun',
-      'side-0': STARTING.sideSlots[0] ?? 'laser',
-      'side-1': STARTING.sideSlots[1] ?? 'laser',
-      'side-2': STARTING.sideSlots[2] ?? 'shields',
-      'side-3': STARTING.sideSlots[3] ?? 'radiator',
-    },
-    energy: {},
-    spent: {},
-    broken: [],
-    track: 0,
-    checked: false,
-  }
-}
-
-/** The settings a subsystem's energy can stand at: off, then each energy to the top. */
-function levelsOf(type: SubsystemType): number[] {
-  const { minEnergy, maxEnergy } = SUBSYSTEM_CONFIGS[type]
-  const levels = [0]
-  if (maxEnergy === 0) return levels
-  for (let e = minEnergy; e <= maxEnergy; e++) levels.push(e)
-  return levels
-}
-
-/** A stored mat, or a fresh one: anything that no longer fits the rules is dropped. */
-function loadMat(): Mat {
-  const mat = freshMat()
-  try {
-    const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? 'null')
-    if (!raw || typeof raw !== 'object') return mat
-    for (const mount of MOUNTS) {
-      const type = raw.loadout?.[mount.id]
-      const legal = mount.group === 'forward' ? FORWARD_TILES : SIDE_TILES
-      if (legal.includes(type)) mat.loadout[mount.id] = type
-    }
-    mat.broken = SLOTS.filter(slot => raw.broken?.includes(slot))
-    for (const slot of SLOTS) {
-      const e = raw.energy?.[slot]
-      if (!mat.broken.includes(slot) && levelsOf(typeAt(mat, slot)).includes(e) && e > 0) {
-        mat.energy[slot] = e
-      }
-    }
-    if (Number.isInteger(raw.track) && raw.track >= 0 && raw.track <= TRACK_CEILING) {
-      mat.track = raw.track
-    }
-    mat.checked = raw.checked === true
-  } catch {
-    // Nothing stored, or a private window: a fresh mat.
-  }
-  return mat
-}
-
 /** What the energy on a subsystem is for, in a word or two. */
 function purpose(type: SubsystemType, energy: number): string {
-  if (energy === 0) return 'off'
+  if (energy === 0) return T.off
   switch (type) {
     case 'engines': {
       const uses = Object.entries(BURN_COSTS)
         .filter(([, cost]) => cost.energy === energy)
-        .map(([name]) => `${name} burn`)
-      if (WELL_TRANSFER_COSTS.energy === energy) uses.push('jump')
+        .map(([burn]) => fill(T.burn, { burn }))
+      if (WELL_TRANSFER_COSTS.energy === energy) uses.push(T.jump)
       return uses.join(', ')
     }
     case 'rotation':
-      return 'rotate'
+      return T.rotate
     case 'scoop':
-      return 'scoop'
+      return T.scoop
     case 'shields':
-      return `absorbs ${energy * SHIELD_POINTS_PER_ENERGY}`
+      return fill(T.absorbs, { points: energy * SHIELD_POINTS_PER_ENERGY })
     case 'missiles':
-      return 'salvo'
+      return T.salvo
     case 'sensor_array':
-      return `scan, crits ${SENSOR_CRIT}+`
+      return fill(T.scan, { crit: SENSOR_CRIT })
     case 'ballistic_rack':
-      return 'fire, intercept'
+      return T.rack
     default:
-      return 'fire'
+      return T.fire
   }
 }
 
 /** What a subsystem that takes no energy does instead. */
 function passiveNote(type: SubsystemType): string {
-  if (type === 'radiator') return `+${RADIATOR_DISSIPATION} dissipate`
-  if (type === 'fuel_compressor') return `jump: ${COMPRESSED_JUMP_MASS} fuel`
+  if (type === 'radiator') return fill(T.radiator, { dissipation: RADIATOR_DISSIPATION })
+  if (type === 'fuel_compressor') return fill(T.compressor, { fuel: COMPRESSED_JUMP_MASS })
   return ''
 }
 
 /** The printed card's ship is the corvette, so the mat names its slots the corvette's way. */
 function slotTitle(slot: SlotId): string {
-  if (slot === 'engines' || slot === 'rotation' || slot === 'scoop') return 'Fixed'
+  if (slot === 'engines' || slot === 'rotation' || slot === 'scoop') return T.fixed
   return mountLabel(slot, 'corvette')
 }
 
@@ -181,13 +129,7 @@ export function HeatTrackerTool() {
   const [mat, setMat] = useState(loadMat)
   const [mode, setMode] = useState<TapMode>('power')
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(mat))
-    } catch {
-      // A private window refuses to store; the mat still works this visit.
-    }
-  }, [mat])
+  useEffect(() => saveMat(mat), [mat])
 
   const energyOf = (slot: SlotId) => mat.energy[slot] ?? 0
   const isBroken = (slot: SlotId) => mat.broken.includes(slot)
@@ -232,7 +174,7 @@ export function HeatTrackerTool() {
   const canAbsorb = absorbingShield(mat) !== undefined
   const plasmaBolt = (m: Mat) =>
     absorb(m, weaponStats('plasma_cannon').damage, PLASMA_SHIELD_POINTS)
-  const absorbPoint = () => setMat(m => absorb(m, 1))
+  const absorbPoint = () => setMat(m => absorb(m, ONE_POINT))
   const absorbPlasma = () => setMat(plasmaBolt)
   const answerMissiles = () => setMat(rackAnswers)
   const theirTurnEnds = () => setMat(turnEnds)
@@ -246,27 +188,31 @@ export function HeatTrackerTool() {
   const next = heatAfterCheck(atCheck, dissipation)
 
   const rows: LedgerRow[] = [
-    { value: `${mat.track}`, label: 'on the track' },
-    { value: `+${onMat}`, label: 'energy on your subsystems' },
-    { value: `${atCheck}`, label: 'at the check', rule: true },
+    { value: `${mat.track}`, label: T.onTrack },
+    { value: `+${onMat}`, label: T.onSubsystems },
+    { value: `${atCheck}`, label: T.total, rule: true },
   ]
   if (atCheck === 0) {
     rows.push({
       value: '0',
-      label: mat.broken.length ? 'cold: repair one broken subsystem' : 'cold',
+      label: mat.broken.length ? T.coldRepair : T.cold,
       tone: 'ink',
     })
   }
   if (damage > 0) {
-    rows.push({ value: `−${damage}`, label: `hull: everything over ${MAX_HEAT}`, tone: 'red' })
-    rows.push({ value: `${MAX_HEAT}`, label: 'the track stops at the top' })
+    rows.push({ value: `−${damage}`, label: fill(T.overTop, { maxHeat: MAX_HEAT }), tone: 'red' })
+    rows.push({ value: `${MAX_HEAT}`, label: T.stopsAtTop })
   }
   rows.push({
     value: `−${dissipation}`,
     label:
-      radiators > 0 ? `dissipate (${radiators} radiator${radiators > 1 ? 's' : ''})` : 'dissipate',
+      radiators > 0
+        ? fill(T.dissipateWith, {
+            radiators: fill(radiators > 1 ? T.radiators : T.oneRadiator, { count: radiators }),
+          })
+        : T.dissipate,
   })
-  rows.push({ value: `${next}`, label: 'into your next turn', tone: 'ink' })
+  rows.push({ value: `${next}`, label: T.intoNextTurn, tone: 'ink' })
 
   const card = (slot: SlotId) => (
     <SlotCard
@@ -292,21 +238,19 @@ export function HeatTrackerTool() {
       }}
     >
       <Plate>
-        <Label>A tap on a subsystem</Label>
+        <Label>{T.tap}</Label>
         <Box sx={{ mt: 0.75 }}>
           <Segments
             value={mode}
             onChange={setMode}
             options={[
-              { value: 'power', label: 'Powers it' },
-              { value: 'break', label: 'Breaks or fixes it' },
+              { value: 'power', label: T.powers },
+              { value: 'break', label: T.breaks },
             ]}
           />
         </Box>
         <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1, mb: 2 }}>
-          {mode === 'power'
-            ? 'Right click takes a step off. On a phone, tap past the top to clear it.'
-            : 'A break dumps its energy onto the heat track.'}
+          {mode === 'power' ? T.powersNote : T.breaksNote}
         </Body>
 
         {/* The ship as it lies on the table: bow up, port and starboard, the fixed three astern. */}
@@ -359,17 +303,17 @@ export function HeatTrackerTool() {
         >
           {mat.checked ? (
             <>
-              <Figure label="Checked: on the track" value={`${mat.track}`} />
+              <Figure label={T.checkedOnTrack} value={`${mat.track}`} />
               <Box sx={{ ...CAPS, fontSize: '0.8rem', color: PRESS.paperSoft, pb: 0.25 }}>
-                Energy stays on until your turn
+                {T.staysOn}
               </Box>
             </>
           ) : (
             <>
-              <Figure label="Energy" value={`${onMat}`} />
-              <Figure label="At the check" value={`${atCheck}`} />
-              {damage > 0 && <Figure label="Hull" value={`−${damage}`} tone="red" />}
-              <Figure label="Next turn" value={`${next}`} />
+              <Figure label={T.energy} value={`${onMat}`} />
+              <Figure label={T.atCheck} value={`${atCheck}`} />
+              {damage > 0 && <Figure label={T.hull} value={`−${damage}`} tone="red" />}
+              <Figure label={T.nextTurn} value={`${next}`} />
             </>
           )}
         </Box>
@@ -377,51 +321,55 @@ export function HeatTrackerTool() {
 
       <Plate>
         <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <Field label="The heat track">
+          <Field label={T.track}>
             <Stepper
               value={mat.track}
               min={0}
               max={TRACK_CEILING}
               onChange={track => setMat(m => ({ ...m, track }))}
-              label="heat on the track"
+              label={T.trackAloud}
               editable
             />
           </Field>
           <AbsorbButton
-            label="Shields absorb 1"
-            badge={`+${absorb(mat, 1).track - mat.track}`}
+            label={fill(T.absorbPoint, { points: ONE_POINT })}
+            badge={`+${absorb(mat, ONE_POINT).track - mat.track}`}
             disabled={!canAbsorb}
             onClick={absorbPoint}
           />
           <AbsorbButton
-            label="Shields absorb plasma"
+            label={T.absorbPlasma}
             badge={`+${plasmaBolt(mat).track - mat.track}`}
             disabled={!canAbsorb}
             onClick={absorbPlasma}
           />
           <AbsorbButton
-            label="Rack answers missiles"
+            label={T.rackAnswers}
             icon="ballistic_rack"
             badge={`+${rackAnswers(mat).track - mat.track}`}
             disabled={!upRack(mat)}
             onClick={answerMissiles}
           />
           <AbsorbButton
-            label="Their turn ends"
-            badge={`${spentCubes(mat)} back`}
+            label={T.turnEnds}
+            badge={fill(T.back, { energy: spentCubes(mat) })}
             disabled={spentCubes(mat) === 0}
             onClick={theirTurnEnds}
           />
         </Box>
         <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1 }}>
-          {`A hit on your shields: each energy stops ${SHIELD_POINTS_PER_ENERGY} damage (${PLASMA_SHIELD_POINTS} of plasma) and is set aside until that player's turn ends, and every point stopped goes on the track. A rack that rolls at missiles puts ${INTERCEPT_HEAT} on the track, once a turn however many.`}
+          {fill(T.shieldsRule, {
+            points: SHIELD_POINTS_PER_ENERGY,
+            plasma: PLASMA_SHIELD_POINTS,
+            interceptHeat: INTERCEPT_HEAT,
+          })}
         </Body>
 
         <Box sx={{ mt: 3 }}>
-          <Label>The check</Label>
+          <Label>{T.check}</Label>
           <Box sx={{ mt: 1.5 }}>
             {mat.checked ? (
-              <Ledger rows={[{ value: `${mat.track}`, label: 'on the track', tone: 'ink' }]} />
+              <Ledger rows={[{ value: `${mat.track}`, label: T.onTrack, tone: 'ink' }]} />
             ) : (
               <Ledger rows={rows} />
             )}
@@ -434,11 +382,11 @@ export function HeatTrackerTool() {
               tone="red"
               onClick={() => setMat(m => ({ ...m, energy: {}, spent: {}, checked: false }))}
             >
-              Start my turn
+              {T.startTurn}
             </Slab>
           ) : (
             <Slab tone="red" onClick={() => setMat(m => ({ ...m, track: next, checked: true }))}>
-              Heat check
+              {T.runCheck}
             </Slab>
           )}
           <Slab
@@ -447,13 +395,11 @@ export function HeatTrackerTool() {
               setMat(m => ({ ...m, energy: {}, spent: {}, broken: [], track: 0, checked: false }))
             }
           >
-            Reset
+            {T.reset}
           </Slab>
         </Box>
         <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 1.5 }}>
-          {mat.checked
-            ? 'Your turn clears the loadout: every subsystem back to off.'
-            : 'The check leaves your energy on: shields and racks stay up through the other turns.'}
+          {mat.checked ? T.clearsNote : T.staysNote}
         </Body>
       </Plate>
     </Box>
@@ -518,7 +464,11 @@ function SlotCard({
       <Box
         component="button"
         type="button"
-        aria-label={`${title}: ${name}, ${broken ? 'broken' : `${energy} energy`}`}
+        aria-label={fill(T.slotAloud, {
+          slot: title,
+          name,
+          state: broken ? T.brokenAloud : fill(T.energyAloud, { energy }),
+        })}
         aria-disabled={inert || undefined}
         onClick={() => onTap(1)}
         onContextMenu={event => {
@@ -599,7 +549,7 @@ function SlotCard({
               py: 0.25,
             }}
           >
-            Broken
+            {T.broken}
           </Box>
         )}
       </Box>
@@ -608,7 +558,7 @@ function SlotCard({
         <Box sx={{ position: 'relative' }}>
           <Box
             component="select"
-            aria-label={`${title} subsystem`}
+            aria-label={fill(T.chooseAloud, { slot: title })}
             value={type}
             onChange={event => onChoose(event.currentTarget.value as SubsystemType)}
             sx={{

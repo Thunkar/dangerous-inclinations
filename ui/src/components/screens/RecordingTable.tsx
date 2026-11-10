@@ -16,10 +16,13 @@ import SkipPreviousIcon from '@mui/icons-material/SkipPrevious'
 import SkipNextIcon from '@mui/icons-material/SkipNext'
 import FastRewindIcon from '@mui/icons-material/FastRewind'
 import FastForwardIcon from '@mui/icons-material/FastForward'
-import type { GameRecording } from '@dangerous-inclinations/engine'
+import { fill, type GameRecording } from '@dangerous-inclinations/engine'
 import { ReplayGameProvider } from '../../context/GameContext'
 import { TableRoot } from '../table/TableRoot'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
+import { SCREENS } from '../../text/screens'
+
+const S = SCREENS.recordingTable
 
 const SPECTATOR = '__spectator__'
 
@@ -62,7 +65,7 @@ export function RecordingTable({ recording, headerExtras }: RecordingTableProps)
           headerRight={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-                seat
+                {S.seat}
               </Typography>
               <Select
                 size="small"
@@ -71,7 +74,7 @@ export function RecordingTable({ recording, headerExtras }: RecordingTableProps)
                 sx={{ fontSize: '0.8rem', color: TABLE.ink, '& .MuiSelect-select': { py: 0.35 } }}
               >
                 <MenuItem value={SPECTATOR} sx={{ fontSize: '0.75rem' }}>
-                  Spectator (public only)
+                  {S.spectator}
                 </MenuItem>
                 {seats.map(player => (
                   <MenuItem key={player.id} value={player.id} sx={{ fontSize: '0.75rem' }}>
@@ -87,13 +90,13 @@ export function RecordingTable({ recording, headerExtras }: RecordingTableProps)
               square
               sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}
             >
-              <IconButton size="small" onClick={() => setTurnIndex(-1)} title="Back to the start">
+              <IconButton size="small" onClick={() => setTurnIndex(-1)} title={S.start}>
                 <FastRewindIcon fontSize="small" />
               </IconButton>
               <IconButton
                 size="small"
                 onClick={() => setTurnIndex(i => Math.max(-1, i - 1))}
-                title="Previous turn"
+                title={S.previous}
               >
                 <SkipPreviousIcon fontSize="small" />
               </IconButton>
@@ -101,31 +104,29 @@ export function RecordingTable({ recording, headerExtras }: RecordingTableProps)
                 size="small"
                 color="primary"
                 onClick={() => setPlaying(p => !p)}
-                title={playing ? 'Pause' : 'Play'}
+                title={playing ? S.pause : S.play}
               >
                 {playing ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
               </IconButton>
               <IconButton
                 size="small"
                 onClick={() => setTurnIndex(i => Math.min(turnCount - 1, i + 1))}
-                title="Next turn"
+                title={S.next}
               >
                 <SkipNextIcon fontSize="small" />
               </IconButton>
-              <IconButton
-                size="small"
-                onClick={() => setTurnIndex(turnCount - 1)}
-                title="Jump to the end"
-              >
+              <IconButton size="small" onClick={() => setTurnIndex(turnCount - 1)} title={S.end}>
                 <FastForwardIcon fontSize="small" />
               </IconButton>
 
               <Typography variant="caption" sx={{ minWidth: 120, color: TABLE.inkSoft }}>
                 {turnIndex < 0
-                  ? 'Before the first turn'
-                  : `Step ${turnIndex + 1} of ${turnCount} · turn ${
-                      recording.turns[turnIndex]?.turnNumber ?? '?'
-                    }`}
+                  ? S.beforeFirst
+                  : fill(S.step, {
+                      step: turnIndex + 1,
+                      steps: turnCount,
+                      turn: recording.turns[turnIndex]?.turnNumber ?? S.unknownTurn,
+                    })}
               </Typography>
 
               <Slider
@@ -139,7 +140,7 @@ export function RecordingTable({ recording, headerExtras }: RecordingTableProps)
               />
 
               <Typography variant="caption" sx={{ color: TABLE.inkSoft, minWidth: 40 }}>
-                {speed}ms
+                {fill(S.speed, { ms: speed })}
               </Typography>
               <Slider
                 size="small"

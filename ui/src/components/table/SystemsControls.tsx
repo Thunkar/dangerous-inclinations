@@ -20,9 +20,11 @@ import CheckIcon from '@mui/icons-material/Check'
 import type { ReactNode } from 'react'
 import type { Subsystem } from '@dangerous-inclinations/engine'
 import {
+  SCAN_SECTOR_RANGE,
   SHIELD_POINTS_PER_ENERGY,
   SLOT_IDS,
   canFireFrom,
+  fill,
   getSubsystemConfig,
   interceptsPerRack,
   isOpeningRound,
@@ -32,10 +34,14 @@ import {
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
 import { SubsystemIcon } from '../common/SubsystemIcon'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { hullOf, slotWithSubsystem } from '../../utils/slots'
 import { subsystemGroup } from '../../utils/subsystemGroups'
 import { PLASMA_SHIELD_POINTS, SENSOR_CRIT, poweredEffect } from '../../site/numbers'
+import { ACTIONS } from '../../text/actions'
+
+const T = ACTIONS.systems
 
 export function SystemsControls() {
   const plan = usePlan()
@@ -61,21 +67,17 @@ export function SystemsControls() {
   const atBerth = !canFireFrom(plan.me.ship, plan.finalPosition.position, view.stations)
 
   const fireBlock = (sub: Subsystem): string | null => {
-    if (sub.isBroken) return 'Broken: it does nothing until repaired.'
-    if (sub.type === 'missiles' && (sub.ammo ?? 0) <= 0)
-      return 'No missiles left: the magazine refills at a station.'
-    if (quiet)
-      return back
-        ? 'Back from Home: nothing of yours fires on this turn.'
-        : 'The first round reaches nobody: nothing fires.'
-    if (atBerth) return 'Moored: a ship at a berth fires at nobody. Burn off the berth first.'
+    if (sub.isBroken) return T.broken
+    if (sub.type === 'missiles' && (sub.ammo ?? 0) <= 0) return T.noMissiles
+    if (quiet) return back ? T.backNoFire : T.openingNoFire
+    if (atBerth) return T.mooredNoFire
     return null
   }
 
   if (weapons.length + defence.length + sensors.length === 0) {
     return (
       <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-        Nothing aboard fires, powers or scans.
+        {T.empty}
       </Typography>
     )
   }
@@ -87,14 +89,12 @@ export function SystemsControls() {
     >
       {quiet && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.35 }}>
-          {back
-            ? 'Back from Home: this turn is a first round of your own. Nobody touches you until it is over, and you fire at nobody and scan nobody.'
-            : 'The first round reaches nobody: no weapon fires and nobody scans.'}
+          {back ? T.quietBack : T.quietOpening}
         </Typography>
       )}
 
       {weapons.length > 0 && (
-        <Group label="Weapons">
+        <Group label={T.groups.weapons}>
           {weapons.map(sub => (
             <SystemRow key={sub.id} sub={sub} caption={weaponCaption(sub)}>
               <FireButton sub={sub} disabled={disabled} blocked={fireBlock(sub)} />
@@ -104,7 +104,7 @@ export function SystemsControls() {
       )}
 
       {defence.length > 0 && (
-        <Group label="Defence">
+        <Group label={T.groups.defence}>
           {defence.map(sub => (
             <SystemRow
               key={sub.id}
@@ -121,7 +121,7 @@ export function SystemsControls() {
       )}
 
       {sensors.length > 0 && (
-        <Group label="Sensor">
+        <Group label={T.groups.sensor}>
           {sensors.map(sub => (
             <SystemRow key={sub.id} sub={sub} caption={sensorCaption(sub)}>
               <PowerControl sub={sub} disabled={disabled} />
@@ -129,13 +129,7 @@ export function SystemsControls() {
                 sub={sub}
                 disabled={disabled}
                 blocked={
-                  sub.isBroken
-                    ? 'Broken: it does nothing until repaired.'
-                    : quiet
-                      ? back
-                        ? 'Back from Home: you scan nobody on this turn.'
-                        : 'The first round reaches nobody: nobody scans.'
-                      : null
+                  sub.isBroken ? T.broken : quiet ? (back ? T.backNoScan : T.openingNoScan) : null
                 }
               />
             </SystemRow>
@@ -146,27 +140,32 @@ export function SystemsControls() {
   )
 }
 
+const C = T.caption
+
 function weaponCaption(sub: Subsystem): string {
   const config = getSubsystemConfig(sub.type)
   const stats = config.weaponStats!
-  if (sub.isBroken) return 'broken'
-  if (sub.type === 'missiles') return `${stats.damage} dmg each · ${sub.ammo ?? 0} left`
-  return `${stats.damage} dmg · ${stats.ignoresShields ? 'ignores shields' : `${config.minEnergy} energy`}`
+  if (sub.isBroken) return C.broken
+  if (sub.type === 'missiles')
+    return fill(C.missiles, { damage: stats.damage, ammo: sub.ammo ?? 0 })
+  return stats.ignoresShields
+    ? fill(C.pierces, { damage: stats.damage })
+    : fill(C.weapon, { damage: stats.damage, energy: config.minEnergy })
 }
 
 function defenceCaption(sub: Subsystem, level: number): string {
-  if (sub.isBroken) return 'broken'
+  if (sub.isBroken) return C.broken
   if (sub.type === 'shields') {
     return level > 0
-      ? `absorbs ${level * SHIELD_POINTS_PER_ENERGY} · ${level} energy`
-      : `absorbs ${SHIELD_POINTS_PER_ENERGY} an energy (${PLASMA_SHIELD_POINTS} of plasma)`
+      ? fill(C.shieldsUp, { points: level * SHIELD_POINTS_PER_ENERGY, energy: level })
+      : fill(C.shields, { points: SHIELD_POINTS_PER_ENERGY, plasma: PLASMA_SHIELD_POINTS })
   }
-  return `rolls at ${interceptsPerRack()} missiles`
+  return fill(C.rack, { count: interceptsPerRack() })
 }
 
 function sensorCaption(sub: Subsystem): string {
-  if (sub.isBroken) return 'broken'
-  return `crits ${SENSOR_CRIT}–10 while up`
+  if (sub.isBroken) return C.broken
+  return fill(C.sensor, { from: SENSOR_CRIT })
 }
 
 /** A kind of subsystem, under a faint rule. */
@@ -308,18 +307,20 @@ function FireButton({
   const salvo = sub.type === 'missiles'
   if (queued) {
     return (
-      <Tip title="In the sequence below: pick the target there, or take it back with its ×.">
-        <Queued label="Firing" tone="fire" />
+      <Tip title={T.fire.queuedTip}>
+        <Queued label={T.fire.queued} tone="fire" />
       </Tip>
     )
   }
   const tip = blocked
-    ? `No shot: ${blocked}`
-    : `${salvo ? 'Launch a salvo' : 'Fire'}: ${stats.damage} damage${
-        stats.ignoresShields ? ', ignores shields' : ''
-      }. Puts ${config.minEnergy} energy on it, heat at your check${
-        isPowerableType(sub.type) ? ', and it is up until your next turn' : ''
-      }.`
+    ? fill(T.fire.blocked, { reason: blocked })
+    : fill(T.fire.tip, {
+        verb: salvo ? T.fire.salvo : T.fire.shot,
+        damage: stats.damage,
+        pierces: stats.ignoresShields ? T.fire.pierces : '',
+        energy: config.minEnergy,
+        up: isPowerableType(sub.type) ? T.fire.up : '',
+      })
   return (
     <Tip title={tip}>
       <Button
@@ -337,7 +338,7 @@ function FireButton({
           whiteSpace: 'nowrap',
         }}
       >
-        Fire
+        {T.fire.label}
       </Button>
     </Tip>
   )
@@ -354,13 +355,7 @@ function PowerControl({ sub, disabled }: { sub: Subsystem; disabled: boolean }) 
   const usedBy = plan.usedBy(sub.id)
   if (usedBy) {
     return (
-      <Tip
-        title={
-          usedBy === 'fire'
-            ? 'It fires this turn and keeps that energy until your next turn, so it is up anyway: each subsystem does one thing a turn.'
-            : 'It scans this turn and keeps that energy until your next turn, so every shot after the scan has the wider critical range.'
-        }
-      >
+      <Tip title={usedBy === 'fire' ? T.power.firesTip : T.power.scansTip}>
         <Box
           sx={{
             height: CONTROL_HEIGHT,
@@ -375,7 +370,7 @@ function PowerControl({ sub, disabled }: { sub: Subsystem; disabled: boolean }) 
             whiteSpace: 'nowrap',
           }}
         >
-          Up
+          {T.power.up}
         </Box>
       </Tip>
     )
@@ -385,18 +380,20 @@ function PowerControl({ sub, disabled }: { sub: Subsystem; disabled: boolean }) 
   for (let n = config.minEnergy; n <= config.maxEnergy; n++) levels.push(n)
   const onOff = levels.length === 2
   const current = plan.powers[sub.id] ?? 0
-  const label = (n: number) => (n === 0 ? 'Off' : onOff ? 'On' : `${n}`)
+  const label = (n: number) => (n === 0 ? T.power.off : onOff ? T.power.on : `${n}`)
   const tip = (n: number) =>
     sub.isBroken
-      ? 'Broken: it takes no energy until repaired.'
+      ? T.power.brokenTip
       : n === 0
-        ? 'Leave it off: no energy, no heat.'
-        : `Power it at ${n}: ${poweredEffect(sub.type)}, until your next turn. ${n} heat at your check, and powering does not turn it face-up.`
+        ? T.power.offTip
+        : fill(T.power.onTip, { energy: n, effect: poweredEffect(sub.type) })
 
   return (
     <Box
       role="group"
-      aria-label={`Power ${slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))}`}
+      aria-label={fill(T.power.label, {
+        slot: slotWithSubsystem(sub.id, sub.type, hullOf(plan.me)),
+      })}
       sx={{ display: 'flex' }}
     >
       {levels.map((n, i) => (
@@ -438,8 +435,8 @@ function ScanButton({
   const plan = usePlan()
   if (plan.steps.some(s => s.kind === 'scan')) {
     return (
-      <Tip title="In the sequence below: pick the ship and the slot there, or take it back with its ×.">
-        <Queued label="Scanning" tone="scan" />
+      <Tip title={T.scan.queuedTip}>
+        <Queued label={T.scan.queued} tone="scan" />
       </Tip>
     )
   }
@@ -447,10 +444,11 @@ function ScanButton({
     <Tip
       title={
         blocked
-          ? `No scan: ${blocked}`
-          : `Scan a ship on your ring up to 3 sectors ahead, or in your sector, and look at one of their face-down subsystems. Puts ${
-              getSubsystemConfig(sub.type).minEnergy
-            } energy on the sensor, up until your next turn.`
+          ? fill(T.scan.blocked, { reason: blocked })
+          : fill(T.scan.tip, {
+              range: SCAN_SECTOR_RANGE,
+              energy: getSubsystemConfig(sub.type).minEnergy,
+            })
       }
     >
       <Button
@@ -470,7 +468,7 @@ function ScanButton({
           '&:hover': { borderColor: TABLE.ink, backgroundColor: TABLE.hover },
         }}
       >
-        Scan
+        {T.scan.label}
       </Button>
     </Tip>
   )

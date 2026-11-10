@@ -6,7 +6,7 @@
  * as a fitting board rather than as a form.
  */
 import { Box } from '@mui/material'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
 import type { SlotRegionProps, SlotRegionPosition } from './types'
 

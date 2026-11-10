@@ -16,7 +16,7 @@ import { useCallback, useState } from 'react'
 import { Box, Paper, Typography, type SxProps, type Theme } from '@mui/material'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { BAND_ANGLE } from '../../design/press'
 
 interface PanelProps {

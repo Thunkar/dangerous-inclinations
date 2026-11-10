@@ -12,10 +12,12 @@ import {
   DEFAULT_DISSIPATION_CAPACITY,
   MAX_HEAT,
   MAX_REACTION_MASS,
+  fill,
   getMissileStats,
   heatAfterCheck,
 } from '@dangerous-inclinations/engine'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { CargoTokens, PipTrack } from '../common/Tokens'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
@@ -24,6 +26,9 @@ import { EscortedBy } from './EscortedBy'
 import { SoldAt } from './SoldAt'
 import { hullOf, slotShortLabel, slotWithSubsystem } from '../../utils/slots'
 import { placeLabel } from '../../utils/route'
+import { TABLE_TEXT } from '../../text/table'
+
+const T = TABLE_TEXT.status
 
 /**
  * One round in a launcher: filled while it is aboard, an empty outline once it
@@ -97,12 +102,9 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const destroyed = me.ship.hitPoints <= 0
   const recovering = !destroyed && me.recovering
   const state = destroyed
-    ? { label: 'DESTROYED', tip: 'Off the board. You return to Home on your next turn.' }
+    ? { label: T.destroyed, tip: T.destroyedTip }
     : recovering
-      ? {
-          label: 'UNTOUCHABLE',
-          tip: 'Back from Home: this turn is a first round of your own. Nobody touches you until it is over, and you fire at nobody and scan nobody.',
-        }
+      ? { label: T.untouchable, tip: T.untouchableTip }
       : null
 
   /** At the top of the track any heat at all is hull, so it gets its own state. */
@@ -135,7 +137,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
           minWidth: 0,
         }}
       >
-        <Tooltip title="Prograde burns move you outward, retrograde inward">
+        <Tooltip title={T.facingTip}>
           <Typography
             sx={{
               fontFamily: FONT_MONO,
@@ -146,7 +148,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
               flexShrink: 0,
             }}
           >
-            {me.ship.facing === 'prograde' ? '↗' : '↙'} {me.ship.facing}
+            {T.facing[me.ship.facing]}
           </Typography>
         </Tooltip>
         <Typography
@@ -182,7 +184,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
           </Tooltip>
         )}
         <Box sx={{ flex: 1, minWidth: 0 }} />
-        <Tooltip title="Cargo aboard">
+        <Tooltip title={T.cargoTip}>
           <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
             <CargoTokens crates={crates} data={data} size={9} />
           </Box>
@@ -208,16 +210,18 @@ export function StatusBlock({ accent }: { accent?: string }) {
           value={me.ship.hitPoints}
           max={me.ship.maxHitPoints}
           color={TABLE.hull}
-          label="Hull"
+          label={T.hull}
           size={9}
         />
         <Tooltip
           title={[
             planning && heatAfter > heatNow
-              ? `${heatAfter - heatNow} energy on your subsystems.`
+              ? fill(T.heatTip.planned, { energy: heatAfter - heatNow })
               : '',
-            `Dissipates ${dissipation}, carries ${carried}.`,
-            overHeat > 0 ? `−${overHeat} hull.` : `Over ${MAX_HEAT} costs hull.`,
+            fill(T.heatTip.check, { dissipation, carried }),
+            overHeat > 0
+              ? fill(T.heatTip.damage, { damage: overHeat })
+              : fill(T.heatTip.redline, { max: MAX_HEAT }),
           ]
             .filter(Boolean)
             .join(' ')}
@@ -229,7 +233,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
               max={heatMax}
               threshold={dissipation}
               color={TABLE.heat}
-              label="Heat"
+              label={T.heat}
               size={9}
               readout={
                 <>
@@ -262,7 +266,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
                 }}
                 noWrap
               >
-                REDLINE
+                {T.redline}
               </Typography>
             )}
             {overHeat > 0 && (
@@ -275,7 +279,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
                 }}
                 noWrap
               >
-                −{overHeat} hull
+                {fill(T.damage, { damage: overHeat })}
               </Typography>
             )}
           </Box>
@@ -284,14 +288,14 @@ export function StatusBlock({ accent }: { accent?: string }) {
 
       {/* Fuel, then a line of missiles per launcher */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35, minWidth: 0 }}>
-        <Tooltip title="Fuel is public.">
+        <Tooltip title={T.fuelTip}>
           <Box sx={{ display: 'flex', minWidth: 0 }}>
             <PipTrack
               value={fuelNow}
               projected={fuelAfter}
               max={maxFuel}
               color={TABLE.fuel}
-              label="Fuel"
+              label={T.fuel}
               size={9}
               readout={
                 <>
@@ -324,7 +328,11 @@ export function StatusBlock({ accent }: { accent?: string }) {
           return (
             <Tooltip
               key={tile.id}
-              title={`${slotWithSubsystem(tile.id, tile.type, hullOf(me))}: ${left} of ${perTubeMax} missiles. Private until you fire.`}
+              title={fill(T.missilesTip, {
+                slot: slotWithSubsystem(tile.id, tile.type, hullOf(me)),
+                left,
+                max: perTubeMax,
+              })}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
                 <Typography

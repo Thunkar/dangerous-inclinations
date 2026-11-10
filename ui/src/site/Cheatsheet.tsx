@@ -25,7 +25,7 @@ import { FONT_MONO } from '../theme'
 import { FONT_BODY, FONT_DISPLAY, PRESS } from '../design/press'
 import { SiteFooter, SiteHeader } from './SiteChrome'
 import { SiteLink } from './SiteLink'
-import { Body, Display, Kicker, Numeral, Slab } from './poster'
+import { Display, Kicker, Numeral } from './poster'
 import { COLUMN } from './guide/parts'
 import { GoalSection } from './guide/GoalSection'
 import { SetupSection } from './guide/SetupSection'
@@ -35,16 +35,11 @@ import { HeatSection } from './guide/HeatSection'
 import { FightSection } from './guide/FightSection'
 import { DeathSection, SecretsSection } from './guide/SecretsSection'
 import { CardBack, CardFront } from './card/CardFaces'
-import {
-  CARD_CSS,
-  CARD_HEIGHT_MM,
-  CARD_PAGE_CSS,
-  CARD_WIDTH_MM,
-  SHEET_HEIGHT_MM,
-  SHEET_WIDTH_MM,
-} from './card/cardStyles'
-import { cropMarks, sheetPages, type PrintMode } from './card/sheet'
-import { INK } from './diagram'
+import { CARD_CSS, CARD_HEIGHT_MM, CARD_PAGE_CSS, CARD_WIDTH_MM } from './card/cardStyles'
+import { sheetPages, type PrintMode } from './card/sheet'
+import type { Flip } from './missions/sheet'
+import { PRINT_CSS } from './print/print'
+import { FlipChoice, PrintPages, PrintSection } from './print/PrintPages'
 import { Segments } from './tools/controls'
 import { CHEATSHEET } from '../text/cheatsheet'
 import { LOADOUT_CARDS } from '../text/loadoutCards'
@@ -71,6 +66,7 @@ ${CARD_CSS}
 ${LOADOUT_CSS}
 ${RANGE_CSS}
 ${MISSION_DECK_CSS}
+${PRINT_CSS}
 `
 
 const CONTENTS: Array<{ id: string; label: string }> = (
@@ -165,120 +161,43 @@ function Contents() {
 }
 
 type Sides = 'sheet' | 'duplex'
-type Flip = 'long' | 'short'
-
-/**
- * The pages that print, hidden on screen: every face at scale 1 at the
- * millimetre the sheet puts it, the crop marks drawn under them.
- */
-function PrintSheets({ mode }: { mode: PrintMode }) {
-  return (
-    <div className="di-sheets">
-      {sheetPages(mode).map((faces, page) => (
-        <div key={page} className="di-page">
-          <svg
-            className="di-marks"
-            width={`${SHEET_WIDTH_MM}mm`}
-            height={`${SHEET_HEIGHT_MM}mm`}
-            viewBox={`0 0 ${SHEET_WIDTH_MM} ${SHEET_HEIGHT_MM}`}
-            aria-hidden
-          >
-            {cropMarks(faces).map((m, i) => (
-              <line
-                key={i}
-                x1={m.x1}
-                y1={m.y1}
-                x2={m.x2}
-                y2={m.y2}
-                stroke={INK}
-                strokeWidth={0.2}
-              />
-            ))}
-          </svg>
-          {faces.map((face, i) => (
-            <div
-              key={i}
-              className={face.rotated ? 'di-slot di-turned' : 'di-slot'}
-              data-face={face.face}
-              style={{ left: `${face.x}mm`, top: `${face.y}mm` }}
-            >
-              {face.face === 'front' ? <CardFront /> : <CardBack />}
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** The bundled faces must be in before the sheet is laid out for the printer. */
-function print() {
-  void document.fonts.ready.then(() => {
-    // The loadout cards' print marks the body while it runs; never inherit a mark left behind.
-    delete document.body.dataset.printing
-    window.print()
-  })
-}
 
 function PrintCard() {
   const [sides, setSides] = useState<Sides>('sheet')
   const [flip, setFlip] = useState<Flip>('long')
   const mode: PrintMode = sides === 'sheet' ? 'sheet' : `duplex-${flip}`
   return (
-    <Box
-      component="section"
-      id="card"
-      className="di-print-area"
-      aria-labelledby="card-title"
-      sx={{ bgcolor: PRESS.paper, borderTop: `8px solid ${PRESS.ink}`, scrollMarginTop: 64 }}
+    <PrintSection
+      name="card"
+      kicker={T.card.kicker}
+      title={T.card.title}
+      lede={rich(T.card.lede, { width: CARD_WIDTH_MM, height: CARD_HEIGHT_MM })}
+      controls={
+        <>
+          <Segments
+            value={sides}
+            options={(['sheet', 'duplex'] as const).map(value => ({
+              value,
+              label: T.card.modes[value],
+            }))}
+            onChange={setSides}
+          />
+          {sides === 'duplex' && (
+            <FlipChoice flip={flip} labels={T.card.flips} onChange={setFlip} />
+          )}
+        </>
+      }
+      print={T.card.print}
+      note={T.card.printNote[mode]}
     >
-      <Box className="di-print" sx={{ ...COLUMN, py: { xs: 5, sm: 7 } }}>
-        <Box className="di-screen-only" sx={{ mb: 4 }}>
-          <Kicker>{T.card.kicker}</Kicker>
-          <Box id="card-title">
-            <Display component="h2" size={{ xs: '2.4rem', sm: '3.4rem' }} sx={{ mt: 0.75 }}>
-              {T.card.title}
-            </Display>
-          </Box>
-          <Body size={{ xs: '1.02rem', sm: '1.12rem' }} sx={{ mt: 1.5 }}>
-            {rich(T.card.lede, { width: CARD_WIDTH_MM, height: CARD_HEIGHT_MM })}
-          </Body>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mt: 3 }}>
-            <Segments
-              value={sides}
-              options={(['sheet', 'duplex'] as const).map(value => ({
-                value,
-                label: T.card.modes[value],
-              }))}
-              onChange={setSides}
-            />
-            {sides === 'duplex' && (
-              <Segments
-                value={flip}
-                options={(['long', 'short'] as const).map(value => ({
-                  value,
-                  label: T.card.flips[value],
-                }))}
-                onChange={setFlip}
-              />
-            )}
-            <Slab tone="red" onClick={print}>
-              <PrintIcon sx={{ fontSize: 20 }} />
-              {T.card.print}
-            </Slab>
-          </Box>
-          <Body size="0.92rem" color={PRESS.inkSoft} sx={{ maxWidth: '62ch', mt: 1.5 }}>
-            {T.card.printNote[mode]}
-          </Body>
-        </Box>
-
-        <Box className="di-cards">
-          <CardFront />
-          <CardBack />
-        </Box>
-        <PrintSheets mode={mode} />
+      <Box className="di-cards">
+        <CardFront />
+        <CardBack />
       </Box>
-    </Box>
+      <PrintPages pages={sheetPages(mode)}>
+        {face => (face.face === 'front' ? <CardFront /> : <CardBack />)}
+      </PrintPages>
+    </PrintSection>
   )
 }
 

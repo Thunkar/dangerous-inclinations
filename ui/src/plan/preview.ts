@@ -37,7 +37,9 @@ import type {
 import {
   BURN_COSTS,
   MAX_REACTION_MASS,
+  SCAN_SECTOR_RANGE,
   SELL_NOTHING,
+  SURVEY_RING,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
   calculateJumpMassCost,
@@ -48,6 +50,7 @@ import {
   canFireFrom,
   drawFor,
   escortCandidates,
+  fill,
   freePiracyCards,
   findJump,
   getAdjustmentRange,
@@ -84,6 +87,11 @@ import {
   unplacedEscorts,
 } from '@dangerous-inclinations/engine'
 import { hullOf, slotWithSubsystem } from '../utils/slots'
+import { ACTIONS } from '../text/actions'
+
+const W = ACTIONS.words
+const R = ACTIONS.readiness
+const I = ACTIONS.issues
 
 export type MoveChoice =
   | { kind: 'coast'; scoop: boolean }
@@ -127,7 +135,6 @@ export type PlanStep =
 
 export type FireStep = Extract<PlanStep, { kind: 'fire' }>
 export type ScanStep = Extract<PlanStep, { kind: 'scan' }>
-export type SeizeStep = Extract<PlanStep, { kind: 'seize' }>
 export type MoveStep = Extract<PlanStep, { kind: 'move' }>
 
 export interface StepContext {
@@ -161,7 +168,7 @@ const BURN_INTENSITIES: BurnIntensity[] = ['soft', 'medium', 'hard']
  * fires or scans with is not powered as well: the action leaves its energy on
  * it, so a rack that fired is up and a sensor that scanned widens the range.
  */
-export function tilesUsedBy(
+function tilesUsedBy(
   player: Player,
   steps: readonly PlanStep[]
 ): Record<SubsystemId, 'fire' | 'scan'> {
@@ -191,7 +198,7 @@ export function powerableTile(
  * The powers that stand: a choice on a tile a step now uses (or that broke)
  * is dropped rather than refused, since the step leaves its energy there.
  */
-export function standingPowers(
+function standingPowers(
   player: Player,
   powers: Record<SubsystemId, number>,
   used: Record<SubsystemId, 'fire' | 'scan'>
@@ -207,7 +214,7 @@ export function standingPowers(
  * The cubes each step puts on the tile it uses: one legal figure per tile,
  * read off the engine's draws.
  */
-export function drawsFor(player: Player, steps: readonly PlanStep[]): Record<SubsystemId, number> {
+function drawsFor(player: Player, steps: readonly PlanStep[]): Record<SubsystemId, number> {
   const draws: Record<SubsystemId, number> = {}
   const take = (id: SubsystemId, cubes: number) => {
     const sub = player.ship.subsystems.find(s => s.id === id)
@@ -247,7 +254,7 @@ export function drawsFor(player: Player, steps: readonly PlanStep[]): Record<Sub
  * cleared when the turn executes, then takes the plan's power or its step's
  * draw.
  */
-export function loadoutFor(
+function loadoutFor(
   player: Player,
   powers: Record<SubsystemId, number>,
   draws: Record<SubsystemId, number>
@@ -265,7 +272,7 @@ export function loadoutFor(
  * (`recoilRing`). A coast holds a berth only when the ship began the turn on
  * it and is still there (`isMooredMidTurn`): a recoil onto a station drifts off.
  */
-export function walkSteps(
+function walkSteps(
   me: Player,
   steps: readonly PlanStep[],
   loadout: readonly Subsystem[],
@@ -328,7 +335,7 @@ export function walkSteps(
  * The rivals a step may be aimed at: on the board and not just back from
  * Home (RULES §Destruction and Respawn), the engine's `isTouchable`.
  */
-export function targetsFor(view: GameView): Target[] {
+function targetsFor(view: GameView): Target[] {
   return view.players
     .filter(p => !p.isMe && isTouchable(p))
     .map(p => ({
@@ -456,9 +463,9 @@ export function moveReadiness(
   const thrusters = loadout.find(s => s.id === 'rotation')
   const rotateReady =
     !thrusters || thrusters.isBroken
-      ? blocked('the thrusters are broken')
+      ? blocked(R.thrustersBroken)
       : thrusters.usedThisTurn
-        ? blocked('the thrusters have already turned the ship')
+        ? blocked(R.thrustersUsed)
         : READY
 
   const engines = loadout.find(s => s.id === 'engines')
@@ -467,41 +474,40 @@ export function moveReadiness(
   // priced with the sectors it is shifting; the mode button asks about a
   // plain burn.
   const burnAdjustment = move.kind === 'burn' ? move.adjustment : 0
-  const outward = moveFrom.facing === 'prograde' ? 'outward' : 'inward'
+  const direction = moveFrom.facing === 'prograde' ? W.outward : W.inward
   const from = { ...moveFrom.position, facing: moveFrom.facing }
   const burnReady = Object.fromEntries(
     BURN_INTENSITIES.map(intensity => {
       const cost = BURN_COSTS[intensity]
-      const rings = `${cost.rings} ring${cost.rings === 1 ? '' : 's'} ${outward}`
+      const rings = fill(cost.rings === 1 ? W.rings.one : W.rings.many, {
+        rings: cost.rings,
+        direction,
+      })
       const mass = calculateBurnMassCost(cost.mass, burnAdjustment)
       const state =
         !engines || engines.isBroken
-          ? blocked('the engines are broken')
+          ? blocked(R.enginesBroken)
           : ringAfter(from, cost.rings) === null
-            ? blocked(
-                `there are not ${rings} from ring ${moveFrom.position.ring}: rotate to burn the other way`
-              )
+            ? blocked(fill(R.offRings, { rings, ring: moveFrom.position.ring }))
             : engines.usedThisTurn
-              ? blocked('the engines have already burned this turn')
+              ? blocked(R.enginesUsed)
               : fuel < mass
-                ? blocked(`it costs ${mass} fuel and ${fuel} is aboard`)
+                ? blocked(fill(R.fuel, { mass, fuel }))
                 : READY
       return [intensity, state]
     })
   ) as Record<BurnIntensity, MoveReadiness>
 
   let jumpReady = READY
-  if (getJumpOptions(moveFrom.position).length === 0)
-    jumpReady = blocked('jumps leave only from a lane end, and this sector is not one')
-  else if (!engines || engines.isBroken) jumpReady = blocked('the engines are broken')
-  else if (moveFrom.facing !== 'prograde' && !rotateReady.ok)
-    jumpReady = blocked('a jump needs prograde facing and the ship cannot rotate')
-  else if (engines.usedThisTurn) jumpReady = blocked('the engines have already burned this turn')
+  if (getJumpOptions(moveFrom.position).length === 0) jumpReady = blocked(R.noLane)
+  else if (!engines || engines.isBroken) jumpReady = blocked(R.enginesBroken)
+  else if (moveFrom.facing !== 'prograde' && !rotateReady.ok) jumpReady = blocked(R.cannotFace)
+  else if (engines.usedThisTurn) jumpReady = blocked(R.enginesUsed)
   else {
     const adjustment = move.kind === 'jump' ? move.adjustment : 0
     const compressor = hasWorkingCompressor({ ...me.ship, subsystems: [...loadout] })
     const mass = calculateJumpMassCost(adjustment, compressor)
-    if (fuel < mass) jumpReady = blocked(`it costs ${mass} fuel and ${fuel} is aboard`)
+    if (fuel < mass) jumpReady = blocked(fill(R.fuel, { mass, fuel }))
   }
   return { rotateReady, burnReady, jumpReady }
 }
@@ -553,7 +559,7 @@ export function planIssues(
   const spend = (amount: number, what: string) => {
     if (amount > fuel && !reportedShortFuel) {
       reportedShortFuel = true
-      problems.push(`Not enough fuel for ${what}: ${amount} needed, ${fuel} in the tank by then`)
+      problems.push(fill(I.shortFuel, { what, amount, fuel }))
     }
     fuel = Math.max(0, fuel - amount)
   }
@@ -566,8 +572,7 @@ export function planIssues(
     switch (step.kind) {
       case 'rotate': {
         const thrusters = loadout.find(s => s.id === 'rotation')
-        if (!thrusters || thrusters.isBroken)
-          problems.push('Maneuvering thrusters are broken: no rotation')
+        if (!thrusters || thrusters.isBroken) problems.push(I.thrustersBroken)
         break
       }
       case 'move': {
@@ -575,36 +580,36 @@ export function planIssues(
         if (move.kind === 'burn') {
           const cost = BURN_COSTS[move.intensity]
           const range = getAdjustmentRange(ringVelocity(at.position.wellId, at.position.ring))
+          const intensity = W.intensity[move.intensity]
           engineUses++
-          if (enginesBroken) problems.push('Engines are broken: no burn')
+          if (enginesBroken) problems.push(I.enginesNoBurn)
           if (move.adjustment < range.min || move.adjustment > range.max)
-            problems.push(`Phasing must be between ${range.min} and +${range.max} from this ring`)
+            problems.push(fill(I.phasing, { min: range.min, max: range.max }))
           if (ringAfter(facingShip, cost.rings) === null) {
             problems.push(
-              `A ${move.intensity} burn ${at.facing === 'prograde' ? 'outward' : 'inward'} from ring ${
-                at.position.ring
-              } would leave the rings`
+              fill(I.burnOffRings, {
+                intensity,
+                direction: at.facing === 'prograde' ? W.outward : W.inward,
+                ring: at.position.ring,
+              })
             )
           }
-          spend(calculateBurnMassCost(cost.mass, move.adjustment), `a ${move.intensity} burn`)
+          spend(calculateBurnMassCost(cost.mass, move.adjustment), fill(I.aBurn, { intensity }))
         } else if (move.kind === 'jump') {
           engineUses++
           const option = findJump(at.position, move.destinationWellId)
-          if (!option) problems.push('No transfer lane from here to that destination')
+          if (!option) problems.push(I.noLane)
           else {
             const range = getJumpAdjustmentRange(option)
             if (move.adjustment < range.min || move.adjustment > range.max)
-              problems.push(
-                `Phasing a jump stays inside the arrival arc (${range.min} to +${range.max} from here)`
-              )
+              problems.push(fill(I.jumpPhasing, { min: range.min, max: range.max }))
           }
-          if (enginesBroken) problems.push('Engines are broken: no jump')
-          if (at.facing !== 'prograde')
-            problems.push('A jump is a burn out of the well: face prograde (rotate first)')
-          spend(calculateJumpMassCost(move.adjustment, compressor), 'a jump')
+          if (enginesBroken) problems.push(I.enginesNoJump)
+          if (at.facing !== 'prograde') problems.push(I.jumpFacing)
+          spend(calculateJumpMassCost(move.adjustment, compressor), I.aJump)
         } else if (move.scoop) {
           const scoop = loadout.find(s => s.id === 'scoop')
-          if (!scoop || scoop.isBroken) problems.push('Fuel scoop is broken')
+          if (!scoop || scoop.isBroken) problems.push(I.scoopBroken)
           // Fuel equal to this ring's velocity, up to the tank's capacity.
           else
             fuel = Math.min(
@@ -619,66 +624,54 @@ export function planIssues(
         if (!weapon || !isWeaponType(weapon.type)) break
         const config = getSubsystemConfig(weapon.type)
         const name = slotWithSubsystem(weapon.id, weapon.type, hullOf(me))
-        if (quiet)
-          problems.push(
-            opening
-              ? 'No weapon fires in the first round'
-              : 'Back from Home: no weapon of yours fires this turn'
-          )
+        if (quiet) problems.push(opening ? I.openingNoFire : I.backNoFire)
         // A salvo is one use of the tile, its energy once however big the
         // launch (RULES §Weapons → Missiles).
-        if (weapon.isBroken) problems.push(`${name} is broken`)
+        if (weapon.isBroken) problems.push(fill(I.broken, { slot: name }))
         if (weapon.type === 'missiles') {
           const ammo = weapon.ammo ?? 0
-          if (ammo <= 0) problems.push(`${name}: no missiles left aboard`)
+          if (ammo <= 0) problems.push(fill(I.noMissiles, { slot: name }))
           else if (step.count > ammo)
-            problems.push(`${name}: ${step.count} missiles planned, ${ammo} aboard`)
-          if (step.count < 1) problems.push(`${name}: a salvo launches at least one missile`)
+            problems.push(fill(I.tooManyMissiles, { slot: name, count: step.count, ammo }))
+          if (step.count < 1) problems.push(fill(I.emptySalvo, { slot: name }))
         }
         const target = step.targetId ? seat(step.targetId) : undefined
         if (step.targetId && !config.weaponStats?.disrupts) shotAt.push(step.targetId)
-        if (!canFireFrom(me.ship, at.position, view.stations))
-          problems.push('A moored ship fires at nobody: burn off the berth first')
-        else if (!step.targetId) problems.push(`${name}: pick a target`)
+        if (!canFireFrom(me.ship, at.position, view.stations)) problems.push(I.mooredNoFire)
+        else if (!step.targetId) problems.push(fill(I.pickTarget, { slot: name }))
         else if (untouchable(step.targetId))
-          problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
+          problems.push(fill(I.untouchableTarget, { name: nameOf(step.targetId) }))
         else if (target && isOnBoard(target) && !canBeTargeted(target, view.stations))
-          problems.push(`${nameOf(step.targetId)} is moored: nobody fires at a ship at a berth`)
+          problems.push(fill(I.mooredTarget, { name: nameOf(step.targetId) }))
         else if (!inRange(step, at, step.targetId))
-          problems.push(`${name}: target out of range from where you fire`)
+          problems.push(fill(I.outOfRange, { slot: name }))
         if (config.weaponStats?.hasRecoil) {
           if (step.compensateRecoil) {
             engineUses++
-            if (enginesBroken)
-              problems.push('Engines are broken: nothing to cancel the recoil with')
-            spend(BURN_COSTS.soft.mass, 'recoil compensation')
+            if (enginesBroken) problems.push(I.enginesNoRecoil)
+            spend(BURN_COSTS.soft.mass, I.recoilCompensation)
           } else if (recoilRing(facingShip) === null) {
-            problems.push('Railgun recoil would push you off the rings: compensate or rotate first')
+            problems.push(I.recoilOffRings)
           }
         }
         break
       }
       case 'scan': {
         const sensor = loadout.find(s => s.type === 'sensor_array')
-        if (quiet)
-          problems.push(
-            opening
-              ? 'Nobody scans in the first round'
-              : 'Back from Home: you scan nobody this turn'
-          )
-        if (!sensor) problems.push('No sensor array aboard')
+        if (quiet) problems.push(opening ? I.openingNoScan : I.backNoScan)
+        if (!sensor) problems.push(I.noSensor)
         else if (sensor.isBroken)
-          problems.push(`${slotWithSubsystem(sensor.id, sensor.type, hullOf(me))} is broken`)
-        if (!step.targetId) problems.push('Scan: pick a target on your ring, up to 3 sectors ahead')
-        else if (untouchable(step.targetId))
-          problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
-        else if (!targetable(view, step.targetId))
-          problems.push(`${nameOf(step.targetId)} is moored: nobody scans a ship at a berth`)
-        else if (!inRange(step, at, step.targetId))
           problems.push(
-            'Scan: the target must be on your ring, up to 3 sectors ahead or in your sector. Rotate first to face it'
+            fill(I.broken, { slot: slotWithSubsystem(sensor.id, sensor.type, hullOf(me)) })
           )
-        if (!step.peekSlot) problems.push('Scan: choose which subsystem to look at')
+        if (!step.targetId) problems.push(fill(I.scanPick, { range: SCAN_SECTOR_RANGE }))
+        else if (untouchable(step.targetId))
+          problems.push(fill(I.untouchableTarget, { name: nameOf(step.targetId) }))
+        else if (!targetable(view, step.targetId))
+          problems.push(fill(I.mooredScan, { name: nameOf(step.targetId) }))
+        else if (!inRange(step, at, step.targetId))
+          problems.push(fill(I.scanRange, { range: SCAN_SECTOR_RANGE }))
+        if (!step.peekSlot) problems.push(I.scanPeek)
         break
       }
       case 'seize': {
@@ -686,27 +679,21 @@ export function planIssues(
         // is taken from where the ship is when the step comes.
         const victim = nameOf(step.victimId)
         const key = seizeKey(step)
-        if (seized.has(key)) problems.push(`Seize: that item from ${victim} is named twice`)
+        if (seized.has(key)) problems.push(fill(I.seizeTwice, { name: victim }))
         else if (seized.size >= freeCards)
           problems.push(
             freeCards === 0
-              ? 'Seize: no Piracy card is free to take an item'
+              ? I.seizeNoCard
               : freeCards === 1
-                ? 'Seize: one Piracy card takes one item'
-                : `Seize: ${freeCards} Piracy cards take ${freeCards} items`
+                ? I.seizeCards.one
+                : fill(I.seizeCards.many, { count: freeCards })
           )
-        else if (quiet)
-          problems.push(
-            opening
-              ? 'Nobody seizes in the first round'
-              : 'Back from Home: you seize nothing this turn'
-          )
-        else if (untouchable(step.victimId))
-          problems.push(`${victim} cannot be touched until its turn back is over`)
+        else if (quiet) problems.push(opening ? I.openingNoSeize : I.backNoSeize)
+        else if (untouchable(step.victimId)) problems.push(fill(I.untouchable, { name: victim }))
         else if (isMooredMidTurn(view.stations, me.ship, at.position))
-          problems.push('A moored ship seizes nothing: burn off the berth first')
+          problems.push(I.mooredNoSeize)
         else if (!seizableItems(view, me.id, at.position).some(i => seizeKey(i) === key))
-          problems.push(`Seize: ${victim} is not in your sector with that item at this point`)
+          problems.push(fill(I.seizeAway, { name: victim }))
         if (!seized.has(key))
           seizedFrom.set(step.victimId, (seizedFrom.get(step.victimId) ?? 0) + 1)
         seized.add(key)
@@ -715,16 +702,16 @@ export function planIssues(
       // Survey, salvage and a marker touch nobody, so a quiet turn takes them.
       case 'survey': {
         surveys++
-        if (surveys > 1) problems.push('One survey a turn')
-        else if (!surveyToTake(me)) problems.push('Survey: no Survey card wants data')
+        if (surveys > 1) problems.push(I.surveyTwice)
+        else if (!surveyToTake(me)) problems.push(I.surveyNoCard)
         else if (!onSurveyRing(at.position))
-          problems.push('Survey: you are not on Black Hole Ring 1 at this point')
+          problems.push(fill(I.surveyRing, { ring: SURVEY_RING }))
         break
       }
       case 'salvage': {
         salvages++
-        if (salvages > 1) problems.push('One wreck a turn')
-        else if (!salvageToTake(me)) problems.push('Salvage: no Salvage card wants a black box')
+        if (salvages > 1) problems.push(I.salvageTwice)
+        else if (!salvageToTake(me)) problems.push(I.salvageNoCard)
         else if (step.wreckId === null) {
           // Naming none, it holds with a wreck there now or a kill before it
           // there: whether the shot kills is the dice's, not an issue.
@@ -733,13 +720,10 @@ export function planIssues(
             return !!ship && isOnBoard(seat(id)!) && samePosition(ship, at.position)
           })
           if (!prey && !view.wrecks.some(w => samePosition(w, at.position)))
-            problems.push(
-              'Salvage: no wreck in your sector at this point, and no shot before it at a ship there'
-            )
-        } else if (!view.wrecks.some(w => w.id === step.wreckId))
-          problems.push('Salvage: that wreck is not on the board')
+            problems.push(I.salvageNothing)
+        } else if (!view.wrecks.some(w => w.id === step.wreckId)) problems.push(I.wreckGone)
         else if (!salvageableWrecks(me, view.wrecks, at.position).some(w => w.id === step.wreckId))
-          problems.push('Salvage: the wreck is not in your sector at this point')
+          problems.push(I.wreckAway)
         break
       }
       case 'mark': {
@@ -747,30 +731,27 @@ export function planIssues(
         // on from where the ship is when the step comes.
         const carrier = nameOf(step.carrierId)
         const left = (seat(step.carrierId)?.cargoCount ?? 0) - (seizedFrom.get(step.carrierId) ?? 0)
-        if (marked.has(step.carrierId)) problems.push(`Mark: ${carrier} is marked twice`)
+        if (marked.has(step.carrierId)) problems.push(fill(I.markTwice, { name: carrier }))
         else if (marked.size >= markers)
           problems.push(
             markers === 0
-              ? 'Mark: no Escort marker in hand'
+              ? I.markNone
               : markers === 1
-                ? 'Mark: one Escort marker in hand'
-                : `Mark: ${markers} Escort markers in hand`
+                ? I.markers.one
+                : fill(I.markers.many, { count: markers })
           )
-        else if (untouchable(step.carrierId))
-          problems.push(`${carrier} cannot be touched until its turn back is over`)
-        else if (isMooredMidTurn(view.stations, me.ship, at.position))
-          problems.push('A moored ship marks nobody: burn off the berth first')
-        else if (left <= 0) problems.push(`Mark: ${carrier} carries nothing at this point`)
+        else if (untouchable(step.carrierId)) problems.push(fill(I.untouchable, { name: carrier }))
+        else if (isMooredMidTurn(view.stations, me.ship, at.position)) problems.push(I.mooredNoMark)
+        else if (left <= 0) problems.push(fill(I.markEmpty, { name: carrier }))
         else if (!escortCandidates(view, me.id, at.position, start).includes(step.carrierId))
-          problems.push(`Mark: ${carrier} cannot take your marker from where you are at this point`)
+          problems.push(fill(I.markAway, { name: carrier }))
         marked.add(step.carrierId)
         break
       }
     }
   })
 
-  if (engineUses > 1)
-    problems.push('Engines act once per turn: burn/jump or recoil compensation, not both')
+  if (engineUses > 1) problems.push(I.enginesTwice)
   return { projectedFuel: fuel, issues: problems }
 }
 
@@ -802,7 +783,7 @@ export function criticalFrom(
  * nothing keeps the station for later) or when the station has bought from
  * this player already, so the table can say so.
  */
-export function dockOfferFor(
+function dockOfferFor(
   view: GameView,
   me: Player,
   finalPosition: Position,
@@ -832,7 +813,7 @@ export type SeizeOption = SeizableItem & { before: boolean }
  * do not move during a turn, so where they are now is where the plan meets
  * them.
  */
-export function seizeOfferFor(
+function seizeOfferFor(
   view: GameView,
   me: Player,
   steps: readonly PlanStep[],
@@ -887,7 +868,7 @@ export interface SurveyOption {
  * where the turn starts (taken before the move) or where the move ends (taken
  * right after it). The engine's `canSurvey` answers both.
  */
-export function surveyOfferFor(
+function surveyOfferFor(
   me: Player,
   steps: readonly PlanStep[],
   stepStart: readonly StepContext[],
@@ -932,7 +913,7 @@ export const salvageStepKey = (step: Extract<PlanStep, { kind: 'salvage' }>): st
  * shot takes its black box if the shot destroys it. Not where a wreck is
  * there already: one wreck a turn, and that one is taken first.
  */
-export function salvageOfferFor(
+function salvageOfferFor(
   view: GameView,
   me: Player,
   steps: readonly PlanStep[],
@@ -980,7 +961,7 @@ export interface MarkOption {
  * starts (marked before the move) or where the move ends (right after it).
  * Mooring is judged against the berth the turn began on, as for a shot.
  */
-export function markOfferFor(
+function markOfferFor(
   view: GameView,
   me: Player,
   steps: readonly PlanStep[],
@@ -1004,7 +985,7 @@ export function markOfferFor(
  * A repair needs the ship cold at its check: nothing carried in and no energy
  * anywhere on the loadout, which is the same sentence as the heat rule.
  */
-export function repairableFor(me: Player, loadout: readonly Subsystem[]): SubsystemId[] {
+function repairableFor(me: Player, loadout: readonly Subsystem[]): SubsystemId[] {
   return me.ship.heat.currentHeat === 0 && heatFromCubes([...loadout]) === 0
     ? me.ship.subsystems.filter(s => s.isBroken).map(s => s.id)
     : []

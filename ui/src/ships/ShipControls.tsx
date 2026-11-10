@@ -19,7 +19,8 @@ import {
   type ShipLoadout,
 } from '@dangerous-inclinations/engine'
 import { SubsystemIcon } from '../components/common/SubsystemIcon'
-import { TABLE, FONT_MONO } from '../theme'
+import { FONT_MONO } from '../theme'
+import { TABLE } from '../design/tokens'
 import { MODULE_NOTES, MOUNTS, moduleAt, setModule, type MountId, type ShipConfig } from './config'
 import { mountLabel } from './mounts'
 import { HULL_INFO } from './hulls'

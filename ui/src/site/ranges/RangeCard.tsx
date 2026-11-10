@@ -13,6 +13,7 @@
  */
 import {
   BURN_COSTS,
+  SECTORS_PER_RING,
   SUBSYSTEM_CONFIGS,
   fill,
   interceptsPerRack,
@@ -36,8 +37,8 @@ const CY = FAN_H / 2
 const HOLE = 4.5
 const R0 = 5.5
 const BAND = 5.5
-/** The board's own sector: 24 to a ring. */
-const STEP = 15
+/** The board's own sector, in degrees. */
+const STEP = 360 / SECTORS_PER_RING
 const SHIP_RING = 3
 
 /** The card's ink: the intel violet for the sensor, the combat red for every weapon. */

@@ -10,12 +10,15 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
 import { Box, Typography } from '@mui/material'
 
-import { describeEvent, type GameEvent } from '@dangerous-inclinations/engine'
+import { describeEvent, fill, type GameEvent } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { actorOf, concerns } from './eventLogModel'
 import { getPlayerColor } from '../../utils/playerColors'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { Panel } from '../common/Panel'
+import { TABLE_TEXT } from '../../text/table'
+
+const T = TABLE_TEXT.log
 
 export function EventLog() {
   const { log, view, nameOf } = useGame()
@@ -47,7 +50,7 @@ export function EventLog() {
 
   return (
     <Panel
-      title="Turn log"
+      title={T.title}
       dense
       collapseId="turn-log"
       summary={`${lines.length}`}
@@ -60,7 +63,7 @@ export function EventLog() {
       >
         {lines.length === 0 && (
           <Typography variant="caption" sx={{ color: TABLE.inkFaint }}>
-            Nothing has happened yet.
+            {T.empty}
           </Typography>
         )}
         {lines.map((event, i) => {
@@ -124,7 +127,7 @@ const LogLine = memo(function LogLine({
           variant="overline"
           sx={{ color: TABLE.accent, display: 'block', mt: first ? 0 : 0.75, lineHeight: 1.7 }}
         >
-          Turn {event.turn}
+          {fill(T.turn, { turn: event.turn })}
         </Typography>
       )}
       <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start', minWidth: 0 }}>

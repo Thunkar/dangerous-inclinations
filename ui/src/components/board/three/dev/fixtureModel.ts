@@ -40,7 +40,7 @@ import {
 } from '../../../../animation/beats'
 import { visualForPlayer } from '../../../../ships/visual'
 import { getPlayerColor } from '../../../../utils/playerColors'
-import { TABLE } from '../../../../theme'
+import { TABLE } from '../../../../design/tokens'
 
 interface FixtureSeat {
   playerId: string

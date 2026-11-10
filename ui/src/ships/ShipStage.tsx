@@ -1,7 +1,7 @@
 import { lazy, Suspense, useRef, useState } from 'react'
 import { Box, Button, CircularProgress } from '@mui/material'
 import { useBoardMode } from '../context/BoardModeContext'
-import { TABLE } from '../theme'
+import { TABLE } from '../design/tokens'
 import { FONT_DISPLAY } from '../design/press'
 import type { MountId, ShipConfig } from './config'
 import type { CameraView, ViewerHandle } from './Viewer'

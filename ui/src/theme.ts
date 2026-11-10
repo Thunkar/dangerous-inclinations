@@ -8,7 +8,6 @@ import { createTheme } from '@mui/material/styles'
 
 import { TABLE } from './design/tokens'
 import { FONT_DISPLAY } from './design/press'
-export { TABLE } from './design/tokens'
 
 export const FONT_SANS =
   'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif'

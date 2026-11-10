@@ -7,17 +7,23 @@
  */
 import { Box, Tooltip, Typography } from '@mui/material'
 import type { PlayerView } from '@dangerous-inclinations/engine'
-import { getWellName } from '@dangerous-inclinations/engine'
-import { TABLE } from '../../theme'
+import { fill, getWellName } from '@dangerous-inclinations/engine'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
 import { wellColor } from '../board/geometry'
+import { TABLE_TEXT } from '../../text/table'
+
+const T = TABLE_TEXT.soldAt
 
 export function SoldAt({ player }: { player: PlayerView | undefined }) {
   if (!player || player.soldAt.length === 0) return null
   const names = player.soldAt.map(id => getWellName(id))
   return (
     <Tooltip
-      title={`${names.join(', ')} ${names.length > 1 ? 'buy' : 'buys'} nothing more from ${player.isMe ? 'you' : player.name}.`}
+      title={fill(names.length > 1 ? T.tipMany : T.tipOne, {
+        names: names.join(T.comma),
+        who: player.isMe ? T.you : player.name,
+      })}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flexWrap: 'wrap' }}>
         <Typography
@@ -30,7 +36,7 @@ export function SoldAt({ player }: { player: PlayerView | undefined }) {
             lineHeight: 1.3,
           }}
         >
-          Sold at
+          {T.label}
         </Typography>
         {player.soldAt.map(id => (
           <Typography

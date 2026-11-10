@@ -8,7 +8,7 @@
  */
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import { TileIcon } from '../../art/glyphs'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 
 export function SubsystemIcon({
   type,

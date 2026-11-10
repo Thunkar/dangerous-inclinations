@@ -24,12 +24,15 @@ import AddIcon from '@mui/icons-material/Add'
 import EditIcon from '@mui/icons-material/Edit'
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary'
 import type { GlobalSocketMessage, LobbyListItem } from '../../api/types'
-import { MAX_PLAYERS, MIN_PLAYERS } from '@dangerous-inclinations/engine'
+import { MAX_PLAYERS, MIN_PLAYERS, fill } from '@dangerous-inclinations/engine'
 import { createLobby, joinLobby, listLobbies } from '../../api/lobby'
 import { usePlayer } from '../../context/PlayerContext'
 import { useWebSocket } from '../../context/WebSocketContext'
 import { Panel, SectionLabel } from '../common/Panel'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
+import { SCREENS } from '../../text/screens'
+
+const S = SCREENS.lobbyBrowser
 
 interface LobbyBrowserProps {
   onLobbyJoined: (lobbyId: string) => void
@@ -75,7 +78,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
       setLobbies(await listLobbies())
       setError(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not reach the server')
+      setError(e instanceof Error ? e.message : S.unreachable)
     } finally {
       setLoading(false)
     }
@@ -108,7 +111,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
     setBusy(true)
     try {
       const lobby = await createLobby(
-        newName.trim() || `${playerName}'s table`,
+        newName.trim() || fill(S.defaultTableName, { name: playerName }),
         newMax,
         newPassword || undefined
       )
@@ -116,7 +119,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
       setCreateOpen(false)
       onLobbyJoined(lobby.lobbyId)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not create the table')
+      setError(e instanceof Error ? e.message : S.createFailed)
     } finally {
       setBusy(false)
     }
@@ -130,7 +133,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
       setJoinPassword('')
       onLobbyJoined(lobby.lobbyId)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not sit down at that table')
+      setError(e instanceof Error ? e.message : S.joinFailed)
     } finally {
       setBusy(false)
     }
@@ -141,19 +144,18 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
       sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3, gap: 2 }}
     >
       <Typography variant="h3" sx={{ color: TABLE.ink, mt: 3 }}>
-        Dangerous Inclinations
+        {S.title}
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft, mb: 1 }}>
-        Orbital manoeuvre, heat management and hidden objectives for {MIN_PLAYERS}–{MAX_PLAYERS}{' '}
-        players.
+        {fill(S.lede, { min: MIN_PLAYERS, max: MAX_PLAYERS })}
       </Typography>
 
       <Panel
-        title="Tables"
+        title={S.panel}
         sx={{ width: '100%', maxWidth: 760 }}
         action={
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-            <Tooltip title="Change your name">
+            <Tooltip title={S.rename}>
               <IconButton
                 size="small"
                 onClick={() => {
@@ -164,12 +166,12 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
                 <EditIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Watch a recorded game">
+            <Tooltip title={S.recordings}>
               <IconButton size="small" onClick={onOpenRecordings}>
                 <VideoLibraryIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Refresh">
+            <Tooltip title={S.refresh}>
               <IconButton size="small" onClick={refresh}>
                 <RefreshIcon fontSize="small" />
               </IconButton>
@@ -180,12 +182,12 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
               startIcon={<AddIcon />}
               onClick={() => setCreateOpen(true)}
             >
-              New table
+              {S.newTable}
             </Button>
           </Box>
         }
       >
-        <SectionLabel>Sitting as {playerName}</SectionLabel>
+        <SectionLabel>{fill(S.sittingAs, { name: playerName })}</SectionLabel>
         {shownNotice && (
           <Alert severity="info" sx={{ my: 1 }} onClose={() => setShownNotice(null)}>
             {shownNotice}
@@ -202,7 +204,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
           </Box>
         ) : lobbies.length === 0 ? (
           <Typography variant="body2" sx={{ color: TABLE.inkSoft, py: 2 }}>
-            No tables yet. Make one and add a bot or two.
+            {S.empty}
           </Typography>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 1 }}>
@@ -224,7 +226,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
                 </Typography>
                 {lobby.hasPassword && <LockIcon sx={{ fontSize: 15, color: TABLE.inkSoft }} />}
                 <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-                  {lobby.currentPlayers}/{lobby.maxPlayers} seats
+                  {fill(S.seats, { current: lobby.currentPlayers, max: lobby.maxPlayers })}
                 </Typography>
                 <Box sx={{ flex: 1 }} />
                 {lobby.seated ? (
@@ -235,7 +237,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
                     disabled={busy}
                     onClick={() => onLobbyJoined(lobby.lobbyId)}
                   >
-                    Rejoin
+                    {S.rejoin}
                   </Button>
                 ) : (
                   <Button
@@ -244,7 +246,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
                     disabled={busy || lobby.gameStarted || lobby.currentPlayers >= lobby.maxPlayers}
                     onClick={() => (lobby.hasPassword ? setJoinTarget(lobby) : doJoin(lobby))}
                   >
-                    {lobby.gameStarted ? 'in play' : 'Sit down'}
+                    {lobby.gameStarted ? S.inPlay : S.sitDown}
                   </Button>
                 )}
               </Box>
@@ -260,13 +262,13 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>New table</DialogTitle>
+        <DialogTitle>{S.create.title}</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <TextField
-            label="Table name"
+            label={S.create.name}
             value={newName}
             onChange={e => setNewName(e.target.value)}
-            placeholder={`${playerName}'s table`}
+            placeholder={fill(S.defaultTableName, { name: playerName })}
             autoFocus
             fullWidth
           />
@@ -278,12 +280,12 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
           >
             {SEAT_COUNTS.map(n => (
               <MenuItem key={n} value={n}>
-                {n} players
+                {fill(S.create.players, { count: n })}
               </MenuItem>
             ))}
           </Select>
           <TextField
-            label="Password (optional)"
+            label={S.create.password}
             value={newPassword}
             onChange={e => setNewPassword(e.target.value)}
             fullWidth
@@ -291,10 +293,10 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateOpen(false)} disabled={busy}>
-            Cancel
+            {S.create.cancel}
           </Button>
           <Button variant="contained" onClick={doCreate} disabled={busy}>
-            Create
+            {S.create.create}
           </Button>
         </DialogActions>
       </Dialog>
@@ -306,10 +308,10 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>Join {joinTarget?.lobbyName}</DialogTitle>
+        <DialogTitle>{fill(S.join.title, { name: joinTarget?.lobbyName ?? '' })}</DialogTitle>
         <DialogContent>
           <TextField
-            label="Password"
+            label={S.join.password}
             type="password"
             value={joinPassword}
             onChange={e => setJoinPassword(e.target.value)}
@@ -319,21 +321,21 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setJoinTarget(null)} disabled={busy}>
-            Cancel
+            {S.join.cancel}
           </Button>
           <Button
             variant="contained"
             onClick={() => joinTarget && doJoin(joinTarget, joinPassword)}
             disabled={busy}
           >
-            Sit down
+            {S.join.sitDown}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Rename */}
       <Dialog open={nameOpen} onClose={() => setNameOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Your name</DialogTitle>
+        <DialogTitle>{S.name.title}</DialogTitle>
         <DialogContent>
           <TextField
             value={draftName}
@@ -343,7 +345,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setNameOpen(false)}>Cancel</Button>
+          <Button onClick={() => setNameOpen(false)}>{S.name.cancel}</Button>
           <Button
             variant="contained"
             onClick={async () => {
@@ -351,7 +353,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
               setNameOpen(false)
             }}
           >
-            Save
+            {S.name.save}
           </Button>
         </DialogActions>
       </Dialog>

@@ -25,17 +25,18 @@ import {
   legalDeploymentsAgainst,
   placedShipPositions,
   projectMissilePath,
+  STARTING_HIT_POINTS,
   samePosition,
   stationPosition,
 } from '@dangerous-inclinations/engine'
 import type { CameraShot, ShipMotion, TableEffect, WreckMotion } from '../../animation/beats'
 import type { Ping } from '../../context/AnimationContext'
-import { useAnimation } from '../../context/AnimationContext'
+import { useAnimation, useLiveView } from '../../context/AnimationContext'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
 import { useRoutePlanOptional } from '../../context/RoutePlanContext'
 import { getPlayerColor } from '../../utils/playerColors'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
 import { STATION_BERTHS } from '../../ships/station'
 import {
@@ -193,14 +194,14 @@ const MISSILE_TOOLTIP =
   `The turn it is launched it flies at once, from where it was launched, with no ride. ${MISSILE.maxMoves} flights max.`
 
 /** The label a planned launch carries. */
-export function missilePreviewLabel(targetName: string, count: number): string {
+function missilePreviewLabel(targetName: string, count: number): string {
   return count > 1
     ? `Planned salvo of ${count} at ${targetName} · each flies up to ${MISSILE.stepsPerMove} steps this turn`
     : `Planned missile at ${targetName} · flies up to ${MISSILE.stepsPerMove} steps this turn`
 }
 
 /** A planned launch's flight: a missile flies as it is fired, from where it is fired, with no ride. */
-export function previewPath(from: Position, target: Position): Position[] {
+function previewPath(from: Position, target: Position): Position[] {
   return projectMissilePath({ ...from, movesMade: 0 }, target)
 }
 
@@ -218,7 +219,7 @@ function headingOf(at: Position, path: readonly Position[]): number {
  * on the board, or null once it has left it; a missile at a target that has
  * gone has no path.
  */
-export function missileTokens(
+function missileTokens(
   missiles: readonly Missile[],
   targetAt: (playerId: string) => Position | null,
   colorOf: (playerId: string) => string,
@@ -324,6 +325,13 @@ export interface BoardModel {
 export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions): BoardModel {
   const { view, nameOf } = useGame()
   const { overlay, effects, pinged, shot } = useAnimation()
+  /*
+   * Hull and heat as far as the playing turn has gone, as the cards show them.
+   * The live view changes only in a beat that also moves the overlay, so the
+   * board renders no more often for reading it.
+   */
+  const liveView = useLiveView()
+  const livePlayers = (liveView ?? view).players
   const plan = usePlanOptional()
   const routePlan = useRoutePlanOptional()
 
@@ -348,6 +356,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     const tokens = view.players.flatMap<Omit<ShipToken, 'crowd' | 'berth'>>((player, index) => {
       const live = overlay?.ships[player.id]
       const publicShip = player.ship
+      const shipNow = livePlayers.find(p => p.id === player.id)?.ship ?? publicShip
       if (!live && !publicShip) return []
       if (live && !live.alive) return []
       if (!live && publicShip?.isDestroyed) return []
@@ -366,9 +375,9 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
           escorts: escortsOf(player.id),
           isActive: player.isActive,
           isMe: player.isMe,
-          hitPoints: publicShip?.hitPoints ?? 0,
-          maxHitPoints: publicShip?.maxHitPoints ?? 10,
-          heat: publicShip?.heat ?? 0,
+          hitPoints: shipNow?.hitPoints ?? 0,
+          maxHitPoints: shipNow?.maxHitPoints ?? STARTING_HIT_POINTS,
+          heat: shipNow?.heat ?? 0,
         },
       ]
     })
@@ -385,7 +394,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
         berth: moored && index < STATION_BERTHS.length ? index : null,
       }
     })
-  }, [view.players, view.stations, overlay])
+  }, [view.players, view.stations, overlay, livePlayers])
 
   /**
    * A token per wreck, numbered among the wrecks on its sector and told how

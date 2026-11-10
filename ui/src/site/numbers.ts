@@ -14,8 +14,12 @@ import {
   interceptsPerRack,
   lowestCriticalFace,
   rollToResult,
+  fill,
   shieldPointsPerEnergyOf,
 } from '@dangerous-inclinations/engine'
+import { TABLE_TEXT } from '../text/table'
+
+const POWERED = TABLE_TEXT.loadout.powered
 
 export const RADIATOR_DISSIPATION = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
 /** The energy each powered subsystem takes: a full shield, a rack and a sensor alike; a half shield half it. */
@@ -49,13 +53,15 @@ const LASERS_PIERCE = SUBSYSTEM_CONFIGS.laser.weaponStats?.ignoresShields ?? fal
 export function poweredEffect(type: SubsystemType): string {
   switch (type) {
     case 'shields':
-      return `shields absorb ${SHIELD_POINTS_PER_ENERGY} damage an energy (${PLASMA_SHIELD_POINTS} of plasma${
-        LASERS_PIERCE ? ', not lasers' : ''
-      }), and every point absorbed is heat`
+      return fill(POWERED.shields, {
+        points: SHIELD_POINTS_PER_ENERGY,
+        plasma: PLASMA_SHIELD_POINTS,
+        lasers: LASERS_PIERCE ? POWERED.notLasers : '',
+      })
     case 'ballistic_rack':
-      return `a rack rolls at ${interceptsPerRack()} missiles a turn, and answering is ${INTERCEPT_HEAT} heat`
+      return fill(POWERED.rack, { intercepts: interceptsPerRack(), heat: INTERCEPT_HEAT })
     case 'sensor_array':
-      return `a sensor makes your criticals ${SENSOR_CRIT}–10`
+      return fill(POWERED.sensor, { crit: SENSOR_CRIT, top: D10[D10.length - 1] })
     default:
       return ''
   }

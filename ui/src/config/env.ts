@@ -14,6 +14,4 @@ export const ENV = {
   API_URL: import.meta.env.VITE_API_URL || SERVER_ORIGIN,
   /** WebSocket base URL for real-time connections */
   WS_URL: import.meta.env.VITE_WS_URL || SERVER_ORIGIN.replace(/^http/, 'ws'),
-  /** Development mode */
-  DEBUG: import.meta.env.DEV,
 } as const

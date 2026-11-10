@@ -9,10 +9,6 @@
  * slots in two columns, and the missions it is kept with in the black bar.
  * Printed in colour on the press's paper. Drawn at true size; the preview
  * scales it with a transform.
- *
- * Which sheets print is the page's call: the player card's unless the body
- * says `data-printing="loadouts"` (set by this section's print button only
- * while it prints), so Ctrl+P and the player card's button print as before.
  */
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM } from './sheet'
@@ -119,17 +115,8 @@ export const LOADOUT_CSS = `
 }
 .di-lo-mission i svg { width: 4.2mm; height: 4.2mm; display: block; }
 
-/* The printed pages: hidden on screen, every card at scale 1 in print. */
-.di-lo-sheets { display: none; --lo-zoom: 1; }
-.di-lo-slot { position: absolute; width: ${LOADOUT_WIDTH_MM}mm; height: ${LOADOUT_HEIGHT_MM}mm; }
-.di-lo-slot.di-turned { transform: rotate(180deg); }
-
+/* The preview: in print only the pages are left. */
 @media print {
   .di-lo-rows { display: none !important; }
-  .di-lo-sheets { display: block; }
-  /* One print at a time: the player card's, unless this section's button asked. */
-  #loadouts { display: none !important; }
-  body[data-printing="loadouts"] #loadouts { display: block !important; }
-  body[data-printing="loadouts"] #card { display: none !important; }
 }
 `

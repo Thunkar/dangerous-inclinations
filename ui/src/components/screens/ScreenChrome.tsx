@@ -4,7 +4,7 @@
  */
 import type { ReactNode } from 'react'
 import { Box, Typography } from '@mui/material'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 
 export function Header({
   title,

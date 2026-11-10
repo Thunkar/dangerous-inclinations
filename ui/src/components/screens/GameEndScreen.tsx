@@ -4,13 +4,16 @@
  * engine's order: points, then hull, then fuel, then the earlier seat.
  */
 import { Box, Button, Typography } from '@mui/material'
-import { rankPlayers } from '@dangerous-inclinations/engine'
+import { STARTING_HIT_POINTS, fill, rankPlayers } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
 import { MissionCard } from '../common/MissionCard'
 import { getPlayerColor } from '../../utils/playerColors'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
+import { SCREENS } from '../../text/screens'
+
+const S = SCREENS.gameEnd
 
 export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
   const { view, nameOf } = useGame()
@@ -30,10 +33,10 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
       }}
     >
       <Typography variant="h3" sx={{ color: TABLE.ink }}>
-        {winner ? `${winner.name} wins` : 'The game is over'}
+        {winner ? fill(S.wins, { name: winner.name }) : S.over}
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
-        {winner ? `${winner.points} of ${view.pointsToWin} points.` : 'No winner was declared.'}
+        {winner ? fill(S.score, { points: winner.points, toWin: view.pointsToWin }) : S.noWinner}
       </Typography>
 
       <Box
@@ -63,13 +66,17 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
                   }}
                 >
                   {player.name}
-                  {player.isMe ? ' (you)' : ''}
+                  {player.isMe ? S.you : ''}
                 </Typography>
               }
             >
               <SectionLabel>
-                {player.points} / {view.pointsToWin} points · hull {player.ship?.hitPoints ?? 0}/
-                {player.ship?.maxHitPoints ?? 10}
+                {fill(S.standing, {
+                  points: player.points,
+                  toWin: view.pointsToWin,
+                  hull: player.ship?.hitPoints ?? 0,
+                  maxHull: player.ship?.maxHitPoints ?? STARTING_HIT_POINTS,
+                })}
               </SectionLabel>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
                 {player.completedMissions.map(mission => (
@@ -83,7 +90,7 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
                 ))}
                 {player.completedMissions.length === 0 && (
                   <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
-                    Nothing completed.
+                    {S.nothing}
                   </Typography>
                 )}
               </Box>
@@ -94,7 +101,7 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
 
       {onLeave && (
         <Button variant="contained" size="large" onClick={onLeave} sx={{ mt: 1 }}>
-          Back to the lobby
+          {S.back}
         </Button>
       )}
     </Box>

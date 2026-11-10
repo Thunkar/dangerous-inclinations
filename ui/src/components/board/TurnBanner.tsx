@@ -10,11 +10,15 @@
  */
 import { useEffect, useState } from 'react'
 import { Box } from '@mui/material'
+import { fill } from '@dangerous-inclinations/engine'
 import { useGame } from '../../context/GameContext'
 import { usePlayback } from '../../context/AnimationContext'
 import { getPlayerColor } from '../../utils/playerColors'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
+import { TABLE_TEXT } from '../../text/table'
+
+const T = TABLE_TEXT.banner
 
 /** How long the banner stays up, fade included. */
 const SHOWN_MS = 2400
@@ -33,7 +37,7 @@ export function TurnBanner() {
   const indexOf = (playerId: string) => view.players.findIndex(p => p.id === playerId)
   const nameFor = (playerId: string) => {
     const player = view.players.find(p => p.id === playerId)
-    return player?.isMe ? 'Your turn' : `${player?.name ?? 'Somebody'}'s turn`
+    return player?.isMe ? T.yours : fill(T.theirs, { name: player?.name ?? T.somebody })
   }
 
   // A playback names its actor.
@@ -57,7 +61,7 @@ export function TurnBanner() {
   useEffect(() => {
     if (!yourTurnKey || !view.me) return
     // eslint-disable-next-line react-hooks/set-state-in-effect -- your turn arriving raises a timed notice, as a playback does
-    setBanner({ key: yourTurnKey, text: 'Your turn', color: getPlayerColor(indexOf(view.me.id)) })
+    setBanner({ key: yourTurnKey, text: T.yours, color: getPlayerColor(indexOf(view.me.id)) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [yourTurnKey])
 

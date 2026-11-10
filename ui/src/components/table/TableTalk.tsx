@@ -2,9 +2,9 @@
  * Table talk: the chat channel every seat shares, humans and agents alike.
  *
  * Two lanes on the same pad. A `say` is a line spoken at the table, in the
- * speaker's colour. A `think` is the reasoning behind a move (an agent's, or
- * a human's when they choose to think out loud) set in italics, dimmed and
- * tagged, so nobody mistakes reasoning for table talk.
+ * speaker's colour. A `think` is the reasoning behind a move, set in italics,
+ * dimmed and tagged, so nobody mistakes reasoning for table talk. The server
+ * sends a `think` only to the seat that wrote it.
  *
  * Purely presentational: it renders what the server has broadcast and posts
  * what is typed. Nothing here touches the game state.
@@ -19,15 +19,21 @@ import {
   type SxProps,
   type Theme,
 } from '@mui/material'
+import { fill } from '@dangerous-inclinations/engine'
 import type { ChatKind, ChatMessage } from '../../api/types'
+import { useChat } from '../../context/ChatContext'
 import { useGame } from '../../context/GameContext'
+import { TABLE_TEXT } from '../../text/table'
 import { getPlayerColor } from '../../utils/playerColors'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
 import { Panel } from '../common/Panel'
 
 /** Within this many pixels of the foot counts as "reading the newest line". */
 const STICK_THRESHOLD = 28
+
+const T = TABLE_TEXT.talk
 
 function Line({ message, color }: { message: ChatMessage; color: string }) {
   const think = message.kind === 'think'
@@ -80,7 +86,7 @@ function Line({ message, color }: { message: ChatMessage; color: string }) {
               flexShrink: 0,
             }}
           >
-            T{message.turn}
+            {fill(T.turn, { turn: message.turn })}
           </Typography>
           {think && (
             <Typography
@@ -96,7 +102,7 @@ function Line({ message, color }: { message: ChatMessage; color: string }) {
                 flexShrink: 0,
               }}
             >
-              thinking
+              {T.thinking}
             </Typography>
           )}
         </Box>
@@ -120,9 +126,10 @@ function Line({ message, color }: { message: ChatMessage; color: string }) {
 
 /** `sx` places the plate: the table stacks it under the log, the setup screens put it in a column. */
 export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
-  const { chat, sendChat, gameId, view, readOnly } = useGame()
+  const { gameId, view, readOnly } = useGame()
+  const { chat, sendChat } = useChat()
   const [draft, setDraft] = useState('')
-  const [thinkOutLoud, setThinkOutLoud] = useState(false)
+  const [thinkAside, setThinkAside] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -169,7 +176,7 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
 
   return (
     <Panel
-      title="Table talk"
+      title={T.title}
       dense
       collapseId="table-talk"
       summary={chat.length > 0 ? `${chat.length}` : undefined}
@@ -184,7 +191,7 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
         >
           {chat.length === 0 && (
             <Typography variant="caption" sx={{ color: TABLE.inkFaint }}>
-              Nobody has said anything yet.
+              {T.empty}
             </Typography>
           )}
           {chat.map(message => (
@@ -209,14 +216,14 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
                 fullWidth
                 size="small"
                 value={draft}
-                placeholder={thinkOutLoud ? 'Think out loud…' : 'Say something…'}
+                placeholder={thinkAside ? T.thinkPlaceholder : T.sayPlaceholder}
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => {
                   if (e.key !== 'Enter') return
                   e.preventDefault()
-                  void send(thinkOutLoud ? 'think' : 'say')
+                  void send(thinkAside ? 'think' : 'say')
                 }}
-                inputProps={{ maxLength: 2000, 'aria-label': 'Table talk message' }}
+                inputProps={{ maxLength: 2000, 'aria-label': T.message }}
                 sx={{
                   minWidth: 0,
                   '& .MuiOutlinedInput-root': {
@@ -231,20 +238,20 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
               <Button
                 variant="outlined"
                 size="small"
-                onClick={() => void send(thinkOutLoud ? 'think' : 'say')}
+                onClick={() => void send(thinkAside ? 'think' : 'say')}
                 disabled={!draft.trim() || sending}
                 sx={{ flexShrink: 0, minWidth: 54, px: 1, py: 0.55, color: TABLE.ink }}
               >
-                Send
+                {T.send}
               </Button>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
               {/* describeChild: the button keeps its own name, the tooltip only explains it. */}
-              <Tooltip describeChild title="Post as reasoning: italic and tagged, not table talk.">
+              <Tooltip describeChild title={T.thinkTip}>
                 <Button
                   size="small"
-                  onClick={() => setThinkOutLoud(v => !v)}
-                  aria-pressed={thinkOutLoud}
+                  onClick={() => setThinkAside(v => !v)}
+                  aria-pressed={thinkAside}
                   sx={{
                     flexShrink: 0,
                     px: 0.75,
@@ -252,17 +259,17 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
                     minWidth: 0,
                     fontSize: '0.72rem',
                     letterSpacing: '0.1em',
-                    color: thinkOutLoud ? TABLE.onSelected : TABLE.inkSoft,
-                    border: `1px solid ${thinkOutLoud ? TABLE.selected : TABLE.plateEdge}`,
-                    bgcolor: thinkOutLoud ? TABLE.selected : 'transparent',
-                    '&:hover': { bgcolor: thinkOutLoud ? TABLE.inkSoft : TABLE.hover },
+                    color: thinkAside ? TABLE.onSelected : TABLE.inkSoft,
+                    border: `1px solid ${thinkAside ? TABLE.selected : TABLE.plateEdge}`,
+                    bgcolor: thinkAside ? TABLE.selected : 'transparent',
+                    '&:hover': { bgcolor: thinkAside ? TABLE.inkSoft : TABLE.hover },
                   }}
                 >
-                  think out loud
+                  {T.think}
                 </Button>
               </Tooltip>
               <Typography sx={{ fontSize: '0.75rem', color: TABLE.inkFaint }} noWrap>
-                Enter sends
+                {T.enter}
               </Typography>
             </Box>
             {error && (

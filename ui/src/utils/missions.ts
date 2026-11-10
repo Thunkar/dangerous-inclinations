@@ -16,7 +16,7 @@ import {
   fill,
   missionPoints as pointsForType,
 } from '@dangerous-inclinations/engine'
-import { TABLE } from '../theme'
+import { TABLE } from '../design/tokens'
 import { MISSION_PROGRESS as P } from '../text/missionProgress'
 
 const FAMILY_COLOR: Record<MissionFamily, string> = {

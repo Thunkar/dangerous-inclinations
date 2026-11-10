@@ -13,9 +13,7 @@
 import { CARD_HEIGHT_MM, CARD_WIDTH_MM, SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from './cardStyles'
 
 /** Between two faces: room to cut once on each side and for the marks between. */
-export const GUTTER_MM = 4
-const COLUMNS = 2
-const ROWS = 2
+const GUTTER_MM = 4
 
 /** How far a crop mark stays off the trim corner, and how long it runs. */
 const MARK_GAP_MM = 0.5
@@ -46,22 +44,31 @@ export interface Line {
   y2: number
 }
 
-/** The grid's slots, row by row: the top-left corner of each face. */
-export function gridSlots(): Array<{ x: number; y: number }> {
-  const x0 = (SHEET_WIDTH_MM - (COLUMNS * CARD_WIDTH_MM + (COLUMNS - 1) * GUTTER_MM)) / 2
-  const y0 = (SHEET_HEIGHT_MM - (ROWS * CARD_HEIGHT_MM + (ROWS - 1) * GUTTER_MM)) / 2
-  const slots: Array<{ x: number; y: number }> = []
-  for (let row = 0; row < ROWS; row++)
-    for (let col = 0; col < COLUMNS; col++)
-      slots.push({
-        x: x0 + col * (CARD_WIDTH_MM + GUTTER_MM),
-        y: y0 + row * (CARD_HEIGHT_MM + GUTTER_MM),
-      })
-  return slots
+/** A grid of equal cards on the page: how many across and down, and each card's size. */
+export interface Grid {
+  columns: number
+  rows: number
+  width: number
+  height: number
 }
 
-function place(face: Face, at: { x: number; y: number }, rotated = false): PlacedFace {
-  return { face, x: at.x, y: at.y, width: CARD_WIDTH_MM, height: CARD_HEIGHT_MM, rotated }
+/** The player card's grid: four faces, two by two. */
+export const CARD_GRID: Grid = { columns: 2, rows: 2, width: CARD_WIDTH_MM, height: CARD_HEIGHT_MM }
+
+/** The grid's slots, row by row, centred on the page with a gutter between: each card's rectangle. */
+export function gridSlots({ columns, rows, width, height }: Grid): Rect[] {
+  const x0 = (SHEET_WIDTH_MM - (columns * width + (columns - 1) * GUTTER_MM)) / 2
+  const y0 = (SHEET_HEIGHT_MM - (rows * height + (rows - 1) * GUTTER_MM)) / 2
+  const slots: Rect[] = []
+  for (let row = 0; row < rows; row++)
+    for (let col = 0; col < columns; col++)
+      slots.push({
+        x: x0 + col * (width + GUTTER_MM),
+        y: y0 + row * (height + GUTTER_MM),
+        width,
+        height,
+      })
+  return slots
 }
 
 /** Behind a front when the sheet turns over on its long (vertical) edge. A back is its front's size. */
@@ -92,10 +99,16 @@ export function behindShortEdge(front: Rect): PlacedFace {
 
 /** The pages a mode prints, each a list of the faces on it. */
 export function sheetPages(mode: PrintMode): PlacedFace[][] {
-  const slots = gridSlots()
+  const slots = gridSlots(CARD_GRID)
   if (mode === 'sheet')
-    return [slots.map((slot, i) => place(i % COLUMNS === 0 ? 'front' : 'back', slot))]
-  const fronts = slots.map(slot => place('front', slot))
+    return [
+      slots.map((slot, i) => ({
+        ...slot,
+        face: i % CARD_GRID.columns === 0 ? ('front' as const) : ('back' as const),
+        rotated: false,
+      })),
+    ]
+  const fronts = slots.map(slot => ({ ...slot, face: 'front' as const, rotated: false }))
   const behind = mode === 'duplex-long' ? behindLongEdge : behindShortEdge
   return [fronts, fronts.map(behind)]
 }

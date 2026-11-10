@@ -15,7 +15,8 @@
 import { Box, Typography } from '@mui/material'
 import type { Cargo, Mission, MissionRequirementStatus } from '@dangerous-inclinations/engine'
 import { describeMission, describeMissionRule } from '@dangerous-inclinations/engine'
-import { FONT_MONO, FONT_SANS, TABLE } from '../../theme'
+import { FONT_MONO, FONT_SANS } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { BAND_ANGLE, FAMILY_INK, PRESS } from '../../design/press'
 import { missionFamily, missionName, missionPoints, missionProgress } from '../../utils/missions'
 import { MISSION_CODE, MissionGlyph } from './MissionGlyph'
@@ -308,7 +309,6 @@ export function MissionCard({
 
       {/* The job, typed on the paper, in a box that never changes size. */}
       <Box
-        data-card-text="box"
         sx={{
           flex: `0 0 ${cut.desc}px`,
           overflow: 'hidden',
@@ -318,7 +318,6 @@ export function MissionCard({
         }}
       >
         <Typography
-          data-card-text="rule"
           title={describeMission(mission, nameOf)}
           sx={{
             fontFamily: FONT_SANS,
@@ -333,7 +332,6 @@ export function MissionCard({
         </Typography>
         {progress && !done && (
           <Typography
-            data-card-text="progress"
             sx={{
               fontSize: cut.progressSize,
               color: INK_SOFT,

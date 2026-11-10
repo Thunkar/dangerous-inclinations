@@ -25,8 +25,9 @@ import { ShipMark } from '../../ships/ShipMark'
 import { Box, IconButton, Tooltip, Typography } from '@mui/material'
 import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import type { PlayerView, SubsystemId } from '@dangerous-inclinations/engine'
-import { MAX_HEAT } from '@dangerous-inclinations/engine'
-import { FONT_MONO, TABLE } from '../../theme'
+import { MAX_HEAT, STARTING_HIT_POINTS, fill } from '@dangerous-inclinations/engine'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
 import { Panel } from '../common/Panel'
 import { SubsystemTile } from '../common/SubsystemTile'
@@ -38,6 +39,9 @@ import { useGame } from '../../context/GameContext'
 import { useAnimationControls, useLiveView } from '../../context/AnimationContext'
 import { EscortedBy } from './EscortedBy'
 import { SoldAt } from './SoldAt'
+import { TABLE_TEXT } from '../../text/table'
+
+const T = TABLE_TEXT.opponent
 
 const SLOT_TILE = 36
 const FIXED_TILE = 22
@@ -154,13 +158,11 @@ export function OpponentCard({
               </Typography>
             </Tooltip>
           )}
-          <Tooltip
-            title={destroyed ? 'Nothing on the board to find' : `Find ${player.name} on the board`}
-          >
+          <Tooltip title={destroyed ? T.findDestroyed : fill(T.find, { name: player.name })}>
             <Box component="span" sx={{ display: 'flex', flexShrink: 0 }}>
               <IconButton
                 size="small"
-                aria-label={`Ping ${player.name}`}
+                aria-label={fill(T.ping, { name: player.name })}
                 disabled={destroyed || !ship}
                 onClick={event => {
                   // The card's own click aims this turn's step at the player;
@@ -176,7 +178,7 @@ export function OpponentCard({
           </Tooltip>
           {player.isActive && (
             <Typography variant="overline" sx={{ color, lineHeight: 1, fontSize: '0.7rem' }}>
-              acting
+              {T.acting}
             </Typography>
           )}
           {destroyed && (
@@ -184,24 +186,24 @@ export function OpponentCard({
               variant="overline"
               sx={{ color: TABLE.danger, lineHeight: 1, fontSize: '0.7rem' }}
             >
-              lost
+              {T.lost}
             </Typography>
           )}
           {recovering && (
-            <Tooltip title="Respawned at Home · no shot, missile or scan reaches it until its next turn is over, and on that turn it fires at nobody and scans nobody">
+            <Tooltip title={T.respawnedTip}>
               <Typography
                 variant="overline"
                 noWrap
                 sx={{ color: TABLE.accent, lineHeight: 1, fontSize: '0.7rem', flexShrink: 0 }}
               >
-                respawned, untouchable until their turn ends
+                {T.respawned}
               </Typography>
             </Tooltip>
           )}
         </Box>
       }
       action={
-        <Tooltip title={`${player.points} of ${view.pointsToWin} points`}>
+        <Tooltip title={fill(T.points, { points: player.points, toWin: view.pointsToWin })}>
           <Box sx={{ display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
             {Array.from({ length: view.pointsToWin }, (_, i) => (
               <Box
@@ -221,9 +223,9 @@ export function OpponentCard({
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35, minWidth: 0 }}>
         <PipTrack
           value={ship?.hitPoints ?? 0}
-          max={ship?.maxHitPoints ?? 10}
+          max={ship?.maxHitPoints ?? STARTING_HIT_POINTS}
           color={TABLE.hull}
-          label="Hull"
+          label={T.hull}
           size={8}
         />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
@@ -233,12 +235,12 @@ export function OpponentCard({
               value={ship?.heat ?? 0}
               max={Math.max(MAX_HEAT, ship?.heat ?? 0)}
               color={ship && ship.heat >= MAX_HEAT ? TABLE.danger : TABLE.heat}
-              label="Heat"
+              label={T.heat}
               size={8}
             />
           </Box>
           {/* Fuel is public: the cubes sit on the loadout (RULES §Hidden Information). */}
-          <Tooltip title="Fuel is public: everyone can count it.">
+          <Tooltip title={T.fuelTip}>
             <Typography
               sx={{
                 fontFamily: FONT_MONO,
@@ -252,7 +254,7 @@ export function OpponentCard({
               {ship?.fuel ?? 0}
               <Box component="span" sx={{ color: TABLE.inkFaint, fontWeight: 400 }}>
                 {' '}
-                fuel
+                {T.fuel}
               </Box>
             </Typography>
           </Tooltip>
@@ -261,7 +263,7 @@ export function OpponentCard({
         {/* Home is on the board with a marker of its own and never moves, so
             printing it on the card was a line that told nobody anything. */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-          <Tooltip title="Cargo aboard. The hold has no limit. Destinations are private.">
+          <Tooltip title={T.cargoTip}>
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <CargoTokens
                 crates={player.cargoAboard.crates}
@@ -305,7 +307,11 @@ export function OpponentCard({
           {player.fixed.map(fixed => (
             <Tooltip
               key={fixed.id}
-              title={`${slotLabel(fixed.id, hull)}${fixed.isBroken ? ' · broken' : ''}`}
+              title={
+                fixed.isBroken
+                  ? fill(T.fixedBroken, { slot: slotLabel(fixed.id, hull) })
+                  : slotLabel(fixed.id, hull)
+              }
             >
               <Box>
                 <SubsystemTile

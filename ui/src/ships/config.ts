@@ -1,12 +1,26 @@
 import {
   BOT_PRESET_LOADOUTS,
+  COMPRESSED_JUMP_MASS,
+  INTERCEPT_HEAT,
+  SCAN_SECTOR_RANGE,
+  SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
+  WELL_TRANSFER_COSTS,
   canInstallInSlot,
+  fill,
+  interceptsPerRack,
   type ShipLoadout,
   type ShipAppearance,
   type SubsystemType,
 } from '@dangerous-inclinations/engine'
 
+import {
+  PLASMA_SHIELD_POINTS,
+  RADIATOR_DISSIPATION,
+  SENSOR_CRIT,
+  weaponStats,
+} from '../site/numbers'
+import { SCREENS } from '../text/screens'
 import { HULL_INK } from './palette'
 import { MOUNTS, type MountId } from './mounts'
 import { SHRIKE_MOUNTS, MANTIS_MOUNTS } from './hulls'
@@ -40,22 +54,35 @@ export const DEFAULT_CONFIG: ShipConfig = {
   finish: 'paint',
 }
 
+const notes = SCREENS.shipyard.notes
+
+/** What each module does, with the engine's numbers. */
 export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
-  railgun: 'Bow gun, 4 damage up to 5 sectors ahead. For Sir Isaac Newton fans.',
-  sensor_array:
-    'Scans a rival subsystem on your ring up to 3 sectors ahead; crits on 8+. We know what you did. From really far away.',
-  missiles: 'Salvo any number at one ship in the well; 4 aboard. 4 times the fun.',
-  laser: 'Side gun, 2 damage, ignores shields. Warning: do not point at cats. Or people in ships.',
-  shields:
-    "Absorbs 1 damage a cube, 2 of plasma, never lasers, and every point absorbed is heat; powered at all, it stops a disruptor. For people who don't like to be touched.",
-  radiator: 'Passive: +2 heat dissipation at every check. Keep away from direct sunlight.',
-  fuel_compressor: 'Passive: a jump costs 1 fuel instead of 3. The cheapest way to go on vacation.',
-  ballistic_rack:
-    '2 damage close in; powered, it rolls at up to 4 incoming missiles a turn, for 2 heat. Definitely passive-aggressive.',
-  plasma_cannon:
-    'Side gun, 4 damage within 1 ring and 1 sector, one side; shields stop it two points a cube. Hot stuff.',
-  disruptor:
-    "Either slot, 3 cubes, the rack's reach, no damage: a hit breaks the subsystem you name, unless any shield is powered. Have you tried turning it off and on again?",
+  railgun: fill(notes.railgun, {
+    damage: weaponStats('railgun').damage,
+    range: weaponStats('railgun').sectorRange ?? 0,
+  }),
+  sensor_array: fill(notes.sensor_array, { range: SCAN_SECTOR_RANGE, crit: SENSOR_CRIT }),
+  missiles: fill(notes.missiles, { ammo: weaponStats('missiles').maxAmmo ?? 0 }),
+  laser: fill(notes.laser, { damage: weaponStats('laser').damage }),
+  shields: fill(notes.shields, { points: SHIELD_POINTS_PER_ENERGY, plasma: PLASMA_SHIELD_POINTS }),
+  radiator: fill(notes.radiator, { dissipation: RADIATOR_DISSIPATION }),
+  fuel_compressor: fill(notes.fuel_compressor, {
+    compressed: COMPRESSED_JUMP_MASS,
+    fuel: WELL_TRANSFER_COSTS.mass,
+  }),
+  ballistic_rack: fill(notes.ballistic_rack, {
+    damage: weaponStats('ballistic_rack').damage,
+    intercepts: interceptsPerRack(),
+    heat: INTERCEPT_HEAT,
+  }),
+  plasma_cannon: fill(notes.plasma_cannon, {
+    damage: weaponStats('plasma_cannon').damage,
+    rings: weaponStats('plasma_cannon').ringRange ?? 0,
+    sectors: weaponStats('plasma_cannon').sectorRange ?? 0,
+    plasma: PLASMA_SHIELD_POINTS,
+  }),
+  disruptor: fill(notes.disruptor, { energy: SUBSYSTEM_CONFIGS.disruptor.minEnergy }),
 }
 
 export function moduleAt(config: ShipConfig, id: MountId): SubsystemType | null {

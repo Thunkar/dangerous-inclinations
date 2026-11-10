@@ -5,11 +5,14 @@
  * seat sees them (RULES §Missions, Escort). Nothing when there are none.
  */
 import { Box, Tooltip, Typography } from '@mui/material'
-import type { PlayerView } from '@dangerous-inclinations/engine'
-import { TABLE } from '../../theme'
+import { fill, type PlayerView } from '@dangerous-inclinations/engine'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
 import { useGame } from '../../context/GameContext'
 import { getPlayerColor } from '../../utils/playerColors'
+import { TABLE_TEXT } from '../../text/table'
+
+const T = TABLE_TEXT.escortedBy
 
 function Shield({ color }: { color: string }) {
   return (
@@ -34,7 +37,9 @@ export function EscortedBy({ player }: { player: PlayerView | undefined }) {
   )
   return (
     <Tooltip
-      title={`${escorts.map(e => e.name).join(' and ')} ${escorts.length > 1 ? 'hold Escort cards' : 'holds an Escort card'} on this ship: paid the next time it delivers, sells or files at a station, and handed back if it is destroyed first.`}
+      title={fill(escorts.length > 1 ? T.tipMany : T.tipOne, {
+        names: escorts.map(e => e.name).join(T.and),
+      })}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flexWrap: 'wrap' }}>
         <Typography
@@ -47,7 +52,7 @@ export function EscortedBy({ player }: { player: PlayerView | undefined }) {
             lineHeight: 1.3,
           }}
         >
-          Escorted by
+          {T.label}
         </Typography>
         {escorts.map(escort => (
           <Box

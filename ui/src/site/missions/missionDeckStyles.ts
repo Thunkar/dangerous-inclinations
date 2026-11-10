@@ -7,10 +7,6 @@
  * a transform to the 63x88mm stock. The two are 5:7 within 0.2%, so the
  * scale is taken on each axis and the card fills the trim exactly. A back is
  * drawn in millimetres and runs to the trim (`backs.tsx`).
- *
- * Which sheets print is the page's call: the player card's unless the body
- * says otherwise. This section's button sets `data-printing="missions"` only
- * while it prints, so Ctrl+P and the other buttons print as before.
  */
 import { PRESS } from '../../design/press'
 import { MISSION_HEIGHT_MM, MISSION_WIDTH_MM } from './sheet'
@@ -56,17 +52,8 @@ export const MISSION_DECK_CSS = `
   transform-origin: top left;
 }
 
-/* The printed pages: hidden on screen, every card at scale 1 in print. */
-.di-mc-sheets { display: none; --mc-zoom: 1; }
-.di-mc-slot { position: absolute; width: ${MISSION_WIDTH_MM}mm; height: ${MISSION_HEIGHT_MM}mm; }
-.di-mc-slot.di-turned { transform: rotate(180deg); }
-
+/* The preview: in print only the pages are left. */
 @media print {
   .di-mc-rows { display: none !important; }
-  .di-mc-sheets { display: block; }
-  /* One print at a time: the player card's, unless this section's button asked. */
-  #missions { display: none !important; }
-  body[data-printing="missions"] #missions { display: block !important; }
-  body[data-printing="missions"] #card { display: none !important; }
 }
 `

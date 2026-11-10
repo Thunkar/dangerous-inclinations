@@ -81,7 +81,10 @@ export const RULES_DIALOG = {
       'Wrecks',
       'left where a ship dies, drift with the stations. Salvage takes the black box (data)',
     ],
-    ['Survey', 'an action: while on Black Hole Ring 1, take the data. File it at any station'],
+    [
+      'Survey',
+      'an action: while on Black Hole Ring {surveyRing}, take the data. File it at any station',
+    ],
     [
       'Piracy',
       'an action: while you share a sector with an undocked ship carrying cargo, and are not moored, take one item of your choice. Seize before you fire at it. Sell it at any station. Their card goes back to undone',
@@ -104,7 +107,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Missions',
-      'Primaries (2 pts): Destroy · Deliver · Intercept. Secondaries (1 pt): Survey · Piracy · Tanker · Escort · Salvage',
+      'Primaries ({primaryPoints} pts): Destroy · Deliver · Intercept. Secondaries ({secondaryPoints} pt): Survey · Piracy · Tanker · Escort · Salvage',
     ],
     [
       'Keeping cards',

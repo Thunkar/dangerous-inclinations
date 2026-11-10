@@ -4,7 +4,8 @@
  * 2–9 hits, 10 is a critical (8–10 when the attacker's sensor array is up).
  */
 import { Box, Tooltip, Typography } from '@mui/material'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import type { DieRoll } from '../../animation/beats'
 
 const OUTCOME_COLOR: Record<DieRoll['outcome'], string> = {

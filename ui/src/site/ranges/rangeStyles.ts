@@ -4,10 +4,6 @@
  * (`loadouts/loadoutStyles.ts`) in its stock, its stripe, its name and its
  * bar, and takes those classes as they are; this adds what differs: the mark
  * over the name, the fan, the numbers, the key.
- *
- * Which sheets print is the page's call: the player card's unless the body
- * says `data-printing="ranges"`, set by this section's button only while it
- * prints.
  */
 import { FONT_BODY, FONT_DISPLAY, PRESS } from '../../design/press'
 
@@ -40,10 +36,4 @@ export const RANGE_CSS = `
 
 .di-rg-bar { justify-content: center; }
 .di-rg-line { font-family: ${FONT_BODY}; font-size: 2.45mm; line-height: 1.3; color: ${PRESS.paper}; }
-
-@media print {
-  #ranges { display: none !important; }
-  body[data-printing="ranges"] #ranges { display: block !important; }
-  body[data-printing="ranges"] #card { display: none !important; }
-}
 `

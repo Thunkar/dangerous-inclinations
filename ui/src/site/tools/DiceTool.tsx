@@ -12,14 +12,19 @@
  */
 import { useState } from 'react'
 import { Box } from '@mui/material'
-import { interceptsPerRack } from '@dangerous-inclinations/engine'
+import { fill, interceptsPerRack } from '@dangerous-inclinations/engine'
 import type { HitRollResult } from '@dangerous-inclinations/engine'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
-import { BASE_CRIT, INTERCEPT_ON, MISS_TOP, SENSOR_CRIT, faceResult } from '../numbers'
+import { BASE_CRIT, D10, INTERCEPT_ON, MISS_TOP, SENSOR_CRIT, faceResult } from '../numbers'
 import { Field, Label, Plate, Stepper, Toggle } from './controls'
+import { TOOLS } from '../../text/tools'
+
+const T = TOOLS.dice
 
 /** A salvo is a magazine, and a rack answers a magazine. Nothing needs more. */
 const MAX_DICE = interceptsPerRack() * 2
+
+const TOP_FACE = D10[D10.length - 1]
 
 const FACE: Record<HitRollResult, { bg: string; fg: string; edge: string }> = {
   miss: { bg: 'transparent', fg: PRESS.ink, edge: PRESS.ink },
@@ -44,21 +49,22 @@ export function DiceTool() {
   const results = rolls.map(roll => faceResult(roll, sensor))
   const tally = (kind: HitRollResult) => results.filter(r => r === kind).length
   const critFrom = sensor ? SENSOR_CRIT : BASE_CRIT
+  const crits = critFrom < TOP_FACE ? fill(T.range, { from: critFrom, to: TOP_FACE }) : critFrom
 
   return (
     <Plate>
       <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2.5, flexWrap: 'wrap', mb: 2.5 }}>
-        <Field label="Dice">
-          <Stepper value={count} min={1} max={MAX_DICE} onChange={setCount} label="dice" />
+        <Field label={T.dice}>
+          <Stepper value={count} min={1} max={MAX_DICE} onChange={setCount} label={T.diceAloud} />
         </Field>
-        <Toggle on={sensor} label="Sensor powered" onChange={setSensor} />
+        <Toggle on={sensor} label={T.sensor} onChange={setSensor} />
       </Box>
 
       <Box
         component="button"
         type="button"
         onClick={() => setRolls(Array.from({ length: count }, rollD10))}
-        aria-label={`Roll ${count} d10`}
+        aria-label={fill(T.rollAloud, { count })}
         sx={{
           width: '100%',
           minHeight: 180,
@@ -86,7 +92,7 @@ export function DiceTool() {
               color: PRESS.paper,
             }}
           >
-            Roll
+            {T.roll}
           </Box>
         ) : (
           rolls.map((roll, index) => {
@@ -132,18 +138,23 @@ export function DiceTool() {
             }}
           >
             <Box component="span" sx={{ color: PRESS.redText }}>
-              {tally('critical')} crit
+              {fill(T.crits, { count: tally('critical') })}
             </Box>
-            <Box component="span">{tally('hit')} hit</Box>
+            <Box component="span">{fill(T.hits, { count: tally('hit') })}</Box>
             <Box component="span" sx={{ color: PRESS.inkSoft }}>
-              {tally('miss')} miss
+              {fill(T.misses, { count: tally('miss') })}
             </Box>
           </Box>
         )}
         <Box sx={{ flex: 1 }} />
         <Label color={PRESS.inkSoft}>
-          {MISS_TOP} miss · {MISS_TOP + 1}&ndash;{critFrom - 1} hit · {critFrom}
-          {critFrom < 10 ? '–10' : ''} crit · a rack downs a missile on {INTERCEPT_ON}+
+          {fill(T.faces, {
+            missTop: MISS_TOP,
+            hitFrom: MISS_TOP + 1,
+            hitTo: critFrom - 1,
+            crit: crits,
+            intercept: INTERCEPT_ON,
+          })}
         </Label>
       </Box>
     </Plate>

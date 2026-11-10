@@ -166,8 +166,8 @@ export interface TurnExecutedPayload {
 
 /**
  * Table talk. One channel per game, two lanes: `say` is heard by everyone at
- * the table (humans and agents alike); `think` is a player's reasoning, shown
- * to humans in the UI but not fed to other agents.
+ * the table (humans and agents alike); `think` is a player's reasoning, which
+ * the server sends only to the seat that wrote it.
  */
 export interface ChatMessage {
   id: string

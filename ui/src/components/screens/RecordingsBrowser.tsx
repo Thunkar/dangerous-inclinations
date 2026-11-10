@@ -7,14 +7,18 @@
  */
 import { useEffect, useState } from 'react'
 import { Box, Button, CircularProgress, Typography } from '@mui/material'
+import { fill } from '@dangerous-inclinations/engine'
 import { listRecordings, type RecordingSummary } from '../../api/recordings'
 import { Panel } from '../common/Panel'
-import { TABLE } from '../../theme'
+import { TABLE } from '../../design/tokens'
+import { SCREENS } from '../../text/screens'
+
+const S = SCREENS.recordings
 
 /** Live recordings are labelled with their game id; only a simulator label is worth printing. */
 function titleOf(recording: RecordingSummary): string {
-  if (recording.source === 'sim') return recording.label ?? 'Simulated game'
-  return 'Table game'
+  if (recording.source === 'sim') return recording.label ?? S.simulated
+  return S.table
 }
 
 function playedOn(createdAt: string): string {
@@ -23,10 +27,10 @@ function playedOn(createdAt: string): string {
 }
 
 function endingOf(recording: RecordingSummary): string {
-  const turns = `${recording.turnCount} turn${recording.turnCount === 1 ? '' : 's'}`
-  return recording.winnerId
-    ? `${turns} · three missions completed`
-    : `${turns} · nobody reached three missions`
+  const turns = fill(recording.turnCount === 1 ? S.turn : S.turns, {
+    count: recording.turnCount,
+  })
+  return fill(recording.winnerId ? S.won : S.unfinished, { turns })
 }
 
 export function RecordingsBrowser({
@@ -61,15 +65,15 @@ export function RecordingsBrowser({
       }}
     >
       <Typography variant="h4" sx={{ color: TABLE.ink, mt: 2 }}>
-        Watch a finished game
+        {S.title}
       </Typography>
 
       <Panel
-        title="Games played to the end"
+        title={S.panel}
         sx={{ width: '100%', maxWidth: 720 }}
         action={
           <Button size="small" variant="outlined" onClick={onExit}>
-            Back
+            {S.back}
           </Button>
         }
       >
@@ -77,12 +81,12 @@ export function RecordingsBrowser({
         {!items && !error && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
             <CircularProgress size={20} />
-            <Typography variant="body2">Looking through the shelf…</Typography>
+            <Typography variant="body2">{S.loading}</Typography>
           </Box>
         )}
         {items && items.length === 0 && (
           <Typography variant="body2" sx={{ color: TABLE.inkSoft, py: 2 }}>
-            Nothing recorded yet. Play a game to the end, or run the simulator.
+            {S.empty}
           </Typography>
         )}
         {items && items.length > 0 && (
@@ -91,7 +95,7 @@ export function RecordingsBrowser({
               <Box
                 key={recording.recordingId}
                 onClick={() => onOpen(recording.recordingId)}
-                title="Watch this game back, from any seat"
+                title={S.open}
                 sx={{
                   display: 'flex',
                   alignItems: 'center',

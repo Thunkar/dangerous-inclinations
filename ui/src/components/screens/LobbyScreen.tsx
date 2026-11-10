@@ -15,7 +15,11 @@ import { usePlayer } from '../../context/PlayerContext'
 import { Panel } from '../common/Panel'
 import { getPlayerColor } from '../../utils/playerColors'
 import { agentLabel } from '../../utils/agents'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
+import { SCREENS } from '../../text/screens'
+
+const S = SCREENS.lobby
 
 export function LobbyScreen() {
   const {
@@ -32,7 +36,7 @@ export function LobbyScreen() {
   if (!lobbyState) {
     return (
       <Box sx={{ height: '100vh', display: 'grid', placeItems: 'center' }}>
-        <Typography sx={{ color: TABLE.inkSoft }}>Finding the table…</Typography>
+        <Typography sx={{ color: TABLE.inkSoft }}>{S.finding}</Typography>
       </Box>
     )
   }
@@ -60,7 +64,7 @@ export function LobbyScreen() {
         {lobbyState.lobbyName}
       </Typography>
 
-      <Panel title="Seats" sx={{ width: '100%', maxWidth: 560 }}>
+      <Panel title={S.seats} sx={{ width: '100%', maxWidth: 560 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.5 }}>
           {seats.map((seat, index) => (
             <Box
@@ -96,9 +100,9 @@ export function LobbyScreen() {
               <Typography
                 sx={{ color: seat ? TABLE.ink : TABLE.inkSoft, fontWeight: seat ? 700 : 400 }}
               >
-                {seat ? seat.playerName : 'empty seat'}
-                {seat?.playerId === playerId ? ' (you)' : ''}
-                {seat?.playerId === lobbyState.hostPlayerId ? ' · host' : ''}
+                {seat ? seat.playerName : S.emptySeat}
+                {seat?.playerId === playerId ? S.you : ''}
+                {seat?.playerId === lobbyState.hostPlayerId ? S.host : ''}
               </Typography>
               {seat?.agent && (
                 <Typography
@@ -114,14 +118,14 @@ export function LobbyScreen() {
               )}
               <Box sx={{ flex: 1 }} />
               {isHost && seat?.isBot && (
-                <Tooltip title="Remove this bot">
+                <Tooltip title={S.removeBot}>
                   <IconButton size="small" onClick={() => removeBotFromLobby(seat.playerId)}>
                     <RemoveIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               )}
               {isHost && !seat && (
-                <Tooltip title="Seat a bot here">
+                <Tooltip title={S.addBot}>
                   <IconButton size="small" onClick={() => addBotToLobby()}>
                     <AddIcon fontSize="small" />
                   </IconButton>
@@ -139,10 +143,10 @@ export function LobbyScreen() {
 
         <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
           <Button variant="outlined" startIcon={<ExitToAppIcon />} onClick={leaveLobbyAction}>
-            Leave
+            {S.leave}
           </Button>
           <Box sx={{ flex: 1 }} />
-          <Tooltip title={start.reason ?? 'Deal the missions and begin'}>
+          <Tooltip title={start.reason ?? S.startHint}>
             <span>
               <Button
                 variant="contained"
@@ -151,7 +155,7 @@ export function LobbyScreen() {
                 disabled={!start.canStart}
                 onClick={startGame}
               >
-                Start
+                {S.start}
               </Button>
             </span>
           </Tooltip>

@@ -15,7 +15,7 @@
  */
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import { getSubsystemConfig, isPowerableType } from '@dangerous-inclinations/engine'
-import { TABLE } from '../theme'
+import { TABLE } from '../design/tokens'
 
 export type SubsystemGroup = 'weapon' | 'defence' | 'sensor' | 'passive' | 'utility'
 

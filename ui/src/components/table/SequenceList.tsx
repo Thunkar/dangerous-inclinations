@@ -21,14 +21,29 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import CloseIcon from '@mui/icons-material/Close'
 import MyLocationIcon from '@mui/icons-material/MyLocation'
-import { getSubsystemConfig, getWellName } from '@dangerous-inclinations/engine'
-import type { Hull, Subsystem } from '@dangerous-inclinations/engine'
+import {
+  BASE_CRITICAL_FACE,
+  BURN_COSTS,
+  SCAN_SECTOR_RANGE,
+  fill,
+  getMissileStats,
+  getSubsystemConfig,
+  getWellName,
+} from '@dangerous-inclinations/engine'
+import type { Hull, SeizableItem, Subsystem } from '@dangerous-inclinations/engine'
 import type { PlanStep } from '../../plan/preview'
 import { usePlan } from '../../context/PlanContext'
 import { useGame } from '../../context/GameContext'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { hullOf, slotWithSubsystem } from '../../utils/slots'
 import { placeLabel } from '../../utils/route'
+import { SENSOR_CRIT } from '../../site/numbers'
+import { ACTIONS } from '../../text/actions'
+import { inWords, signed } from './actions/words'
+
+const T = ACTIONS.sequence
+const W = ACTIONS.words
 
 export function SequenceList() {
   const plan = usePlan()
@@ -70,7 +85,11 @@ function PowerRow({ sub, n }: { sub: Subsystem; n: number }) {
             lineHeight: 1.3,
           }}
         >
-          {n}. Power {slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))} at {plan.powers[sub.id]}
+          {fill(T.power, {
+            n,
+            slot: slotWithSubsystem(sub.id, sub.type, hullOf(plan.me)),
+            energy: plan.powers[sub.id],
+          })}
         </Typography>
         <Typography
           sx={{
@@ -80,7 +99,7 @@ function PowerRow({ sub, n }: { sub: Subsystem; n: number }) {
             lineHeight: 1.3,
           }}
         >
-          first, and it works until your next turn
+          {T.powerNote}
         </Typography>
       </Box>
       <IconButton size="small" sx={{ p: 0.25 }} onClick={() => plan.setEnergyTo(sub.id, 0)}>
@@ -134,7 +153,10 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
             lineHeight: 1.3,
           }}
         >
-          {offset + index + 1}. {stepTitle(step, nameOf, hullOf(plan.me), weapon, item)}
+          {fill(T.step, {
+            n: offset + index + 1,
+            title: stepTitle(step, nameOf, hullOf(plan.me), weapon, item),
+          })}
         </Typography>
         <Typography
           sx={{
@@ -144,7 +166,7 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
             lineHeight: 1.3,
           }}
         >
-          from {placeLabel(at.position)} · {at.facing}
+          {fill(T.from, { place: placeLabel(at.position), facing: at.facing })}
         </Typography>
 
         {step.kind === 'fire' && <FireControls step={step} />}
@@ -167,38 +189,49 @@ function stepTitle(
   nameOf: (id: string) => string,
   hull: Hull,
   weapon?: Subsystem,
-  item?: string
+  item?: SeizableItem['kind']
 ): string {
+  const S = T.title
   switch (step.kind) {
     case 'rotate':
-      return 'Rotate'
+      return S.rotate
     case 'move':
-      if (step.move.kind === 'coast') return step.move.scoop ? 'Coast, scoop fuel' : 'Coast'
+      if (step.move.kind === 'coast') return step.move.scoop ? S.coastScoop : S.coast
       if (step.move.kind === 'burn')
-        return `${step.move.intensity[0].toUpperCase()}${step.move.intensity.slice(1)} burn${
-          step.move.adjustment
-            ? `, phase ${step.move.adjustment > 0 ? '+' : ''}${step.move.adjustment}`
-            : ''
-        }`
-      return `Jump to ${getWellName(step.move.destinationWellId)}`
+        return fill(S.burn, {
+          intensity: W.intensityLabel[step.move.intensity],
+          phase: step.move.adjustment
+            ? fill(S.burnPhase, { value: signed(step.move.adjustment) })
+            : '',
+        })
+      return fill(S.jump, { well: getWellName(step.move.destinationWellId) })
     case 'fire':
-      return `Fire ${slotWithSubsystem(step.subsystemId, weapon?.type, hull)}${step.count > 1 ? ` ×${step.count}` : ''}${
-        step.targetId ? ` at ${nameOf(step.targetId)}` : ''
-      }`
+      return fill(S.fire, {
+        slot: slotWithSubsystem(step.subsystemId, weapon?.type, hull),
+        count: step.count > 1 ? fill(S.fireCount, { count: step.count }) : '',
+        target: step.targetId ? fill(S.fireTarget, { name: nameOf(step.targetId) }) : '',
+      })
     case 'scan':
-      return `Scan${step.targetId ? ` ${nameOf(step.targetId)}` : ''}`
+      return fill(S.scan, {
+        target: step.targetId ? fill(S.scanTarget, { name: nameOf(step.targetId) }) : '',
+      })
     case 'seize':
-      return `Seize ${item ?? 'cargo'} from ${nameOf(step.victimId)}`
+      return fill(S.seize, {
+        item: item ? W.item[item] : S.cargo,
+        name: nameOf(step.victimId),
+      })
     case 'survey':
-      return 'Survey: take the data'
+      return S.survey
     case 'salvage':
       return step.victimId !== null
-        ? `Salvage ${nameOf(step.victimId)}'s wreck, if it dies`
-        : 'Salvage the wreck'
+        ? fill(S.salvageKill, { name: nameOf(step.victimId) })
+        : S.salvage
     case 'mark':
-      return `Mark ${nameOf(step.carrierId)}`
+      return fill(S.mark, { name: nameOf(step.carrierId) })
   }
 }
+
+const F = T.fire
 
 function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
   const plan = usePlan()
@@ -231,18 +264,19 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
    */
   const critFrom = plan.criticalFrom(step)
   const sensor = plan.me.ship.subsystems.find(s => s.type === 'sensor_array' && !s.isBroken)
+  const crit = { from: critFrom, base: BASE_CRITICAL_FACE, sensor: SENSOR_CRIT }
   const critTip =
     weapon?.type === 'missiles'
-      ? critFrom < 10
-        ? `Your sensor has energy on it by this launch: a missile that lands now criticals on ${critFrom}–10. One still flying rolls on a later turn, with the sensor you have up then.`
+      ? critFrom < BASE_CRITICAL_FACE
+        ? fill(F.crit.launchSensed, crit)
         : sensor
-          ? 'Criticals on 10. Power the sensor, or scan before this launch, and a missile that lands now is 8–10.'
-          : 'Criticals on 10.'
-      : critFrom < 10
-        ? `Your sensor has energy on it by this shot (powered, or it scanned earlier in the turn): criticals on ${critFrom}–10.`
+          ? fill(F.crit.launchSensor, crit)
+          : fill(F.crit.bare, crit)
+      : critFrom < BASE_CRITICAL_FACE
+        ? fill(F.crit.shotSensed, crit)
         : sensor
-          ? 'Criticals on 10. Power the sensor, or scan before this shot, and it is 8–10.'
-          : 'Criticals on 10.'
+          ? fill(F.crit.shotSensor, crit)
+          : fill(F.crit.bare, crit)
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mt: 0.5 }}>
@@ -255,18 +289,18 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
         sx={{ fontSize: '0.82rem', minWidth: 116, '& .MuiSelect-select': { py: 0.35 } }}
       >
         <MenuItem value="" sx={{ fontSize: '0.82rem' }}>
-          {inRange.length === 0 ? 'nothing in range' : 'pick a target'}
+          {inRange.length === 0 ? F.nothingInRange : F.pickTarget}
         </MenuItem>
         {inRange.map(target => (
           <MenuItem key={target.id} value={target.id} sx={{ fontSize: '0.82rem' }}>
             {nameOf(target.id)}
-            {outOfReach.has(target.id) ? ' · too far to catch' : ''}
+            {outOfReach.has(target.id) ? F.tooFar : ''}
           </MenuItem>
         ))}
       </Select>
 
       {ammo > 1 && (
-        <Tooltip title="How many rounds go up in this one launch, all at that ship and that slot.">
+        <Tooltip title={F.countTip}>
           <Select
             size="small"
             value={Math.min(step.count, ammo)}
@@ -275,7 +309,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
           >
             {Array.from({ length: ammo }, (_, i) => i + 1).map(n => (
               <MenuItem key={n} value={n} sx={{ fontSize: '0.82rem' }}>
-                ×{n}
+                {fill(F.count, { count: n })}
               </MenuItem>
             ))}
           </Select>
@@ -283,10 +317,10 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
       )}
 
       {inRange.length === 0 && plan.reachesBeforeMove(step) && (
-        <Tooltip title="Nobody is in range after your move, but someone is from where it starts.">
+        <Tooltip title={F.beforeTip}>
           <Chip
             size="small"
-            label="Fire before the move"
+            label={F.before}
             color="primary"
             variant="outlined"
             onClick={() => plan.fireBeforeMove(step.id)}
@@ -297,8 +331,10 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
 
       {wasted && (
         <Typography sx={{ fontSize: '0.74rem', color: TABLE.danger, lineHeight: 1.3 }}>
-          This one runs out of fuel before it catches them: three moves of three steps, and they
-          keep drifting.
+          {fill(F.wasted, {
+            moves: inWords(getMissileStats().maxMoves),
+            steps: inWords(getMissileStats().stepsPerMove),
+          })}
         </Typography>
       )}
 
@@ -308,20 +344,22 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
           sx={{
             fontFamily: FONT_MONO,
             fontSize: '0.74rem',
-            color: critFrom < 10 ? TABLE.accent : TABLE.inkSoft,
+            color: critFrom < BASE_CRITICAL_FACE ? TABLE.accent : TABLE.inkSoft,
             lineHeight: 1.3,
             cursor: 'help',
           }}
         >
-          crit {critFrom < 10 ? `${critFrom}–10` : '10'}
+          {fill(critFrom < BASE_CRITICAL_FACE ? F.critRange : F.critBare, { from: critFrom })}
         </Typography>
       </Tooltip>
 
-      <Tooltip title="Name the slot a critical hit would break: click it on their loadout">
+      <Tooltip title={F.critTargetTip}>
         <Chip
           size="small"
           icon={<MyLocationIcon sx={{ fontSize: 14 }} />}
-          label={`crit: ${slotWithSubsystem(step.criticalTarget, theirs?.type, hullOf(victim))}`}
+          label={fill(F.critTarget, {
+            slot: slotWithSubsystem(step.criticalTarget, theirs?.type, hullOf(victim)),
+          })}
           color={picking ? 'primary' : 'default'}
           variant={picking ? 'filled' : 'outlined'}
           onClick={() => plan.setPicking(picking ? null : { kind: 'crit', stepId: step.id })}
@@ -330,7 +368,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
       </Tooltip>
 
       {config?.weaponStats?.hasRecoil && (
-        <Tooltip title="Absorb the recoil: 1 fuel and engine heat, and no burn this turn.">
+        <Tooltip title={fill(F.recoilTip, { fuel: BURN_COSTS.soft.mass })}>
           <FormControlLabel
             sx={{ m: 0 }}
             control={
@@ -341,9 +379,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
               />
             }
             label={
-              <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft }}>
-                compensate recoil
-              </Typography>
+              <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft }}>{F.recoil}</Typography>
             }
           />
         </Tooltip>
@@ -365,9 +401,9 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
   const note = !target
     ? null
     : faceDown.length === 0
-      ? 'You already know every subsystem on that loadout. The scan still takes their transmission.'
+      ? T.scan.allKnown
       : chosen && chosen.type !== null
-        ? 'You already know that subsystem: the scan will look at the first face-down one instead.'
+        ? T.scan.known
         : null
 
   return (
@@ -380,7 +416,9 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
         sx={{ fontSize: '0.82rem', minWidth: 116, '& .MuiSelect-select': { py: 0.35 } }}
       >
         <MenuItem value="" sx={{ fontSize: '0.82rem' }}>
-          {inRange.length === 0 ? 'nobody up to 3 sectors ahead' : 'pick a target'}
+          {inRange.length === 0
+            ? fill(T.scan.nobody, { range: SCAN_SECTOR_RANGE })
+            : T.scan.pickTarget}
         </MenuItem>
         {inRange.map(target => (
           <MenuItem key={target.id} value={target.id} sx={{ fontSize: '0.82rem' }}>
@@ -389,14 +427,16 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
         ))}
       </Select>
 
-      <Tooltip title="Choose which face-down subsystem to look at: click it on their loadout">
+      <Tooltip title={T.scan.peekTip}>
         <Chip
           size="small"
           icon={<MyLocationIcon sx={{ fontSize: 14 }} />}
           label={
             step.peekSlot
-              ? `peek: ${slotWithSubsystem(step.peekSlot, chosen?.type, hullOf(target))}`
-              : 'peek: choose a slot'
+              ? fill(T.scan.peek, {
+                  slot: slotWithSubsystem(step.peekSlot, chosen?.type, hullOf(target)),
+                })
+              : T.scan.peekChoose
           }
           color={picking ? 'primary' : 'default'}
           variant={picking ? 'filled' : 'outlined'}
@@ -435,8 +475,7 @@ function SeizeControls({
   if (!shotFirst) return null
   return (
     <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.3, mt: 0.5 }}>
-      A shot before this one is at the same ship: if it destroys them, there is nothing left to
-      take. Move this step up to take the item first.
+      {T.seizeAfterShot}
     </Typography>
   )
 }
@@ -456,8 +495,7 @@ function MarkControls({
   if (!shotFirst) return null
   return (
     <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.3, mt: 0.5 }}>
-      A shot before this one is at the same ship: if it destroys them, the marker stays in your
-      hand. Move this step up to mark them first.
+      {T.markAfterShot}
     </Typography>
   )
 }

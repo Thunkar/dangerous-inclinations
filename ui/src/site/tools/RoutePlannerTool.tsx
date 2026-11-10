@@ -34,7 +34,9 @@ import {
   MAX_REACTION_MASS,
   SECTORS_PER_RING,
   STATION_RING,
+  STARTING_HIT_POINTS,
   createInitialStations,
+  fill,
   getMaxRing,
   getWellName,
   isPlanet,
@@ -50,11 +52,15 @@ import { stationMarkers, type BoardModel } from '../../components/board/model'
 import { GameBoardSvg } from '../../components/board/svg/GameBoardSvg'
 import { getPlayerColor } from '../../utils/playerColors'
 import { ROUTE_SEARCH_TURNS, placeLabel, routeLegs, routeName } from '../../utils/route'
-import { FONT_SANS, TABLE } from '../../theme'
+import { FONT_SANS } from '../../theme'
+import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { STATION_DRIFT } from '../turn'
 import { Field, Label, Plate, Segments, Stepper, Toggle } from './controls'
 import { OrbitalWindows } from './OrbitalWindows'
+import { TOOLS } from '../../text/tools'
+
+const T = TOOLS.route
 
 const SHIP_ID = 'planner'
 /** The sectors a station can stand on: the station clock's readings. */
@@ -69,7 +75,7 @@ type Destination = { kind: 'sector'; at: Position } | { kind: 'station'; planetI
 
 const BODIES = GRAVITY_WELLS.map(well => ({
   value: well.id,
-  label: well.type === 'planet' ? well.name : 'Black hole',
+  label: well.type === 'planet' ? well.name : T.blackHole,
 }))
 
 const rings = (wellId: GravityWellId) =>
@@ -90,7 +96,7 @@ function PlaceInput({
 }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Field label="Body">
+      <Field label={T.body}>
         <Segments
           value={value.wellId}
           options={BODIES}
@@ -100,14 +106,14 @@ function PlaceInput({
         />
       </Field>
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Field label="Ring">
+        <Field label={T.ring}>
           <Segments
             value={String(value.ring)}
             options={rings(value.wellId)}
             onChange={ring => onChange({ ...value, ring: Number(ring) })}
           />
         </Field>
-        <Field label="Sector">
+        <Field label={T.sector}>
           <Stepper
             value={value.sector}
             min={0}
@@ -115,7 +121,7 @@ function PlaceInput({
             wrap
             editable
             onChange={sector => onChange({ ...value, sector })}
-            label={`${label} sector`}
+            label={fill(T.sectorOf, { place: label })}
           />
         </Field>
       </Box>
@@ -199,7 +205,7 @@ export function RoutePlannerTool() {
       ships: [
         {
           playerId: SHIP_ID,
-          name: 'your ship',
+          name: T.shipName,
           color: SHIP_COLOR,
           position: from,
           facing,
@@ -208,8 +214,8 @@ export function RoutePlannerTool() {
           escorts: [],
           isActive: true,
           isMe: true,
-          hitPoints: 10,
-          maxHitPoints: 10,
+          hitPoints: STARTING_HIT_POINTS,
+          maxHitPoints: STARTING_HIT_POINTS,
           heat: 0,
         },
       ],
@@ -232,7 +238,7 @@ export function RoutePlannerTool() {
       shot: null,
       planColor: TABLE.ink,
       colorOf: () => SHIP_COLOR,
-      nameOf: () => 'your ship',
+      nameOf: () => T.shipName,
       pointOf: () => null,
     }),
     // `pick` closes over these.
@@ -243,7 +249,7 @@ export function RoutePlannerTool() {
   const legs = route ? routeLegs(route.steps, facing) : []
   const where =
     destination.kind === 'station' && station
-      ? `${getWellName(station.planetId)} station`
+      ? fill(T.station, { planet: getWellName(station.planetId) })
       : destination.kind === 'sector'
         ? placeLabel(destination.at)
         : ''
@@ -256,51 +262,51 @@ export function RoutePlannerTool() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
         <Plate>
-          <Label>Your ship</Label>
+          <Label>{T.ship}</Label>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1.5 }}>
-            <PlaceInput value={from} onChange={setFrom} label="ship" />
+            <PlaceInput value={from} onChange={setFrom} label={T.shipPlace} />
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <Field label="Facing">
+              <Field label={T.facing}>
                 <Segments
                   value={facing}
                   options={[
-                    { value: 'prograde' as Facing, label: 'Prograde' },
-                    { value: 'retrograde' as Facing, label: 'Retrograde' },
+                    { value: 'prograde' as Facing, label: T.prograde },
+                    { value: 'retrograde' as Facing, label: T.retrograde },
                   ]}
                   onChange={setFacing}
                 />
               </Field>
-              <Field label="Fuel">
+              <Field label={T.fuel}>
                 <Stepper
                   value={fuel}
                   min={0}
                   max={MAX_REACTION_MASS}
                   onChange={setFuel}
-                  label="fuel"
+                  label={T.fuelAloud}
                 />
               </Field>
-              <Field label="Arrive with">
+              <Field label={T.arriveWith}>
                 <Stepper
                   value={keep}
                   min={0}
                   max={fuel}
                   onChange={setReserve}
-                  label="fuel left on arrival"
+                  label={T.arriveWithAloud}
                 />
               </Field>
-              <Toggle on={compressor} label="Compressor" onChange={setCompressor} />
+              <Toggle on={compressor} label={T.compressor} onChange={setCompressor} />
             </Box>
           </Box>
         </Plate>
 
         <Plate>
-          <Label>Where to</Label>
+          <Label>{T.whereTo}</Label>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1.5 }}>
             <Segments
               value={destination.kind}
               options={[
-                { value: 'station', label: 'A station' },
-                { value: 'sector', label: 'A sector' },
+                { value: 'station', label: T.aStation },
+                { value: 'sector', label: T.aSector },
               ]}
               onChange={kind =>
                 setDestination(
@@ -315,14 +321,14 @@ export function RoutePlannerTool() {
             />
             {destination.kind === 'station' && station ? (
               <>
-                <Field label="Planet">
+                <Field label={T.planet}>
                   <Segments
                     value={station.planetId}
                     options={BODIES.filter(b => isPlanet(b.value))}
                     onChange={planetId => setDestination({ kind: 'station', planetId })}
                   />
                 </Field>
-                <Field label={`Stations now at (ring ${STATION_RING}, sector)`}>
+                <Field label={fill(T.stationsAt, { ring: STATION_RING })}>
                   <Segments
                     value={String(station.sector)}
                     options={STATION_CLOCK.map(sector => ({
@@ -333,15 +339,14 @@ export function RoutePlannerTool() {
                   />
                 </Field>
                 <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}>
-                  Every station moves {STATION_DRIFT} sectors a round, together, so these are the
-                  only sectors one can be on; the route meets it where it will be.
+                  {fill(T.stationsMove, { drift: STATION_DRIFT })}
                 </Box>
               </>
             ) : destination.kind === 'sector' ? (
               <PlaceInput
                 value={destination.at}
                 onChange={at => setDestination({ kind: 'sector', at })}
-                label="destination"
+                label={T.destinationPlace}
               />
             ) : null}
           </Box>
@@ -349,18 +354,18 @@ export function RoutePlannerTool() {
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
-        <Field label="A click on the board sets">
+        <Field label={T.clickSets}>
           <Segments
             value={picking}
             options={[
-              { value: 'ship' as Picking, label: 'The ship' },
-              { value: 'destination' as Picking, label: 'Where to' },
+              { value: 'ship' as Picking, label: T.theShip },
+              { value: 'destination' as Picking, label: T.whereTo },
             ]}
             onChange={setPicking}
           />
         </Field>
         <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft, pb: 1.25 }}>
-          Click a station to head for it.
+          {T.clickStation}
         </Box>
       </Box>
 
@@ -395,21 +400,21 @@ export function RoutePlannerTool() {
           }}
         >
           <Box component="span" sx={{ fontSize: '1.1rem' }}>
-            The route
+            {T.theRoute}
           </Box>
           <Box component="span" sx={{ ml: 'auto', fontSize: '0.9rem', color: PRESS.paperSoft }}>
-            {placeLabel(from)} &rarr; {where}
-            {arrival !== null && ` (S${arrival} on arrival)`}
+            {fill(T.fromTo, { from: placeLabel(from), to: where })}
+            {arrival !== null && fill(T.onArrival, { sector: arrival })}
           </Box>
         </Box>
         <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
           {!route ? (
             <Box sx={{ fontFamily: FONT_SANS, fontSize: '1rem' }}>
               {destination.kind === 'sector' && samePosition(from, destination.at)
-                ? 'The ship is already there.'
+                ? T.alreadyThere
                 : keep > 0
-                  ? `No route there within ${ROUTE_SEARCH_TURNS} turns on ${fuel} fuel that arrives with ${keep}.`
-                  : `No route there within ${ROUTE_SEARCH_TURNS} turns on ${fuel} fuel.`}
+                  ? fill(T.noRouteKeeping, { turns: ROUTE_SEARCH_TURNS, fuel, keep })
+                  : fill(T.noRoute, { turns: ROUTE_SEARCH_TURNS, fuel })}
             </Box>
           ) : (
             <>
@@ -417,7 +422,11 @@ export function RoutePlannerTool() {
                 value={String(current)}
                 options={routes.map((alternative, index) => ({
                   value: String(index),
-                  label: `${routeName(alternative, index)} · ${alternative.totalTurns} turns · ${alternative.totalMassCost} fuel`,
+                  label: fill(T.alternative, {
+                    name: routeName(alternative, index),
+                    turns: alternative.totalTurns,
+                    fuel: alternative.totalMassCost,
+                  }),
                 }))}
                 onChange={index => setChosen(Number(index))}
               />
@@ -476,7 +485,7 @@ export function RoutePlannerTool() {
                           component="b"
                           sx={{ color: index === 0 ? PRESS.paper : PRESS.redText }}
                         >
-                          rotate,{' '}
+                          {T.rotate}
                         </Box>
                       )}
                       {leg.text}
@@ -494,8 +503,7 @@ export function RoutePlannerTool() {
               <Box
                 sx={{ mt: 1.5, fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}
               >
-                One line per turn, first turn in black. The figure on the right is the fuel it
-                spends or the scoop brings in.
+                {T.legsNote}
               </Box>
             </>
           )}

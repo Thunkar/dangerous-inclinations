@@ -29,7 +29,7 @@ import {
 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { HULL_INK } from '../../../../ships/palette'
-import { TABLE } from '../../../../theme'
+import { TABLE } from '../../../../design/tokens'
 import type { WreckToken } from '../../model'
 import { driftProgress, wreckHeading, wreckPoint, wreckRadius } from '../../geometry'
 import { wreckLabel } from '../../labels'

@@ -5,7 +5,8 @@
  */
 import type { ReactNode } from 'react'
 import { Box, Tooltip, Typography } from '@mui/material'
-import { FONT_MONO, TABLE } from '../../theme'
+import { FONT_MONO } from '../../theme'
+import { TABLE } from '../../design/tokens'
 
 // ---------------------------------------------------------------------------
 // Energy cells

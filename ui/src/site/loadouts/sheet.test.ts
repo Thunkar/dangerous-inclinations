@@ -6,8 +6,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import { SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from '../card/cardStyles'
-import { cropMarks, type Rect } from '../card/sheet'
-import { LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM, loadoutPages, loadoutSlots } from './sheet'
+import { cropMarks, gridSlots, type Rect } from '../card/sheet'
+import { LOADOUT_GRID, LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM, loadoutPages } from './sheet'
 
 const UNPRINTABLE_MM = 5
 
@@ -19,7 +19,7 @@ const cards = (n: number) => Array.from({ length: n }, (_, i) => i)
 
 describe('the loadout sheet', () => {
   it('centres the grid on the page', () => {
-    const slots = loadoutSlots()
+    const slots = gridSlots(LOADOUT_GRID)
     const left = Math.min(...slots.map(s => s.x))
     const right = SHEET_WIDTH_MM - Math.max(...slots.map(s => s.x + s.width))
     const top = Math.min(...slots.map(s => s.y))
@@ -29,7 +29,7 @@ describe('the loadout sheet', () => {
   })
 
   it('cuts every card at the size of a mission card', () => {
-    for (const slot of loadoutSlots()) {
+    for (const slot of gridSlots(LOADOUT_GRID)) {
       expect(slot.width).toBe(LOADOUT_WIDTH_MM)
       expect(slot.height).toBe(LOADOUT_HEIGHT_MM)
     }

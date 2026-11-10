@@ -35,8 +35,13 @@ export function Back({ pile }: { pile: Pile }) {
   )
 }
 
+/** The loadout and range cards' back: the ink ground, nothing on the wedge. */
+export function LoadoutBack() {
+  return <CardBack className="di-lo-card" ground="ink" />
+}
+
 /** A card's back on `ground`, `label` along the wedge if it has one; `className` sizes it. */
-export function CardBack({
+function CardBack({
   className,
   ground,
   label,

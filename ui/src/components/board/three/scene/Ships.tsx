@@ -24,7 +24,7 @@ import { createShip } from '../../../../ships/model'
 import { boardConfig, type ShipVisual } from '../../../../ships/visual'
 import { MOUNTS } from '../../../../ships/config'
 import { HULL_INFO } from '../../../../ships/hulls'
-import { TABLE } from '../../../../theme'
+import { TABLE } from '../../../../design/tokens'
 import type { ShipToken } from '../../model'
 import {
   crowdOffset,
