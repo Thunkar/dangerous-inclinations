@@ -424,21 +424,22 @@ export function isWeaponType(type: SubsystemType): type is WeaponType {
 
 /**
  * Every tile that can shoot, derived from the configs so a new weapon joins
- * the list by existing. A Destroy card asks for more than this, a weapon that
- * deals damage ({@link DAMAGING_WEAPON_TYPES}).
+ * the list by existing. Read when asked, not at load, so a `--tiles=`
+ * override reaches it. A Destroy card asks for more than this, a weapon that
+ * deals damage ({@link damagingWeaponTypes}).
  */
-export const WEAPON_SUBSYSTEM_TYPES: readonly WeaponType[] = (
-  Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]
-).filter(isWeaponType)
+export function weaponSubsystemTypes(): WeaponType[] {
+  return (Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]).filter(isWeaponType)
+}
 
 /**
  * The weapons that take hull: every weapon but the disruptor. A Destroy card
- * needs one (`MISSION_REQUIREMENTS`), since a weapon that only breaks slots
+ * needs one (`missionRequirements`), since a weapon that only breaks slots
  * can never finish a ship.
  */
-export const DAMAGING_WEAPON_TYPES: readonly WeaponType[] = WEAPON_SUBSYSTEM_TYPES.filter(
-  t => SUBSYSTEM_CONFIGS[t].weaponStats!.damage > 0
-)
+export function damagingWeaponTypes(): WeaponType[] {
+  return weaponSubsystemTypes().filter(t => SUBSYSTEM_CONFIGS[t].weaponStats!.damage > 0)
+}
 
 /** Points of this weapon's damage a shield cube absorbs. */
 export function shieldPointsPerEnergyOf(stats: WeaponStats | undefined): number {
@@ -452,6 +453,19 @@ export function shieldPointsPerEnergyOf(stats: WeaponStats | undefined): number 
 export function isPowered(subsystem: Pick<Subsystem, 'allocatedEnergy'>): boolean {
   return subsystem.allocatedEnergy > 0
 }
+
+/** A ballistic rack with energy on it destroys a missile on this d10 roll or better. */
+export const INTERCEPT_ROLL = 2
+
+/**
+ * Heat on the defender's track for each rack that answers missiles in a
+ * player-turn, however many it rolls at. Measured 7 Oct 2026 against a
+ * rack that rolled for free and against heat per missile shot down (2 or 1
+ * a missile): per missile taxes the defence by the size of the salvo, which
+ * is the attacker's choice, and pushed the sensor bow with three launchers
+ * over its bar; a flat charge per turn moved the least.
+ */
+export const INTERCEPT_HEAT = 2
 
 /**
  * Missiles a rack's cubes can answer in one player-turn.

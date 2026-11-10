@@ -27,7 +27,13 @@
  */
 import type { GameState, Missile, Player, Position } from '../models/game.ts'
 import type { SubsystemId } from '../models/subsystems.ts'
-import { getMissileStats, interceptsPerRack, isPowered } from '../models/subsystems.ts'
+import {
+  INTERCEPT_HEAT,
+  INTERCEPT_ROLL,
+  getMissileStats,
+  interceptsPerRack,
+  isPowered,
+} from '../models/subsystems.ts'
 import type { EventDraft } from '../models/events.ts'
 import { rollD10, nextEntityId } from '../utils/rng.ts'
 import {
@@ -41,21 +47,6 @@ import {
 import { resolveAttack } from './damage.ts'
 import { addHeat, isDestroyed, isOnBoard, updateSubsystem, useSubsystem } from './ship.ts'
 import { canBeTargeted } from './targeting.ts'
-
-const MISSILE = getMissileStats()
-
-/** A ballistic rack with energy on it destroys a missile on this d10 roll or better. */
-export const INTERCEPT_ROLL = 2
-
-/**
- * Heat on the defender's track for each rack that answers missiles in a
- * player-turn, however many it rolls at. Measured 7 Oct 2026 against a
- * rack that rolled for free and against heat per missile shot down (2 or 1
- * a missile): per missile taxes the defence by the size of the salvo, which
- * is the attacker's choice, and pushed the sensor bow with three launchers
- * over its bar; a flat charge per turn moved the least.
- */
-export const INTERCEPT_HEAT = 2
 
 export function createMissile(
   state: GameState,
@@ -112,7 +103,8 @@ function flightFrom(from: Position, target: Position): Position[] {
   const path: Position[] = [from]
   if (from.wellId !== target.wellId) return path
   let current = from
-  for (let i = 0; i < MISSILE.stepsPerMove && !samePosition(current, target); i++) {
+  const steps = getMissileStats().stepsPerMove
+  for (let i = 0; i < steps && !samePosition(current, target); i++) {
     current = stepToward(current, target, 1)
     path.push(current)
   }
@@ -189,7 +181,7 @@ export function projectMissilePath(
 export function missileCanReach(from: Position, target: Position): boolean {
   if (from.wellId !== target.wellId) return false
   const reaches = (missile: Position & { movesMade: number }, victim: Position): boolean => {
-    if (missile.movesMade >= MISSILE.maxMoves) return false
+    if (missile.movesMade >= getMissileStats().maxMoves) return false
     return ordersFor(missile).some(order => {
       const move = moveIn(missile, victim, order)
       return (
@@ -311,7 +303,8 @@ function flyMissile(state: GameState, missile: Missile): Flight {
 
   if (untouchable || !move.hits) {
     const movesMade = missile.movesMade + 1
-    if (movesMade >= MISSILE.maxMoves) {
+    const { maxMoves } = getMissileStats()
+    if (movesMade >= maxMoves) {
       events.push({ type: 'missile_expired', missileId: missile.id, ownerId, at: moved })
       return { state, events, survivor: null }
     }
@@ -320,7 +313,7 @@ function flyMissile(state: GameState, missile: Missile): Flight {
       missileId: missile.id,
       ownerId,
       to: moved,
-      movesLeft: MISSILE.maxMoves - movesMade,
+      movesLeft: maxMoves - movesMade,
     })
     return { state, events, survivor: { ...missile, ...moved, movesMade } }
   }
@@ -379,7 +372,7 @@ function flyMissile(state: GameState, missile: Missile): Flight {
   const outcome = resolveAttack(
     targetShip,
     target.id,
-    MISSILE.damage,
+    getMissileStats().damage,
     missile.criticalTarget,
     roll,
     owner.ship,

@@ -22,21 +22,23 @@
  *   yarn balance --only=natural,baselines,logical
  *   yarn balance --only=logical:gunship,offbook:missile_boat
  *   yarn balance --output=/tmp/balance  # writes balance.md and balance.json
- *   yarn balance --rules=missionsToWin=4  # the same matrix under a proposed rule
+ *   yarn balance --rules=pointsToWin=4  # the same matrix under a proposed rule
  *   yarn balance --tiles=laser.damage=3   # the same matrix with a tile changed
  *   yarn balance --bot=aggressiveness=0.8 # the same matrix played by bots told to think differently
+ *   yarn balance --loadouts=gunship=railgun/laser,laser,shields,radiator  # with a preset changed
  *
  * An unknown flag stops the run: a typo is a matrix that never ran.
  * `--only=` takes section names (natural, baselines, logical, illogical,
  * offbook, extreme), full row ids (`illogical:freighter+destroy`) or a bare
  * row name (`turtle`).
  *
- * `--rules=missionsToWin=4` plays the whole matrix at a points-to-win a table
+ * `--rules=pointsToWin=4` plays the whole matrix at a points-to-win a table
  * is never offered (`sim/ruleOverrides.ts`) and the page stamps it under the
  * title, so a proposed four-point game can be read against the same rows as
  * the three-point one that is the game. Two pages are only comparable when
- * they ran the same games, the same seeds and the same setting. `--tiles=` and
- * `--bot=` are stamped the same way.
+ * they ran the same games, the same seeds and the same setting. `--tiles=`,
+ * `--bot=` and `--loadouts=` are stamped the same way; a preset row flies
+ * the preset as overridden.
  *
  * **A bar that was not measured judges nothing.** Under `--only=` a row can
  * run without the row that measures its bar; it prints its numbers with no
@@ -85,19 +87,14 @@ import {
   type BotRole,
 } from '../ai/behaviors/loadout.ts'
 import { runBatch, type BatchResult } from './batch.ts'
-import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from './ruleOverrides.ts'
 import {
-  applyTileOverrides,
-  describeTileOverrides,
-  parseTileOverrides,
-  type TileOverrides,
-} from './tileOverrides.ts'
-import {
-  applyBotOverrides,
-  describeBotOverrides,
-  parseBotOverrides,
-  type BotOverrides,
-} from './botOverrides.ts'
+  OVERRIDE_LABEL,
+  applyOverrides,
+  describeOverrides,
+  parseOverrideFlag,
+  splitFlag,
+  type Overrides,
+} from './overrides.ts'
 import { CARD_LABEL, type PerGameStats, type PerPlayerStats } from './stats.ts'
 
 const OUTLIER_MARGIN = 0.12
@@ -111,8 +108,6 @@ const hull = (forward: string, sides: string): ShipLoadout => ({
   forwardSlots: [forward] as ShipLoadout['forwardSlots'],
   sideSlots: sides.split(',') as ShipLoadout['sideSlots'],
 })
-
-const preset = (id: BotPresetId): ShipLoadout => BOT_PRESET_LOADOUTS[id]
 
 type Section = 'baselines' | 'logical' | 'illogical' | 'offbook' | 'extreme'
 /** Which bar a row is read against: seat 1's own hand, or one primary's. */
@@ -130,8 +125,11 @@ interface RowSpec {
   section: Section
   /** The loadout, for the table. */
   label: string
-  /** Omitted on a baseline row: the bot picks its own loadout. */
-  loadout?: ShipLoadout
+  /**
+   * Omitted on a baseline row: the bot picks its own loadout. A preset row
+   * reads it when the row runs, so `--loadouts=` reaches it.
+   */
+  readonly loadout?: ShipLoadout
   /** Omitted on an extreme row: the bot keeps whatever it is dealt. */
   primary?: MissionType
   bar: BarName
@@ -159,7 +157,9 @@ const logicalRows: RowSpec[] = BOT_ROLES.flatMap(role =>
       id: `logical:${id}`,
       section: 'logical',
       label: `${id} (preset)`,
-      loadout: preset(id),
+      get loadout() {
+        return BOT_PRESET_LOADOUTS[id]
+      },
       primary: PRIMARY_OF[ROLE_CARD[role]],
       bar: ROLE_CARD[role],
     })
@@ -186,14 +186,18 @@ const illogicalRows: RowSpec[] = (
     ['freighter', 'destroy'],
     ['convoy', 'destroy'],
   ] as Array<[BotPresetId, Exclude<BarName, 'any'>]>
-).map(([id, bar]) => ({
-  id: `illogical:${id}+${bar}`,
-  section: 'illogical',
-  label: `${id} (preset)`,
-  loadout: preset(id),
-  primary: PRIMARY_OF[bar],
-  bar,
-}))
+).map(
+  ([id, bar]): RowSpec => ({
+    id: `illogical:${id}+${bar}`,
+    section: 'illogical',
+    label: `${id} (preset)`,
+    get loadout() {
+      return BOT_PRESET_LOADOUTS[id]
+    },
+    primary: PRIMARY_OF[bar],
+    bar,
+  })
+)
 
 /** Builds no preset offers, each flown with the card it is built for. */
 const offbookRows: RowSpec[] = (
@@ -436,12 +440,8 @@ interface Args {
   only?: Set<string>
   output?: string
   noFail: boolean
-  /** Experiment-only rule overrides, stamped on the page (see sim/ruleOverrides.ts). */
-  rules?: RuleOverrides
-  /** Experiment-only tile overrides, stamped on the page (see sim/tileOverrides.ts). */
-  tiles?: TileOverrides
-  /** Experiment-only bot parameter overrides, stamped on the page (see sim/botOverrides.ts). */
-  bot?: BotOverrides
+  /** Experiment-only overrides, stamped on the page (see sim/overrides.ts). */
+  overrides: Overrides
 }
 
 function fail(message: string): never {
@@ -455,12 +455,13 @@ function parseArgs(argv: string[]): Args {
     baseSeed: 5000,
     workers: Math.max(1, cpus().length - 1),
     noFail: false,
+    overrides: {},
   }
   for (const raw of argv) {
-    if (!raw.startsWith('--')) fail(`Unknown argument ${raw}`)
-    const eq = raw.indexOf('=')
-    const key = eq === -1 ? raw.slice(2) : raw.slice(2, eq)
-    const value = eq === -1 ? 'true' : raw.slice(eq + 1)
+    const flag = splitFlag(raw)
+    if (!flag) fail(`Unknown argument ${raw}`)
+    const { key, value } = flag
+    if (parseOverrideFlag(key, value, args.overrides)) continue
     const num = () => {
       const n = Number(value)
       if (!Number.isFinite(n)) fail(`--${key} must be a number`)
@@ -484,15 +485,6 @@ function parseArgs(argv: string[]): Args {
         break
       case 'output':
         args.output = value
-        break
-      case 'rules':
-        args.rules = parseRuleOverrides(value)
-        break
-      case 'tiles':
-        args.tiles = parseTileOverrides(value)
-        break
-      case 'bot':
-        args.bot = parseBotOverrides(value)
         break
       case 'no-fail':
         args.noFail = true
@@ -677,10 +669,10 @@ function renderForced(rows: ForcedRow[]): string[] {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
-  // In this process too, for anything read off the configs here; the workers
-  // that play the games get the same overrides with every job.
-  applyTileOverrides(args.tiles)
-  applyBotOverrides(args.bot)
+  // In this process too, for anything read off the configs here (the preset
+  // rows' hulls among them); the workers that play the games get the same
+  // overrides with every job.
+  applyOverrides(args.overrides)
   const want = (id: string) => {
     if (!args.only) return true
     const [section, name] = id.split(':')
@@ -692,9 +684,8 @@ async function main() {
     baseSeed: args.baseSeed,
     workers: args.workers,
     tiebreak: true,
-    rules: args.rules,
-    tiles: args.tiles,
-    bots: args.bot,
+    rules: args.overrides.rules,
+    overrides: args.overrides,
   }
   const started = Date.now()
   const log = (s: string) =>
@@ -744,18 +735,13 @@ async function main() {
   lines.push(`# Balance suite (${new Date().toISOString().slice(0, 10)})`)
   // A run under `--rules=` is not the standing matrix: say so where the reader
   // looks first, or two pages get diffed as if they were the same suite.
-  const stamps = [
-    ['Rule overrides', describeRuleOverrides(args.rules)],
-    ['Tile overrides', describeTileOverrides(args.tiles)],
-    ['Bot overrides', describeBotOverrides(args.bot)],
-  ].filter(([, text]) => text !== '')
-  for (const [name, text] of stamps) {
+  for (const [flag, text] of describeOverrides(args.overrides)) {
     lines.push('')
-    lines.push(`${name}: ${text}`)
+    lines.push(`${OVERRIDE_LABEL[flag]}: ${text}`)
   }
   lines.push('')
   lines.push(
-    `${args.games} games per row, seeds ${args.baseSeed}+, turn cap 400, 3 players in every forced row, points to win ${args.rules?.missionsToWin ?? DEFAULT_POINTS_TO_WIN}.`
+    `${args.games} games per row, seeds ${args.baseSeed}+, turn cap 400, 3 players in every forced row, points to win ${args.overrides.rules?.pointsToWin ?? DEFAULT_POINTS_TO_WIN}.`
   )
   lines.push('')
   const barText = (b: number | null) => (b === null ? NOT_MEASURED : pct(b))

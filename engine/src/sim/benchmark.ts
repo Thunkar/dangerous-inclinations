@@ -7,9 +7,10 @@
  *   yarn bench --players=3,4            # only these seat counts
  *   yarn bench --minutes=1              # table time at this pace per turn
  *   yarn bench --output=docs/bench-2026-09-18.md
- *   yarn bench --rules=missionsToWin=4   # a page played under a proposed rule
+ *   yarn bench --rules=pointsToWin=4   # a page played under a proposed rule
  *   yarn bench --bot=aggressiveness=0.8,targetPreference=weakest  # a page played by bots told to think differently
  *   yarn bench --tiles=radiator.dissipationBonus=3  # a page played with a tile changed
+ *   yarn bench --loadouts=gunship=railgun/laser,laser,shields,radiator  # a page played with a preset changed
  *
  * An unknown flag stops the run: a typo is a page stamped with rules it was
  * not played under.
@@ -45,27 +46,22 @@ import {
   STARTING_HIT_POINTS,
 } from '../models/game.ts'
 import {
+  INTERCEPT_HEAT,
   SHIELD_POINTS_PER_ENERGY,
   SUBSYSTEM_CONFIGS,
   interceptsPerRack,
 } from '../models/subsystems.ts'
-import { INTERCEPT_HEAT } from '../game/missiles.ts'
 import { runBatch, type BatchResult } from './batch.ts'
 import { CARD_LABEL, LEAD_CHECK_ROUND } from './stats.ts'
 import { FIRST_STEP } from './cardFunnel.ts'
 import {
-  applyTileOverrides,
-  describeTileOverrides,
-  parseTileOverrides,
-  type TileOverrides,
-} from './tileOverrides.ts'
-import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from './ruleOverrides.ts'
-import {
-  applyBotOverrides,
-  describeBotOverrides,
-  parseBotOverrides,
-  type BotOverrides,
-} from './botOverrides.ts'
+  OVERRIDE_LABEL,
+  applyOverrides,
+  describeOverrides,
+  parseOverrideFlag,
+  splitFlag,
+  type Overrides,
+} from './overrides.ts'
 
 const DEFAULT_GAMES = 120
 const QUICK_GAMES = 40
@@ -97,12 +93,8 @@ interface Args {
   minutesPerTurn: number
   workers: number
   output?: string
-  /** Experiment-only rule overrides, stamped on the page (see sim/ruleOverrides.ts). */
-  rules?: RuleOverrides
-  /** Experiment-only bot parameter overrides, stamped on the page (see sim/botOverrides.ts). */
-  bot?: BotOverrides
-  /** Experiment-only tile overrides, stamped on the page (see sim/tileOverrides.ts). */
-  tiles?: TileOverrides
+  /** Experiment-only overrides, stamped on the page (see sim/overrides.ts). */
+  overrides: Overrides
 }
 
 function fail(message: string): never {
@@ -116,32 +108,23 @@ function parseArgs(argv: string[]): Args {
     players: DEFAULT_PLAYERS,
     minutesPerTurn: DEFAULT_MINUTES_PER_TURN,
     workers: Math.max(1, cpus().length - 1),
+    overrides: {},
   }
   for (const raw of argv) {
-    if (raw === '--quick') {
-      args.games = QUICK_GAMES
-      continue
-    }
-    // Split on the first "=" only: values carry their own, as in
-    // --rules=missionsToWin=4.
-    if (!raw.startsWith('--')) fail(`Unknown argument ${raw}`)
-    const flag = raw.slice(2)
-    const eq = flag.indexOf('=')
-    if (eq === -1) fail(`Unknown flag ${raw}`)
-    const key = flag.slice(0, eq)
-    const value = flag.slice(eq + 1)
+    const flag = splitFlag(raw)
+    if (!flag) fail(`Unknown argument ${raw}`)
+    const { key, value } = flag
+    if (parseOverrideFlag(key, value, args.overrides)) continue
     const num = () => {
       const n = Number(value)
       if (!Number.isFinite(n)) fail(`--${key} must be a number`)
       return n
     }
-    if (key === 'games') args.games = num()
+    if (key === 'quick') args.games = QUICK_GAMES
+    else if (key === 'games') args.games = num()
     else if (key === 'workers') args.workers = num()
     else if (key === 'minutes') args.minutesPerTurn = num()
     else if (key === 'output') args.output = value
-    else if (key === 'rules') args.rules = parseRuleOverrides(value)
-    else if (key === 'bot') args.bot = parseBotOverrides(value)
-    else if (key === 'tiles') args.tiles = parseTileOverrides(value)
     else if (key === 'players') {
       args.players = value.split(',').map(n => Number(n))
       const bad = args.players.filter(
@@ -362,7 +345,7 @@ function handShapeRows(batches: BatchResult[]) {
 
 /** What this run's games were created playing to. */
 function pointsToWin(args: Args): number {
-  return args.rules?.missionsToWin ?? DEFAULT_POINTS_TO_WIN
+  return args.overrides.rules?.pointsToWin ?? DEFAULT_POINTS_TO_WIN
 }
 
 /**
@@ -435,7 +418,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push('')
   out.push('| rule | value |')
   out.push('|---|---|')
-  // The value the run was played to: `--rules=missionsToWin=` is dealt into
+  // The value the run was played to: `--rules=pointsToWin=` is dealt into
   // every game of the batch, so the page stamps what the games actually used.
   out.push(`| Points to win | ${pointsToWin(args)} |`)
   out.push(
@@ -467,16 +450,10 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
     `| Ballistic rack | rolls at up to ${interceptsPerRack()} missiles a turn while powered; answering is ${INTERCEPT_HEAT} heat on the track, however many |`
   )
   out.push(`| Table time assumes | ${args.minutesPerTurn} min per player-turn |`)
-  // A page run under `--rules=` is not the standing benchmark: say so where
+  // A page run under any override is not the standing benchmark: say so where
   // the reader looks first, or two pages get diffed as if they were.
-  if (describeRuleOverrides(args.rules))
-    out.push(`| Experiment overrides | ${describeRuleOverrides(args.rules)} |`)
-  // Bots told to think differently play a different game, so the page says so
-  // for the same reason a rule override does.
-  if (describeBotOverrides(args.bot))
-    out.push(`| Bot overrides | ${describeBotOverrides(args.bot)} |`)
-  if (describeTileOverrides(args.tiles))
-    out.push(`| Tile overrides | ${describeTileOverrides(args.tiles)} |`)
+  for (const [flag, text] of describeOverrides(args.overrides))
+    out.push(`| ${OVERRIDE_LABEL[flag]} | ${text} |`)
   out.push('')
 
   out.push('## By seat count')
@@ -566,8 +543,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2))
   // In this process for the stamp the page prints; the workers that play the
   // games get the same overrides with every job.
-  applyBotOverrides(args.bot)
-  applyTileOverrides(args.tiles)
+  applyOverrides(args.overrides)
   const rows: SeatRow[] = []
   const batches: BatchResult[] = []
 
@@ -579,9 +555,8 @@ async function main() {
       baseSeed: BASE_SEED,
       maxTurns: MAX_TURNS_PER_PLAYER * players,
       workers: args.workers,
-      rules: args.rules,
-      bots: args.bot,
-      tiles: args.tiles,
+      rules: args.overrides.rules,
+      overrides: args.overrides,
     })
     batches.push(batch)
     rows.push(seatRow(players, batch))

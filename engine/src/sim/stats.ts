@@ -5,7 +5,7 @@
 import type { GameEvent } from '../models/events.ts'
 import type { CargoKind, MissionType } from '../models/missions.ts'
 import { MISSION_FAMILY } from '../models/missions.ts'
-import { SUBSYSTEM_CONFIGS, WEAPON_SUBSYSTEM_TYPES } from '../models/subsystems.ts'
+import { SUBSYSTEM_CONFIGS, weaponSubsystemTypes } from '../models/subsystems.ts'
 import type { GameRunResult } from './runGame.ts'
 import { cardTracksOf, type CardTrack } from './cardFunnel.ts'
 
@@ -584,7 +584,7 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
       lw.games++
       if (g.winnerId === p.playerId) lw.wins++
       seats++
-      for (const type of WEAPON_SUBSYSTEM_TYPES) {
+      for (const type of weaponSubsystemTypes()) {
         const w = (weaponTotals[type] ??= { seats: 0, shots: 0, hits: 0, blocked: 0, hull: 0 })
         if (p.loadout.split(',').includes(type)) w.seats++
         w.shots += p.shotsFired[type] ?? 0

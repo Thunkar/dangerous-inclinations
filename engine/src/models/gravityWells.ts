@@ -6,17 +6,17 @@ import type {
   TransferLane,
   Position,
 } from './game.ts'
-import { SECTORS_PER_RING, forwardDistance, wrapSector } from './rings.ts'
+import { forwardDistance, wrapSector } from './rings.ts'
 
 /**
  * Black hole: 5 rings. Inner rings are much faster.
  */
 export const BLACKHOLE_RINGS: RingConfig[] = [
-  { ring: 1, velocity: 8, sectors: SECTORS_PER_RING },
-  { ring: 2, velocity: 6, sectors: SECTORS_PER_RING },
-  { ring: 3, velocity: 4, sectors: SECTORS_PER_RING },
-  { ring: 4, velocity: 2, sectors: SECTORS_PER_RING },
-  { ring: 5, velocity: 1, sectors: SECTORS_PER_RING },
+  { ring: 1, velocity: 8 },
+  { ring: 2, velocity: 6 },
+  { ring: 3, velocity: 4 },
+  { ring: 4, velocity: 2 },
+  { ring: 5, velocity: 1 },
 ]
 
 /**
@@ -35,10 +35,10 @@ export const BLACKHOLE_RINGS: RingConfig[] = [
  * rather than a second set of numbers to learn.
  */
 export const PLANET_RINGS: RingConfig[] = [
-  { ring: 1, velocity: 6, sectors: SECTORS_PER_RING },
-  { ring: 2, velocity: 4, sectors: SECTORS_PER_RING },
-  { ring: 3, velocity: 2, sectors: SECTORS_PER_RING },
-  { ring: 4, velocity: 1, sectors: SECTORS_PER_RING },
+  { ring: 1, velocity: 6 },
+  { ring: 2, velocity: 4 },
+  { ring: 3, velocity: 2 },
+  { ring: 4, velocity: 1 },
 ]
 
 export const BLACK_HOLE_ID: GravityWellId = 'blackhole'
@@ -74,10 +74,16 @@ export const PLANETS: GravityWell[] = GRAVITY_WELLS.filter(w => w.type === 'plan
 
 /** Everyone deploys together on one of these rings of the black hole; that sector becomes Home. */
 export const HOME_RINGS = [2, 3, 4] as const
-/** The outer deployment ring: where a ship whose placement names no ring goes. */
+/** Sectors that must separate a new ship from every ship already placed. */
+export const DEPLOYMENT_GAP = 3
+/** The outer deployment ring: where a ship sits before it is placed, and the bots' default. */
 export const HOME_RING = 4
 /** Ring stations orbit on (planets only). Ring 1 is faster, and is the way in. */
 export const STATION_RING = 2
+/** Sector every station starts the game on. */
+export const STATION_INITIAL_SECTOR = 0
+/** Sectors a station advances at the end of every round: its ring's speed. */
+export const STATION_DRIFT = PLANET_RINGS.find(r => r.ring === STATION_RING)!.velocity
 /** The black hole's outer ring: all of it is lanes. */
 export const BLACK_HOLE_OUTER_RING = 5
 export const PLANET_OUTER_RING = 4

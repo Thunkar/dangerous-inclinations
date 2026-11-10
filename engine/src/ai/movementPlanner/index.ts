@@ -20,13 +20,7 @@
  * ```
  */
 
-export {
-  planMovement,
-  planMovementAlternatives,
-  planAlternativesToTarget,
-  isReachable,
-  getReachablePositions,
-} from './planner.ts'
+export { planMovement, planMovementAlternatives, planAlternativesToTarget } from './planner.ts'
 export { planMovementToTarget } from './forward.ts'
 export type { PlannerTarget } from './targets.ts'
 export {
@@ -61,7 +55,7 @@ export { positionKey, DEFAULT_PLANNER_OPTIONS } from './types.ts'
 import type { ShipState, BurnIntensity, Facing, Station } from '../../models/game.ts'
 import { hasWorkingCompressor } from '../../game/ship.ts'
 import { MAX_REACTION_MASS } from '../../models/game.ts'
-import { ringVelocity } from '../../game/geometry.ts'
+import { STATION_DRIFT } from '../../models/gravityWells.ts'
 import { planMovement } from './planner.ts'
 import { planMovementToTarget } from './forward.ts'
 import { orbitingTarget, staticTarget } from './targets.ts'
@@ -193,13 +187,13 @@ export interface StationMeetPlan {
   plan: MovementPlan
 }
 
-/** Planner target for a station (advances once per round by its ring velocity). */
+/** Planner target for a station (advances STATION_DRIFT sectors once a round). */
 export function stationTarget(
   station: Pick<Station, 'planetId' | 'ring' | 'sector'>
 ): PlannerTarget {
   return orbitingTarget(
     { wellId: station.planetId, ring: station.ring, sector: station.sector },
-    ringVelocity(station.planetId, station.ring)
+    STATION_DRIFT
   )
 }
 

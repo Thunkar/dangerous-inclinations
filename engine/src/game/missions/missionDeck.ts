@@ -38,6 +38,7 @@
 import type { Player } from '../../models/game.ts'
 import type { Cargo, SurveyMission, Mission } from '../../models/missions.ts'
 import {
+  COPIES_PER_CARD,
   MISSIONS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
   PRIMARY_OFFERS_PER_PLAYER,
@@ -51,9 +52,6 @@ import { MAX_PLAYERS } from '../../models/game.ts'
 import { PLANETS, TRANSFER_LANES } from '../../models/gravityWells.ts'
 import { wrapSector } from '../../models/rings.ts'
 import type { Rng } from '../../utils/rng.ts'
-
-/** Copies of each distinct card in the printed primary deck. */
-export const COPIES_PER_CARD = 2
 
 /**
  * A card as it is printed: a rival card counts seats rather than naming one,

@@ -10,7 +10,7 @@
  */
 
 import type { SubsystemType } from './subsystems.ts'
-import { DAMAGING_WEAPON_TYPES } from './subsystems.ts'
+import { damagingWeaponTypes } from './subsystems.ts'
 
 /**
  * Three points win by default, and a hand is one primary and two secondaries:
@@ -28,7 +28,7 @@ import { DAMAGING_WEAPON_TYPES } from './subsystems.ts'
  * decision about whether the third card is worth the detour. The number still
  * rides on the game (`GameState.pointsToWin`) and everything downstream reads
  * it from there, so the simulator can play a batch to another number
- * (`--rules=missionsToWin=`) without a table ever being offered one.
+ * (`--rules=pointsToWin=`) without a table ever being offered one.
  *
  * **Why two decks.** Dealing five from one pile and keeping any three looked
  * like a choice and was not. Because primaries are most of the deck, 94% of
@@ -49,6 +49,8 @@ export const DEFAULT_POINTS_TO_WIN = 3
 /** Dealt from the primary deck, and kept from that deal. */
 export const PRIMARY_OFFERS_PER_PLAYER = 3
 export const PRIMARIES_PER_PLAYER = 1
+/** Copies of each distinct card in the printed primary deck. */
+export const COPIES_PER_CARD = 2
 /** Dealt from the shuffled secondary pile, a card at a time round the table. */
 export const SECONDARY_OFFERS_PER_PLAYER = 3
 /**
@@ -167,7 +169,14 @@ export interface MissionRequirement {
 }
 
 const SENSOR_ARRAY: MissionRequirement = { label: 'sensor array', anyOf: ['sensor_array'] }
-const WEAPON: MissionRequirement = { label: 'weapon', anyOf: DAMAGING_WEAPON_TYPES }
+// Read when asked, not at load: a `--tiles=` override of a weapon's damage
+// moves it in or out of the family.
+const WEAPON: MissionRequirement = {
+  label: 'weapon',
+  get anyOf() {
+    return damagingWeaponTypes()
+  },
+}
 
 /**
  * What each card needs aboard to be completable at all.

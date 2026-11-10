@@ -5,12 +5,20 @@
  *
  * Rotation costs no fuel and is not the turn's one move (it costs a cube on
  * the thrusters and a point of heat, which the planner does not model), so
- * burn predecessors come in both facings: the ship rotates before burning. Jumps land on the arrival arc
- * with no drift and work from either facing: with phasing, every departure
- * sector of a lane reaches every sector of its arrival arc.
+ * burn predecessors come in both facings: the ship rotates before burning.
+ * Jumps land on the arrival arc with no drift and are made facing prograde
+ * (a jump is a burn out of the well), so a jump predecessor faces prograde
+ * and a ship facing the other way rotates first: the plan's first step says
+ * so. With phasing, every departure sector of a lane reaches every sector of
+ * its arrival arc.
  */
 import type { BurnIntensity } from '../../models/game.ts'
-import { BURN_COSTS, calculateJumpMassCost, getAdjustmentRange } from '../../models/rings.ts'
+import {
+  BURN_COSTS,
+  BURN_INTENSITIES,
+  calculateJumpMassCost,
+  getAdjustmentRange,
+} from '../../models/rings.ts'
 import {
   arcOffset,
   arcSectors,
@@ -35,16 +43,14 @@ export interface PredecessorOptions {
 export function getPredecessors(
   target: OrientedPosition,
   availableMass: number,
-  options: PredecessorOptions | boolean
+  options: PredecessorOptions
 ): PredecessorInfo[] {
-  const opts: PredecessorOptions =
-    typeof options === 'boolean' ? { allowWellTransfers: options } : options
   const predecessors: PredecessorInfo[] = []
   predecessors.push(...getCoastPredecessors(target))
   predecessors.push(...getBurnPredecessors(target, availableMass))
-  if (opts.allowWellTransfers) {
+  if (options.allowWellTransfers) {
     predecessors.push(
-      ...getWellTransferPredecessors(target, availableMass, opts.hasFuelCompressor === true)
+      ...getWellTransferPredecessors(target, availableMass, options.hasFuelCompressor === true)
     )
   }
   return predecessors
@@ -74,7 +80,7 @@ function getBurnPredecessors(target: OrientedPosition, availableMass: number): P
   const predecessors: PredecessorInfo[] = []
   const maxRing = getMaxRing(target.wellId)
 
-  for (const intensity of ['soft', 'medium', 'hard'] as const) {
+  for (const intensity of BURN_INTENSITIES) {
     const burnCost = BURN_COSTS[intensity]
     if (burnCost.mass > availableMass) continue
 
@@ -139,7 +145,8 @@ function getBurnPredecessorsForDirection(
 /**
  * Jump: the ship lands on the lane's arrival arc (no drift). Phasing shifts
  * the landing inside that arc for 1 fuel a sector, so any of the lane's four
- * departure sectors can reach the target, the matching one for free.
+ * departure sectors can reach the target, the matching one for free. The
+ * ship faces prograde when it jumps (RULES §Movement).
  */
 function getWellTransferPredecessors(
   target: OrientedPosition,
@@ -156,20 +163,18 @@ function getWellTransferPredecessors(
       const adjustment = landing - offset
       const massCost = calculateJumpMassCost(adjustment, hasFuelCompressor)
       if (massCost > availableMass) continue
-      for (const facing of ['prograde', 'retrograde'] as const) {
-        predecessors.push({
-          position: {
-            wellId: departure.wellId,
-            ring: departure.ring,
-            sector: sectors[offset],
-            facing,
-          },
-          actionType: 'well_transfer',
-          sectorAdjustment: adjustment,
-          massCost,
-          requiresRotation: false,
-        })
-      }
+      predecessors.push({
+        position: {
+          wellId: departure.wellId,
+          ring: departure.ring,
+          sector: sectors[offset],
+          facing: 'prograde',
+        },
+        actionType: 'well_transfer',
+        sectorAdjustment: adjustment,
+        massCost,
+        requiresRotation: false,
+      })
     }
   }
   return predecessors

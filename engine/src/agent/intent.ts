@@ -14,24 +14,24 @@ import type {
   PlayerAction,
   Position,
 } from '../models/game.ts'
-import { MAX_REACTION_MASS, isQuietTurn } from '../models/game.ts'
+import { isQuietTurn } from '../models/game.ts'
 import type { SubsystemId } from '../models/subsystems.ts'
 import { LOAD_CRATES, SCAN_SECTOR_RANGE, SELL_FUEL, SELL_NOTHING } from '../models/missions.ts'
 import { getSubsystemConfig, isPowerableType } from '../models/subsystems.ts'
 import { BURN_COSTS, calculateBurnMassCost, calculateJumpMassCost } from '../models/rings.ts'
 import type { GameView } from '../game/view.ts'
-import { powerActions, type EnergyTargets } from '../ai/behaviors/survival.ts'
+import { powerActions, type EnergyTargets } from '../game/power.ts'
 import { canBeTargeted, isTouchable, canFireFrom, isInWeaponRange } from '../game/targeting.ts'
 import { inScanRange } from '../game/scan.ts'
 import { hasWorkingCompressor } from '../game/ship.ts'
-import { projectPosition, recoilRing, ringAfter, type MovementPreview } from '../game/movement.ts'
 import {
-  driftPosition,
-  positionOf,
-  ringVelocity,
-  samePosition,
-  wrapSector,
-} from '../game/geometry.ts'
+  projectPosition,
+  recoilRing,
+  ringAfter,
+  scoopYield,
+  type MovementPreview,
+} from '../game/movement.ts'
+import { driftPosition, positionOf, samePosition, wrapSector } from '../game/geometry.ts'
 import { isMooredAt, isMooredMidTurn } from '../game/stations.ts'
 import { escortCandidates, unplacedEscorts } from '../game/escort.ts'
 import { freePiracyCards } from '../game/piracy.ts'
@@ -549,8 +549,7 @@ function foreseenRefusals(view: GameView, me: Player, actions: PlayerAction[]): 
         if (!isMooredMidTurn(view.stations, start, position)) position = driftPosition(position)
         if (a.data.activateScoop) {
           if (tile('scoop')?.isBroken) notes.push('the fuel scoop is broken: no scooping')
-          else
-            fuel = Math.min(MAX_REACTION_MASS, fuel + ringVelocity(position.wellId, position.ring))
+          else fuel += scoopYield(position, fuel)
         }
         break
       }

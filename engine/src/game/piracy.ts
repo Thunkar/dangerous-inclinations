@@ -80,16 +80,14 @@ function candidates(
 
 /**
  * From a seat's own view: the items it could take with its ship at
- * `position`, having begun the turn at `start` (where it is now, when left
- * out). Empty with no free Piracy card, on a quiet turn (the opening round,
+ * `position`, having begun the turn where it is now. Empty with no free Piracy card, on a quiet turn (the opening round,
  * or the first turn back from Home), or for any seat but the viewer (only
  * the viewer knows its own hand).
  */
 export function seizableItems(
   view: GameView,
   playerId: string,
-  position: Position,
-  start?: Position
+  position: Position
 ): SeizableItem[] {
   const me = view.me
   if (!me || me.id !== playerId) return []
@@ -102,7 +100,7 @@ export function seizableItems(
     recovering: p.recovering,
     items: p.hold,
   }))
-  return candidates(seats, view.stations, playerId, start ?? positionOf(me.ship), position)
+  return candidates(seats, view.stations, playerId, positionOf(me.ship), position)
 }
 
 /**

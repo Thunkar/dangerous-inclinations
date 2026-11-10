@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { opponentPositions, viewFor } from '../../game/view.ts'
+import { viewFor } from '../../game/view.ts'
 import { canSeeEvent, filterEventsFor } from '../../models/events.ts'
 import type { GameEvent } from '../../models/events.ts'
 import { dealMissionOffers } from '../../game/missions/missionDeck.ts'
@@ -195,13 +195,11 @@ describe("view: the viewer's own side", () => {
     // no heat figure here: it is cleared when my turn starts.
     expect(viewFor(state, 'p1').myStats).toEqual({
       dissipationCapacity: 7,
-      maxHeat: 10,
       maxReactionMass: 10,
       lowestCriticalFace: 8,
     })
     expect(viewFor(state, 'p2').myStats).toEqual({
       dissipationCapacity: 5,
-      maxHeat: 10,
       maxReactionMass: 10,
       lowestCriticalFace: 10,
     })
@@ -228,16 +226,6 @@ describe("view: the viewer's own side", () => {
     expect(view.missiles).toBe(state.missiles)
     expect(view.stations).toBe(state.stations)
     expect(view.players[0].home).toEqual(state.players[0].home)
-  })
-
-  it('opponentPositions lists living, deployed opponents only', () => {
-    let state = makeTwoPlayerGame()
-    expect(opponentPositions(viewFor(state, 'p1'))).toEqual([
-      { id: 'p2', position: { wellId: BH, ring: 3, sector: 12 } },
-    ])
-    state = withShip(state, 'p2', { hitPoints: 0 })
-    expect(opponentPositions(viewFor(state, 'p1'))).toEqual([])
-    expect(opponentPositions(viewFor(makeTwoPlayerGame(), null))).toHaveLength(2)
   })
 })
 

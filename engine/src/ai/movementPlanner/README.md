@@ -162,7 +162,7 @@ Mass is also the reason planning can return `null`: a path that exists in pure-t
 | File | Role |
 |---|---|
 | [`index.ts`](index.ts) | Public exports + ship-state convenience wrappers (`planFromShip`, `planStationMeetUp`, `estimateTurnsToTarget`). |
-| [`planner.ts`](planner.ts) | Reverse BFS for static targets. Also `planMovementAlternatives`, `isReachable`, `getReachablePositions`. |
+| [`planner.ts`](planner.ts) | Reverse BFS for static targets. Also `planMovementAlternatives`. |
 | [`forward.ts`](forward.ts) | Forward, time-layered BFS. The thing dynamic targets need. |
 | [`targets.ts`](targets.ts) | `PlannerTarget` interface + `staticTarget`, `orbitingTarget` builders. |
 | [`predecessors.ts`](predecessors.ts) | Reverse-direction expansion: "what positions can reach _this_ position in one turn?". Used by reverse BFS. |
@@ -187,7 +187,7 @@ A chase that lands within two turns wins outright; otherwise the chase carries a
 
 ## Conventions
 
-- **Rotation is free.** The engine treats rotate as a separate action that can be combined with burn/coast in the same turn, so the planner emits successors and predecessors with both facings: the ship rotates implicitly when it needs to.
+- **Rotation is free.** The engine treats rotate as a separate action that can be combined with burn/coast in the same turn, so the planner emits successors and predecessors with both facings: the ship rotates implicitly when it needs to. A jump is the exception: it is made facing prograde, so its predecessor faces prograde and a plan from a retrograde ship flags the rotation on its first step.
 - **Match checks fire at layer ≥ 1.** Layer 0 represents the bot _before_ taking any action. We never claim the bot has met a target without taking at least one action, because in the engine the match check (cargo pickup, etc.) only fires after an action.
 - **`null` means infeasible.** If the planner returns `null`, no path exists within the supplied `maxTurns` and `availableMass`. Callers that want a "best effort" path even when infeasible should ask for one explicitly (e.g. relax the budget).
 - **Plans are emitted origin→destination.** Even though the static planner searches in reverse, the returned `MovementPlan.steps` always reads in execution order.

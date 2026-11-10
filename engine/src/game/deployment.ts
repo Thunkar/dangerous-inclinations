@@ -12,13 +12,10 @@
 import type { GameState, Player, Position } from '../models/game.ts'
 import { FIRST_TURN } from '../models/game.ts'
 import type { EventDraft } from '../models/events.ts'
-import { BLACK_HOLE_ID, HOME_RINGS } from '../models/gravityWells.ts'
+import { BLACK_HOLE_ID, DEPLOYMENT_GAP, HOME_RINGS } from '../models/gravityWells.ts'
 import { SECTORS_PER_RING } from '../models/rings.ts'
-import { samePosition, sectorDistance } from './geometry.ts'
+import { positionOf, samePosition, sectorDistance } from './geometry.ts'
 import { createInitialShipState } from './ship.ts'
-
-/** Sectors that must separate a new ship from every ship already placed. */
-export const DEPLOYMENT_GAP = 3
 
 function deploymentPositions(): Position[] {
   return HOME_RINGS.flatMap(ring =>
@@ -34,9 +31,11 @@ function isDeploymentPositionFree(state: GameState, position: Position): boolean
   return !state.players.some(p => p.hasDeployed && samePosition(p.ship, position))
 }
 
-/** Where the ships already placed sit. */
-function placedShips(state: GameState): Position[] {
-  return state.players.filter(p => p.hasDeployed).map(p => p.ship)
+/** Where the ships already placed sit, read off the state or a player's view of it. */
+export function placedShipPositions(table: {
+  players: ReadonlyArray<{ hasDeployed: boolean; ship?: Position | null }>
+}): Position[] {
+  return table.players.flatMap(p => (p.hasDeployed && p.ship ? [positionOf(p.ship)] : []))
 }
 
 /**
@@ -59,7 +58,7 @@ export function legalDeploymentsAgainst(placed: readonly Position[]): Position[]
 
 /** Where this player may place their ship right now. Never empty in a real game. */
 export function legalDeploymentPositions(state: GameState): Position[] {
-  return legalDeploymentsAgainst(placedShips(state))
+  return legalDeploymentsAgainst(placedShipPositions(state))
 }
 
 function isDeploymentPositionLegal(state: GameState, position: Position): boolean {

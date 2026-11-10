@@ -4,7 +4,9 @@
  * per shape a parser reads or refuses.
  */
 import { describe, it, expect } from 'vitest'
-import { SUBSYSTEM_CONFIGS } from '../../models/subsystems.ts'
+import { SUBSYSTEM_CONFIGS, damagingWeaponTypes } from '../../models/subsystems.ts'
+import { missionRequirements } from '../../models/missions.ts'
+import { landsOnLaunch } from '../../game/missiles.ts'
 import {
   applyTileOverrides,
   describeTileOverrides,
@@ -20,7 +22,13 @@ import {
   parseSeatLoadouts,
 } from '../../sim/loadoutOverrides.ts'
 import { parseBotOverrides } from '../../sim/botOverrides.ts'
-import { LOADOUTS } from '../testUtils.ts'
+import {
+  describeOverrides,
+  parseOverrideFlag,
+  splitFlag,
+  type Overrides,
+} from '../../sim/overrides.ts'
+import { BH, LOADOUTS } from '../testUtils.ts'
 
 describe('parseTileOverrides', () => {
   it.each<[string, string, TileOverrides]>([
@@ -66,6 +74,46 @@ describe('parseTileOverrides', () => {
     } finally {
       SUBSYSTEM_CONFIGS.laser.weaponStats!.damage = before
     }
+  })
+})
+
+// The games read the configuration when they play, not when a module loads:
+// the override is applied after every module of the run is imported.
+describe('a tile override reaches the rules that read the configuration', () => {
+  /** Apply one override, run `check`, and put the configuration back. */
+  function under(text: string, check: () => void) {
+    const before = structuredClone(SUBSYSTEM_CONFIGS)
+    try {
+      applyTileOverrides(parseTileOverrides(text))
+      check()
+    } finally {
+      // In place: a module holding one config object keeps holding it.
+      for (const type of Object.keys(before) as Array<keyof typeof SUBSYSTEM_CONFIGS>) {
+        const { weaponStats, passiveEffect, ...rest } = before[type]
+        const config = SUBSYSTEM_CONFIGS[type]
+        Object.assign(config, rest)
+        if (weaponStats) Object.assign(config.weaponStats!, weaponStats)
+        if (passiveEffect) Object.assign(config.passiveEffect!, passiveEffect)
+      }
+    }
+  }
+  const from = { wellId: BH, ring: 3, sector: 0 }
+  const fourAway = { wellId: BH, ring: 3, sector: 4 }
+
+  it('a missile flies as many steps as missiles.stepsPerMove says', () => {
+    const steps = SUBSYSTEM_CONFIGS.missiles.weaponStats!.stepsPerMove!
+    expect(landsOnLaunch(from, fourAway)).toBe(steps >= 4)
+    under(`missiles.stepsPerMove=4`, () => expect(landsOnLaunch(from, fourAway)).toBe(true))
+    under(`missiles.stepsPerMove=1`, () => expect(landsOnLaunch(from, fourAway)).toBe(false))
+  })
+
+  it('a weapon whose damage goes to 0 stops counting for a Destroy card', () => {
+    const weapon = () => missionRequirements('destroy_ship')[0].anyOf
+    expect(weapon()).toContain('laser')
+    under('laser.damage=0', () => {
+      expect(damagingWeaponTypes()).not.toContain('laser')
+      expect(weapon()).not.toContain('laser')
+    })
   })
 })
 
@@ -155,5 +203,32 @@ describe('parseBotOverrides', () => {
     ['targetPreference'], // no value at all
   ])('refuses %s', text => {
     expect(() => parseBotOverrides(text)).toThrow()
+  })
+})
+
+// One parser behind `yarn sim`, `yarn bench` and `yarn balance`.
+describe('parseOverrideFlag', () => {
+  it.each<[string, Overrides]>([
+    ['--tiles=laser.damage=3', { tiles: { laser: { damage: 3 } } }],
+    ['--rules=pointsToWin=4', { rules: { pointsToWin: 4 } }],
+    ['--bot=aggressiveness=0.8', { bot: { aggressiveness: 0.8 } }],
+    [`--loadouts=gunship=${HUNTER}`, { loadouts: { gunship: LOADOUTS.hunter } }],
+  ])('reads %s into its channel, and stamps it back', (raw, expected) => {
+    const { key, value } = splitFlag(raw)!
+    const into: Overrides = {}
+    expect(parseOverrideFlag(key, value, into)).toBe(true)
+    expect(into).toEqual(expected)
+    expect(describeOverrides(into).map(([flag, text]) => `--${flag}=${text}`)).toEqual([raw])
+  })
+
+  it.each([['--games=10'], ['--quick'], ['--missionsToWin=4']])('leaves %s to the command', raw => {
+    const { key, value } = splitFlag(raw)!
+    const into: Overrides = {}
+    expect(parseOverrideFlag(key, value, into)).toBe(false)
+    expect(into).toEqual({})
+  })
+
+  it('refuses the retired rule name', () => {
+    expect(() => parseOverrideFlag('rules', 'missionsToWin=4', {})).toThrow()
   })
 })

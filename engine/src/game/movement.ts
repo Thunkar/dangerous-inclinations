@@ -4,9 +4,10 @@
  * optionally phasing the arrival sector for extra mass.
  */
 import type { BurnIntensity, Facing, GravityWellId, Position, ShipState } from '../models/game.ts'
-import { oppositeFacing } from '../models/game.ts'
+import { MAX_REACTION_MASS, oppositeFacing } from '../models/game.ts'
 import {
   BURN_COSTS,
+  BURN_INTENSITIES,
   SECTOR_ADJUSTMENT_COST_PER_SECTOR,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
@@ -33,6 +34,14 @@ export function applyOrbitalMovement(ship: ShipState, moored = false): ShipState
  * (prograde = outward, retrograde = inward), or null when that would leave
  * the well's rings. A burn moves this way.
  */
+/**
+ * Fuel a coast with the scoop takes aboard on this ring: the ring's speed, up
+ * to what fits in a tank holding `fuel` (RULES §Coast).
+ */
+export function scoopYield(position: Position, fuel: number): number {
+  return Math.min(ringVelocity(position.wellId, position.ring), MAX_REACTION_MASS - fuel)
+}
+
 export function ringAfter(
   ship: Pick<ShipState, 'wellId' | 'ring' | 'facing'>,
   rings: number
@@ -163,7 +172,7 @@ export function legalMoves(ship: ShipState): { burns: LegalBurn[]; jumps: LegalJ
   for (const facing of ['prograde', 'retrograde'] as const) {
     const needsRotation = facing !== ship.facing
     if (needsRotation && !ready('rotation')) continue
-    for (const intensity of ['soft', 'medium', 'hard'] as const) {
+    for (const intensity of BURN_INTENSITIES) {
       const cost = BURN_COSTS[intensity]
       const toRing = ringAfter({ ...ship, facing }, cost.rings)
       const adjustment = payable(getAdjustmentRange(velocity), cost.mass)

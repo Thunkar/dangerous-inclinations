@@ -24,7 +24,7 @@ import type {
   GamePhase,
   Wreck,
 } from '../models/game.ts'
-import { MAX_HEAT, MAX_REACTION_MASS } from '../models/game.ts'
+import { MAX_REACTION_MASS } from '../models/game.ts'
 import type { HoldItemKind, Mission } from '../models/missions.ts'
 import { aboard, holdItemKind } from '../models/missions.ts'
 import type { SlotGroup, SubsystemId, SubsystemType } from '../models/subsystems.ts'
@@ -126,13 +126,6 @@ interface OwnShipStats {
   maxReactionMass: number
   /** The lowest d10 face that is a critical for my shots now (`lowestCriticalFace`). */
   lowestCriticalFace: number
-  /**
-   * Top of the heat track: above this, the excess is hull damage. Nothing on
-   * the loadout carries into the owner's check: the energy on it now is last
-   * turn's, and it comes off when their turn starts, so the check bills only
-   * what this turn's actions put on.
-   */
-  maxHeat: number
 }
 
 export interface GameView {
@@ -261,18 +254,7 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
           dissipationCapacity: getDissipationCapacity(me.ship.subsystems),
           maxReactionMass: MAX_REACTION_MASS,
           lowestCriticalFace: lowestCriticalFace(me.ship.subsystems),
-          maxHeat: MAX_HEAT,
         }
       : null,
   }
-}
-
-/** Public positions of every deployed, living opponent (for range checks). */
-export function opponentPositions(view: GameView): Array<{ id: string; position: Position }> {
-  return view.players
-    .filter(p => !p.isMe && p.ship && !p.ship.isDestroyed)
-    .map(p => ({
-      id: p.id,
-      position: { wellId: p.ship!.wellId, ring: p.ship!.ring, sector: p.ship!.sector },
-    }))
 }

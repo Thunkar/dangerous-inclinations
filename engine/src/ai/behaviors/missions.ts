@@ -194,11 +194,6 @@ function holdsTanker(me: Player): boolean {
   return me.missions.some(m => !m.isCompleted && m.type === 'tanker')
 }
 
-/** A Survey still to dive for: undone, and its data not aboard. */
-export function surveyToDive(me: Player, m: Mission): boolean {
-  return m.type === 'survey' && !m.isCompleted && !dataAboard(me, m)
-}
-
 /** Whether this Salvage card's black box is in the hold. */
 export function blackBoxAboard(me: Player, m: SalvageMission): boolean {
   return me.cargo.some(c => c.id === m.cargoId && c.isPickedUp)

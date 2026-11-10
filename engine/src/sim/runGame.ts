@@ -5,24 +5,19 @@
  *
  * Setup uses exactly the engine functions the server uses (createGame,
  * submitLoadout, deployShip), and bots decide from `viewFor`, so sim results
- * describe the same game humans play. The experiment-only override channels
- * (sim/ruleOverrides.ts, tileOverrides.ts, loadoutOverrides.ts,
- * botOverrides.ts) let a change be measured before it is adopted.
+ * describe the same game humans play. It is pure: of the experiment-only
+ * override channels (sim/overrides.ts) it takes only what rides on a game
+ * (points to win, a seat's forced hull or primary); the ones that mutate the
+ * process (tiles, bot parameters, presets) are applied by the batch and CLI
+ * entry points that own one, never here.
  */
 import type { GameState, PlayerAction } from '../models/game.ts'
 import type { GameEvent } from '../models/events.ts'
 import type { GameRecording, RecordedTurn, RecordingMetadata } from '../recording/types.ts'
 import { RECORDING_SCHEMA_VERSION } from '../recording/types.ts'
 import { cloneState } from '../recording/replay.ts'
-import { applyTileOverrides, type TileOverrides } from './tileOverrides.ts'
 import type { RuleOverrides } from './ruleOverrides.ts'
-import { applyBotOverrides, type BotOverrides } from './botOverrides.ts'
-import {
-  applyLoadoutOverrides,
-  type LoadoutOverrides,
-  type SeatLoadouts,
-  type SeatHands,
-} from './loadoutOverrides.ts'
+import type { SeatLoadouts, SeatHands } from './loadoutOverrides.ts'
 import { createGame, submitLoadout } from '../game/setup.ts'
 import { assignMissionId, buildPrimaryDeck, cardForPlayer } from '../game/missions/missionDeck.ts'
 import { isPrimaryType } from '../models/missions.ts'
@@ -47,14 +42,8 @@ export interface GameConfig {
   label?: string
   /** At the turn cap, declare the player with most completed missions (then most hull) the winner. */
   tiebreak?: boolean
-  /** Experiment-only tile overrides: any field of any tile (see sim/tileOverrides.ts). */
-  tiles?: TileOverrides
   /** Experiment-only rule overrides: points to win (see sim/ruleOverrides.ts). */
   rules?: RuleOverrides
-  /** Experiment-only bot parameter overrides (see sim/botOverrides.ts). */
-  bots?: BotOverrides
-  /** Experiment-only bot hull overrides (see sim/loadoutOverrides.ts). */
-  loadouts?: LoadoutOverrides
   /** Experiment-only: force a hull on a seat (`bot-1`…), whatever its hand asks for. */
   seatLoadouts?: SeatLoadouts
   /**
@@ -227,9 +216,6 @@ export function runGame(config: GameConfig = {}): GameRunResult {
   const seed = config.seed ?? freshSeed()
   const botCount = config.botCount ?? DEFAULT_BOT_COUNT
   const maxTurns = config.maxTurns ?? DEFAULT_MAX_TURNS
-  applyTileOverrides(config.tiles)
-  applyBotOverrides(config.bots)
-  applyLoadoutOverrides(config.loadouts)
   const record = config.record ?? true
 
   const initialState = setupBotGame(
@@ -239,7 +225,7 @@ export function runGame(config: GameConfig = {}): GameRunResult {
     config.seatHands,
     // Points to win is a table agreement, not a constant the override channel
     // reassigns: it is dealt into the game like any other setting.
-    config.rules?.missionsToWin
+    config.rules?.pointsToWin
   )
   let state = initialState
   const turns: GameRunResult['turns'] = []

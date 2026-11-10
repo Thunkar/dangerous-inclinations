@@ -14,7 +14,7 @@ import {
   missionsMissingRequirements,
 } from '../../game/loadout.ts'
 import type { SubsystemType } from '../../models/subsystems.ts'
-import { DAMAGING_WEAPON_TYPES } from '../../models/subsystems.ts'
+import { damagingWeaponTypes } from '../../models/subsystems.ts'
 import type { Mission, MissionRequirement } from '../../models/missions.ts'
 import { MISSIONS_PER_PLAYER } from '../../models/missions.ts'
 import {
@@ -272,7 +272,7 @@ describe('setup: a kept card the loadout can never fly', () => {
         }
 
   // Every gun that deals damage: a disruptor alone cannot finish a ship.
-  it.each(DAMAGING_WEAPON_TYPES)('a Destroy card flies on a loadout whose only gun is %s', type => {
+  it.each(damagingWeaponTypes())('a Destroy card flies on a loadout whose only gun is %s', type => {
     expect(missionsMissingRequirements([destroyMission('p2')], armedWith(type))).toEqual([])
   })
 

@@ -12,6 +12,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "sim": "node --experimental-transform-types --no-warnings src/sim/cli.ts",

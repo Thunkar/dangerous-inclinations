@@ -1,5 +1,5 @@
 /**
- * The simulator's rule channel: `--rules=missionsToWin=4`.
+ * The simulator's rule channel: `--rules=pointsToWin=4`.
  *
  * One key is left, and it overrides nothing in the process. A table plays to
  * three and is offered nothing else, but the number rides on the state, so
@@ -9,17 +9,17 @@
  * and nothing else, and a proposed change to one of those is measured by
  * changing the constant, not by switching it at run time.
  *
- * | key           | reaches                                           |
- * |---------------|---------------------------------------------------|
- * | missionsToWin | GameState.pointsToWin (default 3), via createGame |
+ * | key         | reaches                                           |
+ * |-------------|---------------------------------------------------|
+ * | pointsToWin | GameState.pointsToWin (default 3), via createGame |
  */
 
 export interface RuleOverrides {
   /** Points that trigger the final round; passed to `createGame`, not a binding. */
-  missionsToWin?: number
+  pointsToWin?: number
 }
 
-const KEYS = ['missionsToWin'] as const
+const KEYS = ['pointsToWin'] as const
 
 export function parseRuleOverrides(text: string): RuleOverrides {
   const out: RuleOverrides = {}

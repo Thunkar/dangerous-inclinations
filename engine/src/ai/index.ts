@@ -248,7 +248,7 @@ export {
 } from './behaviors/loadout.ts'
 export type { BotPresetId, BotRole } from './behaviors/loadout.ts'
 export { analyzeSituation, shieldAbsorption, suspectedWeapon } from './analyzer.ts'
-export { chooseDeployment, placedShipPositions } from './behaviors/deployment.ts'
+export { chooseDeployment } from './behaviors/deployment.ts'
 export type { DeploymentChoice } from './behaviors/deployment.ts'
 
 // Movement planner
@@ -257,8 +257,6 @@ export {
   planMovementAlternatives,
   planAlternativesToTarget,
   planMovementToTarget,
-  isReachable,
-  getReachablePositions,
   getPredecessors,
   staticTarget,
   orbitingTarget,

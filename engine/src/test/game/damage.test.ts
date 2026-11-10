@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveAttack, rollToResult } from '../../game/damage.ts'
+import { absorbOnShields, resolveAttack, rollToResult } from '../../game/damage.ts'
 import { lowestCriticalFace, resetSubsystemUsage } from '../../game/ship.ts'
 import { shieldCubesReady } from '../../models/subsystems.ts'
 import type { ShipLoadout } from '../../models/game.ts'
@@ -26,6 +26,57 @@ function laserDuel(targetLoadout?: ShipLoadout, attackerLoadout?: ShipLoadout) {
   )
   return withPower(state, 'p1', 'side-0', 2)
 }
+
+// Two walls of two cubes on side-2 and side-3, in slot order.
+describe('absorbOnShields: what the walls take and what reaches the hull', () => {
+  const walls = (cubes: number[], broken = false) => {
+    let state = makeTwoPlayerGame({ loadout: LOADOUTS.twoShields })
+    ;(['side-2', 'side-3'] as const).forEach((id, i) => {
+      if (cubes[i]) state = withPower(state, 'p1', id, cubes[i])
+    })
+    if (broken) state = withSub(state, 'p1', 'side-2', { isBroken: true })
+    return getShip(state, 'p1').subsystems
+  }
+  it.each<[string, number[], boolean, number, number, object[], number]>([
+    [
+      'the first wall first',
+      [2, 2],
+      false,
+      3,
+      1,
+      [
+        { id: 'side-2', absorbed: 2, spent: 2 },
+        { id: 'side-3', absorbed: 1, spent: 1 },
+      ],
+      0,
+    ],
+    [
+      'what is left past both',
+      [1, 1],
+      false,
+      4,
+      1,
+      [
+        { id: 'side-2', absorbed: 1, spent: 1 },
+        { id: 'side-3', absorbed: 1, spent: 1 },
+      ],
+      2,
+    ],
+    [
+      'a cube spent whole on a lone point of plasma',
+      [2, 0],
+      false,
+      3,
+      2,
+      [{ id: 'side-2', absorbed: 3, spent: 2 }],
+      0,
+    ],
+    ['nothing from a dark wall', [0, 0], false, 2, 1, [], 2],
+    ['nothing from a broken wall', [2, 0], true, 2, 1, [], 2],
+  ])('%s', (_label, cubes, broken, damage, perCube, shields, toHull) => {
+    expect(absorbOnShields(walls(cubes, broken), damage, perCube)).toEqual({ shields, toHull })
+  })
+})
 
 describe('damage: the d10', () => {
   it.each([

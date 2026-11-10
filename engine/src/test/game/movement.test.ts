@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Facing, GameState } from '../../models/game.ts'
 import { legalMoves, phasingAllowed, projectPosition } from '../../game/movement.ts'
 import { executeTurn } from '../../game/turns.ts'
+import { BURN_INTENSITIES } from '../../models/rings.ts'
 import {
   LOADOUTS,
   ALPHA,
@@ -368,7 +369,7 @@ describe('movement: legalMoves agrees with the referee', () => {
       const state = setup()
       const moves = legalMoves(getShip(state, 'p1'))
       for (const facing of ['prograde', 'retrograde'] as const) {
-        for (const intensity of ['soft', 'medium', 'hard'] as const) {
+        for (const intensity of BURN_INTENSITIES) {
           for (const adjustment of ADJUSTMENTS) {
             const listed = moves.burns.some(
               b => b.intensity === intensity && b.facing === facing && phasingAllowed(b, adjustment)

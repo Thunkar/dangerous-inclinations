@@ -6,7 +6,6 @@
 import type { Facing, Position } from '../models/game.ts'
 import {
   DEFAULT_DISSIPATION_CAPACITY,
-  MAX_HEAT,
   isOpeningRound,
   isQuietTurn,
   oppositeFacing,
@@ -25,6 +24,7 @@ import {
   type MovementPreview,
 } from '../game/movement.ts'
 import { isMooredAt } from '../game/stations.ts'
+import { heatBudget } from '../game/heat.ts'
 import { escortCandidates, unplacedEscorts } from '../game/escort.ts'
 import { freePiracyCards, seizableItems, type SeizableItem } from '../game/piracy.ts'
 import { onSurveyRing, surveyToTake } from '../game/survey.ts'
@@ -227,7 +227,6 @@ export function seatOptions(view: GameView): SeatOptions {
       : null
 
   const dissipation = view.myStats?.dissipationCapacity ?? DEFAULT_DISSIPATION_CAPACITY
-  const ceiling = view.myStats?.maxHeat ?? MAX_HEAT
   const power = ship.subsystems
     .filter(s => isPowerableType(s.type) && !s.isBroken)
     .map(s => {
@@ -243,7 +242,7 @@ export function seatOptions(view: GameView): SeatOptions {
     // Room before the track redlines, not room to the dissipation, which heat
     // no longer resets to. Nothing on the loadout carries into this turn's
     // check: it is cleared when the turn starts.
-    heatBudget: Math.max(0, ceiling - ship.heat.currentHeat),
+    heatBudget: heatBudget(ship.heat.currentHeat),
     heatCarried: ship.heat.currentHeat,
     dissipation,
     repair: {

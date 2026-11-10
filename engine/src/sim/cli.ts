@@ -15,7 +15,7 @@
  *   --label=STR   label stored in recordings
  *   --tiebreak    at the turn cap, most completed missions (then hull) wins
  *   --tiles=ballistic_rack.damage=3,fuel_compressor.slotType=side  experiment-only tile overrides (any field of any tile)
- *   --rules=missionsToWin=4  the table's points to win, dealt into every game of the batch
+ *   --rules=pointsToWin=4  the table's points to win, dealt into every game of the batch
  *   --bot=aggressiveness=0.8,targetPreference=weakest  experiment-only bot parameter overrides
  *                 (note the singular: --bots=N is how many bots play, --bot= is how they think)
  *   --loadouts=gunship=railgun/laser,laser,shields,radiator  experiment-only bot preset overrides (; between presets)
@@ -33,21 +33,17 @@ import { DEFAULT_BOT_COUNT, DEFAULT_MAX_TURNS, formatFailure } from './runGame.t
 import type { AggregateStats } from './stats.ts'
 import { SUBSYSTEM_CONFIGS } from '../models/subsystems.ts'
 import {
-  applyTileOverrides,
-  describeTileOverrides,
-  parseTileOverrides,
-  type TileOverrides,
-} from './tileOverrides.ts'
-import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from './ruleOverrides.ts'
-import { describeBotOverrides, parseBotOverrides, type BotOverrides } from './botOverrides.ts'
+  applyOverrides,
+  describeOverrides,
+  parseOverrideFlag,
+  splitFlag,
+  type Overrides,
+} from './overrides.ts'
 import {
-  describeLoadoutOverrides,
   describeSeatHands,
   describeSeatLoadouts,
-  parseLoadoutOverrides,
   parseSeatHands,
   parseSeatLoadouts,
-  type LoadoutOverrides,
   type SeatHands,
   type SeatLoadouts,
 } from './loadoutOverrides.ts'
@@ -63,11 +59,8 @@ interface Args {
   label?: string
   quiet: boolean
   tiebreak: boolean
-  tiles?: TileOverrides
-  rules?: RuleOverrides
-  /** `--bot=`: how the bots think. `bots` above is how many of them play. */
-  bot?: BotOverrides
-  loadouts?: LoadoutOverrides
+  /** `--tiles=`, `--rules=`, `--bot=` (how the bots think; `bots` above is how many play), `--loadouts=`. */
+  overrides: Overrides
   seatLoadouts?: SeatLoadouts
   seatHands?: SeatHands
 }
@@ -81,15 +74,16 @@ function parseArgs(argv: string[]): Args {
     record: false,
     quiet: false,
     tiebreak: false,
+    overrides: {},
   }
   for (const raw of argv) {
-    if (!raw.startsWith('--')) {
+    const flag = splitFlag(raw)
+    if (!flag) {
       console.error(`Unknown argument ${raw}`)
       process.exit(2)
     }
-    const eq = raw.indexOf('=')
-    const key = eq === -1 ? raw.slice(2) : raw.slice(2, eq)
-    const value = eq === -1 ? 'true' : raw.slice(eq + 1)
+    const { key, value } = flag
+    if (parseOverrideFlag(key, value, args.overrides)) continue
     const num = () => {
       const n = Number(value)
       if (!Number.isFinite(n)) {
@@ -129,18 +123,6 @@ function parseArgs(argv: string[]): Args {
       case 'tiebreak':
         args.tiebreak = value !== 'false'
         break
-      case 'tiles':
-        args.tiles = parseTileOverrides(value)
-        break
-      case 'rules':
-        args.rules = parseRuleOverrides(value)
-        break
-      case 'bot':
-        args.bot = parseBotOverrides(value)
-        break
-      case 'loadouts':
-        args.loadouts = parseLoadoutOverrides(value)
-        break
       case 'seats':
         args.seatLoadouts = parseSeatLoadouts(value)
         break
@@ -158,10 +140,7 @@ function parseArgs(argv: string[]): Args {
 /** Every override in force, as `name value` pairs: echoed at the start and kept in summary.json. */
 function overrides(args: Args): Array<[string, string]> {
   const pairs: Array<[string, string]> = [
-    ['tiles', describeTileOverrides(args.tiles)],
-    ['rules', describeRuleOverrides(args.rules)],
-    ['bot', describeBotOverrides(args.bot)],
-    ['loadouts', describeLoadoutOverrides(args.loadouts)],
+    ...describeOverrides(args.overrides),
     ['seats', describeSeatLoadouts(args.seatLoadouts)],
     ['hands', describeSeatHands(args.seatHands)],
   ]
@@ -238,7 +217,7 @@ function printSummary(a: AggregateStats): void {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
   // In this process too, so the summary reads the configs the workers play under.
-  applyTileOverrides(args.tiles)
+  applyOverrides(args.overrides)
   console.log(
     `Running ${args.games} games, ${args.bots} bots, max ${args.maxTurns} player-turns, ${args.workers} worker(s)${args.tiebreak ? ', tiebreak' : ''}${overrides(
       args
@@ -257,10 +236,8 @@ async function main(): Promise<void> {
     record: args.record,
     label: args.label,
     tiebreak: args.tiebreak,
-    tiles: args.tiles,
-    rules: args.rules,
-    bots: args.bot,
-    loadouts: args.loadouts,
+    rules: args.overrides.rules,
+    overrides: args.overrides,
     seatLoadouts: args.seatLoadouts,
     seatHands: args.seatHands,
     onProgress: args.quiet

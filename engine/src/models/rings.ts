@@ -28,6 +28,9 @@ export const BURN_COSTS = {
   hard: { energy: 3, mass: 3, rings: 3 },
 } as const
 
+/** Every burn, softest first: the keys of {@link BURN_COSTS}. */
+export const BURN_INTENSITIES = Object.keys(BURN_COSTS) as Array<keyof typeof BURN_COSTS>
+
 /** Jumping between wells through a transfer lane. */
 export const WELL_TRANSFER_COSTS = {
   energy: 3,

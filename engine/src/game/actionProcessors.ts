@@ -27,14 +27,20 @@ import type {
   SalvageAction,
   Missile,
 } from '../models/game.ts'
-import { MAX_REACTION_MASS, MOVE_ACTION_TYPES, isTacticalAction } from '../models/game.ts'
+import { MOVE_ACTION_TYPES, isTacticalAction } from '../models/game.ts'
 import type { EventDraft } from '../models/events.ts'
 import { getSubsystemConfig, type WeaponType } from '../models/subsystems.ts'
 import { BURN_COSTS, WELL_TRANSFER_COSTS, calculateJumpMassCost } from '../models/rings.ts'
 import { findJump, phasedJumpDestination } from '../models/gravityWells.ts'
 import { rollD10 } from '../utils/rng.ts'
-import { positionOf, ringVelocity } from './geometry.ts'
-import { applyOrbitalMovement, applyBurn, applyRotation, recoilRing } from './movement.ts'
+import { positionOf } from './geometry.ts'
+import {
+  applyOrbitalMovement,
+  applyBurn,
+  applyRotation,
+  recoilRing,
+  scoopYield,
+} from './movement.ts'
 import { resolveAttack } from './damage.ts'
 import { createMissile, flyLaunchedMissiles } from './missiles.ts'
 import { processScan } from './scan.ts'
@@ -364,10 +370,7 @@ function processCoast(state: GameState, action: CoastAction, turn: TurnContext):
       ship = used.ship
       heat = used.heat
       events.push(...used.events)
-      massScooped = Math.min(
-        ringVelocity(ship.wellId, ship.ring),
-        MAX_REACTION_MASS - ship.reactionMass
-      )
+      massScooped = scoopYield(ship, ship.reactionMass)
       ship = { ...ship, reactionMass: ship.reactionMass + massScooped }
     }
     return { ...p, ship }

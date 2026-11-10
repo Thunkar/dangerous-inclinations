@@ -12,10 +12,9 @@ import {
   type InvalidTurn,
 } from './runGame.ts'
 import { freshSeed } from '../utils/rng.ts'
-import type { TileOverrides } from './tileOverrides.ts'
 import type { RuleOverrides } from './ruleOverrides.ts'
-import type { BotOverrides } from './botOverrides.ts'
-import type { LoadoutOverrides, SeatHands, SeatLoadouts } from './loadoutOverrides.ts'
+import type { SeatHands, SeatLoadouts } from './loadoutOverrides.ts'
+import { applyOverrides, type ProcessOverrides } from './overrides.ts'
 import {
   computePerGameStats,
   aggregateStats,
@@ -35,10 +34,13 @@ export interface BatchConfig {
   record?: boolean
   label?: string
   tiebreak?: boolean
-  tiles?: TileOverrides
   rules?: RuleOverrides
-  bots?: BotOverrides
-  loadouts?: LoadoutOverrides
+  /**
+   * The channels that mutate the process: applied here for an in-process
+   * batch and by each worker for its jobs. The caller applies them in its own
+   * process too when it reads the configuration (a page's stamp).
+   */
+  overrides?: ProcessOverrides
   seatLoadouts?: SeatLoadouts
   seatHands?: SeatHands
   onProgress?: (done: number, total: number, last: PerGameStats) => void
@@ -59,10 +61,9 @@ export interface WorkerJob {
   record: boolean
   label?: string
   tiebreak?: boolean
-  tiles?: TileOverrides
   rules?: RuleOverrides
-  bots?: BotOverrides
-  loadouts?: LoadoutOverrides
+  /** Applied by the worker before it plays the job (sim/worker.ts). */
+  overrides?: ProcessOverrides
   seatLoadouts?: SeatLoadouts
   seatHands?: SeatHands
 }
@@ -90,10 +91,8 @@ export async function runBatch(config: BatchConfig): Promise<BatchResult> {
     record: config.record ?? false,
     label: config.label,
     tiebreak: config.tiebreak,
-    tiles: config.tiles,
     rules: config.rules,
-    bots: config.bots,
-    loadouts: config.loadouts,
+    overrides: config.overrides,
     seatLoadouts: config.seatLoadouts,
     seatHands: config.seatHands,
   }))
@@ -113,6 +112,7 @@ export async function runBatch(config: BatchConfig): Promise<BatchResult> {
 }
 
 function runSequential(jobs: WorkerJob[], config: BatchConfig): WorkerReply[] {
+  applyOverrides(config.overrides)
   const out: WorkerReply[] = []
   for (const job of jobs) {
     const reply = summarizeRun(runGame(job))

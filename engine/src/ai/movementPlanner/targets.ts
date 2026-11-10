@@ -48,16 +48,13 @@ export interface PlannerTarget {
 }
 
 /** Turns until a body drifting `sectorsPerRound` per round is back where it started. */
-export function driftPeriod(
-  sectorsPerRound: number,
-  sectorsInRing: number = SECTORS_PER_RING
-): number {
-  const v = Math.abs(sectorsPerRound) % sectorsInRing
+export function driftPeriod(sectorsPerRound: number): number {
+  const v = Math.abs(sectorsPerRound) % SECTORS_PER_RING
   if (v === 0) return 1
-  let a = sectorsInRing
+  let a = SECTORS_PER_RING
   let b = v
   while (b !== 0) [a, b] = [b, a % b]
-  return sectorsInRing / a
+  return SECTORS_PER_RING / a
 }
 
 /**
@@ -96,19 +93,15 @@ export function orbitSectorAt(
  * A target orbiting at a constant sector velocity, advancing exactly once
  * per round. Stations are the canonical example.
  */
-export function orbitingTarget(
-  start: OrbitalPosition,
-  sectorsPerRound: number,
-  sectorsInRing: number = SECTORS_PER_RING
-): PlannerTarget {
+export function orbitingTarget(start: OrbitalPosition, sectorsPerRound: number): PlannerTarget {
   const positionAt = (turn: number): OrbitalPosition => ({
     ...start,
-    sector: wrapSector(start.sector + sectorsPerRound * Math.max(0, turn - 1)),
+    sector: orbitSectorAt(start, sectorsPerRound, turn),
   })
   return {
     positionAt,
     isMatch: (pos, turn) => samePosition(pos, positionAt(turn)),
-    period: driftPeriod(sectorsPerRound, sectorsInRing),
+    period: driftPeriod(sectorsPerRound),
     describe: () => `orbit@${start.wellId}R${start.ring}S${start.sector}+${sectorsPerRound}/round`,
   }
 }

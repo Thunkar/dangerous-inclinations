@@ -1,12 +1,10 @@
 /**
  * Reverse, turn-layered BFS for static destinations, plus route
  * alternatives (to a fixed sector, and through the forward search to any
- * target) and reachability helpers.
+ * target).
  */
-import type { Facing } from '../../models/game.ts'
 import { ringVelocity, samePosition } from '../../game/geometry.ts'
 import { getPredecessors } from './predecessors.ts'
-import { getSuccessors } from './successors.ts'
 import { planMovementToTarget } from './forward.ts'
 import type { PlannerTarget } from './targets.ts'
 import type {
@@ -19,7 +17,7 @@ import type {
   SearchNode,
   MovementAlternatives,
 } from './types.ts'
-import { DEFAULT_PLANNER_OPTIONS, positionKey, positionKeyInt } from './types.ts'
+import { DEFAULT_PLANNER_OPTIONS, positionKeyInt } from './types.ts'
 
 /**
  * Plan optimal movement from origin to destination.
@@ -180,92 +178,6 @@ function reconstructPlan(
     crossesWells,
     mode: options.mode,
   }
-}
-
-/**
- * Check if a destination is reachable within the given constraints.
- */
-export function isReachable(
-  origin: OrientedPosition,
-  destination: OrbitalPosition,
-  maxTurns: number,
-  availableMass: number,
-  allowWellTransfers: boolean = true
-): boolean {
-  return (
-    planMovement(origin, destination, {
-      mode: 'fastest',
-      maxTurns,
-      availableMass,
-      allowWellTransfers,
-    }) !== null
-  )
-}
-
-/**
- * All positions reachable from origin within N turns (forward BFS), keyed
- * by `${wellId}:${ring}:${sector}` with the minimum turn count.
- */
-export function getReachablePositions(
-  origin: OrientedPosition,
-  maxTurns: number,
-  availableMass: number,
-  allowWellTransfers: boolean = true
-): Map<string, { position: OrbitalPosition; turns: number; massCost: number }> {
-  const reachable = new Map<
-    string,
-    { position: OrbitalPosition; turns: number; massCost: number }
-  >()
-  const visited = new Set<string>()
-  const queue: SearchNode[] = (['prograde', 'retrograde'] as Facing[]).map(facing => ({
-    position: { ...origin, facing },
-    turns: 0,
-    massCost: 0,
-    action: null,
-    burnIntensity: null,
-    sectorAdjustment: 0,
-    nextInPath: null,
-  }))
-
-  while (queue.length > 0) {
-    const current = queue.shift()!
-    const key = positionKey(current.position)
-    if (visited.has(key)) continue
-    visited.add(key)
-
-    const posKey = `${current.position.wellId}:${current.position.ring}:${current.position.sector}`
-    const existing = reachable.get(posKey)
-    if (!existing || existing.turns > current.turns) {
-      reachable.set(posKey, {
-        position: {
-          wellId: current.position.wellId,
-          ring: current.position.ring,
-          sector: current.position.sector,
-        },
-        turns: current.turns,
-        massCost: current.massCost,
-      })
-    }
-
-    if (current.turns >= maxTurns) continue
-
-    for (const succ of getSuccessors(current.position, availableMass - current.massCost, {
-      allowWellTransfers,
-    })) {
-      if (visited.has(positionKey(succ.position))) continue
-      queue.push({
-        position: succ.position,
-        turns: current.turns + 1,
-        massCost: current.massCost + succ.massCost,
-        action: succ.actionType,
-        burnIntensity: succ.burnIntensity ?? null,
-        sectorAdjustment: succ.sectorAdjustment,
-        nextInPath: current,
-      })
-    }
-  }
-
-  return reachable
 }
 
 function planSignature(plan: MovementPlan): string {

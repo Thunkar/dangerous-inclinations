@@ -128,7 +128,6 @@ export interface Position {
 export interface RingConfig {
   ring: number
   velocity: number // sectors per turn
-  sectors: number
 }
 
 export interface GravityWell {

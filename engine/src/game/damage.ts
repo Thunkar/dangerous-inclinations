@@ -19,7 +19,7 @@
 import type { ShipState } from '../models/game.ts'
 import { BASE_CRITICAL_FACE } from '../models/game.ts'
 import { SHIELD_POINTS_PER_ENERGY, shieldCubesReady } from '../models/subsystems.ts'
-import type { SubsystemId } from '../models/subsystems.ts'
+import type { Subsystem, SubsystemId } from '../models/subsystems.ts'
 import type { EventDraft } from '../models/events.ts'
 import type { HitRollResult, WeaponHitResult } from '../models/weapons.ts'
 import {
@@ -97,34 +97,25 @@ export function resolveAttack(
 
   // Shields absorb first, tile by tile in slot order, except laser damage,
   // which goes straight to the hull.
-  let remainingDamage = damage
+  const wall = ignoresShields
+    ? { shields: [], toHull: damage }
+    : absorbOnShields(ship.subsystems, damage, perCube)
   let absorbed = 0
-  const shields = ignoresShields
-    ? []
-    : ship.subsystems.filter(s => s.type === 'shields' && shieldCubesReady(s) > 0 && !s.isBroken)
-  for (const shield of shields) {
-    if (remainingDamage <= 0) break
-    const take = Math.min(remainingDamage, shieldCubesReady(shield) * perCube)
-    if (take <= 0) continue
-    // A cube absorbs whole: one that stops a single point of plasma is spent.
-    const spent = Math.ceil(take / perCube)
+  for (const { id, absorbed: take, spent } of wall.shields) {
     // The cubes that absorbed are spent for this player-turn: they stay on
     // the subsystem (heat at the owner's check, and dumped whole by a
     // critical that breaks it) but stop nothing more until play passes, when
     // the wall is whole for the next attacker. The shot's energy goes onto
     // the owner's track, a point a point absorbed, and is paid at their next
     // check like anything else carried there.
-    ship = updateSubsystem(ship, shield.id, {
-      spentThisTurn: shield.spentThisTurn + spent,
-    })
+    ship = updateSubsystem(ship, id, s => ({ spentThisTurn: s.spentThisTurn + spent }))
     ship = addHeat(ship, take)
-    const r = revealSubsystem(ship, targetPlayerId, shield.id, 'absorbed')
+    const r = revealSubsystem(ship, targetPlayerId, id, 'absorbed')
     ship = r.ship
     events.push(...r.events)
-    remainingDamage -= take
     absorbed += take
   }
-  const toHull = remainingDamage
+  const toHull = wall.toHull
 
   ship = { ...ship, hitPoints: Math.max(0, ship.hitPoints - toHull) }
 
@@ -151,6 +142,38 @@ export function resolveAttack(
       absorbed,
     },
   }
+}
+
+/** What one shield takes from a hit, and the cubes that spends. */
+export interface ShieldAbsorption {
+  id: SubsystemId
+  absorbed: number
+  spent: number
+}
+
+/**
+ * How a hit of `damage` meets the shields: tile by tile in slot order, each
+ * working shield with cubes ready this turn absorbs `perCube` points a cube,
+ * and a cube absorbs whole (one that stops a single point of plasma is
+ * spent). Pure: it says what each shield takes and spends and what reaches
+ * the hull; the caller spends the cubes and puts the points on the track.
+ */
+export function absorbOnShields(
+  subsystems: readonly Subsystem[],
+  damage: number,
+  perCube: number
+): { shields: ShieldAbsorption[]; toHull: number } {
+  const shields: ShieldAbsorption[] = []
+  let remaining = damage
+  for (const s of subsystems) {
+    if (remaining <= 0) break
+    if (s.type !== 'shields' || s.isBroken) continue
+    const absorbed = Math.min(remaining, shieldCubesReady(s) * perCube)
+    if (absorbed <= 0) continue
+    shields.push({ id: s.id, absorbed, spent: Math.ceil(absorbed / perCube) })
+    remaining -= absorbed
+  }
+  return { shields, toHull: remaining }
 }
 
 /** Break the slot an attacker named, crediting the attacker on the event. */

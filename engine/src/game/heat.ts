@@ -41,6 +41,16 @@ export function heatAtCheck(ship: ShipState): number {
   return ship.heat.currentHeat + heatFromCubes(ship.subsystems)
 }
 
+/** Hull a check at this heat costs: every point above the top of the track. */
+export function heatDamage(heat: number): number {
+  return Math.max(0, heat - MAX_HEAT)
+}
+
+/** Heat a ship carrying `heat` can still take before its track redlines. */
+export function heatBudget(heat: number): number {
+  return Math.max(0, MAX_HEAT - heat)
+}
+
 /** Heat left on the track after a check: capped at the top, then dissipated. */
 export function heatAfterCheck(heat: number, dissipation: number): number {
   return Math.max(0, Math.min(heat, MAX_HEAT) - dissipation)
@@ -78,7 +88,7 @@ export function resolveEndOfTurnHeat(
   const cubes = heatFromCubes(ship.subsystems)
   const heat = heatAtCheck(ship)
   const dissipation = getDissipationCapacity(ship.subsystems)
-  const damage = Math.max(0, heat - MAX_HEAT)
+  const damage = heatDamage(heat)
   const carried = heatAfterCheck(heat, dissipation)
   const events: EventDraft[] = []
   let next = ship

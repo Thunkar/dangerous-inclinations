@@ -11,21 +11,21 @@ import { setupBotGame } from '../../sim/runGame.ts'
 import { makeTwoPlayerGame, withPlayer } from '../testUtils.ts'
 
 describe('parseRuleOverrides', () => {
-  it('parses missionsToWin=4', () => {
-    const expected: RuleOverrides = { missionsToWin: 4 }
-    expect(parseRuleOverrides('missionsToWin=4')).toEqual(expected)
+  it('parses pointsToWin=4', () => {
+    const expected: RuleOverrides = { pointsToWin: 4 }
+    expect(parseRuleOverrides('pointsToWin=4')).toEqual(expected)
   })
 
   it.each([
     ['an unknown rule', 'missionsToLose=3'],
-    ['a rule with no value', 'missionsToWin'],
-    ['a value that is not a number', 'missionsToWin=lots'],
+    ['a rule with no value', 'pointsToWin'],
+    ['a value that is not a number', 'pointsToWin=lots'],
   ])('refuses %s', (_case, text) => {
     expect(() => parseRuleOverrides(text)).toThrow()
   })
 })
 
-describe('missionsToWin', () => {
+describe('pointsToWin', () => {
   // Points to win is a table agreement now, not a constant: the key is dealt
   // into every game the batch creates instead of reassigning a binding.
   it.each([
@@ -36,7 +36,7 @@ describe('missionsToWin', () => {
   })
 
   it('changes nothing in the process, so a game made beside it still plays to three', () => {
-    expect(parseRuleOverrides('missionsToWin=2')).toEqual({ missionsToWin: 2 })
+    expect(parseRuleOverrides('pointsToWin=2')).toEqual({ pointsToWin: 2 })
     const state = withPlayer(makeTwoPlayerGame(), 'p1', { points: 2 })
     expect(checkForWinner(state)).toBeUndefined()
     expect(

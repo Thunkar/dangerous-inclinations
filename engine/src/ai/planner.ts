@@ -32,19 +32,19 @@ import type {
   ScanAction,
   TacticalAction,
 } from '../models/game.ts'
-import { MAX_HEAT, isQuietTurn, oppositeFacing } from '../models/game.ts'
+import { isQuietTurn, oppositeFacing } from '../models/game.ts'
 import { SELL_NOTHING } from '../models/missions.ts'
 import type { SubsystemId } from '../models/subsystems.ts'
 import { getMissileStats, getSubsystemConfig, interceptsPerRack } from '../models/subsystems.ts'
 import { BURN_COSTS } from '../models/rings.ts'
-import { projectPosition } from '../game/movement.ts'
+import { projectPosition, scoopYield } from '../game/movement.ts'
 import { getStationAt } from '../game/stations.ts'
-import { ringVelocity, samePosition } from '../game/geometry.ts'
+import { samePosition } from '../game/geometry.ts'
 import { bestSale, salesOnArrival } from '../game/docking.ts'
 import { allowedSales } from './behaviors/sales.ts'
 import { escortCandidates, unplacedEscorts } from '../game/escort.ts'
 import { canBeTargeted, canEngage, canFireFrom, isInWeaponRange } from '../game/targeting.ts'
-import { heatAfterCheck } from '../game/heat.ts'
+import { heatAfterCheck, heatDamage } from '../game/heat.ts'
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from './types.ts'
 import { INTERDICT_DANGER } from './types.ts'
 import {
@@ -70,8 +70,8 @@ import {
 import type { ShotOption } from './behaviors/combat.ts'
 import { scanOption } from './behaviors/scanning.ts'
 import type { ScanIntent } from './behaviors/scanning.ts'
-import { assignDefensiveEnergy, powerActions } from './behaviors/survival.ts'
-import type { EnergyTargets } from './behaviors/survival.ts'
+import { assignDefensiveEnergy } from './behaviors/survival.ts'
+import { powerActions, type EnergyTargets } from '../game/power.ts'
 import { castOffChoice, coastChoice, movementFromPlan } from './behaviors/positioning.ts'
 import type { MovementChoice } from './behaviors/positioning.ts'
 import { planShipToTarget } from './movementPlanner/index.ts'
@@ -109,7 +109,7 @@ export function moveOverheats(
   engineEnergy: number,
   arrivesAtStation: boolean
 ): boolean {
-  const damage = Math.max(0, heat + engineEnergy - MAX_HEAT)
+  const damage = heatDamage(heat + engineEnergy)
   return damage > 0 && hull - damage < hullToKeep(arrivesAtStation)
 }
 
@@ -425,9 +425,7 @@ function buildCandidate(
             0,
             Math.min(
               MAX_OVERHEAT,
-              status.hull -
-                hullToKeep(landsOnStation) -
-                Math.max(0, status.heat + heatUsed - MAX_HEAT)
+              status.hull - hullToKeep(landsOnStation) - heatDamage(status.heat + heatUsed)
             )
           )
         : 0
@@ -708,9 +706,7 @@ function buildCandidate(
     movement.massCost + (shots.some(s => s.intent.compensateRecoil) ? BURN_COSTS.soft.mass : 0)
   // Docking reads the tank after every action: the scoop's gain on a coast
   // is in, a compensated recoil's fuel is out.
-  const scooped = scoop
-    ? Math.min(ringVelocity(ship.wellId, ship.ring), status.maxReactionMass - status.reactionMass)
-    : 0
+  const scooped = scoop ? scoopYield(ship, status.reactionMass) : 0
   const visit = landsOnStation
     ? arrivalVisit(situation, post.wellId, status.reactionMass + scooped - massSpent)
     : null
@@ -733,7 +729,7 @@ function buildCandidate(
     targetId: target?.player.id,
     followsGoal,
     scans: scanChosen !== null,
-    heatDamage: Math.max(0, status.heat + heatUsed + poweredHeat - MAX_HEAT),
+    heatDamage: heatDamage(status.heat + heatUsed + poweredHeat),
     heatCarried: heatAfterCheck(status.heat + heatUsed + poweredHeat, status.dissipation),
     massSpent,
     completesStep:

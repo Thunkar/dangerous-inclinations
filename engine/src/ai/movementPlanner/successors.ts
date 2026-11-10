@@ -5,19 +5,19 @@
  * ship can occupy after one movement action: coast, burn (any intensity ×
  * any sector adjustment in the ring's range, in either direction, since a
  * rotation costs no fuel and is not the turn's one move) and jump. It is the dual of
- * {@link ./predecessors.ts:getPredecessors} and is used by the forward BFS
- * and by the reverse planner's reachability helper.
+ * {@link ./predecessors.ts:getPredecessors} and is used by the forward BFS.
  *
  * Engine rules encoded here (see game/movement.ts and actionProcessors.ts):
  *   - coast / burn: orbital drift first, then the ring change + phasing;
  *   - jump: the lane's destination sector IS the turn's movement: there is
- *     no drift after landing, and facing does not matter; phasing shifts the
- *     landing inside the arrival arc for 1 fuel a sector.
+ *     no drift after landing, and it is made facing prograde; phasing shifts
+ *     the landing inside the arrival arc for 1 fuel a sector.
  */
 
 import type { BurnIntensity } from '../../models/game.ts'
 import {
   BURN_COSTS,
+  BURN_INTENSITIES,
   calculateBurnMassCost,
   calculateJumpMassCost,
   getAdjustmentRange,
@@ -72,7 +72,7 @@ export function getSuccessors(
   // replans every turn, and a coast-first plan keeps being replaced by
   // another coast-first plan (oscillation) whereas a burn commits.
   const adjustmentRange = getAdjustmentRange(velocity)
-  for (const intensity of ['soft', 'medium', 'hard'] as const) {
+  for (const intensity of BURN_INTENSITIES) {
     const burnCost = BURN_COSTS[intensity]
     if (burnCost.mass > availableMass) continue
 

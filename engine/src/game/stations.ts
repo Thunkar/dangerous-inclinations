@@ -6,11 +6,9 @@
  */
 import type { GameState, GravityWell, Position, Station } from '../models/game.ts'
 import type { EventDraft } from '../models/events.ts'
-import { PLANETS, STATION_RING } from '../models/gravityWells.ts'
+import { PLANETS, STATION_INITIAL_SECTOR, STATION_RING } from '../models/gravityWells.ts'
 import { driftPosition, positionOf, samePosition } from './geometry.ts'
 import { isOnBoard } from './ship.ts'
-
-export const STATION_INITIAL_SECTOR = 0
 
 export function createInitialStations(planets: GravityWell[] = PLANETS): Station[] {
   return planets.map(planet => ({

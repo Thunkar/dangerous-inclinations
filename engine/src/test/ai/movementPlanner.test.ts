@@ -12,9 +12,7 @@ import {
   planAlternativesToTarget,
   planMovementToTarget,
   planStationMeetUp,
-  isReachable,
   getPredecessors,
-  getReachablePositions,
   staticTarget,
   orbitingTarget,
   planFromShip,
@@ -66,7 +64,7 @@ describe('getPredecessors: where a move onto a sector could have started', () =>
       expected: { coast: ['3:6', '3:6'], prograde: [1, 2], retrograde: [4, 5] },
     },
   ])('$label', ({ target, mass, expected }) => {
-    const preds = getPredecessors(facing(target), mass, false)
+    const preds = getPredecessors(facing(target), mass, { allowWellTransfers: false })
     const rings = (type: string) =>
       [...new Set(preds.filter(p => p.actionType === type).map(p => p.position.ring))].sort()
     expect({
@@ -226,23 +224,6 @@ describe('planMovementAlternatives: what every alternative keeps in the tank', (
       const jumps = plan.steps.some(s => s.actionType === 'well_transfer')
       expect([plan.crossesWells, jumps]).toEqual([to.wellId !== BH, to.wellId !== BH])
     }
-  })
-})
-
-describe('what a ship can reach', () => {
-  it.each<[string, OrbitalPosition, number, number, boolean]>([
-    ['a coast away in five turns', at(3, 4), 5, 10, true],
-    ["Alpha's station in two turns with no fuel", at(STATION_RING, 0, ALPHA), 2, 0, false],
-  ])('isReachable: %s', (_label, to, turns, mass, reachable) => {
-    expect(isReachable(facing(at(3, 0)), to, turns, mass, true)).toBe(reachable)
-  })
-
-  it('getReachablePositions counts the turns to each position and finds the burns', () => {
-    const reachable = getReachablePositions(facing(at(3, 0)), 2, 10, false)
-    expect(
-      ['blackhole:3:0', 'blackhole:3:4', 'blackhole:3:8'].map(k => reachable.get(k)?.turns)
-    ).toEqual([0, 1, 2])
-    expect([...reachable.values()].some(p => p.position.ring === 4 && p.turns === 1)).toBe(true)
   })
 })
 
@@ -515,6 +496,35 @@ describe('a phased jump', () => {
       expect(plan?.steps).toEqual([
         expect.objectContaining({ actionType: 'well_transfer', ...step }),
       ])
+  })
+})
+
+describe('a jump is made facing prograde', () => {
+  // BH R5 S16-19 is Alpha's departure arc; Alpha R4 S5 is on its arrival arc.
+  const landing = facing(at(PLANET_OUTER_RING, 5, ALPHA))
+
+  it('every jump onto the arrival arc starts facing prograde', () => {
+    const jumps = getPredecessors(landing, 10, { allowWellTransfers: true }).filter(
+      p => p.actionType === 'well_transfer'
+    )
+    expect(jumps.length).toBeGreaterThan(0)
+    expect(new Set(jumps.map(p => p.position.facing))).toEqual(new Set(['prograde']))
+  })
+
+  it.each<[Facing, boolean]>([
+    ['prograde', false],
+    ['retrograde', true],
+  ])('a ship facing %s at the lane mouth rotates first: %s', (from, rotates) => {
+    for (const mode of ['fastest', 'economical'] as const) {
+      const plan = planMovement(facing(at(5, 17), from), landing, {
+        mode,
+        availableMass: 10,
+        maxTurns: 1,
+      })
+      expect(plan?.steps.map(s => [s.actionType, s.from.facing, s.requiresRotation])).toEqual([
+        ['well_transfer', 'prograde', rotates],
+      ])
+    }
   })
 })
 
