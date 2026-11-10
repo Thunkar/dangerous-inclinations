@@ -29,17 +29,19 @@
 // Escort markers.
 import { color, remove, translate, subtract, fuse, sketch, plane, extrude } from 'fluidcad/core'
 import { BOARD, MARKER } from '../spec.ts'
+import { COLOUR, PLAYER_COLOURS } from '../colours.ts'
 import { outlines, box, flatten, drawPolygons, grow, area } from '../lib/glyphs.ts'
 import { section, move, turn, prism, type Point, type Solid } from '../lib/solids.ts'
-import { slab } from './token.ts'
+import { slab, TOKEN } from './token.ts'
 import { chamferedSlab, regular, clippedRect } from './markers/common.ts'
 import { cutGlyph, placed, type Element } from './markers/glyphs.ts'
 import { buildCrateToken, CRATE } from './markers/crate.ts'
 import { buildDataToken, DATA } from './markers/data.ts'
 import { buildEscortMarker, ESCORT } from './markers/escort.ts'
-import { buildSaleChip, PLANET_LETTERS, type Planet } from './markers/sale.ts'
+import { buildSaleChip, PLANET_LETTERS, SALE, type Planet } from './markers/sale.ts'
 import { buildWreckToken, wreckOutlines } from './wreck.ts'
 import { buildSalvo, footprint, salvoOutlines, SALVO } from './salvo.ts'
+import { MISSILE } from './missile.ts'
 
 export const HOLDER = {
   /** Walls between bins, the tray's rim, the floor under the deepest bin and the slab's chamfer. */
@@ -67,35 +69,40 @@ export const COUNTS = {
 
 type Kind = 'crate' | 'data' | 'wreck' | 'chip' | 'salvo' | 'escort'
 
-/**
- * Each token as it lies in a bin: its footprint along x and y, its
- * thickness, and the centre of its box in its own frame (the wreck's is off
- * the origin). Salvos lie nose to the back, their size read off their
- * footprint.
- */
-const TOKENS: Record<Exclude<Kind, 'salvo'>, { size: Point; t: number; centre: Point }> = {
-  crate: { size: [18, 20.8], t: 4, centre: [0, 0] },
-  data: { size: [17, 17], t: 3.6, centre: [0, 0] },
-  wreck: { size: [20.25, 9.6], t: 6, centre: [0.375, 1.03] },
-  chip: { size: [16, 16], t: 2.5, centre: [0, 0] },
-  escort: { size: [17.46, 20], t: 3, centre: [0, 0] },
+/** Each token's thickness as it lies in a bin. */
+const THICKNESS: Record<Kind, number> = {
+  crate: CRATE.thickness,
+  data: DATA.thickness,
+  wreck: TOKEN.thickness,
+  chip: SALE.thickness,
+  salvo: MISSILE.thickness,
+  escort: ESCORT.thickness,
 }
 
 /** A bin: what it holds (a salvo bin, which size; a chip bin, which planet) and its grid (columns, rows, layers). */
-interface Bin {
+export interface Bin {
   kind: Kind
   n?: number
   grid: [number, number, number]
   planet?: Planet
 }
 
-/** A bin's token as it lies: a salvo's footprint turned nose to the back (+y). */
-function tokenSize({ kind, n = 1 }: Bin): { size: Point; t: number; centre: Point } {
-  if (kind !== 'salvo') return TOKENS[kind]
-  const p = footprint(n).map(([x, y]): Point => [-y, x])
+/**
+ * A bin's token as it lies: its footprint along x and y, its thickness, and
+ * the centre of its box in its own frame (the wreck's is off the origin).
+ * Salvos lie nose to the back (+y), their size read off their footprint; a
+ * sale chip is a disc.
+ */
+function tokenSize(bin: Bin): { size: Point; t: number; centre: Point } {
+  const t = THICKNESS[bin.kind]
+  if (bin.kind === 'chip') return { size: [SALE.diameter, SALE.diameter], t, centre: [0, 0] }
+  const p =
+    bin.kind === 'salvo'
+      ? footprint(bin.n ?? 1).map(([x, y]): Point => [-y, x])
+      : tokenPlan(bin).polys.flat()
   const [x0, x1] = [Math.min(...p.map(q => q[0])), Math.max(...p.map(q => q[0]))]
   const [y0, y1] = [Math.min(...p.map(q => q[1])), Math.max(...p.map(q => q[1]))]
-  return { size: [x1 - x0, y1 - y0], t: 3, centre: [(x0 + x1) / 2, (y0 + y1) / 2] }
+  return { size: [x1 - x0, y1 - y0], t, centre: [(x0 + x1) / 2, (y0 + y1) / 2] }
 }
 
 /** A bin's inner width, length front to back, depth and cove radius. */
@@ -114,7 +121,7 @@ function measure(bin: Bin) {
 }
 
 /** The pool every layout shares: crates, data, wrecks, and a slot of sale chips for each planet. */
-const POOL: Bin[] = [
+export const POOL: Bin[] = [
   { kind: 'crate', grid: [2, 2, 2] },
   { kind: 'data', grid: [4, 2, 2] },
   { kind: 'wreck', grid: [2, 4, 2] },
@@ -129,20 +136,20 @@ const POOL: Bin[] = [
  * in two layers, but the singles lie three abreast so a fingertip fits in.
  */
 const salvoBin = (n: number): Bin => ({ kind: 'salvo', n, grid: n === 1 ? [3, 1, 1] : [2, 1, 2] })
-const CADDY: Bin[][] = [
+export const CADDY: Bin[][] = [
   [salvoBin(2), salvoBin(1), { kind: 'escort', grid: [1, 1, 2] }],
   [salvoBin(4), salvoBin(3)],
 ]
 
 /** Bins placed in rows, front (y small) to back: each bin's front-left inner corner, and its length, the row's longest. */
-interface Placed {
+export interface Placed {
   bin: Bin
   at: Point
   d: number
 }
 
 /** Lay rows of bins left to right, front row first; the tray's outer size and height. */
-function lay(rows: Bin[][]): { bins: Placed[]; size: Point; height: number } {
+export function lay(rows: Bin[][]): { bins: Placed[]; size: Point; height: number } {
   const { wall, rim, floor } = HOLDER
   const bins: Placed[] = []
   let y = rim
@@ -350,16 +357,10 @@ export function holderInfo() {
 // ---- Viewer: the trays filled ----------------------------------------------
 
 const TRAY_COLOUR = '#e8dfc8'
-const PLAYER_COLOURS = ['#c43a2c', '#2f6fb5', '#d9a441', '#3c9a5f', '#7a4fb0', '#3a3a3a']
 const KIND_COLOURS: Partial<Record<Kind, string>> = {
   crate: '#2f8f8a',
   data: '#6c4fa3',
   wreck: '#55555a',
-}
-const PLANET_COLOURS: Record<Planet, string> = {
-  alpha: '#c43a2c',
-  beta: '#2f6fb5',
-  gamma: '#d9a441',
 }
 
 /** One token of a bin's kind in its own frame, as it lies in the bin. */
@@ -380,14 +381,16 @@ function tokenOf({ kind, n = 1 }: Bin, planet?: Planet): Solid {
   }
 }
 
-/** Fill a bin with `count` copies of its token, layer by layer from the back, at (ox, oy). */
-function fill(
-  { bin, at: [x, y] }: Placed,
+/**
+ * Where `count` tokens lie in a bin whose inner front-left corner is at
+ * `at`, layer by layer from the back: each token's origin, its tray's top at
+ * `top`.
+ */
+export function slots(
+  { bin, at: [x, y] }: { bin: Bin; at: Point },
   top: number,
-  count: number,
-  colour: string,
-  [ox, oy]: Point
-): void {
+  count: number
+): [number, number, number][] {
   const {
     grid: [cols, rows],
   } = bin
@@ -398,15 +401,23 @@ function fill(
   } = tokenSize(bin)
   const { depth, r } = measure(bin)
   const g = HOLDER.gap
-  const base = tokenOf(bin, bin.planet)
-  for (let i = 0; i < count; i++) {
+  return Array.from({ length: count }, (_, i) => {
     const layer = Math.floor(i / (cols * rows))
     const c = i % cols
     const row = rows - 1 - (Math.floor(i / cols) % rows)
-    const px = ox + x + g + c * (tx + g) + tx / 2 - centre[0]
-    const py = oy + y + r + g + row * (ty + g) + ty / 2 - centre[1]
-    color(colour, translate(px, py, top - depth + layer * t + 0.02, true, base))
-  }
+    return [
+      x + g + c * (tx + g) + tx / 2 - centre[0],
+      y + r + g + row * (ty + g) + ty / 2 - centre[1],
+      top - depth + layer * t + 0.02,
+    ]
+  })
+}
+
+/** Fill a bin with `count` copies of its token, layer by layer from the back, at (ox, oy). */
+function fill(p: Placed, top: number, count: number, colour: string, [ox, oy]: Point): void {
+  const base = tokenOf(p.bin, p.bin.planet)
+  for (const [x, y, z] of slots(p, top, count))
+    color(colour, translate(ox + x, oy + y, z, true, base))
   remove(base)
 }
 
@@ -417,8 +428,7 @@ function fillAll(placedBins: { bin: Placed; top: number }[], at: Point, player?:
     const colour = (player !== undefined && PLAYER_COLOURS[player]) || TRAY_COLOUR
     if (k === 'salvo' || k === 'escort')
       fill(p, top, k === 'salvo' ? COUNTS.salvo : COUNTS.escort, colour, at)
-    else if (k === 'chip' && p.bin.planet)
-      fill(p, top, COUNTS.chip, PLANET_COLOURS[p.bin.planet], at)
+    else if (k === 'chip' && p.bin.planet) fill(p, top, COUNTS.chip, COLOUR[p.bin.planet], at)
     else fill(p, top, COUNTS[k], KIND_COLOURS[k] ?? TRAY_COLOUR, at)
   }
 }

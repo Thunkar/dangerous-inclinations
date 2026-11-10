@@ -30,9 +30,9 @@ import {
 } from 'three'
 import { HULL_INK } from './palette'
 
-/** The envelope the model is built to, before the board's scale. */
-const LENGTH = 26
-const WIDTH = 9
+/** The envelope the model is built to, before the board's scale. The printed token reads it. */
+export const LENGTH = 26
+export const WIDTH = 9
 
 /** The airframe: slim enough that the fins are what sets the width. */
 const BODY_RADIUS = 2.4

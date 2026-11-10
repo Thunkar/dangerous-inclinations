@@ -4,8 +4,8 @@
 //
 // Every camera in layout.ts by default; --web also writes a WebP of each to shots/table/web/.
 //
-// 1. state.mjs plays a headless 4-bot game with the engine (build it first:
-//    the engine's dist/) and keeps one round (--scan looks for the busiest).
+// 1. state.mjs plays a headless 4-bot game with the engine (its source,
+//    through scripts/ts-hooks.mjs) and keeps one round (--scan looks for the busiest).
 // 2. layout.ts places every printed piece (cad/out STLs) for that round.
 // 3. render.js draws it with three.js in headless Chromium, on the GPU when
 //    WebGL starts there, else on SwiftShader.
@@ -33,10 +33,14 @@ const views = flag('views', '').split(',').filter(Boolean)
 const stateArgs = process.argv.includes('--scan')
   ? ['--scan=40']
   : [`--seed=${flag('seed', '19')}`, `--round=${flag('round', '21')}`]
-execFileSync('node', [join(CAD, 'scripts/table/state.mjs'), ...stateArgs], {
-  stdio: 'inherit',
-  cwd: CAD,
-})
+execFileSync(
+  'node',
+  ['--import', './scripts/ts-hooks.mjs', 'scripts/table/state.mjs', ...stateArgs],
+  {
+    stdio: 'inherit',
+    cwd: CAD,
+  }
+)
 
 // 2. The layout.
 execFileSync(

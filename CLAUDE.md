@@ -63,7 +63,7 @@ sensor array) are powered by an action every turn like anything else, and a
 rack that fired is up as well. Each subsystem does one thing a turn. Scanning peeks at one
 subsystem privately. Completed missions are face-up. Reaching
 the table's points (3; the value rides on `GameState.pointsToWin` and the
-view, and only the simulator's `--rules=missionsToWin=4` plays to four) triggers the final round: the round is
+view, and only the simulator's `--rules=pointsToWin=4` plays to four) triggers the final round: the round is
 played out, then highest score wins (hull, then fuel, break ties). Eight card types in two kinds: primaries
 worth 2 (destroy, deliver, intercept) and secondary cards worth 1 (survey
 (`survey` is an action in the sequence: while on black hole ring 1, take the
@@ -183,7 +183,7 @@ yarn dev            # UI (localhost:5173)
 yarn dev:server     # server (localhost:3000), needs Redis: docker-compose up -d
 yarn dev:all
 yarn build          # engine must build before server/ui typecheck
-yarn test           # Prettier's check, then every test, engine and ui (turbo builds the engine first)
+yarn test           # Prettier's check, then every package's typecheck, the engine and ui tests and the server smoke
 yarn format         # one Prettier style for the whole repo (.prettierrc.json); prose and pages are left alone
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --tiles=ballistic_rack.damage=3
@@ -191,21 +191,25 @@ yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak ch
 yarn workspace @dangerous-inclinations/engine balance --quick   # balance regression: natural, baselines, logical, illogical, off-book, extreme; flags
 yarn workspace @dangerous-inclinations/engine bench --output=../docs/benchmark.md  # the standing benchmark page
 yarn workspace @dangerous-inclinations/server seat help          # a seat at the table for an agent or a terminal
-yarn cad                                                          # FluidCAD viewer for cad/ (localhost:3100; build the engine first)
+yarn cad                                                          # FluidCAD viewer for cad/ (localhost:3100; reads the engine's source, no build needed)
 yarn workspace @dangerous-inclinations/cad export                 # every printable to cad/out/<folder>/*.step + .stl
 yarn workspace @dangerous-inclinations/cad plates                 # MK4S beds of them, a filament each: cad/out/plates/*.3mf + a sheet
 yarn workspace @dangerous-inclinations/cad colour-hulls           # each hull, and the subsystems plate, painted in the game's colours for a multi-material printer: cad/out/colour/*.3mf
 yarn workspace @dangerous-inclinations/cad shot coupons/mount.part.js iso-ftr top   # PNGs of a part, headless, to cad/shots/
-cd cad && node scripts/table/film.mjs [--stills=4,12.5]   # the explainer: one seat's turns of a bot game on the printed table, a presentation over them (ui/dev-explainer.html, words in ui/src/text/explainer.ts; needs yarn dev): cad/shots/film/explainer.mp4
+cd cad && node --import ./scripts/ts-hooks.mjs scripts/table/film.mjs [--stills=4,12.5]   # the explainer: one seat's turns of a bot game on the printed table, a presentation over them (ui/dev-explainer.html, words in ui/src/text/explainer.ts; needs yarn dev): cad/shots/film/explainer.mp4
 node scripts/shot.mjs '/' shot.png                    # photograph the running UI (needs `yarn dev`; PLAYER_ID + ?game=<id> for a seat)
 DOCKERHUB_USER=<you> scripts/deploy.sh               # build + push both images, restart the stack on the NAS (Dockerfile, deploy/)
 ```
 
 Arena (`yarn seat help`, and the header of `server/scripts/seat.ts`): agents
 play through `yarn seat` (server): digest of
-the view with legal moves, dry-run preview, intent → actions builder
-(`engine/src/agent/`), chat with `say` and `think` lanes, and drivers for
-Codex (`codex exec`) and Claude (`claude -p`). A player may carry
+the view with legal moves, dry-run preview (legal or not, never the events:
+they would show the dice), intent → actions builder
+(`engine/src/agent/`), chat with `say` and `think` lanes (a think is an agent's
+reasoning, for the people supervising: only agents post one, and it reaches
+its author and the human seats, never another agent), and drivers for
+Codex (`codex exec`) and Claude (`claude -p`), with transcripts only on
+`--transcript`. A player may carry
 `agent: {driver, model}`, public like its name; the CLI keeps no local state
 and finds a seat on the server by name (`--as`) or id (`--player`). No
 autopilot: an illegal intent is refused before submission and the agent gets
@@ -249,13 +253,16 @@ seat, not filtered for, so a Destroy row is a Destroy row on every seed.
 Rule experiments: the rules are constants in `engine/src/models/`, not knobs on
 the state. A game is played under RULES.md and nothing else. A proposed change
 is measured before it is adopted with the simulator's experiment-only override
-channels, which mutate the configuration of the process running the batch:
+channels, read by one parser (`sim/overrides.ts`) that `yarn sim`, `yarn bench`
+and `yarn balance` share, so each takes all four and stamps them:
 `--tiles=fuel_compressor.slotType=side,laser.damage=3` (any field of any
 subsystem, a weapon's firing stats included),
-`--rules=missionsToWin=4` (the table's points to win, a real game option,
-passed to `createGame`; `yarn bench --rules=` takes it too and stamps it on
-the page), `--bot=aggressiveness=0.8,targetPreference=weakest` (the bots'
-parameters), `--loadouts=` (the bots' presets, by id), `--seats=` (a hull
+`--rules=pointsToWin=4` (the table's points to win, a real game option,
+passed to `createGame`), `--bot=aggressiveness=0.8,targetPreference=weakest` (the bots'
+parameters) and `--loadouts=` (the bots' presets, by id). Tiles, bot and
+loadouts mutate the configuration of the process that plays the games, so
+the CLIs and each worker thread apply them and `runGame` never does. `yarn sim`
+also takes `--seats=` (a hull
 forced on one seat) and `--hands=bot-1=destroy` (the primary a seat is dealt
 and keeps: the bots price one road to the win and take it every time, so a
 plan they never choose is only measurable dealt). The summary prints turn
@@ -297,9 +304,11 @@ out the derived ones once (critical faces, slot contents, cube labels) and
 in-game rules dialog.
 
 **The words live in text files that hold only strings**, in on-screen order:
-`engine/src/text/missionCards.ts` (every card's name, title and rule) and
+`engine/src/text/missionCards.ts` (every card's name, title and rule),
+`engine/src/text/agentRules.ts` (the rules digest an agent seat reads) and
 `ui/src/text/` (`cheatsheet.ts`, `printedCard.ts`, `turn.ts`, `windows.ts`,
-`rulesDialog.ts`, `missionProgress.ts`, `landing.ts`). A number is a `{name}`
+`rulesDialog.ts`, `missionProgress.ts`, `landing.ts`, `tools.ts`, and for the
+video game `table.ts`, `actions.ts`, `screens.ts`). A number is a `{name}`
 slot the caller fills from the engine (`fill` for one string, `rich` in
 `ui/src/utils/rich.tsx` for elements, which also sets `<b>` and the few tags a
 caller names); `{_}` is a space set as a text run of its own, kept so the
@@ -335,7 +344,7 @@ like the module in the player's hand: change a module enough and its mark
 changes with it. Check a mark at 24px on paper and on ink; three of the
 modules are boxes of bars, and silhouette is what tells them apart. The only
 traced artwork left is heat, hull and fuel for the printed pieces
-(`ui/public/assets/icons` through `scripts/trace-icons.py` into `art/paths.ts`).
+(`ui/art-src/icons` through `scripts/trace-icons.py` into `art/paths.ts`).
 The site's nav is type, not icons; the rest of the app's chrome stays on MUI
 icons.
 
@@ -418,7 +427,9 @@ fronts then backs with a long- or short-edge flip. A front is the game's own
 `MissionCard`, scaled to the stock. A back is the landing page's picture
 (`PosterArt.tsx`) cropped on the hole, ink for the primaries and paper for
 the secondaries, with the pile's points ("2 points", "1 point") along the
-wedge. The three prints on the page are exclusive (`body[data-printing]`).
+wedge. The four prints on the page are exclusive (`body[data-printing]`): one
+section shell, one `printAs` and one set of A4 pages for all of them
+(`site/print/`), each on its grid (`gridSlots` in `card/sheet.ts`).
 
 ## The printed pieces
 
@@ -621,7 +632,9 @@ plug, `station-plugs`, glued in behind it); one piece,
 upright, every face that looks down at 50 degrees (a print reads 45 as an
 overhang). The 3D board draws the same model and stands a moored hull
 on its berth (`world.berthWorld`; `ShipToken.berth`). A ring
-too big for the 235 mm bed is cut into segments on arm lines. `yarn board`
+too big for the printer's bed (`BED` in `spec.ts`: the MK4S's 250 x 210,
+which the plates are packed on too) is cut into segments on arm lines, so
+ring 3 prints in halves. `yarn board`
 writes a part file for every distinct piece, once, with how many to print in
 its name (`export` runs it): `parts/board/shared/` for the rings every well
 has alike and the one set of numbers 0 to 23 every ring takes, and
@@ -838,7 +851,7 @@ not an argument:
   in it), so the gap stays at three.
 - **Four points as a table option.** Offered in the lobby for a day: 39–51
   rounds by seat count against three points' 27, and the designer pulled it
-  as too long. The value still rides on the state and `--rules=missionsToWin=4`
+  as too long. The value still rides on the state and `--rules=pointsToWin=4`
   still measures it.
 - **A sensor that reveals itself on a sensor-assisted critical.** It used to
   flip face-up the first time a critical landed on an 8 or a 9, since only a

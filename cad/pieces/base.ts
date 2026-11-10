@@ -104,15 +104,27 @@ function capacity(slot: 'forward' | 'side'): number {
 const channelLength = (n: number) => n * STEP + 0.3
 const BAND = CUBE.pocket + 2 * RIM
 
-/** A channel of `n` cubes centred on (x, y), along x or y: the slot and its ticks. */
-function channel(n: number, [x, y]: Point, along: 'x' | 'y'): Solid[] {
+/** A channel of cubes on the deck: whose it is, how many it holds, its centre and the way it runs. */
+export interface Channel {
+  /** A flank slot's `flank-<k>` (in `bays().flank` order), a subsystem id, or `heat-0` and `heat-1`. */
+  id: string
+  n: number
+  at: Point
+  along: 'x' | 'y'
+}
+
+/** Where cube i of n ends along a channel, from its centre: the cube's start is i - 1's end. */
+const cubeEnd = (n: number, i: number) => -channelLength(n) / 2 + 0.15 + i * STEP
+
+/** A channel's slot and its ticks. */
+function channelCut({ n, at: [x, y], along }: Channel): Solid[] {
   const long = channelLength(n)
   const half = CUBE.pocket / 2
   const tools: Solid[] = []
   const slot = block([-long / 2, -half, DECK - CUBE.pocketDepth], [long / 2, half, DECK + 1])
   tools.push(slot)
   for (let i = 1; i < n; i++) {
-    const t = -long / 2 + 0.15 + i * STEP
+    const t = cubeEnd(n, i)
     for (const s of [-1, 1]) {
       const [y0, y1] = s > 0 ? [half - 0.01, half + TICK.long] : [-half - TICK.long, -half + 0.01]
       tools.push(move(vee(TICK.width, TICK.depth, y0, y1), t, 0, DECK))
@@ -121,8 +133,16 @@ function channel(n: number, [x, y]: Point, along: 'x' | 'y'): Solid[] {
   return tools.map(tool => move(along === 'x' ? tool : turn(tool, 'z', 90), x, y, 0))
 }
 
+/** The centres of a channel's cubes on the deck, first to last. */
+export function cubeCentres({ n, at: [x, y], along }: Channel): Point[] {
+  return Array.from({ length: n }, (_, i): Point => {
+    const t = (cubeEnd(n, i) + cubeEnd(n, i + 1)) / 2
+    return along === 'x' ? [x + t, y] : [x, y + t]
+  })
+}
+
 /** Where the bays stand: each one's place and turn in the deck's frame (a bay's +y out of its door). */
-function bays() {
+export function bays() {
   const b = bayOf()
   const depth = b.front + b.wall + 2
   const width = 2 * (b.half + 2)
@@ -153,13 +173,57 @@ function placed(solid: Solid, at: { x: number; y: number; turn: number }): Solid
 }
 
 /** The five bays' places: a bay's door edge on the deck's edge. */
-function bayPlaces() {
+export function bayPlaces() {
   const L = bays()
   const out = L.b.front
   return [
     ...L.flank.map(({ x, side }) => ({ x, y: side * (L.half - out), turn: side > 0 ? 0 : 180 })),
     { x: L.bow - out, y: 0, turn: -90 },
   ]
+}
+
+/** The heat track's two rows astern, across the ship: their x. */
+function heatRows(): [number, number] {
+  const { stern } = bays()
+  return [
+    stern - RIM - CUBE.pocket / 2 - 0.2,
+    stern - RIM - CUBE.pocket - RIM - CUBE.pocket / 2 - 0.2,
+  ]
+}
+
+/**
+ * Every channel on the deck. Each slot's inboard of its bay; the bow's
+ * across ahead of the fore bays. Engines and scoop in the bow's corners,
+ * outboard of the bow bay, along it, clear of the corners' cut. Astern, the
+ * heat track in two rows of five across the ship, and the thrusters' beside
+ * the inner one, well apart from the heat track's end, so the two do not
+ * read as one.
+ */
+export function channels(): Channel[] {
+  const L = bays()
+  const out: Channel[] = L.flank.map(({ x, side }, k) => ({
+    id: `flank-${k}`,
+    n: capacity('side'),
+    at: [x, L.channels.flank(side)],
+    along: 'x',
+  }))
+  out.push({ id: 'forward-0', n: capacity('forward'), at: [L.channels.bow, 0], along: 'y' })
+  const fixed: [SubsystemType, number][] = [
+    ['engines', 1],
+    ['scoop', -1],
+  ]
+  for (const [f, s] of fixed) {
+    const n = SUBSYSTEM_CONFIGS[f].maxEnergy
+    const x = L.bow - CORNER - RIM - CUBE.pocket / 2
+    out.push({ id: f, n, at: [x, s * (L.b.half + 2 + RIM + channelLength(n) / 2)], along: 'y' })
+  }
+  const rows = heatRows()
+  const fold = MAX_HEAT / 2
+  rows.forEach((x, k) => out.push({ id: `heat-${k}`, n: fold, at: [x, 0], along: 'y' }))
+  const n = SUBSYSTEM_CONFIGS.rotation.maxEnergy
+  const y = -(channelLength(fold) / 2 + APART + channelLength(n) / 2)
+  out.push({ id: 'rotation', n, at: [rows[0], y], along: 'y' })
+  return out
 }
 
 /** The deck's outline: the stern, the bow and both flanks, the corners cut. */
@@ -208,40 +272,20 @@ export function buildBase(doors = 90): Solid {
   body = subtract(body, move(prism(socketOutline(), 1.01), 0, 0, DECK - 0.01))
   body = subtract(body, socketTaper(socketOutline(), DECK, SOCKET.depth))
 
-  // The channels. Each slot's inboard of its bay; the bow's across ahead of the fore bays.
-  const tools: Solid[] = []
-  for (const { x, side } of L.flank)
-    tools.push(...channel(capacity('side'), [x, L.channels.flank(side)], 'x'))
-  tools.push(...channel(capacity('forward'), [L.channels.bow, 0], 'y'))
-  // Engines and scoop in the bow's corners, outboard of the bow bay, along
-  // it, clear of the corners' cut; each icon inboard of its channel.
+  // The channels, and the fixed subsystems' and the heat track's icons beside them.
+  const all = channels()
+  const tools = all.flatMap(channelCut)
   const marks: { icon: IconName; at: Point }[] = []
-  const fixed: [SubsystemType, number][] = [
-    ['engines', 1],
-    ['scoop', -1],
-  ]
-  for (const [f, s] of fixed) {
-    const n = SUBSYSTEM_CONFIGS[f].maxEnergy
-    const x = L.bow - CORNER - RIM - CUBE.pocket / 2
-    const y = b.half + 2 + RIM + channelLength(n) / 2
-    tools.push(...channel(n, [x, s * y], 'y'))
+  for (const c of all) {
+    const [x, y] = c.at
     // Clear of the ticks on the channel's rim.
-    marks.push({ icon: f, at: [x - CUBE.pocket / 2 - TICK.long - 1.5 - ICON / 2, s * y] })
+    if (c.id === 'engines' || c.id === 'scoop')
+      marks.push({ icon: c.id, at: [x - CUBE.pocket / 2 - TICK.long - 1.5 - ICON / 2, y] })
   }
-  // Astern, the heat track in two rows of five across the ship, the thrusters' cube beside the inner one.
-  const rows = [
-    L.stern - RIM - CUBE.pocket / 2 - 0.2,
-    L.stern - RIM - CUBE.pocket - RIM - CUBE.pocket / 2 - 0.2,
-  ]
-  const fold = MAX_HEAT / 2
-  for (const x of rows) tools.push(...channel(fold, [x, 0], 'y'))
-  const end = channelLength(fold) / 2
-  marks.push({ icon: 'heat', at: [rows[1], end + RIM + ICON / 2 + 1] })
-  const thrusters = SUBSYSTEM_CONFIGS.rotation.maxEnergy
-  // Its own channel, well apart from the heat track's end, so the two do not read as one.
-  const ty = -(end + APART + channelLength(thrusters) / 2)
-  tools.push(...channel(thrusters, [rows[0], ty], 'y'))
-  marks.push({ icon: 'rotation', at: [rows[1], ty] })
+  const inner = heatRows()[1]
+  const end = channelLength(MAX_HEAT / 2) / 2
+  marks.push({ icon: 'heat', at: [inner, end + RIM + ICON / 2 + 1] })
+  marks.push({ icon: 'rotation', at: [inner, all.find(c => c.id === 'rotation')!.at[1]] })
   // One cut at a time: a cut by solids that do not touch cuts nothing.
   for (const t of tools) body = subtract(body, t)
   for (const m of marks) engrave(m.icon, ICON, m.at, DECK)

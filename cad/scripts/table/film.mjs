@@ -5,9 +5,9 @@
 // the path that piece takes. Words in ui/src/text/explainer.ts.
 //
 //   timeout 1800 yarn dev &        # the UI on :5173, for the slides, the overlay and the cards
-//   cd cad && timeout 3600 node scripts/table/film.mjs [--steps=story,cards,table,overlay,mux] [--stills=12,40.5]
+//   cd cad && timeout 3600 node --import ./scripts/ts-hooks.mjs scripts/table/film.mjs [--steps=story,cards,table,overlay,mux] [--stills=12,40.5]
 //
-// 1. story: plays the game with the engine (its dist/) and, for each vignette
+// 1. story: plays the game with the engine (its source, through the hooks) and, for each vignette
 //    (one turn of it), writes the table before and after that turn
 //    (shots/table/film/<name>-before.json, as state.mjs writes state.json)
 //    and lays both out (layout.ts).

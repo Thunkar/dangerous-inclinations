@@ -13,7 +13,7 @@
 // which stops short of the arms, so the groove holds it both ways. The
 // numbers are inlaid: each ring's pockets take its numbers, printed apart.
 import { subtract, fuse, sketch, plane, extrude, revolve, cylinder } from 'fluidcad/core'
-import { BOARD, WELLS } from '../spec.ts'
+import { BED, BOARD, WELLS } from '../spec.ts'
 import { prism, move, turn, section, outline, type Point, type Solid } from '../lib/solids.ts'
 import { box, drawContours, drawPolygons, type Contour } from '../lib/glyphs.ts'
 import { numberContours, numberPockets } from '../lib/numbers.ts'
@@ -62,15 +62,17 @@ function lanesOf(kind: WellKind): Lane[] {
   }))
 }
 
-/** The fewest segments, each a whole number of arm spans, that fit on the bed. */
+/** The fewest segments, each a whole number of arm spans, that fit on the bed either way round. */
 function segmentCount(rIn: number, rOut: number): number {
   const arms = B.arm.count
   const fits = (span: number) => {
-    if (span > 180.001) return 2 * rOut <= B.bed
-    if (span > 179.999) return 2 * rOut <= B.bed && rOut <= B.bed
-    return (
-      2 * rOut * Math.sin(rad(span / 2)) <= B.bed && rOut - rIn * Math.cos(rad(span / 2)) <= B.bed
-    )
+    const half = rad(span / 2)
+    // The whole ring, or a segment's chord by its depth from chord to inner arc.
+    const [w, d] =
+      span > 180.001
+        ? [2 * rOut, 2 * rOut]
+        : [2 * rOut * Math.sin(half), rOut - rIn * Math.cos(half)]
+    return (w <= BED.x && d <= BED.y) || (w <= BED.y && d <= BED.x)
   }
   for (let s = 1; s <= arms; s++) if (arms % s === 0 && fits(360 / s)) return s
   return arms

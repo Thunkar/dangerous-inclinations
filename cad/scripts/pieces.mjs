@@ -1,6 +1,6 @@
 // Write one part file per printable module (parts/modules/), so each exports
-// to a file of its own. Run by `export`; run it by hand after adding a
-// subsystem.
+// to a file of its own. Run by `export`; by hand after adding a subsystem,
+// `node --import ./scripts/ts-hooks.mjs scripts/pieces.mjs`.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { SUBSYSTEM_CONFIGS, canInstallInSlot } from '@dangerous-inclinations/engine'
 

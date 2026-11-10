@@ -19,7 +19,9 @@ const walk = dir =>
     return f.endsWith('.part.js') && !f.endsWith('.view.part.js') ? [p] : []
   })
 if (!named.length) {
-  execFileSync('node', ['scripts/pieces.mjs'], { stdio: 'inherit' })
+  execFileSync('node', ['--import', './scripts/ts-hooks.mjs', 'scripts/pieces.mjs'], {
+    stdio: 'inherit',
+  })
   execFileSync(
     'node',
     [

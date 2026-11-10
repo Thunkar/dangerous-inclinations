@@ -1,4 +1,7 @@
 import { part } from 'fluidcad/core'
-import { buildCube } from '../../pieces/cube.ts'
+import { buildCube, CUBES } from '../../pieces/cube.ts'
 
-export const piece = part('Energy or heat cube (24 energy and 12 heat a player)', () => buildCube())
+export const piece = part(
+  `Energy or heat cube (${CUBES.energy} energy and ${CUBES.heat} heat a player)`,
+  () => buildCube()
+)

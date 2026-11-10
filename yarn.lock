@@ -382,8 +382,13 @@ __metadata:
   resolution: "@dangerous-inclinations/cad@workspace:cad"
   dependencies:
     "@dangerous-inclinations/engine": "workspace:*"
+    "@types/node": "npm:^24.6.0"
     fflate: "npm:^0.8.2"
     fluidcad: "npm:0.0.46"
+    fontkit: "npm:^2.0.4"
+    playwright: "npm:^1.63.0"
+    three: "npm:0.186.0"
+    three-mesh-bvh: "npm:^0.8.3"
   languageName: unknown
   linkType: soft
 

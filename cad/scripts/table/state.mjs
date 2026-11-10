@@ -4,7 +4,7 @@
 // an Escort marker placed, a ship moored). Writes the state as the renders
 // need it to cad/shots/table/state.json.
 //
-//   node scripts/table/state.mjs [--seed=N] [--round=R] [--scan=40]
+//   node --import ./scripts/ts-hooks.mjs scripts/table/state.mjs [--seed=N] [--round=R] [--scan=40]
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { runGame, isMooredAt, aboard } from '@dangerous-inclinations/engine'

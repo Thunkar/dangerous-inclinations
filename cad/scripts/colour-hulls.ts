@@ -31,6 +31,9 @@ import {
 } from '@dangerous-inclinations/engine'
 import { createShip } from '../../ui/src/ships/model.ts'
 import { DEFAULT_CONFIG } from '../../ui/src/ships/config.ts'
+import { HULL_INK } from '../../ui/src/ships/palette.ts'
+import { getPlayerColor } from '../../ui/src/utils/playerColors.ts'
+import { COLOUR, PLAYER_COLOURS } from '../colours.ts'
 import { HULL_INFO } from '../../ui/src/ships/hulls.ts'
 import { printFrame } from '../lib/kit.ts'
 import { HULL_PRINT, finFrame, mountFrame, slitFins } from '../pieces/hull.ts'
@@ -47,11 +50,11 @@ const CAD = join(import.meta.dirname, '..')
 
 /** The filaments, in slot order: slot 1 is the base, which an unpainted face takes. */
 type Filament = { name: string; hex: string }
-const BLACK: Filament = { name: 'black', hex: '#1e2024' }
-const WHITE: Filament = { name: 'white', hex: '#f2efe6' }
-const BLUE: Filament = { name: 'blue', hex: '#3fb0c8' }
-const BROWN: Filament = { name: 'brown', hex: '#b78759' }
-const RED: Filament = { name: 'red', hex: '#d21b33' }
+const BLACK: Filament = { name: 'black', hex: HULL_INK.dark }
+const WHITE: Filament = { name: 'white', hex: COLOUR.white }
+const BLUE: Filament = { name: 'blue', hex: HULL_INK.cyan }
+const BROWN: Filament = { name: 'brown', hex: HULL_INK.copper }
+const RED: Filament = { name: 'red', hex: HULL_INK.warn }
 
 /**
  * The game's materials (`ui/src/ships/palette.ts`) on the nearest filament:
@@ -71,7 +74,7 @@ const MATERIAL: Record<string, Filament> = {
 }
 
 /** The subsystems carry no seat colour: their file keeps the seat's slot empty. */
-const SEAT: Filament = { name: 'seat colour (unused)', hex: '#7a7a7a' }
+const SEAT: Filament = { name: 'seat colour (unused)', hex: getPlayerColor(-1) }
 
 /**
  * The slots, the same in every file: the base, the secondary paint, the
@@ -81,11 +84,11 @@ const slotsFor = (accent: Filament) => [
   ...new Set([BLACK, WHITE, accent, ...Object.values(MATERIAL)]),
 ]
 
-/** What prints, each in a seat's colour (`ui/src/utils/playerColors.ts`) and a livery. */
+/** What prints, each in a seat's colour (`colours.ts`, by seat) and a livery. */
 const SHIPS: { hull: Hull; livery: Livery; accent: Filament }[] = [
-  { hull: 'corvette', livery: 'band', accent: { name: 'orange', hex: '#d08a1e' } },
-  { hull: 'shrike', livery: 'chevron', accent: { name: 'green', hex: '#3d9a5c' } },
-  { hull: 'mantis', livery: 'spine', accent: { name: 'purple', hex: '#9a62c8' } },
+  { hull: 'corvette', livery: 'band', accent: { name: 'orange', hex: PLAYER_COLOURS[2] } },
+  { hull: 'shrike', livery: 'chevron', accent: { name: 'green', hex: PLAYER_COLOURS[1] } },
+  { hull: 'mantis', livery: 'spine', accent: { name: 'purple', hex: PLAYER_COLOURS[3] } },
 ]
 
 /** Faces further than this from every game mesh (mm) are the print's own. */

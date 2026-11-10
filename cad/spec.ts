@@ -11,6 +11,13 @@
 
 import { FOOT, PRINT_LENGTH, MM_PER_UNIT } from '../ui/src/ships/mountShape.ts'
 
+/**
+ * The printer's bed, mm: a Prusa MK4S (the Core One prints the same
+ * plates). A board ring that does not fit it is cut into segments, and the
+ * plates are packed on it.
+ */
+export const BED = { x: 250, y: 210 }
+
 /** Game units to millimetres: the corvette prints 80 long. */
 export const PRINT = { corvetteLength: PRINT_LENGTH, mmPerUnit: MM_PER_UNIT }
 
@@ -83,14 +90,6 @@ export const CUBE = {
   wall: 1.2,
   /** The printed cube's edges, chamfered so its first layer does not flare and catch in a pocket. */
   chamfer: 0.4,
-  /**
-   * The cubes a player is printed: every channel on the base full (23, set
-   * by the subsystems' capacities) rounded to a 6 by 4 block, and the heat
-   * track's 10 with two over for the heat a shield or a rack puts on it
-   * before the check.
-   */
-  energy: 24,
-  heat: 12,
 }
 
 /**
@@ -137,8 +136,6 @@ export const BOARD = {
   /** The hub's peg the planet or black hole sits on. */
   peg: { diameter: 8, height: 6 },
   clearance: 0.1,
-  /** The bed a ring must fit on, or it is cut into segments on arm lines. */
-  bed: 235,
   /** The lane markers' band outside the outer ring, its groove, and how proud the markers stand. */
   lane: { band: 6, groove: 1.5, raise: 1.5 },
 }

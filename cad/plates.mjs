@@ -12,17 +12,33 @@
 // the dice, their stands and the board are black, the black hole's numbers
 // and streaks and the planets' other bands white. A plate is one colour and
 // one job: a seat's set, the dice, a planet.
+import { BOT_PRESET_LOADOUTS, HULLS } from '@dangerous-inclinations/engine'
 import { PLANETS } from './colours.ts'
-import { CUBE } from './spec.ts'
+import { BED as PRINTER_BED } from './spec.ts'
+import { CUBES } from './pieces/cube.ts'
 
 /**
- * The MK4S bed, the margin kept clear round it, the gap between pieces, and
- * the gap between the segments of a ring stacked one inside the next, mm.
+ * The bed (`spec.ts`), the margin kept clear round it, the gap between
+ * pieces, and the gap between the segments of a ring stacked one inside the
+ * next, mm.
  */
-export const BED = { x: 250, y: 210, margin: 6, gap: 5, nest: 3 }
+export const BED = { ...PRINTER_BED, margin: 6, gap: 5, nest: 3 }
 
 /** Seats a table set is printed for. */
 export const SEATS = 6
+
+/**
+ * A player's subsystems: each as many times as the most any loadout card
+ * (the bots' presets, `BOT_PRESET_LOADOUTS`) carries, so every card can be
+ * built.
+ */
+const MODULES = Object.values(BOT_PRESET_LOADOUTS).reduce((most, { forwardSlots, sideSlots }) => {
+  /** @type {Record<string, number>} */
+  const here = {}
+  for (const t of [...forwardSlots, ...sideSlots]) if (t) here[t] = (here[t] ?? 0) + 1
+  for (const [t, n] of Object.entries(here)) most[t] = Math.max(most[t] ?? 0, n)
+  return most
+}, /** @type {Record<string, number>} */ ({}))
 
 /**
  * The plates. `colour` is the plate's (a key of `COLOUR`), or "player" for a
@@ -49,7 +65,7 @@ export const PLATES = [
       ['tokens/home-marker', 1],
     ],
   },
-  ...['corvette', 'shrike', 'mantis'].map(hull => ({
+  ...HULLS.map(hull => ({
     id: `ship-${hull}`,
     title: `A player's ${hull} and its base (one a player, the hull they fly)`,
     colour: 'grey',
@@ -66,34 +82,23 @@ export const PLATES = [
     id: 'subsystems',
     title: "A player's subsystems: enough for every loadout card (one a player)",
     colour: 'grey',
-    parts: [
-      ['modules/railgun', 1],
-      ['modules/sensor_array', 1],
-      ['modules/fuel_compressor', 1],
-      ['modules/laser', 3],
-      ['modules/ballistic_rack', 2],
-      ['modules/shields', 2],
-      ['modules/plasma_cannon', 2],
-      ['modules/missiles', 2],
-      ['modules/disruptor', 1],
-      ['modules/radiator', 1],
-    ],
+    parts: Object.entries(MODULES).map(([type, n]) => [`modules/${type}`, n]),
   },
-  ...[
+  .../** @type {['energy' | 'heat', string][]} */ ([
     ['energy', 'The energy cubes'],
     ['heat', 'The heat cubes'],
-  ].flatMap(([kind, title]) => [
+  ]).flatMap(([kind, title]) => [
     {
       id: `${kind}-cubes`,
       title: `${title}, for the table`,
       colour: kind,
-      parts: [['tokens/cube', CUBE[kind] * SEATS]],
+      parts: [['tokens/cube', CUBES[kind] * SEATS]],
     },
     {
       id: `${kind}-cubes-player`,
       title: `${title}, for one player`,
       colour: kind,
-      parts: [['tokens/cube', CUBE[kind]]],
+      parts: [['tokens/cube', CUBES[kind]]],
     },
   ]),
   {
@@ -149,7 +154,7 @@ export const PLATES = [
       { concentric: ['board/planet/hub', 'board/shared/ring-1', 'board/shared/ring-2'], n: 3 },
       { concentric: ['board/blackHole/hub', 'board/shared/ring-1', 'board/shared/ring-2'], n: 1 },
       // A ring in segments, each turned to face the same way, stacked one inside the next.
-      { nested: [1, 2, 3].map(j => `board/shared/ring-3.${j}`), n: 4 },
+      { nested: [1, 2].map(j => `board/shared/ring-3.${j}`), n: 4 },
       { nested: [1, 2, 3, 4, 5, 6].map(j => `board/planet/ring-4.${j}`), n: 3 },
       { nested: [1, 2, 3, 4, 5, 6].map(j => `board/blackHole/ring-4.${j}`), n: 1 },
       { nested: [1, 2, 3, 4, 5, 6].map(j => `board/blackHole/ring-5.${j}`), n: 1 },

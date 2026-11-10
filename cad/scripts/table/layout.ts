@@ -14,16 +14,13 @@
 // one printed in several parts (a die, a card) names its `group`, whose
 // frame is in `groups`, so the parts move as one.
 //
-// Every assembly is read from the pieces' own code where it is exported
-// (wellOf, standOf, the module and hull print frames, the dice's resting
-// frame, the holders' bins); where it is not (the base's bays and channels,
-// the holders' bin fill), the arithmetic is copied here and says from where.
+// Every assembly is read from the pieces' own code (wellOf, standOf, the
+// module and hull print frames, the dice's resting frame, the base's bays and
+// channels, the holders' bins and where their tokens lie).
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Matrix4, Vector3, type Object3D } from 'three'
 import {
-  SUBSYSTEM_CONFIGS,
-  canInstallInSlot,
   DEFAULT_SHIP_APPEARANCE,
   type Hull,
   type Missile,
@@ -39,12 +36,14 @@ import { standOf } from '../../pieces/stand.ts'
 import { HULL_PRINT } from '../../pieces/hull.ts'
 import { layout as moduleLayout } from '../../pieces/module.ts'
 import { printFrame } from '../../lib/kit.ts'
-import { SOCKET, deckTop } from '../../pieces/base.ts'
+import { SOCKET, deckTop, bays, bayPlaces, channels, cubeCentres } from '../../pieces/base.ts'
 import { bayOf } from '../../pieces/bay.ts'
 import { die, restingFrame, numeralHeight } from '../../pieces/dice/d10.ts'
 import { heights, pocket } from '../../pieces/dice/stand.ts'
-import { HOLDER, COUNTS, columns } from '../../pieces/holder.ts'
-import { footprint } from '../../pieces/salvo.ts'
+import { CADDY, COUNTS, POOL, columns, lay, slots, type Bin } from '../../pieces/holder.ts'
+import { CRATE } from '../../pieces/markers/crate.ts'
+import { DATA } from '../../pieces/markers/data.ts'
+import type { Point } from '../../lib/solids.ts'
 import { createShip } from '../../../ui/src/ships/model.ts'
 import { DEFAULT_CONFIG, setModule, type MountId } from '../../../ui/src/ships/config.ts'
 import { MANTIS_ARM_FIN } from '../../../ui/src/ships/mantis.ts'
@@ -424,75 +423,13 @@ function seatFrame(i: number): Matrix4 {
   }
 }
 
-// The base's layout (pieces/base.ts: bays(), bayPlaces() and the channels in buildBase, not exported).
-const RIM = 1.2
-const STEP = CUBE.size + 0.2
-const CORNER = 6
-const BETWEEN = 2.2
-const APART = 5
-const BAND = CUBE.pocket + 2 * RIM
-const channelLength = (n: number) => n * STEP + 0.3
-const MAX_HEAT = 10
-function capacity(slot: 'forward' | 'side'): number {
-  return Math.max(
-    ...(Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[])
-      .filter(t => canInstallInSlot(t, slot))
-      .map(t => SUBSYSTEM_CONFIGS[t].maxEnergy)
-  )
-}
+/** The base's bays and its channels' cube centres (pieces/base.ts), the heat track's two rows as one. */
 function baseLayout() {
-  const b = bayOf()
-  const depth = b.front + b.wall + 2
-  const width = 2 * (b.half + 2)
-  const pad = SOCKET.wide / 2 + 2
-  const back = pad + BAND
-  const half = back + depth
-  const along = width / 2 + BETWEEN / 2
-  const bowChannel = along + channelLength(capacity('side')) / 2 + RIM + CUBE.pocket / 2
-  const bowBack = bowChannel + CUBE.pocket / 2 + RIM
-  const bow = bowBack + depth
-  const stern = -(along + width / 2)
-  const flank = [-1, 1].flatMap(s => [-along, along].map(x => ({ x, side: s })))
-  const bays = [
-    ...flank.map(({ x, side }) => ({ x, y: side * (half - b.front), turn: side > 0 ? 0 : 180 })),
-    { x: bow - b.front, y: 0, turn: -90 },
-  ]
-  /** Cube centres (x, y) in a channel of n along x or y centred on (cx, cy). */
-  const channel = (n: number, [cx, cy]: [number, number], dir: 'x' | 'y') =>
-    Array.from({ length: n }, (_, i) => {
-      const t = -channelLength(n) / 2 + 0.15 + (i + 0.5) * STEP
-      return (dir === 'x' ? [cx + t, cy] : [cx, cy + t]) as [number, number]
-    })
-  const channels: Record<string, [number, number][]> = {}
-  flank.forEach(
-    ({ x, side }, k) =>
-      (channels[`flank-${k}`] = channel(capacity('side'), [x, side * (back - BAND / 2)], 'x'))
+  const centres: Record<string, Point[]> = Object.fromEntries(
+    channels().map(c => [c.id, cubeCentres(c)])
   )
-  channels['forward-0'] = channel(capacity('forward'), [bowChannel, 0], 'y')
-  for (const [f, s] of [
-    ['engines', 1],
-    ['scoop', -1],
-  ] as const) {
-    const n = SUBSYSTEM_CONFIGS[f].maxEnergy
-    channels[f] = channel(
-      n,
-      [bow - CORNER - RIM - CUBE.pocket / 2, s * (b.half + 2 + RIM + channelLength(n) / 2)],
-      'y'
-    )
-  }
-  const rows = [
-    stern - RIM - CUBE.pocket / 2 - 0.2,
-    stern - RIM - CUBE.pocket - RIM - CUBE.pocket / 2 - 0.2,
-  ]
-  const fold = MAX_HEAT / 2
-  channels.heat = [...channel(fold, [rows[0], 0], 'y'), ...channel(fold, [rows[1], 0], 'y')]
-  const thr = SUBSYSTEM_CONFIGS.rotation.maxEnergy
-  channels.rotation = channel(
-    thr,
-    [rows[0], -(channelLength(fold) / 2 + APART + channelLength(thr) / 2)],
-    'y'
-  )
-  return { b, flank, bays, channels, deck: deckTop() }
+  centres.heat = [...centres['heat-0'], ...centres['heat-1']]
+  return { b: bayOf(), flank: bays().flank, bays: bayPlaces(), channels: centres, deck: deckTop() }
 }
 
 /** An object's matrix relative to the ship's root (pieces/hull.ts: inShip). */
@@ -620,85 +557,9 @@ const poses = Object.fromEntries(
     .map(p => [p, rollFrame(p).toArray()])
 )
 
-// The holders' bins (pieces/holder.ts: tokenSize, measure, lay and fill, not exported).
-type Bin = { kind: string; n?: number; grid: [number, number, number]; planet?: string }
-const TOKEN_SIZES: Record<string, { size: [number, number]; t: number; centre: [number, number] }> =
-  {
-    crate: { size: [18, 20.8], t: 4, centre: [0, 0] },
-    data: { size: [17, 17], t: 3.6, centre: [0, 0] },
-    wreck: { size: [20.25, 9.6], t: 6, centre: [0.375, 1.03] },
-    chip: { size: [16, 16], t: 2.5, centre: [0, 0] },
-    escort: { size: [17.46, 20], t: 3, centre: [0, 0] },
-  }
-function tokenSize({ kind, n = 1 }: Bin) {
-  if (kind !== 'salvo') return TOKEN_SIZES[kind]
-  const p = footprint(n).map(([x, y]) => [-y, x])
-  const [x0, x1] = [Math.min(...p.map(q => q[0])), Math.max(...p.map(q => q[0]))]
-  const [y0, y1] = [Math.min(...p.map(q => q[1])), Math.max(...p.map(q => q[1]))]
-  return {
-    size: [x1 - x0, y1 - y0] as [number, number],
-    t: 3,
-    centre: [(x0 + x1) / 2, (y0 + y1) / 2] as [number, number],
-  }
-}
-function measure(bin: Bin) {
-  const [cols, rows, layers] = bin.grid
-  const { gap: g, head, cove } = HOLDER
-  const {
-    size: [tx, ty],
-    t,
-  } = tokenSize(bin)
-  const depth = layers * t + head
-  const r = Math.min(depth, cove)
-  return { w: cols * (tx + g) + g, d: r + rows * (ty + g) + g, depth, r }
-}
-const salvoBin = (n: number): Bin => ({ kind: 'salvo', n, grid: n === 1 ? [3, 1, 1] : [2, 1, 2] })
-const CADDY: Bin[][] = [
-  [salvoBin(2), salvoBin(1), { kind: 'escort', grid: [1, 1, 2] }],
-  [salvoBin(4), salvoBin(3)],
-]
-function lay(rows: Bin[][]) {
-  const { wall, rim, floor } = HOLDER
-  const bins: { bin: Bin; at: [number, number] }[] = []
-  let y = rim
-  let deepest = 0
-  for (const row of rows) {
-    let x = rim
-    const length = Math.max(...row.map(bin => measure(bin).d))
-    for (const bin of row) {
-      const m = measure(bin)
-      bins.push({ bin, at: [x, y] })
-      x += m.w + wall
-      deepest = Math.max(deepest, m.depth)
-    }
-    y += length + wall
-  }
-  return { bins, height: deepest + floor }
-}
-/** `count` tokens into a bin, layer by layer from the back, in the holder's frame. */
-function fill(
-  bin: Bin,
-  [x, y]: [number, number],
-  top: number,
-  count: number,
-  each: (m: Matrix4) => void
-) {
-  const [cols, rows] = bin.grid
-  const {
-    size: [tx, ty],
-    t,
-    centre,
-  } = tokenSize(bin)
-  const { depth, r } = measure(bin)
-  const g = HOLDER.gap
-  for (let i = 0; i < count; i++) {
-    const layer = Math.floor(i / (cols * rows))
-    const c = i % cols
-    const row = rows - 1 - (Math.floor(i / cols) % rows)
-    const px = x + g + c * (tx + g) + tx / 2 - centre[0]
-    const py = y + r + g + row * (ty + g) + ty / 2 - centre[1]
-    each(T(px, py, top - depth + layer * t + 0.02))
-  }
+/** `count` tokens into a bin, layer by layer from the back, in the holder's frame (pieces/holder.ts). */
+function fill(bin: Bin, at: Point, top: number, count: number, each: (m: Matrix4) => void) {
+  for (const [x, y, z] of slots({ bin, at }, top, count)) each(T(x, y, z))
 }
 
 function players() {
@@ -844,7 +705,7 @@ function players() {
     pl.cargo.forEach((c, k) => {
       const m = mul(seat, T(-140 + k * 24, 118), Rz(10 * k - 5))
       const file = c.kind === 'crate' ? 'tokens/crate-token' : 'tokens/data-token'
-      const t = c.kind === 'crate' ? 4 : 3.6
+      const t = c.kind === 'crate' ? CRATE.thickness : DATA.thickness
       put(`${file}.stl`, COLOUR.white, c.loot ? mul(m, T(0, 0, t), Rx(180)) : m, {
         kind: 'token',
         id: `hold:${i}:${c.id}`,
@@ -888,19 +749,13 @@ function bayGeometry() {
 function pool() {
   const at = mul(T(TABLE.x0 + 30, TABLE.y0 + 28), Rz(0))
   put('holder/pool-tray.stl', COLOUR.white, at, { kind: 'piece' })
-  const POOL: Bin[] = [
-    { kind: 'crate', grid: [2, 2, 2] },
-    { kind: 'data', grid: [4, 2, 2] },
-    { kind: 'wreck', grid: [2, 4, 2] },
-    ...['alpha', 'beta', 'gamma'].map((planet): Bin => ({ kind: 'chip', grid: [1, 2, 3], planet })),
-  ]
-  const cols = columns(POOL as never)
+  const cols = columns(POOL)
   const aboard = (kind: string) =>
     state.players.reduce((n, p) => n + p.cargo.filter(c => c.kind === kind).length, 0)
   cols.forEach((c, k) => {
     const bin = POOL[k]
     const top = c.height
-    const place = c.bin.at as [number, number]
+    const place = c.bin.at
     if (bin.kind === 'crate')
       fill(bin, place, top, COUNTS.crate - aboard('crate'), m =>
         put('tokens/crate-token.stl', COLOUR.white, mul(at, m), { kind: 'token' })
