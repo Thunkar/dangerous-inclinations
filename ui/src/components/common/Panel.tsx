@@ -41,6 +41,7 @@ interface PanelProps {
 
 const storageKey = (id: string) => `di.panel.${id}`
 
+// eslint-disable-next-line react-refresh/only-export-components -- the panels' hook lives with them; an edit here reloads the page
 export function useCollapsed(id: string | undefined, initial: boolean) {
   const [collapsed, setCollapsed] = useState(() => {
     if (!id) return false

@@ -31,3 +31,14 @@ coverage/
 # Game recordings (live + sim outputs)
 recordings/
 sim-out/
+
+# Yarn 4 comes from Corepack (package.json's packageManager); nothing under
+# .yarn is shared.
+.yarn/
+
+# CAD outputs: exports, plates, screenshots, the FluidCAD cache and the
+# private workspaces scripts/server.mjs makes for headless runs.
+cad/out/
+cad/shots/
+cad/.fluidcad/
+cad/.runs/

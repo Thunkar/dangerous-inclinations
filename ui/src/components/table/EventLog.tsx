@@ -45,8 +45,6 @@ export function EventLog() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableNameOf = useMemo(() => nameOf, [names])
 
-  let lastTurn = -1
-
   return (
     <Panel
       title="Turn log"
@@ -66,8 +64,7 @@ export function EventLog() {
           </Typography>
         )}
         {lines.map((event, i) => {
-          const showTurn = event.turn !== lastTurn
-          lastTurn = event.turn
+          const showTurn = event.turn !== (lines[i - 1]?.turn ?? -1)
           const mineLine = concerns(event, mine)
           return (
             <LogLine

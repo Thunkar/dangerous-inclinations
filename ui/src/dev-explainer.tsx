@@ -1530,6 +1530,7 @@ interface Frame {
 
 function App() {
   const [frame, setFrame] = useState<Frame>({})
+  // eslint-disable-next-line react-hooks/immutability -- the film's driver sets each frame through this global
   ;(window as unknown as { __set: (f: Frame) => void }).__set = setFrame
   const SlideOf = frame.slide ? SLIDES[frame.slide.id] : null
   return (

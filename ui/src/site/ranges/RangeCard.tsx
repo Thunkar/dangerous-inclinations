@@ -41,6 +41,7 @@ const STEP = 15
 const SHIP_RING = 3
 
 /** The card's ink: the intel violet for the sensor, the combat red for every weapon. */
+// eslint-disable-next-line react-refresh/only-export-components -- shared with the card's callers; an edit here reloads the page
 export const cardInk = (type: RangeCardType) => (type === 'sensor_array' ? PRESS.violet : PRESS.red)
 
 const radius = (ring: number) => R0 + (ring - 1) * BAND
@@ -67,6 +68,7 @@ const centre = (port: number, ahead: number) => {
 }
 
 /** The card's one line with the engine's numbers in it. */
+// eslint-disable-next-line react-refresh/only-export-components -- shared with the card's callers; an edit here reloads the page
 export function cardLine(type: RangeCardType): string {
   return fill(T.lines[type] as string, {
     fuel: BURN_COSTS.soft.mass,

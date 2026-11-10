@@ -283,6 +283,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
   // A new turn (or a fresh state after our own turn) starts a fresh plan.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a new turn clears the plan
     reset()
     // Keying on the turn and the active seat is what actually means "new turn".
   }, [view.turn, view.activePlayerId, readOnly, reset])
@@ -368,6 +369,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       dockChoice === SELL_NOTHING
         ? (dockOffer?.options.length ?? 0) > 0
         : dockOffer?.options.some(o => o.sale === dockChoice)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a pick the plan no longer offers is dropped for good
     if (!offered) setDockChoice(null)
   }, [dockChoice, dockOffer])
   // A seize, salvage or mark step stays where it was put when the move
@@ -388,6 +390,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     [steps]
   )
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a repair the plan no longer offers is dropped for good
     if (repairChoice !== null && !repairable.includes(repairChoice)) setRepairChoiceState(null)
   }, [repairChoice, repairable])
 

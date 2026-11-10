@@ -166,6 +166,7 @@ export function RoutePlanProvider({ children }: { children: ReactNode }) {
         ? samePosition(me.ship, stationPosition(routeStation))
         : routeDestination !== null && samePosition(me.ship, routeDestination)
     if (arrived) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the server's new position ends the route
       setRouteDestinationState(null)
       setRouteStationId(null)
     }

@@ -440,7 +440,6 @@ vg.fire.moves = [
 ]
 const RESPAWNER = seatOf('respawn', vg.respawn.turn.playerId)
 vg.respawn.moves = [{ match: `ship:${RESPAWNER}`, t0: 2.0, t1: 4.0, kind: 'lift', height: 40 }]
-const jumped = ev('jump', 'jumped')
 // Launch: purple's salvo leaves its ship and flies 3 steps. Intercept: it rides, flies on and reaches orange, whose rack shoots it down.
 const LAUNCHER = seatOf('launch', vg.launch.turn.playerId)
 const LAUNCH_TARGET = seatOf('launch', ev('launch', 'missile_launched').targetId)
@@ -532,9 +531,6 @@ const mid = (...ps) => [
 ]
 const base = P('coast', `base:${HERO}`)
 const cards = [0, 1, 2].map(k => P('coast', `card:${HERO}:${k}`))
-const still = (target, az, el, dist, extra = {}) => [
-  [0, { target, az, el, dist, fov: 30, ...extra }],
-]
 const drift = (target, az0, az1, el, d0, d1, dur, extra = {}) => [
   [0, { target, az: az0, el, dist: d0, fov: 30, ...extra }],
   [dur, { target, az: az1, el, dist: d1, fov: 30, ...extra }],

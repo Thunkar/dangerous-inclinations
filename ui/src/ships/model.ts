@@ -5,7 +5,7 @@
  * These intersecting display meshes are NOT manufacturing solids.
  */
 import {
-  BufferGeometry,
+  type BufferGeometry,
   Color,
   CylinderGeometry,
   Group,

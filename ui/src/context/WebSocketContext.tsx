@@ -23,6 +23,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated || !playerId) return
     const wsClient = new GameWebSocketClient(playerId)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- publishes the socket client this effect owns
     setClient(wsClient)
     return () => {
       wsClient.disconnectAll()

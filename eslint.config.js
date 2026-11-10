@@ -11,11 +11,25 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
 import prettier from 'eslint-config-prettier'
 import globals from 'globals'
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/.turbo/**', '.claude/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '**/.turbo/**',
+      '.claude/**',
+      // The CAD build's outputs (gitignored): exports, renders with vendored three.js, private run dirs.
+      'cad/out/**',
+      'cad/shots/**',
+      'cad/.runs/**',
+      'cad/.fluidcad/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -48,15 +62,16 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
-  // UI: React + browser globals + react-hooks plugin.
+  // UI: React + browser globals + react-hooks and react-refresh plugins.
   // The hooks rules surface real issues but most are pre-existing, so start as
   // warnings so fresh violations stand out without blocking CI.
   {
     files: ['ui/**/*.{ts,tsx}'],
-    plugins: { 'react-hooks': reactHooks },
+    plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
     languageOptions: { globals: { ...globals.browser } },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      ...reactHooks.configs['recommended-latest'].rules,
+      ...reactRefresh.configs.vite.rules,
       'react-hooks/rules-of-hooks': 'warn',
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/refs': 'warn',
@@ -68,6 +83,25 @@ export default tseslint.config(
       'react-hooks/static-components': 'warn',
       'no-case-declarations': 'warn',
     },
+  },
+  {
+    // React contexts export their provider and their hook from one file;
+    // fast refresh warns about that pairing and nothing else.
+    files: ['ui/src/context/**/*.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  {
+    // The dev pages are entry points: they mount themselves and export
+    // nothing, so fast refresh reloads them whole, which is all they need.
+    files: ['ui/src/dev-*.tsx'],
+    rules: { 'react-refresh/only-export-components': 'off' },
+  },
+  {
+    // React Three Fiber animates by writing to three.js objects, uniforms and
+    // refs inside useFrame, and the 3D scene must never re-render per frame
+    // (CLAUDE.md), so these two rules flag the pattern the board is built on.
+    files: ['ui/src/components/board/three/**/*.{ts,tsx}'],
+    rules: { 'react-hooks/immutability': 'off', 'react-hooks/refs': 'off' },
   },
   prettier
 )

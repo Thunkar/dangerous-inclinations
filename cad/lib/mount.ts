@@ -1,6 +1,6 @@
 // The mount every module shares: the foot's outline, the module's tenon and
 // screw, and the hull's recess, magnet pocket and the plug that closes it.
-import { sketch, circle, extrude, subtract, fuse } from 'fluidcad/core'
+import { sketch, circle, extrude, subtract } from 'fluidcad/core'
 import { MOUNT } from '../spec.ts'
 import { footOutline as shared } from '../../ui/src/ships/mountShape.ts'
 import { prism, disc, move, block, type Point, type Solid, type Vec } from './solids.ts'

@@ -20,7 +20,7 @@
 // icon grown by `iconGrow` so its thinnest stroke prints as a piece, its
 // pocket by the numbers' clearance on top of that.
 import { subtract, color, sketch, plane, extrude } from 'fluidcad/core'
-import { Vector3 } from 'three'
+import type { Vector3 } from 'three'
 import { BOARD, DICE, MOUNT } from '../../spec.ts'
 import { TABLE } from '../../../ui/src/design/tokens.ts'
 import { iconLoops } from '../../lib/icons.ts'

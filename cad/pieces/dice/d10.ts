@@ -448,7 +448,7 @@ export function buildKey(): Solid {
   const { apothem: a } = groove(d)
   // A corner `c` in from the groove's wall meets the 45-degree roof `c` above the wall's top.
   const h = 2 * (depth + c - end)
-  let key = subtract(
+  const key = subtract(
     prism(decagon(d, a + width / 2 - c), h),
     move(prism(decagon(d, a - width / 2 + c), h + 2), 0, 0, -1)
   )

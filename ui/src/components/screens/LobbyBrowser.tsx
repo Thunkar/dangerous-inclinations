@@ -82,6 +82,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetches the lobby list from the server on mount
     refresh()
   }, [refresh])
 

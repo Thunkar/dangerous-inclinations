@@ -17,6 +17,7 @@ import {
   Scene,
   Vector3,
   WebGLRenderer,
+  type Object3D,
 } from 'three'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import {
@@ -68,7 +69,7 @@ let drive: Box3 | undefined
 if (focus === 'drive') {
   const hero = createShip(config)
   hero.root.updateMatrixWorld(true)
-  let group: import('three').Object3D | undefined
+  let group: Object3D | undefined
   hero.root.traverse(
     o =>
       (group ??= o.name.startsWith('drive_nozzle_') ? (o.parent?.parent ?? undefined) : undefined)

@@ -5,12 +5,12 @@
  */
 import {
   BoxGeometry,
-  BufferGeometry,
+  type BufferGeometry,
   CylinderGeometry,
   ExtrudeGeometry,
-  Mesh,
-  MeshStandardMaterial,
-  Object3D,
+  type Mesh,
+  type MeshStandardMaterial,
+  type Object3D,
   TorusGeometry,
   type ExtrudeGeometryOptions,
   type Shape,

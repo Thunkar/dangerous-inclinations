@@ -6,12 +6,12 @@
  * themselves are placed by `SHRIKE_MOUNTS` (hulls.ts).
  */
 import {
-  BufferGeometry,
+  type BufferGeometry,
   Group,
   Matrix4,
-  Mesh,
-  MeshStandardMaterial,
-  Object3D,
+  type Mesh,
+  type MeshStandardMaterial,
+  type Object3D,
   Shape,
   Vector3,
 } from 'three'

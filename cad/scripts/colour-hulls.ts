@@ -20,7 +20,7 @@
 // stands.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { BufferAttribute, BufferGeometry, Matrix4, Mesh, Vector3, type Object3D } from 'three'
+import { BufferAttribute, BufferGeometry, Matrix4, Vector3, type Mesh, type Object3D } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 import { zipSync, strToU8 } from 'fflate'
 import {

@@ -10,34 +10,36 @@ ARG NODE_IMAGE=node:24.22.1-bookworm-slim
 # --- dependencies and build ---------------------------------------------------
 FROM ${NODE_IMAGE} AS build
 WORKDIR /app
-ENV YARN="node .yarn/releases/yarn-4.12.0.cjs"
+# Corepack provides the Yarn that package.json's packageManager names.
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
 # The workspaces' scripts call tsc and vite, which live in the root workspace.
 ENV PATH=/app/node_modules/.bin:$PATH
 COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn/releases .yarn/releases
 COPY engine/package.json engine/
 COPY server/package.json server/
 COPY ui/package.json ui/
 COPY cad/package.json cad/
-RUN $YARN install --immutable
+RUN yarn install --immutable
 COPY tsconfig.json ./
 COPY engine engine
 COPY server server
 COPY ui ui
-RUN $YARN workspace @dangerous-inclinations/engine build \
- && $YARN workspace @dangerous-inclinations/server build \
- && $YARN workspace @dangerous-inclinations/ui build
+RUN yarn workspace @dangerous-inclinations/engine build \
+ && yarn workspace @dangerous-inclinations/server build \
+ && yarn workspace @dangerous-inclinations/ui build
 
 # --- the server's production dependencies only --------------------------------
 FROM ${NODE_IMAGE} AS server-deps
 WORKDIR /app
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
 COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn/releases .yarn/releases
 COPY engine/package.json engine/
 COPY server/package.json server/
 COPY ui/package.json ui/
 COPY cad/package.json cad/
-RUN node .yarn/releases/yarn-4.12.0.cjs workspaces focus @dangerous-inclinations/server --production
+RUN yarn workspaces focus @dangerous-inclinations/server --production
 
 # --- server -------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS server

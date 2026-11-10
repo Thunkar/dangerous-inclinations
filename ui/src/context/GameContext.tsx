@@ -235,34 +235,37 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
     setHistory(prev => prev.map(r => (r.key === key ? { ...r, frames } : r)))
   }, [])
 
-  const pump = useCallback(() => {
-    if (unmountedRef.current) return
-    const generation = generationRef.current
-    const next = queueRef.current.shift()
-    if (!next) {
-      processingRef.current = false
-      setIsAnimating(false)
-      return
-    }
-    processingRef.current = true
-    const animator = animatorRef.current
-    if (next.animate && animator && next.events.length > 0) {
-      setIsAnimating(true)
-      const cancel = animator(next.replayFrom ?? viewRef.current, next.view, next.events, () => {
-        if (unmountedRef.current || generationRef.current !== generation) return
-        cancelAnimationRef.current = null
+  const pump = useCallback(
+    function pump() {
+      if (unmountedRef.current) return
+      const generation = generationRef.current
+      const next = queueRef.current.shift()
+      if (!next) {
+        processingRef.current = false
+        setIsAnimating(false)
+        return
+      }
+      processingRef.current = true
+      const animator = animatorRef.current
+      if (next.animate && animator && next.events.length > 0) {
+        setIsAnimating(true)
+        const cancel = animator(next.replayFrom ?? viewRef.current, next.view, next.events, () => {
+          if (unmountedRef.current || generationRef.current !== generation) return
+          cancelAnimationRef.current = null
+          if (!next.replayFrom) commit(next)
+          // Let React paint the committed view before the next turn plays.
+          setTimeout(() => {
+            if (generationRef.current === generation) pump()
+          }, 60)
+        })
+        cancelAnimationRef.current = typeof cancel === 'function' ? cancel : null
+      } else {
         if (!next.replayFrom) commit(next)
-        // Let React paint the committed view before the next turn plays.
-        setTimeout(() => {
-          if (generationRef.current === generation) pump()
-        }, 60)
-      })
-      cancelAnimationRef.current = typeof cancel === 'function' ? cancel : null
-    } else {
-      if (!next.replayFrom) commit(next)
-      pump()
-    }
-  }, [commit])
+        pump()
+      }
+    },
+    [commit]
+  )
 
   const enqueue = useCallback(
     (update: QueuedUpdate) => {
@@ -332,6 +335,7 @@ function useChat(gameId: string) {
 
   useEffect(() => {
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a new game drops the old chat before its history loads
     setChat([])
     getChat(gameId)
       .then(response => {
@@ -585,6 +589,7 @@ export function GameProvider({
   useEffect(() => {
     if (playerLoading) return
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a new game drops the old state before the server's arrives
     setInitial(null)
     setError(null)
     getGame(gameId)

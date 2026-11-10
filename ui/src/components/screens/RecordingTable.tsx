@@ -45,6 +45,7 @@ export function RecordingTable({ recording, headerExtras }: RecordingTableProps)
   }, [playing, turnIndex, turnCount, speed])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- playback stops at the last turn, whatever moved it there
     if (turnIndex >= turnCount - 1) setPlaying(false)
   }, [turnIndex, turnCount])
 

@@ -26,7 +26,10 @@ import {
   canInstallInSlot,
   DEFAULT_SHIP_APPEARANCE,
   type Hull,
+  type Missile,
+  type Station,
   type SubsystemType,
+  type Wreck,
 } from '@dangerous-inclinations/engine'
 import { COLOUR, PLAYER_COLOURS, PLANETS } from '../../colours.ts'
 import { BOARD, CUBE, DICE, FDM, MOUNT, PRINT } from '../../spec.ts'
@@ -48,7 +51,41 @@ import { MANTIS_ARM_FIN } from '../../../ui/src/ships/mantis.ts'
 
 const OUT = join(import.meta.dirname, '../../shots/table')
 const arg = (k: string) => process.argv.find(a => a.startsWith(`--${k}=`))?.split('=')[1]
-const state = JSON.parse(readFileSync(arg('state') ?? join(OUT, 'state.json'), 'utf8'))
+/** state.json as tableState.mjs writes it: the parts of it read here. */
+interface TableState {
+  seed: number
+  round: number
+  stations: Station[]
+  wrecks: Wreck[]
+  missiles: Missile[]
+  piles: Record<'primary' | 'secondary', number>
+  players: TablePlayer[]
+}
+interface TablePlayer {
+  id: string
+  home: { wellId: string; ring: number; sector: number }
+  ship: {
+    wellId: string
+    ring: number
+    sector: number
+    facing: string
+    fuel: number
+    hull: number
+    heat: number
+    subsystems: {
+      id: string
+      type: SubsystemType
+      energy: number
+      broken: boolean
+      revealed: boolean
+    }[]
+  }
+  moored: boolean
+  cargo: { id: string; kind: string; loot: boolean }[]
+  soldAt: string[]
+  missions: { type: string; done: boolean; marked?: string; card: string }[]
+}
+const state: TableState = JSON.parse(readFileSync(arg('state') ?? join(OUT, 'state.json'), 'utf8'))
 const S = PRINT.mmPerUnit
 const DEG = Math.PI / 180
 
@@ -227,15 +264,6 @@ function board() {
 const playerColour = (i: number) => PLAYER_COLOURS[i]
 const seatOf = (id: string) => state.players.findIndex((p: { id: string }) => p.id === id)
 
-/** What stands in each sector, so two things in one sector stand apart along it. */
-const crowd = new Map<string, number>()
-function slot(wellId: string, ring: number, sector: number, width: number): number {
-  const key = `${wellId}/${ring}/${sector}`
-  const used = crowd.get(key) ?? 0
-  crowd.set(key, used + width)
-  return used
-}
-
 /** Everything in a sector is laid along it, centred; collect first, then place. */
 interface OnRing {
   wellId: string
@@ -279,7 +307,7 @@ function tokens() {
     })
   }
   // Ships in their sectors, nose the way they face.
-  players.forEach((pl: any, i: number) => {
+  players.forEach((pl, i) => {
     if (pl.moored) return
     const s = pl.ship
     onRing.push({
@@ -298,7 +326,7 @@ function tokens() {
     })
   })
   // Home markers, roof toward the well's centre.
-  players.forEach((pl: any, i: number) => {
+  players.forEach((pl, i) => {
     const h = pl.home
     onRing.push({
       wellId: h.wellId,
@@ -334,7 +362,7 @@ function tokens() {
   }
   // Missiles: those that fly together (one owner, one target, one place, one
   // flight) are a salvo, one token of up to four, nose prograde.
-  const groups = new Map<string, any[]>()
+  const groups = new Map<string, Missile[]>()
   for (const m of missiles) {
     const key = `${m.ownerId}|${m.targetId}|${m.wellId}|${m.ring}|${m.sector}|${m.movesMade}`
     groups.set(key, [...(groups.get(key) ?? []), m])
@@ -675,7 +703,7 @@ function fill(
 
 function players() {
   const L = baseLayout()
-  state.players.forEach((pl: any, i: number) => {
+  state.players.forEach((pl, i) => {
     const hull = HULLS[i]
     const colour = playerColour(i)
     const seat = seatFrame(i)
@@ -799,7 +827,7 @@ function players() {
     put('holder/caddy.stl', colour, caddyAt, { kind: 'piece' })
     const caddy = lay(CADDY)
     const used = salvosUsed[i]
-    const escortsOut = pl.missions.filter((m: any) => m.type === 'escort' && m.marked).length
+    const escortsOut = pl.missions.filter(m => m.type === 'escort' && m.marked).length
     for (const { bin, at } of caddy.bins) {
       if (bin.kind === 'salvo') {
         const n = bin.n!
@@ -813,7 +841,7 @@ function players() {
         )
     }
     // The hold: what the ship carries, by the base (loot shows its skull).
-    pl.cargo.forEach((c: any, k: number) => {
+    pl.cargo.forEach((c, k) => {
       const m = mul(seat, T(-140 + k * 24, 118), Rz(10 * k - 5))
       const file = c.kind === 'crate' ? 'tokens/crate-token' : 'tokens/data-token'
       const t = c.kind === 'crate' ? 4 : 3.6
@@ -834,11 +862,11 @@ function players() {
     })
   })
   // Escort markers, face-up beside the base of the ship they escort.
-  state.players.forEach((pl: any, i: number) => {
+  state.players.forEach((pl, i) => {
     pl.missions
-      .filter((m: any) => m.type === 'escort' && m.marked)
-      .forEach((m: any, k: number) => {
-        const target = seatOf(m.marked)
+      .filter(m => m.type === 'escort' && m.marked)
+      .forEach((m, k) => {
+        const target = seatOf(m.marked!)
         put(
           'tokens/escort-marker.stl',
           playerColour(i),
@@ -868,11 +896,8 @@ function pool() {
   ]
   const cols = columns(POOL as never)
   const aboard = (kind: string) =>
-    state.players.reduce(
-      (n: number, p: any) => n + p.cargo.filter((c: any) => c.kind === kind).length,
-      0
-    )
-  cols.forEach((c: any, k: number) => {
+    state.players.reduce((n, p) => n + p.cargo.filter(c => c.kind === kind).length, 0)
+  cols.forEach((c, k) => {
     const bin = POOL[k]
     const top = c.height
     const place = c.bin.at as [number, number]
@@ -895,7 +920,7 @@ function pool() {
     }
     if (bin.kind === 'chip') {
       const planet = `planet-${bin.planet}`
-      const sold = state.players.filter((p: any) => p.soldAt.includes(planet)).length
+      const sold = state.players.filter(p => p.soldAt.includes(planet)).length
       let n = 0
       fill(bin, place, top, COUNTS.chip - sold, m =>
         put(`tokens/sale-chip-${bin.planet}.stl`, PLANET_COLOURS[planet], mul(at, m), {
@@ -945,10 +970,10 @@ function card(
 }
 
 function cards() {
-  state.players.forEach((pl: any, i: number) => {
+  state.players.forEach((pl, i) => {
     const seat = seatFrame(i)
     // The three missions in a row between the base and the edge: primary, then the secondaries.
-    pl.missions.forEach((m: any, k: number) => {
+    pl.missions.forEach((m, k) => {
       const pile = m.card.startsWith('primary') ? 'primary' : 'secondary'
       card(
         MISSION_CARD,

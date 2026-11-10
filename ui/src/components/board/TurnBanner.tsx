@@ -41,6 +41,7 @@ export function TurnBanner() {
   const actorId = playback?.actorId
   useEffect(() => {
     if (!playbackId || !actorId) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a new playback raises a timed notice; there is no event to raise it from
     setBanner({
       key: playbackId,
       text: nameFor(actorId),
@@ -55,6 +56,7 @@ export function TurnBanner() {
   const yourTurnKey = mine && !playback ? `you-${view.turn}-${view.activePlayerId}` : null
   useEffect(() => {
     if (!yourTurnKey || !view.me) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- your turn arriving raises a timed notice, as a playback does
     setBanner({ key: yourTurnKey, text: 'Your turn', color: getPlayerColor(indexOf(view.me.id)) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [yourTurnKey])

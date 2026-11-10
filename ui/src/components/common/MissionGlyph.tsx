@@ -139,6 +139,7 @@ const ART: Record<MissionType, ReactElement> = {
 }
 
 /** The three-letter code stamped in the card's corner. */
+// eslint-disable-next-line react-refresh/only-export-components -- shared with the card's callers; an edit here reloads the page
 export const MISSION_CODE: Record<MissionType, string> = {
   destroy_ship: 'DSY',
   deliver_cargo: 'DLV',

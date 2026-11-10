@@ -7,7 +7,7 @@
  * number is changed by pressing a button rather than by typing into a field
  * that the browser will then try to autocomplete.
  */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
 import type { SxProps, Theme } from '@mui/material'
@@ -141,7 +141,12 @@ function NumberField({
   width: number
 }) {
   const [text, setText] = useState(String(value))
-  useEffect(() => setText(String(value)), [value])
+  // A new value from outside replaces what was typed.
+  const [shown, setShown] = useState(value)
+  if (shown !== value) {
+    setShown(value)
+    setText(String(value))
+  }
   return (
     <Box
       component="input"

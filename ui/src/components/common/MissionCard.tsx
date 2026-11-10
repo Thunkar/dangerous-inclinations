@@ -97,7 +97,9 @@ const FAN: Cut = {
 }
 
 /** 5:7, the proportion of the card that will be printed. */
+// eslint-disable-next-line react-refresh/only-export-components -- shared with the card's callers; an edit here reloads the page
 export const FAN_CARD_WIDTH = FAN.width
+// eslint-disable-next-line react-refresh/only-export-components -- shared with the card's callers; an edit here reloads the page
 export const FAN_CARD_HEIGHT = FAN.height
 
 /**

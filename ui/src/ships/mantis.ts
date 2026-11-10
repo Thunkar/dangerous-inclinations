@@ -8,7 +8,7 @@
  * dorsal, port is -Z; the mounts themselves are placed by `MANTIS_MOUNTS`
  * (hulls.ts).
  */
-import { Group, Matrix4, MeshStandardMaterial, Object3D, Shape, Vector3 } from 'three'
+import { Group, Matrix4, type MeshStandardMaterial, type Object3D, Shape, Vector3 } from 'three'
 import { armoredSection, hollowSection, sectionLoft, type Station } from './loft'
 import { GRILLE, boxSolid, cylinderSolid, extrudeSolid, torusSolid, type Put } from './parts'
 import { intakes } from './engines'

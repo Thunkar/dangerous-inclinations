@@ -4,7 +4,7 @@
 // print fits every mount the module may take (the foot is symmetric dorsal
 // to ventral and the modules are built in the mount's frame).
 import { subtract, fuse } from 'fluidcad/core'
-import { Box3, Matrix4, Mesh, Vector3, type Object3D } from 'three'
+import { Box3, Matrix4, Vector3, type Mesh, type Object3D } from 'three'
 import {
   canInstallInSlot,
   DEFAULT_SHIP_APPEARANCE,
