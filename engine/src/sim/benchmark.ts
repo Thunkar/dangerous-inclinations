@@ -455,7 +455,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   // Read here, not at import: a `--tiles=` override is applied before this runs.
   const radiator = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
   out.push(
-    `| Heat track | ${MAX_HEAT}; above it is hull damage, then shed ${DEFAULT_DISSIPATION_CAPACITY} (+${radiator} per radiator) and carry the rest |`
+    `| Heat track | ${MAX_HEAT}; above it is hull damage, then dissipate ${DEFAULT_DISSIPATION_CAPACITY} (+${radiator} per radiator) and carry the rest |`
   );
   out.push(
     `| Shields | ${SUBSYSTEM_CONFIGS.shields.minEnergy} or ${SUBSYSTEM_CONFIGS.shields.maxEnergy} energy, ${SHIELD_POINTS_PER_ENERGY} point absorbed a cube, which is spent until that player's turn ends; its energy is heat every turn it is powered, and every point absorbed is heat too |`

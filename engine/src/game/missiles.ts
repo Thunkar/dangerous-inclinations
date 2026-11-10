@@ -8,10 +8,11 @@
  * A missile flies the moment it is launched, at the launch's place in its
  * owner's turn, from the sector it was dropped on ({@link flyLaunchedMissiles}),
  * so whatever the turn does after the launch meets its result. At the end of
- * each of the owner's later turns it rides its ring first, then flies
- * ({@link processOwnerMissiles}). A flight is up to `stepsPerMove` steps
- * toward the target (a step is one ring or one sector; rings close first).
- * If it ends on the target's sector it
+ * each of the owner's later turns it flies and rides its ring, in the order
+ * its owner chooses ({@link planMissileMove}, {@link processOwnerMissiles}).
+ * A flight is up to `stepsPerMove` steps toward the target (a step is one
+ * ring or one sector; rings close first). If the flight ends on the target's
+ * sector, before the ride or after it, it
  * attacks: a powered ballistic rack rolls against it and destroys it on a 2+,
  * otherwise it rolls to hit like any weapon. A rack rolls at up to
  * `interceptsPerRack()` missiles a turn (one missiles subsystem's magazine),
@@ -33,6 +34,7 @@ import {
   driftPosition,
   positionOf,
   samePosition,
+  sectorDistance,
   sectorStepToward,
   wrapSector,
 } from "./geometry.ts";
@@ -88,28 +90,28 @@ export function stepToward(from: Position, target: Position, steps: number): Pos
 }
 
 /**
- * The launch flight is the one move without a ride: it is flown the moment
- * the missile is launched, from the sector it was dropped on. From then on it
- * drifts with its ring like everything else.
+ * The two orders a missile's move may take. A ride-first move drifts with the
+ * ring, then flies; a fly-first move flies, attacks if the flight ended on the
+ * target, and only then drifts. The launch flight has no ride at all: it is
+ * flown the moment the missile is launched, from the sector it was dropped on.
  */
-function rideStart(missile: Position & { movesMade: number }): Position {
-  return missile.movesMade === 0 ? positionOf(missile) : driftPosition(positionOf(missile));
+export type MissileOrder = "ride_first" | "fly_first";
+
+/** One move of a missile in one order: the path to draw, where it ends, whether it attacks. */
+export interface MissileMove {
+  order: MissileOrder;
+  /** Every point it passes, the first its start (after the ride, if it rides first). */
+  path: Position[];
+  /** Where the missile is when the move is over. */
+  end: Position;
+  /** The flight ended on the target's sector: the missile attacks there. */
+  hits: boolean;
 }
 
-/**
- * Where a missile will be after its next move, plus the intermediate points
- * (for drawing the path): [position after drift (or the launch sector, for
- * the launch flight), ...each step].
- */
-export function projectMissilePath(
-  missile: Position & { movesMade: number },
-  target: Position
-): Position[] {
-  const path: Position[] = [];
-  const drifted = rideStart(missile);
-  path.push(drifted);
-  if (missile.wellId !== target.wellId) return path;
-  let current = drifted;
+function flightFrom(from: Position, target: Position): Position[] {
+  const path: Position[] = [from];
+  if (from.wellId !== target.wellId) return path;
+  let current = from;
   for (let i = 0; i < MISSILE.stepsPerMove && !samePosition(current, target); i++) {
     current = stepToward(current, target, 1);
     path.push(current);
@@ -117,27 +119,86 @@ export function projectMissilePath(
   return path;
 }
 
+function moveIn(
+  missile: Position & { movesMade: number },
+  target: Position,
+  order: MissileOrder
+): MissileMove {
+  const start = positionOf(missile);
+  if (missile.movesMade === 0 || order === "ride_first") {
+    const path = flightFrom(missile.movesMade === 0 ? start : driftPosition(start), target);
+    const end = path[path.length - 1];
+    return { order: "ride_first", path, end, hits: samePosition(end, target) };
+  }
+  const path = flightFrom(start, target);
+  const landed = path[path.length - 1];
+  if (samePosition(landed, target)) return { order, path, end: landed, hits: true };
+  const end = driftPosition(landed);
+  return { order, path: [...path, end], end, hits: false };
+}
+
+/** The orders a missile may choose between this move: none on the launch flight. */
+const ordersFor = (missile: { movesMade: number }): MissileOrder[] =>
+  missile.movesMade === 0 ? ["ride_first"] : ["ride_first", "fly_first"];
+
+/** Steps between two points of one well: the ring gap and the sectors round. */
+const stepsBetween = (a: Position, b: Position) =>
+  Math.abs(a.ring - b.ring) + sectorDistance(a.sector, b.sector);
+
+/**
+ * The move a missile makes, in the order its owner would choose: one that
+ * attacks if either does, and otherwise the one that leaves it nearest the
+ * target as that target coasts to its next turn, reached either way round
+ * next time. Ties go to riding first. RULES §Weapons -> Missiles leaves the
+ * order to the player; the engine chooses for every player, bots and people
+ * alike, the order that serves them.
+ */
+export function planMissileMove(
+  missile: Position & { movesMade: number },
+  target: Position
+): MissileMove {
+  const moves = ordersFor(missile).map((order) => moveIn(missile, target, order));
+  const hit = moves.find((m) => m.hits);
+  if (hit) return hit;
+  const coasted = driftPosition(target);
+  const reach = (p: Position) =>
+    Math.min(stepsBetween(p, coasted), stepsBetween(driftPosition(p), coasted));
+  return moves.reduce((best, m) => (reach(m.end) < reach(best.end) ? m : best));
+}
+
+/**
+ * Where a missile will be after its next move, plus the intermediate points
+ * (for drawing the path), in the order {@link planMissileMove} chooses.
+ */
+export function projectMissilePath(
+  missile: Position & { movesMade: number },
+  target: Position
+): Position[] {
+  return planMissileMove(missile, target).path;
+}
+
 /**
  * Best case: can a missile launched from `from` land on a target at `target`
  * before it expires, if that target simply coasts?
  *
- * Replays the flight with {@link projectMissilePath}, so the launch flight's
- * missing ride is counted exactly as the engine will replay it. The target is
+ * Tries every order the missile may fly each move in, and the launch
+ * flight's missing ride, as the engine will replay them. The target is
  * assumed to coast: it is a best case, not a promise, which is all a launcher
  * can know: the target moves after the missile is away.
  */
 export function missileCanReach(from: Position, target: Position): boolean {
   if (from.wellId !== target.wellId) return false;
-  let missile: Position & { movesMade: number } = { ...from, movesMade: 0 };
-  let victim = target;
-  for (let move = 0; move < MISSILE.maxMoves; move++) {
-    const path = projectMissilePath(missile, victim);
-    const end = path[path.length - 1];
-    if (samePosition(end, victim)) return true;
-    missile = { ...end, movesMade: move + 1 };
-    victim = driftPosition(victim);
-  }
-  return false;
+  const reaches = (missile: Position & { movesMade: number }, victim: Position): boolean => {
+    if (missile.movesMade >= MISSILE.maxMoves) return false;
+    return ordersFor(missile).some((order) => {
+      const move = moveIn(missile, victim, order);
+      return (
+        move.hits ||
+        reaches({ ...move.end, movesMade: missile.movesMade + 1 }, driftPosition(victim))
+      );
+    });
+  };
+  return reaches({ ...from, movesMade: 0 }, target);
 }
 
 /**
@@ -146,8 +207,7 @@ export function missileCanReach(from: Position, target: Position): boolean {
  * the launch? The target cannot move in between: it is the launcher's turn.
  */
 export function landsOnLaunch(from: Position, target: Position): boolean {
-  const path = projectMissilePath({ ...from, movesMade: 0 }, target);
-  return samePosition(path[path.length - 1], target);
+  return moveIn({ ...from, movesMade: 0 }, target, "ride_first").hits;
 }
 
 interface MissileProcessResult {
@@ -235,8 +295,6 @@ function flyMissile(state: GameState, missile: Missile): Flight {
   // Rolls advance the copy's RNG, never the caller's state.
   const next: GameState = { ...state };
   const targetPos = positionOf(target.ship);
-  const start = rideStart(missile);
-  const moved = stepToward(start, targetPos, MISSILE.stepsPerMove);
 
   // A ship that just came back cannot be touched until its returning turn
   // is over (RULES §Destruction and Respawn), and a moored one cannot be
@@ -244,8 +302,14 @@ function flyMissile(state: GameState, missile: Missile): Flight {
   // attacks nor is shot down: it stays in the air with one more move behind
   // it and burns out on schedule.
   const untouchable = !canBeTargeted(target, state.stations);
+  // Prey nobody may touch is not worth stopping for: the missile rides first,
+  // as it always did, and flies past.
+  const move = untouchable
+    ? moveIn(missile, targetPos, "ride_first")
+    : planMissileMove(missile, targetPos);
+  const moved = move.end;
 
-  if (untouchable || !samePosition(moved, targetPos)) {
+  if (untouchable || !move.hits) {
     const movesMade = missile.movesMade + 1;
     if (movesMade >= MISSILE.maxMoves) {
       events.push({ type: "missile_expired", missileId: missile.id, ownerId, at: moved });
@@ -286,7 +350,8 @@ function flyMissile(state: GameState, missile: Missile): Flight {
       targetShip = used.ship;
       events.push(...used.events);
     }
-    if (rack.spentThisTurn === 0) targetShip = addHeat(targetShip, INTERCEPT_HEAT);
+    const heat = rack.spentThisTurn === 0 ? INTERCEPT_HEAT : 0;
+    targetShip = addHeat(targetShip, heat);
     targetShip = updateSubsystem(targetShip, rack.id, (r) => ({
       spentThisTurn: r.spentThisTurn + 1,
     }));
@@ -299,6 +364,8 @@ function flyMissile(state: GameState, missile: Missile): Flight {
       targetId: target.id,
       roll,
       destroyed,
+      rackId: rack.id,
+      heat,
     });
     if (destroyed) {
       players[targetIndex] = { ...target, ship: targetShip };

@@ -96,16 +96,17 @@ export function resolveEndOfTurnHeat(
     }
   }
 
-  // Radiators show themselves whenever they are shedding heat the base ship could not.
+  // Radiators show themselves whenever they dissipate heat the base ship could not.
   if (heat > DEFAULT_DISSIPATION_CAPACITY && dissipation > DEFAULT_DISSIPATION_CAPACITY) {
     for (const radiator of ship.subsystems.filter((s) => s.type === "radiator" && !s.isBroken)) {
-      const r = revealSubsystem(next, playerId, radiator.id, "shed_heat");
+      const r = revealSubsystem(next, playerId, radiator.id, "dissipating");
       next = r.ship;
       events.push(...r.events);
     }
   }
 
-  events.push({ type: "heat_check", playerId, heat, cubes, dissipation, damage, carried });
+  const dissipated = Math.min(heat, MAX_HEAT) - carried;
+  events.push({ type: "heat_check", playerId, heat, cubes, dissipated, damage, carried });
   if (damage > 0) next = { ...next, hitPoints: Math.max(0, next.hitPoints - damage) };
 
   return { ship: { ...next, heat: { currentHeat: carried } }, damage, events };

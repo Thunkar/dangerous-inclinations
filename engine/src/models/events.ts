@@ -27,7 +27,7 @@ export type RevealReason =
   | "intercepted"
   | "absorbed"
   | "scanned"
-  | "shed_heat"
+  | "dissipating"
   | "compressed_jump"
   | "broken";
 
@@ -149,6 +149,10 @@ export type GameEvent =
       roll: number;
       /** 2+ destroys the missile; on a 1 the rack fired and missed. */
       destroyed: boolean;
+      /** The rack that rolled: intercepting turns it face-up, so naming it tells nothing new. */
+      rackId: SubsystemId;
+      /** Heat this roll put on the target's track: INTERCEPT_HEAT on a rack's first roll of a player-turn, else 0. */
+      heat: number;
     })
   | (Base & { type: "missile_expired"; missileId: string; ownerId: string; at: Position })
   | (Base & {
@@ -187,7 +191,12 @@ export type GameEvent =
       heat: number;
       /** The part of `heat` that is cubes sitting on the loadout. */
       cubes: number;
-      dissipation: number;
+      /**
+       * Heat the check dissipated: min(heat, MAX_HEAT) - carried. Not
+       * the ship's dissipation, which would give a face-down radiator away on
+       * a cool check (RULES §Hidden Information: it shows only above 5).
+       */
+      dissipated: number;
       /** Hull taken for the part of `heat` above MAX_HEAT. */
       damage: number;
       /** Heat that rides into the next turn: min(heat, MAX_HEAT) - dissipation. */
@@ -196,6 +205,8 @@ export type GameEvent =
   | (Base & {
       type: "scanned";
       scannerId: string;
+      /** The sensor that scanned: scanning turns it face-up. */
+      sensorId: SubsystemId;
       targetId: string;
       peekedSlot: SubsystemId;
       heat: number;

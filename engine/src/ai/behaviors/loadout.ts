@@ -107,14 +107,14 @@ export function presetRole(id: BotPresetId): BotRole {
  *
  * **Why every loadout carries a radiator.** Using a subsystem costs its energy in heat,
  * and heat the ship cannot dissipate is carried, so a hull that makes more than
- * it sheds walks up to the redline and pays there. The railgun plus one
+ * it dissipates walks up to the redline and pays there. The railgun plus one
  * broadside is six against a dissipation of five; the radiator's +2 makes that
  * pair free. The gunship's full three-gun volley is eight, one over even
  * then: firing everything is a decision, not a default.
  *
  * **Why no second radiator.** A heat-use probe (400 games a hull) found the
  * hulls without shields rarely pass the base dissipation: the corsair with
- * two radiators read 3.0 heat at the check of 9 it could shed and used the
+ * two radiators read 3.0 heat at the check of 9 it could dissipate and used the
  * second radiator in 1% of checks, the ghost 1%, the lancer 16%. Swapping it
  * for a gun or a rack raised them (corsair 33 → 39–40%, ghost 37 → 35–40%,
  * lancer 38 → 37–39%).

@@ -107,7 +107,7 @@ export const EXPLAINER = {
       title: 'The heat check',
       lede: 'The cubes on your ship, plus the heat on your track.',
       dissipate:
-        'Shed {dissipation} (+{radiator} for each radiator). Carry the rest into your next turn.',
+        'Dissipate {dissipation} (+{radiator} for each radiator). Carry the rest into your next turn.',
       over: 'Over {maxHeat}: each point over is 1 hull damage, and your heat stops at {maxHeat}.',
       absorbed:
         'Shields absorb a point a cube: the cube is spent for that turn and the point goes on your heat track.',
@@ -130,7 +130,7 @@ export const EXPLAINER = {
       rows: [
         'One action launches a salvo: any number of your missiles at one ship in your well.',
         'It flies {steps} steps at once, rings first, and attacks if it reaches the target’s sector: {damage} damage on a hit.',
-        'After each of your turns it rides its orbit and flies {steps} more. It lasts {turns} turns.',
+        'After each of your turns it flies {steps} more and rides its orbit, in either order. It lasts {turns} turns.',
         'A rack with energy on it rolls at each missile that reaches it: {on}+ shoots it down. That is {heat} heat, however many.',
       ],
     },
@@ -193,8 +193,8 @@ export const EXPLAINER = {
     burnIn: '…then cross in {rings} rings: a hard burn, {fuel} fuel',
     compressor: 'A jump is {fuel} fuel. With a compressor: {compressed}',
     cubes: 'Shields +2, rack +2, scoop +3: 7 cubes on the ship',
-    check: 'Heat check: 7 heat, shed 5 + 2 for the radiator',
-    radiator: 'Shedding heat turns the radiator face-up',
+    check: 'Heat check: 7 heat, dissipate 5 + 2 for the radiator',
+    radiator: 'Dissipating heat turns the radiator face-up',
     fire: 'The rack fires at the orange ship',
     hit: 'A {roll}: hit for {damage}. Orange is at 0 hull',
     wreck: 'Destroyed: a wreck goes on its sector',
@@ -242,16 +242,16 @@ export const EXPLAINER = {
     heat: 'Every action puts energy cubes on the subsystem that does it, and they stay there until your next turn. That is how shields, racks and sensors keep working while others play.',
     cubes: 'This turn: shields, a rack and the scoop. Seven cubes.',
     heatCheck:
-      'At your heat check, every cube is one point of heat. You shed five, plus two for each radiator, and carry the rest. Over ten, every point over is hull damage. Damage your shields absorb, and a rack firing at missiles, also go on your heat track.',
+      'At your heat check, every cube is one point of heat. You dissipate five, plus two for each radiator, and carry the rest. Over ten, every point over is hull damage. Damage your shields absorb, and a rack firing at missiles, also go on your heat track.',
     check:
-      'Seven heat. Shed five, plus two for the radiator, and nothing carries over. Shedding that heat gives the radiator away.',
+      'Seven heat. Dissipate five, plus two for the radiator, and nothing carries over. Dissipating that heat gives the radiator away.',
     fight:
       'To shoot, name a slot on your target and roll a ten-sided die. A one misses, two to nine hits, and a ten is a critical: it also breaks the slot you named.',
     fire: 'The rack fires at the orange ship and rolls a six: a hit for two. Orange is at zero hull. Destroyed, it leaves a wreck.',
     critical:
       'The second rack fires at purple and rolls a ten. A critical: purple’s missiles are broken.',
     missiles:
-      'Missiles fly in salvos. One action launches any number at a ship in your well. The salvo flies three steps at once, then rides its orbit and flies three more each turn. A powered rack can shoot them down on a two or better.',
+      'Missiles fly in salvos. One action launches any number at a ship in your well. The salvo flies three steps at once, then flies three more and rides its orbit each turn, in either order. A powered rack can shoot them down on a two or better.',
     launch: 'Purple launches a salvo of four at orange. It flies three steps straight away.',
     intercept:
       'On purple’s next turn, it rides its orbit and catches orange. But orange’s rack shoots down all four.',
@@ -276,7 +276,7 @@ export const EXPLAINER = {
     cubes: 'cubes on the ship',
     carried: 'carried in',
     atCheck: 'heat at the check',
-    dissipate: 'shed',
+    dissipate: 'dissipates',
     radiator: 'radiator',
     next: 'into your next turn',
   },

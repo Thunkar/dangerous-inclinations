@@ -31,7 +31,7 @@ export const TURN = {
     missiles: {
       title: 'Missiles',
       blurb:
-        "Each of yours launched on an earlier turn rides its orbit, flies {steps} steps and attacks if it reaches its target's sector. A new one flew when you launched it.",
+        "Each of yours launched on an earlier turn flies {steps} steps and rides its orbit, in the order you choose, and attacks if its flight ends on its target's sector. A new one flew when you launched it.",
       terse: 'Older ones ride the orbit, fly {steps}, hit on its sector',
     },
     heatCheck: {

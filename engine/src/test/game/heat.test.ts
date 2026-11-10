@@ -26,7 +26,7 @@ import {
 
 describe("heat: end-of-turn resolution", () => {
   // Heat is a track: only the part above MAX_HEAT is hull, and whatever is left
-  // after shedding the dissipation (5 here) rides into the next turn.
+  // after dissipating (5 here) rides into the next turn.
   it.each([
     [0, 10, 0, false],
     [5, 10, 0, false],
@@ -239,6 +239,20 @@ describe("heat: radiators", () => {
     expect(getDissipationCapacity(getShip(state, "p1").subsystems)).toBe(expected);
   });
 
+  it.each([
+    // A cool check reports only what it dissipated, the same with or without a
+    // radiator, so the table cannot read a face-down one off the event.
+    ["a cool check, radiator aboard", LOADOUTS.radiator, 4, 4, 0],
+    ["a cool check, no radiator", LOADOUTS.gunship, 4, 4, 0],
+    ["a hot check dissipates what the hull can", LOADOUTS.radiator, 9, 7, 2],
+    ["a redline dissipates from the redline", LOADOUTS.gunship, 13, 5, 5],
+  ])("the heat check reports the heat dissipated: %s", (_label, loadout, track, dissipated, carried) => {
+    const ship = { ...getShip(makeTwoPlayerGame({ loadout }), "p1"), heat: { currentHeat: track } };
+    const check = resolveEndOfTurnHeat(ship, "p1").events.find((e) => e.type === "heat_check");
+    expect(check).toMatchObject({ dissipated, carried });
+    expect(check).not.toHaveProperty("dissipation");
+  });
+
   it("a broken radiator does not dissipate", () => {
     const state = withSub(makeTwoPlayerGame({ loadout: LOADOUTS.radiator }), "p1", "side-0", {
       isBroken: true,
@@ -249,7 +263,7 @@ describe("heat: radiators", () => {
   });
 
   it.each([
-    ["is revealed when it sheds heat past the base 5", 7, true],
+    ["is revealed when it dissipates heat past the base 5", 7, true],
     ["stays face-down while heat is within the base 5", 5, false],
   ])("a radiator %s", (_label, heat, revealed) => {
     const state = withShip(makeTwoPlayerGame({ loadout: LOADOUTS.radiator }), "p1", {
@@ -264,7 +278,7 @@ describe("heat: radiators", () => {
               playerId: "p1",
               subsystemId: "side-0",
               subsystemType: "radiator",
-              reason: "shed_heat",
+              reason: "dissipating",
             }),
           ]
         : []

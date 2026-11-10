@@ -158,17 +158,20 @@ describe("weapons: missile range (turret)", () => {
     expect(isInWeaponRange(launcher, attackerAt(3, 0, "retrograde"), target)).toBe(true);
   });
 
-  // The flight is the range: three moves of three steps, with the missile
-  // drifting before every move but the first, and the target after each one.
-  // From R3 S0 that reaches nine sectors either way round the ring, not the far side.
+  // The flight is the range: three moves of three steps, the missile riding
+  // before or after each flight but the first, and the target drifting after
+  // each one. Flying before the ride lets it attack before it drifts on, so
+  // from R3 S0 it reaches nine sectors ahead and eleven behind, not the far side.
   it.each([
     ["two sectors away", at(3, 2), true],
     ["nine sectors ahead", at(3, 9), true],
     ["ten sectors ahead", at(3, 10), false],
     ["the far side of the ring", at(3, 12), false],
     ["nine sectors behind", at(3, 15), true],
+    ["eleven sectors behind", at(3, 13), true],
     ["two rings in, three sectors", at(1, 3), true],
-    ["two rings in, half the ring away", at(1, 12), false],
+    ["two rings in, half the ring away", at(1, 12), true],
+    ["two rings in, nine sectors ahead", at(1, 9), false],
   ])("a missile launched at R3 S0 at a target %s: reaches %s", (_label, target, expected) => {
     expect(missileCanReach(at(3, 0), target)).toBe(expected);
   });

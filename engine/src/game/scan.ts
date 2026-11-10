@@ -80,6 +80,7 @@ export function processScan(state: GameState, action: ScanAction): ScanResult {
   events.push({
     type: "scanned",
     scannerId: scanner.id,
+    sensorId: sensor.id,
     targetId: target.id,
     peekedSlot: peekSlot,
     heat: used.heat,

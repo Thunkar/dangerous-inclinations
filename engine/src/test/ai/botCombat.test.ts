@@ -68,8 +68,12 @@ describe("bot targeting", () => {
   });
 
   it.each<[string, (s: GameState) => GameState]>([
-    // Outside the railgun's arc and every broadside, and too far for a missile.
-    ["on the far side of the ring", (s) => withShip(s, "p2", { ring: 3, sector: 14 })],
+    // Outside the railgun's arc and every broadside, with no missile to send
+    // (a missile that may fly before its ride reaches the far side of the ring).
+    [
+      "on the far side of the ring, the magazine empty",
+      (s) => withSub(withShip(s, "p2", { ring: 3, sector: 12 }), "p1", "side-3", { ammo: 0 }),
+    ],
     ["in another gravity well", (s) => withShip(s, "p2", { wellId: ALPHA, ring: 3, sector: 0 })],
     ["destroyed", (s) => withShip(s, "p2", { hitPoints: 0 })],
     ["back from Home and untouchable", (s) => withPlayer(s, "p2", { recovering: true })],

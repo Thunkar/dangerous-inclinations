@@ -330,6 +330,32 @@ describe("missiles: movement at the end of the owner's turn", () => {
   });
 });
 
+describe("missiles: flying before or after the ride", () => {
+  // p2 on R2 (6 sectors a ride) two sectors behind a missile that has flown once.
+  const behind = (sector: number) =>
+    withMissile(makeTwoPlayerGame({ ring: 4, sector: 20 }, { ring: 2, sector: 10 }), {
+      ring: 2,
+      sector,
+      movesMade: 1,
+    });
+
+  it.each([
+    // Riding first would carry it 6 on and leave the target 8 behind: flying
+    // first turns it back onto the target before the ride.
+    ["two sectors ahead of its target: it flies first and attacks", 12, true, { ring: 2, sector: 10 }],
+    // Ahead by 6 to 9, riding first carries it away and flying first still
+    // falls short, so it rides first and flies back: no attack this move.
+    ["five sectors ahead: it cannot attack either way", 15, false, null],
+  ] as const)("%s", (_label, sector, attacks, at) => {
+    const result = processOwnerMissiles({ ...behind(sector), forcedRollValue: 5 }, "p1");
+    expect(eventTypes(result.events as never).includes("attack_resolved")).toBe(attacks);
+    if (at) {
+      const target = { wellId: BH, ...at };
+      expect(projectMissilePath(behind(sector).missiles[0], target).at(-1)).toEqual(target);
+    }
+  });
+});
+
 describe("missiles: on the target's sector", () => {
   /** A missile already sitting where p2 will still be after its drift: p2 on R5 S12 (drift 1) -> S13; missile on R5 S12 drifts to S13. */
   const onTarget = (targetLoadout?: ShipLoadout) =>

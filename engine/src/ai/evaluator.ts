@@ -41,7 +41,7 @@ function offense(plan: ActionPlan, situation: TacticalSituation): number {
  * 25 a point of actual damage costs, because carried heat is a debt and not a
  * wound, but it is next turn's budget spent in advance, so between two plans
  * that do the same thing the cooler one wins, and a ship near the top of the
- * track will spend a turn shedding rather than bank one more point.
+ * track will spend a turn dissipating rather than bank one more point.
  */
 const CARRIED_HEAT_PENALTY = 3;
 

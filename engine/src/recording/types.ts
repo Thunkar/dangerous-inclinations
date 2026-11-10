@@ -12,7 +12,7 @@ import type { GameEvent } from "../models/events.ts";
  * v7: `Player.points` and `mission_completed.points`; Survey has no station and
  *     Intercept and Survey no taken flag (the data aboard says it); tiles carry
  *     no `isPowered`; missiles no `turnFired`; `heat_damage` is folded into
- *     `heat_check`; the radiator's reveal reason is `shed_heat`;
+ *     `heat_check`; the radiator's reveal reason is `shed_heat` (`dissipating` since v23);
  *     `missile_intercepted` has no heat and a missile's `attack_resolved` names
  *     it; a kill removes loot instead of leaving it un-picked.
  * v8: one sale per station and no hold limit: `Player.soldAt`, `dock_job`
@@ -48,8 +48,12 @@ import type { GameEvent } from "../models/events.ts";
  *     `salvage` may name no wreck, and `action_skipped` may be a `salvage`.
  * v22: a shield's absorbing cubes are spent for the player-turn only and stay
  *     on it; `rollsThisTurn` is `spentThisTurn`, a shield's spent cubes too.
+ * v23: a missile flies before or after its ride; `heat_check` reports `dissipated`
+ *     (what the check took off the track) for `dissipation`; the radiator's
+ *     reveal reason is `dissipating`; `missile_intercepted` names `rackId` and its `heat`;
+ *     `scanned` names `sensorId`.
  */
-export const RECORDING_SCHEMA_VERSION = 22;
+export const RECORDING_SCHEMA_VERSION = 23;
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

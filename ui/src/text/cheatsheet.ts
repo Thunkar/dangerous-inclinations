@@ -247,7 +247,7 @@ export const CHEATSHEET = {
         flies: 'flies {steps}, rings first',
       },
       caption:
-        'A missile flies {steps} steps the moment you launch it, from the sector you dropped it on, and hits before the rest of your turn. Your move afterwards leaves it there. At the end of every turn after that it rides its orbit, then flies {steps}. On the target’s sector it attacks like a weapon ({damage} damage), unless a rack with energy on it shoots it down on {on}+. It lasts {turns} turns.',
+        'A missile flies {steps} steps the moment you launch it, from the sector you dropped it on, and hits before the rest of your turn. Your move afterwards leaves it there. At the end of every turn after that it flies {steps} and rides its orbit, in the order you choose. On the target’s sector it attacks like a weapon ({damage} damage), unless a rack with energy on it shoots it down on {on}+. It lasts {turns} turns.',
     },
     /** The two columns of points at the foot of the section. */
     hits: [

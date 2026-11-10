@@ -35,7 +35,7 @@ export const RANGE_CARDS = {
     disruptor:
       'No damage. A hit breaks an enemy subsystem of your choice. Any shield with energy left this turn stops it.',
     missiles:
-      'A salvo flies {steps} steps on launch. After each of your turns it flies {steps} steps + orbital drift. They disappear after 3 turns or when hitting the target',
+      'A salvo flies {steps} steps on launch. After each of your turns it flies {steps} steps before or after its orbital drift. They disappear after 3 turns or when hitting the target',
     sensor_array: 'Peek at one face-down slot. While powered, you crit on {crit}–10.',
   } satisfies Record<RangeCardType, string>,
 

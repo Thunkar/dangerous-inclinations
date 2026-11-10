@@ -169,8 +169,8 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
         : `${name(e.victimId)} is destroyed by heat`;
     case "heat_check":
       return e.damage > 0
-        ? `${name(e.playerId)} redlines at ${e.heat} heat: ${e.damage} hull, dissipates ${e.dissipation}, carries ${e.carried}`
-        : `${name(e.playerId)} runs ${e.heat} heat, dissipates ${e.dissipation}, carries ${e.carried}`;
+        ? `${name(e.playerId)} redlines at ${e.heat} heat: ${e.damage} hull, dissipates ${e.dissipated}, carries ${e.carried}`
+        : `${name(e.playerId)} runs ${e.heat} heat, dissipates ${e.dissipated}, carries ${e.carried}`;
     case "scanned":
       return `${name(e.scannerId)} scans ${name(e.targetId)} (${e.peekedSlot})${heat(e.heat)}`;
     case "scan_result":

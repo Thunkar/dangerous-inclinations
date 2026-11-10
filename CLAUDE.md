@@ -112,7 +112,7 @@ Turn: (respawn turn if destroyed) → clear the loadout → actions in chosen or
 rotate, one move: coast/burn/jump, fire, scan, seize, survey, salvage, mark; a
 missile flies its 3 steps and may attack the moment it is launched, and a
 seizure, a survey, a salvage and a mark take effect where they come) → own
-missiles from earlier turns ride and fly → heat
+missiles from earlier turns fly and ride, in the order that lands → heat
 check (over 10 is hull damage, then dissipate and carry the rest) → docking (on
 arrival only, and not for a ship its check destroyed) → missions (completed
 cards face-up, Escorts paid) →
@@ -1164,6 +1164,23 @@ not an argument:
   (40-game noise), dealt Destroy / Deliver / Intercept 38 / 40 / 28 → 35 /
   40 / 25, failing flags four → three. The bots rarely take two attackers'
   fire between turns, so it is a rule for the table more than a lever.
+- **A missile flies before or after its ride.** Adopted 10 Nov 2026, the
+  designer's rule: on each of its owner's later turns a missile flies its
+  three steps and rides its orbit in either order, and attacks if its
+  flight ends on the target's sector. Flying first lets it turn back onto a
+  ship it has passed before its ring carries it on: on its own ring from R3
+  S0 it reaches nine sectors ahead and eleven behind, against nine either
+  way. The engine chooses for every player (`planMissileMove`): an order
+  that attacks, else the end nearest the target as it coasts, ties to
+  riding first; `missileCanReach` searches both orders each move. Measured
+  against riding first on the same seeds: 300 games at 3 / 4 / 5 / 6 seats,
+  missiles reaching their target 54 / 54 / 55 / 53% -> 63 / 63 / 62 / 62%,
+  missile hull damage +17%, kills 2.6 / 5.0 / 7.8 / 10.9 -> 2.7 / 5.2 / 7.9 /
+  11.7, length unchanged; the balance suite at 200 games a row mean row
+  -0.44pp, no launcher or rack row past 4, the one failing flag
+  (`illogical:convoy+destroy`) its bar moving 38 -> 33 under a row at 35
+  both times. The `--quick` run had read the sensor bow with three
+  launchers +15: it was +2 at 200 games.
 - **Docking before the heat check.** Replaced 7 Oct 2026, the designer's
   decision: the check comes first and the dock after it. With the dock
   first, a ship low on hull could cook itself on the approach, be restored to
