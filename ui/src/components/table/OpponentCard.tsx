@@ -35,7 +35,7 @@ import { missionFamilyColor, missionFamilyLabel } from '../../utils/missions'
 import { hullOf, slotLabel } from '../../utils/slots'
 import { agentLabel } from '../../utils/agents'
 import { useGame } from '../../context/GameContext'
-import { useAnimationControls } from '../../context/AnimationContext'
+import { useAnimationControls, useLiveView } from '../../context/AnimationContext'
 import { EscortedBy } from './EscortedBy'
 import { SoldAt } from './SoldAt'
 
@@ -55,7 +55,7 @@ interface OpponentCardProps {
 }
 
 export function OpponentCard({
-  player,
+  player: committed,
   color,
   picking,
   onPickSlot,
@@ -64,6 +64,9 @@ export function OpponentCard({
   isTargeted,
   pulses,
 }: OpponentCardProps) {
+  // While a turn plays the card follows it beat by beat, not the view it will commit.
+  const live = useLiveView()
+  const player = live?.players.find(p => p.id === committed.id) ?? committed
   const ship = player.ship
   const destroyed = ship?.isDestroyed ?? false
   const { ping } = useAnimationControls()

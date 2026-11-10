@@ -33,6 +33,7 @@ import {
   type EffectDraft,
   type TableEffect,
 } from '../animation/beats'
+import { foldEvent, liveStart } from '../animation/liveView'
 
 interface AnimationContextValue {
   /** Non-null while a turn is being played; the board renders this instead of the view. */
@@ -100,6 +101,14 @@ export interface Playback {
 const PlaybackContext = createContext<Playback | null>(null)
 
 /**
+ * The view the cards show while a turn plays: the turn's start with the
+ * events played so far folded in (`animation/liveView.ts`). It changes only on
+ * the beats that move a card, and is null between turns, when the committed
+ * view is the cards' own.
+ */
+const LiveViewContext = createContext<GameView | null>(null)
+
+/**
  * A ping: rings that expand off the hull, one after another, the way a
  * locator sweeps. Three is enough to catch an eye that is looking elsewhere
  * on the board; the whole thing is over in a second and a half.
@@ -140,6 +149,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
   const [effects, setEffects] = useState<TableEffect[]>([])
   const [dice, setDice] = useState<DieRoll[]>([])
   const [pulses, setPulses] = useState<Record<string, number>>({})
+  const [liveView, setLiveView] = useState<GameView | null>(null)
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const skipRef = useRef<(() => void) | null>(null)
@@ -263,6 +273,8 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
   const animate = useCallback(
     (prev: GameView, next: GameView, events: GameEvent[], done: () => void) => {
       let state = beatStart(prev)
+      let live = liveStart(prev)
+      setLiveView(live)
       setDice([])
       setOverlay(state.board)
       setPlayback({ id: nextId('playback'), actorId: prev.activePlayerId })
@@ -274,6 +286,11 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
       const apply = (event: GameEvent): number => {
         const beat = eventToBeat(state, next, event, { now: performance.now(), tempo: tempo() })
         state = beat.state
+        const folded = foldEvent(live, event, next)
+        if (folded !== live) {
+          live = folded
+          setLiveView(live)
+        }
         for (const effect of beat.effects) pushEffect(effect)
         if (beat.dice.length > 0)
           setDice(d => [...d, ...beat.dice.map(die => ({ ...die, id: nextId('die') }))])
@@ -296,6 +313,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         setOverlay(null)
         setShot(null)
         setPlayback(null)
+        setLiveView(null)
         done()
       }
 
@@ -362,6 +380,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
         setOverlay(null)
         setShot(null)
         setPlayback(null)
+        setLiveView(null)
         setEffects([])
         setDice([])
       }
@@ -418,7 +437,9 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
       <ControlsContext.Provider value={controls}>
         <DiceContext.Provider value={dice}>
           <PulsesContext.Provider value={pulses}>
-            <PlaybackContext.Provider value={playback}>{children}</PlaybackContext.Provider>
+            <PlaybackContext.Provider value={playback}>
+              <LiveViewContext.Provider value={liveView}>{children}</LiveViewContext.Provider>
+            </PlaybackContext.Provider>
           </PulsesContext.Provider>
         </DiceContext.Provider>
       </ControlsContext.Provider>
@@ -462,4 +483,13 @@ export function usePlayback(): Playback | null {
 
 export function usePulses(): Record<string, number> {
   return useContext(PulsesContext)
+}
+
+/**
+ * The view as far as the turn playing has gone, for the cards; null when no
+ * turn is playing. Changes on the beats that move a hull, a track, a cube or
+ * a tile, so read it in a card, never in the table around the cards.
+ */
+export function useLiveView(): GameView | null {
+  return useContext(LiveViewContext)
 }

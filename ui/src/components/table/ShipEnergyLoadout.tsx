@@ -14,6 +14,10 @@
  * There is no reactor to draw. Nothing caps what a ship powers at once: every
  * point of energy here is a point of heat at the check, and the status block's
  * heat readout is where that lands.
+ *
+ * Off your turn, and while any turn plays, the same mat is a plain readout of
+ * the tiles you pass in: the energy really standing on them and what is
+ * broken, with nothing about a plan.
  */
 import { Box, Typography } from '@mui/material'
 import type { Hull, Subsystem, SubsystemId } from '@dangerous-inclinations/engine'
@@ -23,7 +27,7 @@ import { SubsystemTile } from '../common/SubsystemTile'
 import { ShipDisplay } from '../ship'
 import { useGame } from '../../context/GameContext'
 import { getPlayerColor } from '../../utils/playerColors'
-import { usePlan } from '../../context/PlanContext'
+import { usePlanOptional } from '../../context/PlanContext'
 import { usePulses } from '../../context/AnimationContext'
 import { hullOf, slotWithSubsystem } from '../../utils/slots'
 import { poweredEffect } from '../../site/numbers'
@@ -35,15 +39,24 @@ const CUBE = 7
 const FORWARD_IDS = SLOT_IDS.filter(id => id.startsWith('forward'))
 const SIDE_IDS = SLOT_IDS.filter(id => id.startsWith('side'))
 
-export function ShipEnergyLoadout() {
-  const plan = usePlan()
+export function ShipEnergyLoadout({
+  subsystems,
+  planned = false,
+}: {
+  /** The tiles to draw: the plan's while you build a turn, the ship's otherwise. */
+  subsystems: Subsystem[]
+  /** Drawn from the turn being planned: weapon focus, "used by" and what the plan powers. */
+  planned?: boolean
+}) {
+  const optionalPlan = usePlanOptional()
+  const plan = planned ? optionalPlan : null
   const { view } = useGame()
   const pulses = usePulses()
-  const me = plan.me
+  const me = optionalPlan?.me ?? view.me!
   const hull = hullOf(me)
 
   const subsystem = (id: SubsystemId): Subsystem | undefined =>
-    plan.pendingSubsystems.find(s => s.id === id)
+    subsystems.find(s => s.id === id)
 
   const tile = (id: SubsystemId) => {
     const sub = subsystem(id)
@@ -69,8 +82,8 @@ export function ShipEnergyLoadout() {
           size={TILE}
           cubeSize={CUBE}
           pulse={Boolean(pulses[`${me.id}:${sub.id}`])}
-          selected={plan.focusWeaponId === sub.id}
-          tooltip={<TileTip sub={sub} hull={hull} usedBy={plan.usedBy(sub.id)} />}
+          selected={plan !== null && plan.focusWeaponId === sub.id}
+          tooltip={<TileTip sub={sub} hull={hull} usedBy={plan ? plan.usedBy(sub.id) : null} />}
         />
       </Box>
     )
@@ -79,8 +92,8 @@ export function ShipEnergyLoadout() {
   // Everything that works on other players' turns once this plan is flown: a
   // tile the plan powers, and a rack it fires or a sensor it scans with, which
   // keep their energy until the next turn as well.
-  const up = plan.pendingSubsystems.filter(s => isPowerableType(s.type) && s.allocatedEnergy > 0)
-  const powerable = plan.pendingSubsystems.some(s => isPowerableType(s.type) && !s.isBroken)
+  const up = subsystems.filter(s => isPowerableType(s.type) && s.allocatedEnergy > 0)
+  const powerable = subsystems.some(s => isPowerableType(s.type) && !s.isBroken)
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25 }}>
@@ -107,7 +120,7 @@ export function ShipEnergyLoadout() {
                 .map(
                   s =>
                     `${getSubsystemConfig(s.type).name} ${s.allocatedEnergy}${
-                      (plan.powers[s.id] ?? 0) > 0
+                      !plan || (plan.powers[s.id] ?? 0) > 0
                         ? ''
                         : s.type === 'sensor_array'
                           ? ' (scans)'

@@ -661,12 +661,14 @@ export function eventToBeat(
         burst(event.playerId, TABLE.success, 26, 600, event.position)
         return BEAT.small
       case 'heat_check':
-        if (event.damage > 0) {
-          float(event.playerId, `${event.damage} heat`, 'heat', FLOAT.normal)
-          return BEAT.small
-        }
-        if (event.carried > 0) mark(event.playerId, `HEAT +${event.carried}`, 'heat')
-        return event.carried > 0 ? BEAT.small : 0
+        // An ordinary check is the heat track moving on the card: only the
+        // redline, where heat turns into hull, is worth a mark on the board.
+        if (event.damage <= 0) return 0
+        mark(event.playerId, `REDLINE −${event.damage} HULL`, 'damage')
+        return BEAT.small
+      case 'subsystem_repaired':
+        mark(event.playerId, 'REPAIRED', 'good')
+        return BEAT.small
       case 'weapon_fired': {
         const ends = {
           from: at(event.attackerId),

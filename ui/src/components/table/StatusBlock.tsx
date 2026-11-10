@@ -19,6 +19,7 @@ import { FONT_MONO, TABLE } from '../../theme'
 import { CargoTokens, PipTrack } from '../common/Tokens'
 import { useGame } from '../../context/GameContext'
 import { usePlanOptional } from '../../context/PlanContext'
+import { useLiveView } from '../../context/AnimationContext'
 import { EscortedBy } from './EscortedBy'
 import { SoldAt } from './SoldAt'
 import { hullOf, slotShortLabel, slotWithSubsystem } from '../../utils/slots'
@@ -52,7 +53,9 @@ function MissilePip({ spent, broken }: { spent: boolean; broken: boolean }) {
 export function StatusBlock({ accent }: { accent?: string }) {
   const { view } = useGame()
   const plan = usePlanOptional()
-  const me = plan?.me ?? view.me
+  // While a turn plays the tracks follow it, and nothing is being planned.
+  const live = useLiveView()
+  const me = live ? live.me : (plan?.me ?? view.me)
   if (!me) return null
 
   const stats = view.myStats
@@ -68,7 +71,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
    * time the check has already billed what your tiles hold, so there is no
    * ghost.
    */
-  const planning = plan?.isMyTurn === true
+  const planning = plan?.isMyTurn === true && !live
   const heatAfter = planning ? plan.projectedHeat : heatNow
   const heatMax = MAX_HEAT
   const overHeat = Math.max(0, heatAfter - MAX_HEAT)
@@ -76,7 +79,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
   const carried = heatAfterCheck(heatAfter, dissipation)
 
   const fuelNow = me.ship.reactionMass
-  const fuelAfter = plan ? plan.projectedFuel : fuelNow
+  const fuelAfter = plan && !live ? plan.projectedFuel : fuelNow
 
   const missiles = me.ship.subsystems.filter(s => s.type === 'missiles')
   const perTubeMax = getMissileStats().maxAmmo

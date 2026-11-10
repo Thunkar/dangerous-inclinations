@@ -53,6 +53,7 @@ import {
   phasedJumpDestination,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../context/PlanContext'
+import { useLiveView } from '../../context/AnimationContext'
 import { salvageOptionKey, seizeKey } from '../../plan/preview'
 import { useGame } from '../../context/GameContext'
 import { Panel, SectionLabel } from '../common/Panel'
@@ -94,7 +95,7 @@ export function ActionPanel() {
 
   // Whatever state the table is in, your own tracks stay at the top of the
   // column: hull, heat and fuel are never something to go looking for.
-  if (view.phase === 'ended' || readOnly || waiting || destroyed) {
+  if (view.phase === 'ended' || readOnly || waiting || destroyed || isAnimating) {
     const title =
       view.phase === 'ended'
         ? 'Game over'
@@ -106,6 +107,7 @@ export function ActionPanel() {
     return (
       <TurnShell title={title} slab={sittingOut}>
         <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', pt: 0.75 }}>
+          <StandingLoadout />
           <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
             {view.phase === 'ended'
               ? winner
@@ -184,7 +186,7 @@ export function ActionPanel() {
         {/* What the turn puts on the loadout: read here, set by the steps below. */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, minWidth: 0 }}>
           <SectionLabel sx={{ lineHeight: 1.35 }}>Loadout · energy this turn</SectionLabel>
-          <ShipEnergyLoadout />
+          <ShipEnergyLoadout subsystems={plan.pendingSubsystems} planned />
         </Box>
 
         <Divider />
@@ -264,6 +266,19 @@ export function ActionPanel() {
       </Box>
     </TurnShell>
   )
+}
+
+/**
+ * Off your turn: what really stands on your tiles and what is broken, as the
+ * turn playing leaves them. Its own component, so only it re-renders with the
+ * beats of a playback.
+ */
+function StandingLoadout() {
+  const { view } = useGame()
+  const live = useLiveView()
+  const me = live ? live.me : view.me
+  if (!me) return null
+  return <ShipEnergyLoadout subsystems={me.ship.subsystems} />
 }
 
 /**
