@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
-import type { Facing, GameState } from "../../models/game.ts";
-import { legalMoves, phasingAllowed, projectPosition } from "../../game/movement.ts";
-import { executeTurn } from "../../game/turns.ts";
+import { describe, it, expect } from 'vitest'
+import type { Facing, GameState } from '../../models/game.ts'
+import { legalMoves, phasingAllowed, projectPosition } from '../../game/movement.ts'
+import { executeTurn } from '../../game/turns.ts'
 import {
   LOADOUTS,
   ALPHA,
@@ -20,13 +20,13 @@ import {
   withPower,
   withShip,
   withSub,
-} from "../testUtils.ts";
+} from '../testUtils.ts'
 
 /** p1 at `wellId` R`ring` S`sector`, p2 parked out of the way on black hole ring 5. */
-const shipAt = (wellId: string, ring: number, sector: number, facing: Facing = "prograde") =>
-  makeTwoPlayerGame({ wellId, ring, sector, facing }, { ring: 5, sector: 12 });
+const shipAt = (wellId: string, ring: number, sector: number, facing: Facing = 'prograde') =>
+  makeTwoPlayerGame({ wellId, ring, sector, facing }, { ring: 5, sector: 12 })
 
-describe("movement: drift", () => {
+describe('movement: drift', () => {
   it.each([
     [BH, 1, 0, 8],
     [BH, 2, 0, 6],
@@ -39,366 +39,365 @@ describe("movement: drift", () => {
     [ALPHA, 2, 22, 2],
     [ALPHA, 3, 22, 0],
     [ALPHA, 4, 23, 0],
-  ])("coasting on %s ring %i from sector %i lands on %i", (wellId, ring, sector, expected) => {
-    const state = mustExecute(shipAt(wellId, ring, sector), coast(1));
-    expect(getShip(state, "p1")).toMatchObject({ wellId, ring, sector: expected });
-  });
+  ])('coasting on %s ring %i from sector %i lands on %i', (wellId, ring, sector, expected) => {
+    const state = mustExecute(shipAt(wellId, ring, sector), coast(1))
+    expect(getShip(state, 'p1')).toMatchObject({ wellId, ring, sector: expected })
+  })
 
-  it("a turn without a movement action coasts automatically", () => {
-    const result = executeTurnAs(makeTwoPlayerGame());
-    expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "coasted")).toEqual([
+  it('a turn without a movement action coasts automatically', () => {
+    const result = executeTurnAs(makeTwoPlayerGame())
+    expect(result.errors).toBeUndefined()
+    expect(eventsOf(result.events, 'coasted')).toEqual([
       expect.objectContaining({
-        playerId: "p1",
+        playerId: 'p1',
         to: { wellId: BH, ring: 3, sector: 4 },
         scooped: false,
       }),
-    ]);
-  });
-});
+    ])
+  })
+})
 
-describe("movement: action sequencing", () => {
+describe('movement: action sequencing', () => {
   it.each([
-    ["two movement actions", [coast(1), burn(2, "soft")], [coast(1)]],
+    ['two movement actions', [coast(1), burn(2, 'soft')], [coast(1)]],
     [
-      "duplicate sequence numbers",
-      [rotate(1, "retrograde"), coast(1)],
-      [rotate(1, "retrograde"), coast(2)],
+      'duplicate sequence numbers',
+      [rotate(1, 'retrograde'), coast(1)],
+      [rotate(1, 'retrograde'), coast(2)],
     ],
     [
-      "a gap in the sequence",
-      [rotate(1, "retrograde"), coast(3)],
-      [rotate(1, "retrograde"), coast(2)],
+      'a gap in the sequence',
+      [rotate(1, 'retrograde'), coast(3)],
+      [rotate(1, 'retrograde'), coast(2)],
     ],
-    ["a sequence not starting at 1", [coast(2)], [coast(1)]],
+    ['a sequence not starting at 1', [coast(2)], [coast(1)]],
     [
-      "a tactical action without a sequence",
-      [{ type: "coast", data: { activateScoop: false } } as never],
+      'a tactical action without a sequence',
+      [{ type: 'coast', data: { activateScoop: false } } as never],
       [coast(1)],
     ],
-  ])("rejects %s, and accepts the same turn put right", (_label, actions, fixed) => {
-    const state = makeTwoPlayerGame();
-    const result = executeTurnAs(state, ...actions);
-    expectRefused(result, state);
-    expectRefusedUnless(result, executeTurnAs(state, ...fixed));
-  });
+  ])('rejects %s, and accepts the same turn put right', (_label, actions, fixed) => {
+    const state = makeTwoPlayerGame()
+    const result = executeTurnAs(state, ...actions)
+    expectRefused(result, state)
+    expectRefusedUnless(result, executeTurnAs(state, ...fixed))
+  })
 
-  it("rejects actions that belong to another player", () => {
-    const state = makeTwoPlayerGame();
-    const result = executeTurn(state, [{ ...coast(1), playerId: "p2" }]);
-    expectRefused(result, state);
-    expectRefusedUnless(result, executeTurn(state, [{ ...coast(1), playerId: "p1" }]));
-  });
-});
+  it('rejects actions that belong to another player', () => {
+    const state = makeTwoPlayerGame()
+    const result = executeTurn(state, [{ ...coast(1), playerId: 'p2' }])
+    expectRefused(result, state)
+    expectRefusedUnless(result, executeTurn(state, [{ ...coast(1), playerId: 'p1' }]))
+  })
+})
 
-describe("movement: burns", () => {
+describe('movement: burns', () => {
   it.each([
-    ["soft", "prograde", 4, 1],
-    ["medium", "prograde", 5, 2],
-    ["soft", "retrograde", 2, 1],
-    ["medium", "retrograde", 1, 2],
+    ['soft', 'prograde', 4, 1],
+    ['medium', 'prograde', 5, 2],
+    ['soft', 'retrograde', 2, 1],
+    ['medium', 'retrograde', 1, 2],
   ] as const)(
-    "a %s burn facing %s from BH ring 3 ends on ring %i for %i mass",
+    'a %s burn facing %s from BH ring 3 ends on ring %i for %i mass',
     (intensity, facing, ring, mass) => {
       // What a burn costs in heat is the energy table's (energy.test.ts).
-      const state = shipAt(BH, 3, 0, facing);
-      const result = executeTurnAs(state, burn(1, intensity));
-      expect(result.errors).toBeUndefined();
-      const ship = getShip(result.gameState, "p1");
-      expect(ship.ring).toBe(ring);
-      expect(ship.sector).toBe(4); // drift on ring 3 happens before the burn
-      expect(ship.reactionMass).toBe(10 - mass);
-      expect(eventsOf(result.events, "burned")[0]).toMatchObject({
+      const state = shipAt(BH, 3, 0, facing)
+      const result = executeTurnAs(state, burn(1, intensity))
+      expect(result.errors).toBeUndefined()
+      const ship = getShip(result.gameState, 'p1')
+      expect(ship.ring).toBe(ring)
+      expect(ship.sector).toBe(4) // drift on ring 3 happens before the burn
+      expect(ship.reactionMass).toBe(10 - mass)
+      expect(eventsOf(result.events, 'burned')[0]).toMatchObject({
         intensity,
         from: { wellId: BH, ring: 3, sector: 0 },
         to: { wellId: BH, ring, sector: 4 },
         massSpent: mass,
-      });
+      })
     }
-  );
+  )
 
   it.each([
-    ["prograde", 2, 5],
-    ["retrograde", 4, 1],
-  ] as const)("a hard burn facing %s from BH ring %i ends on ring %i", (facing, from, to) => {
-    const state = withPower(shipAt(BH, from, 0, facing), "p1", "engines", 3);
-    const result = executeTurnAs(state, burn(1, "hard"));
-    expect(result.errors).toBeUndefined();
-    expect(getShip(result.gameState, "p1").ring).toBe(to);
-  });
+    ['prograde', 2, 5],
+    ['retrograde', 4, 1],
+  ] as const)('a hard burn facing %s from BH ring %i ends on ring %i', (facing, from, to) => {
+    const state = withPower(shipAt(BH, from, 0, facing), 'p1', 'engines', 3)
+    const result = executeTurnAs(state, burn(1, 'hard'))
+    expect(result.errors).toBeUndefined()
+    expect(getShip(result.gameState, 'p1').ring).toBe(to)
+  })
 
   // The last column is a ring the same burn stays on the board from.
   it.each([
-    [BH, 5, "prograde", "soft", 4],
-    [BH, 3, "prograde", "hard", 2],
-    [BH, 1, "retrograde", "soft", 2],
-    [BH, 2, "retrograde", "medium", 3],
-    [ALPHA, 3, "prograde", "hard", 1],
-    [ALPHA, 2, "retrograde", "medium", 3],
+    [BH, 5, 'prograde', 'soft', 4],
+    [BH, 3, 'prograde', 'hard', 2],
+    [BH, 1, 'retrograde', 'soft', 2],
+    [BH, 2, 'retrograde', 'medium', 3],
+    [ALPHA, 3, 'prograde', 'hard', 1],
+    [ALPHA, 2, 'retrograde', 'medium', 3],
   ] as const)(
-    "a burn that would leave the rings is rejected: %s ring %i %s %s",
+    'a burn that would leave the rings is rejected: %s ring %i %s %s',
     (wellId, ring, facing, intensity, inside) => {
-      const at = (r: number) => withPower(shipAt(wellId, r, 0, facing), "p1", "engines", 3);
-      const state = at(ring);
-      const result = executeTurnAs(state, burn(1, intensity));
-      expectRefused(result, state);
-      expectRefusedUnless(result, executeTurnAs(at(inside), burn(1, intensity)));
+      const at = (r: number) => withPower(shipAt(wellId, r, 0, facing), 'p1', 'engines', 3)
+      const state = at(ring)
+      const result = executeTurnAs(state, burn(1, intensity))
+      expectRefused(result, state)
+      expectRefusedUnless(result, executeTurnAs(at(inside), burn(1, intensity)))
     }
-  );
+  )
 
-  it("rejects a burn the tank cannot pay for, and takes it one mass later", () => {
+  it('rejects a burn the tank cannot pay for, and takes it one mass later', () => {
     // Ring 2 prograde: a hard burn lands on ring 5, so the board is not the reason.
     const withMass = (mass: number) =>
-      withShip(makeTwoPlayerGame({ ring: 2 }), "p1", { reactionMass: mass });
+      withShip(makeTwoPlayerGame({ ring: 2 }), 'p1', { reactionMass: mass })
     // A hard burn is three mass.
-    const short = withMass(2);
-    const result = executeTurnAs(short, burn(1, "hard"));
-    expectRefused(result, short);
-    expectRefusedUnless(result, executeTurnAs(withMass(3), burn(1, "hard")));
-  });
+    const short = withMass(2)
+    const result = executeTurnAs(short, burn(1, 'hard'))
+    expectRefused(result, short)
+    expectRefusedUnless(result, executeTurnAs(withMass(3), burn(1, 'hard')))
+  })
 
-  it("rejects a burn when the engines are broken", () => {
-    const ready = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
-    const state = withSub(ready, "p1", "engines", { isBroken: true });
+  it('rejects a burn when the engines are broken', () => {
+    const ready = withPower(makeTwoPlayerGame(), 'p1', 'engines', 3)
+    const state = withSub(ready, 'p1', 'engines', { isBroken: true })
     expectRefusedUnless(
-      executeTurnAs(state, burn(1, "soft")),
-      executeTurnAs(ready, burn(1, "soft"))
-    );
-  });
-});
+      executeTurnAs(state, burn(1, 'soft')),
+      executeTurnAs(ready, burn(1, 'soft'))
+    )
+  })
+})
 
-describe("movement: phasing", () => {
+describe('movement: phasing', () => {
   it.each([
     [3, 7, 5],
     [-3, 1, 5],
     [-1, 3, 3],
   ])(
-    "adjustment %i from BH ring 3 lands on sector %i costing %i mass in total (medium burn)",
+    'adjustment %i from BH ring 3 lands on sector %i costing %i mass in total (medium burn)',
     (adjustment, sector, mass) => {
-      const state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
-      const result = executeTurnAs(state, burn(1, "medium", adjustment));
-      expect(result.errors).toBeUndefined();
-      expect(getShip(result.gameState, "p1").sector).toBe(sector);
-      expect(getShip(result.gameState, "p1").reactionMass).toBe(10 - mass);
+      const state = withPower(makeTwoPlayerGame(), 'p1', 'engines', 3)
+      const result = executeTurnAs(state, burn(1, 'medium', adjustment))
+      expect(result.errors).toBeUndefined()
+      expect(getShip(result.gameState, 'p1').sector).toBe(sector)
+      expect(getShip(result.gameState, 'p1').reactionMass).toBe(10 - mass)
     }
-  );
+  )
 
   it("braking is limited by the ring's velocity", () => {
     // Retrograde: a prograde burn from ring 5 would be refused for leaving the rings.
-    const slow = withPower(shipAt(BH, 5, 0, "retrograde"), "p1", "engines", 3);
+    const slow = withPower(shipAt(BH, 5, 0, 'retrograde'), 'p1', 'engines', 3)
     expectRefusedUnless(
-      executeTurnAs(slow, burn(1, "soft", -1)),
-      executeTurnAs(slow, burn(1, "soft", 0))
-    );
-    const fast = withPower(shipAt(BH, 1, 0), "p1", "engines", 3);
+      executeTurnAs(slow, burn(1, 'soft', -1)),
+      executeTurnAs(slow, burn(1, 'soft', 0))
+    )
+    const fast = withPower(shipAt(BH, 1, 0), 'p1', 'engines', 3)
     expectRefusedUnless(
-      executeTurnAs(fast, burn(1, "soft", -8)),
-      executeTurnAs(fast, burn(1, "soft", -7))
-    );
-    expect(getShip(executeTurnAs(fast, burn(1, "soft", -7)).gameState, "p1").sector).toBe(1);
-  });
+      executeTurnAs(fast, burn(1, 'soft', -8)),
+      executeTurnAs(fast, burn(1, 'soft', -7))
+    )
+    expect(getShip(executeTurnAs(fast, burn(1, 'soft', -7)).gameState, 'p1').sector).toBe(1)
+  })
 
-  it("acceleration is capped at +3", () => {
-    const state = withPower(makeTwoPlayerGame(), "p1", "engines", 3);
+  it('acceleration is capped at +3', () => {
+    const state = withPower(makeTwoPlayerGame(), 'p1', 'engines', 3)
     expectRefusedUnless(
-      executeTurnAs(state, burn(1, "soft", 4)),
-      executeTurnAs(state, burn(1, "soft", 3))
-    );
-  });
+      executeTurnAs(state, burn(1, 'soft', 4)),
+      executeTurnAs(state, burn(1, 'soft', 3))
+    )
+  })
 
-  it("rejects phasing the ship cannot pay for", () => {
-    const state = withShip(withPower(makeTwoPlayerGame(), "p1", "engines", 3), "p1", {
+  it('rejects phasing the ship cannot pay for', () => {
+    const state = withShip(withPower(makeTwoPlayerGame(), 'p1', 'engines', 3), 'p1', {
       reactionMass: 3,
-    });
+    })
     // A soft burn is one mass and each sector of phasing one more: 4 against 3.
     expectRefusedUnless(
-      executeTurnAs(state, burn(1, "soft", 3)),
-      executeTurnAs(state, burn(1, "soft", 2))
-    );
-  });
-});
+      executeTurnAs(state, burn(1, 'soft', 3)),
+      executeTurnAs(state, burn(1, 'soft', 2))
+    )
+  })
+})
 
-describe("movement: rotation", () => {
-  it("rotating flips the facing", () => {
+describe('movement: rotation', () => {
+  it('rotating flips the facing', () => {
     // What it costs is in the energy table (energy.test.ts).
-    const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
-    const result = executeTurnAs(state, rotate(1, "retrograde"));
-    expect(getShip(result.gameState, "p1").facing).toBe("retrograde");
-    expect(eventsOf(result.events, "rotated")).toEqual([
-      expect.objectContaining({ playerId: "p1", facing: "retrograde" }),
-    ]);
-  });
+    const state = withPower(makeTwoPlayerGame(), 'p1', 'rotation', 1)
+    const result = executeTurnAs(state, rotate(1, 'retrograde'))
+    expect(getShip(result.gameState, 'p1').facing).toBe('retrograde')
+    expect(eventsOf(result.events, 'rotated')).toEqual([
+      expect.objectContaining({ playerId: 'p1', facing: 'retrograde' }),
+    ])
+  })
 
-  it("rejects rotating to the way the ship already faces", () => {
-    const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
+  it('rejects rotating to the way the ship already faces', () => {
+    const state = withPower(makeTwoPlayerGame(), 'p1', 'rotation', 1)
     expectRefusedUnless(
-      executeTurnAs(state, rotate(1, "prograde")),
-      executeTurnAs(state, rotate(1, "retrograde"))
-    );
-  });
+      executeTurnAs(state, rotate(1, 'prograde')),
+      executeTurnAs(state, rotate(1, 'retrograde'))
+    )
+  })
 
-  it("rejects rotating on broken thrusters", () => {
-    const ready = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
-    const broken = withSub(ready, "p1", "rotation", { isBroken: true });
+  it('rejects rotating on broken thrusters', () => {
+    const ready = withPower(makeTwoPlayerGame(), 'p1', 'rotation', 1)
+    const broken = withSub(ready, 'p1', 'rotation', { isBroken: true })
     expectRefusedUnless(
-      executeTurnAs(broken, rotate(1, "retrograde")),
-      executeTurnAs(ready, rotate(1, "retrograde"))
-    );
-  });
+      executeTurnAs(broken, rotate(1, 'retrograde')),
+      executeTurnAs(ready, rotate(1, 'retrograde'))
+    )
+  })
 
-  it("the thrusters work once per turn", () => {
-    const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
+  it('the thrusters work once per turn', () => {
+    const state = withPower(makeTwoPlayerGame(), 'p1', 'rotation', 1)
     expectRefusedUnless(
-      executeTurnAs(state, rotate(1, "retrograde"), rotate(2, "prograde")),
-      executeTurnAs(state, rotate(1, "retrograde"))
-    );
-  });
+      executeTurnAs(state, rotate(1, 'retrograde'), rotate(2, 'prograde')),
+      executeTurnAs(state, rotate(1, 'retrograde'))
+    )
+  })
 
-  it("rotating before a burn changes its direction; rotating after does not", () => {
-    const state = withPower(makeTwoPlayerGame(), "p1", "rotation", 1);
-    const before = mustExecute(state, rotate(1, "retrograde"), burn(2, "soft"));
-    expect(getShip(before, "p1")).toMatchObject({ ring: 2, facing: "retrograde" });
-    const after = mustExecute(state, burn(1, "soft"), rotate(2, "retrograde"));
-    expect(getShip(after, "p1")).toMatchObject({ ring: 4, facing: "retrograde" });
-  });
-});
+  it('rotating before a burn changes its direction; rotating after does not', () => {
+    const state = withPower(makeTwoPlayerGame(), 'p1', 'rotation', 1)
+    const before = mustExecute(state, rotate(1, 'retrograde'), burn(2, 'soft'))
+    expect(getShip(before, 'p1')).toMatchObject({ ring: 2, facing: 'retrograde' })
+    const after = mustExecute(state, burn(1, 'soft'), rotate(2, 'retrograde'))
+    expect(getShip(after, 'p1')).toMatchObject({ ring: 4, facing: 'retrograde' })
+  })
+})
 
-describe("movement: fuel scoop", () => {
+describe('movement: fuel scoop', () => {
   it.each([
     [BH, 1, 2, 10],
     [BH, 3, 5, 9],
     [BH, 5, 5, 6],
     [ALPHA, 1, 0, 6],
-  ])("scooping on %s ring %i from %i mass gives %i", (wellId, ring, mass, expected) => {
+  ])('scooping on %s ring %i from %i mass gives %i', (wellId, ring, mass, expected) => {
     // Sector 6: a planet ring can carry a station, and the scoop cannot be
     // run in port (RULES §Stations): every station starts on sector 0.
-    let state = shipAt(wellId, ring, 6);
-    state = withShip(state, "p1", { reactionMass: mass });
-    const result = executeTurnAs(state, coast(1, true));
-    expect(result.errors).toBeUndefined();
-    expect(getShip(result.gameState, "p1").reactionMass).toBe(expected);
-    expect(eventsOf(result.events, "coasted")[0]).toMatchObject({ scooped: true, heat: 3 });
+    let state = shipAt(wellId, ring, 6)
+    state = withShip(state, 'p1', { reactionMass: mass })
+    const result = executeTurnAs(state, coast(1, true))
+    expect(result.errors).toBeUndefined()
+    expect(getShip(result.gameState, 'p1').reactionMass).toBe(expected)
+    expect(eventsOf(result.events, 'coasted')[0]).toMatchObject({ scooped: true, heat: 3 })
     // Fuel is public, so the gain is too: the cubes go on the loadout in the open.
-    const scooped = eventsOf(result.events, "fuel_scooped")[0];
-    expect(scooped).toMatchObject({ amount: expected - mass });
-    expect(scooped).not.toHaveProperty("privateTo");
-  });
+    const scooped = eventsOf(result.events, 'fuel_scooped')[0]
+    expect(scooped).toMatchObject({ amount: expected - mass })
+    expect(scooped).not.toHaveProperty('privateTo')
+  })
 
-  it("the scoop takes the headroom, never more: the tank holds 10 on every loadout", () => {
+  it('the scoop takes the headroom, never more: the tank holds 10 on every loadout', () => {
     // Black hole ring 1 offers eight; only the four that fit are taken.
-    const state = withShip(makeTwoPlayerGame({ ring: 1 }), "p1", { reactionMass: 6 });
-    expect(getShip(mustExecute(state, coast(1, true)), "p1").reactionMass).toBe(10);
-  });
+    const state = withShip(makeTwoPlayerGame({ ring: 1 }), 'p1', { reactionMass: 6 })
+    expect(getShip(mustExecute(state, coast(1, true)), 'p1').reactionMass).toBe(10)
+  })
 
-  it("rejects scooping with a broken scoop", () => {
-    const state = withSub(makeTwoPlayerGame(), "p1", "scoop", { isBroken: true });
+  it('rejects scooping with a broken scoop', () => {
+    const state = withSub(makeTwoPlayerGame(), 'p1', 'scoop', { isBroken: true })
     expectRefusedUnless(
       executeTurnAs(state, coast(1, true)),
       executeTurnAs(makeTwoPlayerGame(), coast(1, true))
-    );
-  });
-});
+    )
+  })
+})
 
-describe("movement: projectPosition", () => {
-  const ship = getShip(makeTwoPlayerGame(), "p1"); // BH R3 S0 prograde
+describe('movement: projectPosition', () => {
+  const ship = getShip(makeTwoPlayerGame(), 'p1') // BH R3 S0 prograde
 
-  it("projects a coast as pure drift", () => {
-    expect(projectPosition(ship)).toEqual({ wellId: BH, ring: 3, sector: 4, facing: "prograde" });
-  });
+  it('projects a coast as pure drift', () => {
+    expect(projectPosition(ship)).toEqual({ wellId: BH, ring: 3, sector: 4, facing: 'prograde' })
+  })
 
-  it("projects a burn after drift, honouring a planned rotation", () => {
+  it('projects a burn after drift, honouring a planned rotation', () => {
     expect(
-      projectPosition(ship, "retrograde", {
-        kind: "burn",
-        burnIntensity: "medium",
+      projectPosition(ship, 'retrograde', {
+        kind: 'burn',
+        burnIntensity: 'medium',
         sectorAdjustment: 1,
       })
     ).toEqual({
       wellId: BH,
       ring: 1,
       sector: 5,
-      facing: "retrograde",
-    });
-  });
+      facing: 'retrograde',
+    })
+  })
 
   it("projects a jump straight to the lane's destination without drift", () => {
-    const destination = { wellId: ALPHA, ring: 3, sector: 17 };
+    const destination = { wellId: ALPHA, ring: 3, sector: 17 }
     expect(
-      projectPosition(ship, "prograde", { kind: "jump", jumpDestination: destination })
-    ).toEqual({ ...destination, facing: "prograde" });
-  });
-});
+      projectPosition(ship, 'prograde', { kind: 'jump', jumpDestination: destination })
+    ).toEqual({ ...destination, facing: 'prograde' })
+  })
+})
 
-describe("movement: legalMoves agrees with the referee", () => {
+describe('movement: legalMoves agrees with the referee', () => {
   // BH ring 5, sector 1: inside Beta's outbound departure arc (sectors 0-3).
-  const ON_LANE = { wellId: BH, ring: 5, sector: 1 } as const;
+  const ON_LANE = { wellId: BH, ring: 5, sector: 1 } as const
   const setups: Array<[string, () => GameState]> = [
-    ["a full tank on ring 3", () => makeTwoPlayerGame({ ring: 3, sector: 0 })],
+    ['a full tank on ring 3', () => makeTwoPlayerGame({ ring: 3, sector: 0 })],
     [
-      "two fuel on ring 3",
-      () => withShip(makeTwoPlayerGame({ ring: 3 }), "p1", { reactionMass: 2 }),
+      'two fuel on ring 3',
+      () => withShip(makeTwoPlayerGame({ ring: 3 }), 'p1', { reactionMass: 2 }),
     ],
-    ["an empty tank", () => withShip(makeTwoPlayerGame({ ring: 3 }), "p1", { reactionMass: 0 })],
+    ['an empty tank', () => withShip(makeTwoPlayerGame({ ring: 3 }), 'p1', { reactionMass: 0 })],
     [
-      "broken engines",
-      () => withSub(makeTwoPlayerGame({ ring: 3 }), "p1", "engines", { isBroken: true }),
-    ],
-    [
-      "broken thrusters",
-      () => withSub(makeTwoPlayerGame({ ring: 3 }), "p1", "rotation", { isBroken: true }),
-    ],
-    ["the outermost ring", () => makeTwoPlayerGame({ ring: 5, sector: 12 })],
-    [
-      "a lane end with four fuel",
-      () => withShip(makeTwoPlayerGame(ON_LANE), "p1", { reactionMass: 4 }),
+      'broken engines',
+      () => withSub(makeTwoPlayerGame({ ring: 3 }), 'p1', 'engines', { isBroken: true }),
     ],
     [
-      "a lane end with a compressor and two fuel",
+      'broken thrusters',
+      () => withSub(makeTwoPlayerGame({ ring: 3 }), 'p1', 'rotation', { isBroken: true }),
+    ],
+    ['the outermost ring', () => makeTwoPlayerGame({ ring: 5, sector: 12 })],
+    [
+      'a lane end with four fuel',
+      () => withShip(makeTwoPlayerGame(ON_LANE), 'p1', { reactionMass: 4 }),
+    ],
+    [
+      'a lane end with a compressor and two fuel',
       () =>
-        withShip(makeTwoPlayerGame({ ...ON_LANE, loadout: LOADOUTS.compressorLasers }), "p1", {
+        withShip(makeTwoPlayerGame({ ...ON_LANE, loadout: LOADOUTS.compressorLasers }), 'p1', {
           reactionMass: 2,
         }),
     ],
-  ];
-  const ADJUSTMENTS = [-8, -3, -2, -1, 0, 1, 2, 3, 4];
+  ]
+  const ADJUSTMENTS = [-8, -3, -2, -1, 0, 1, 2, 3, 4]
 
   it.each(setups)(
-    "every burn from %s is listed exactly when the referee takes it",
+    'every burn from %s is listed exactly when the referee takes it',
     (_label, setup) => {
-      const state = setup();
-      const moves = legalMoves(getShip(state, "p1"));
-      for (const facing of ["prograde", "retrograde"] as const) {
-        for (const intensity of ["soft", "medium", "hard"] as const) {
+      const state = setup()
+      const moves = legalMoves(getShip(state, 'p1'))
+      for (const facing of ['prograde', 'retrograde'] as const) {
+        for (const intensity of ['soft', 'medium', 'hard'] as const) {
           for (const adjustment of ADJUSTMENTS) {
             const listed = moves.burns.some(
-              (b) =>
-                b.intensity === intensity && b.facing === facing && phasingAllowed(b, adjustment)
-            );
+              b => b.intensity === intensity && b.facing === facing && phasingAllowed(b, adjustment)
+            )
             const turn =
-              facing === getShip(state, "p1").facing
+              facing === getShip(state, 'p1').facing
                 ? executeTurnAs(state, burn(1, intensity, adjustment))
-                : executeTurnAs(state, rotate(1, facing), burn(2, intensity, adjustment));
-            expect(listed, `${facing} ${intensity} ${adjustment}`).toBe(turn.errors === undefined);
+                : executeTurnAs(state, rotate(1, facing), burn(2, intensity, adjustment))
+            expect(listed, `${facing} ${intensity} ${adjustment}`).toBe(turn.errors === undefined)
           }
         }
       }
     }
-  );
+  )
 
   it.each(setups)(
-    "every jump from %s is listed exactly when the referee takes it",
+    'every jump from %s is listed exactly when the referee takes it',
     (_label, setup) => {
-      const state = setup();
-      const moves = legalMoves(getShip(state, "p1"));
-      for (const destination of ["planet-alpha", "planet-beta", "planet-gamma"]) {
+      const state = setup()
+      const moves = legalMoves(getShip(state, 'p1'))
+      for (const destination of ['planet-alpha', 'planet-beta', 'planet-gamma']) {
         for (const adjustment of ADJUSTMENTS) {
           const listed = moves.jumps.some(
-            (j) => j.destinationWellId === destination && phasingAllowed(j, adjustment)
-          );
-          const turn = executeTurnAs(state, jump(1, destination, adjustment));
-          expect(listed, `${destination} ${adjustment}`).toBe(turn.errors === undefined);
+            j => j.destinationWellId === destination && phasingAllowed(j, adjustment)
+          )
+          const turn = executeTurnAs(state, jump(1, destination, adjustment))
+          expect(listed, `${destination} ${adjustment}`).toBe(turn.errors === undefined)
         }
       }
     }
-  );
-});
+  )
+})

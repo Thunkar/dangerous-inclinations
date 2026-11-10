@@ -3,16 +3,21 @@
 // plates (plates.mjs), reads each 3MF back with three.js's loader, draws it
 // on an MK4S bed in its colour and writes shots/plates/plates.png. A plate
 // printed in each player's colour is drawn once a colour.
-import { createServer } from "node:http";
-import { readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
-import { resolve, extname } from "node:path";
-import { chromium } from "playwright";
-import { BED } from "../plates.mjs";
-import { COLOUR, PLAYER_COLOURS } from "../colours.ts";
-import { buildPlates, counts } from "./plates.mjs";
+import { createServer } from 'node:http'
+import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
+import { resolve, extname } from 'node:path'
+import { chromium } from 'playwright'
+import { BED } from '../plates.mjs'
+import { COLOUR, PLAYER_COLOURS } from '../colours.ts'
+import { buildPlates, counts } from './plates.mjs'
 
-const ROOT = resolve("..");
-const TYPES = { ".js": "text/javascript", ".html": "text/html", ".3mf": "application/octet-stream", ".png": "image/png" };
+const ROOT = resolve('..')
+const TYPES = {
+  '.js': 'text/javascript',
+  '.html': 'text/html',
+  '.3mf': 'application/octet-stream',
+  '.png': 'image/png',
+}
 
 const PAGE = `<!doctype html><html><body style="margin:0;background:#1e1e1e">
 <script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
@@ -61,43 +66,53 @@ group.updateMatrixWorld(true);
 scene.add(group);
 renderer.render(scene, camera);
 window.done = true;
-</script></body></html>`;
+</script></body></html>`
 
 function serve() {
   const server = createServer((req, res) => {
-    const url = new URL(req.url, "http://x");
-    if (url.pathname === "/plate.html") return res.writeHead(200, { "content-type": "text/html" }).end(PAGE);
-    const file = resolve(ROOT, "." + decodeURIComponent(url.pathname));
-    if (!file.startsWith(ROOT) || !existsSync(file)) return res.writeHead(404).end();
-    res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(readFileSync(file));
-  });
-  return new Promise((ok) => server.listen(0, () => ok(server)));
+    const url = new URL(req.url, 'http://x')
+    if (url.pathname === '/plate.html')
+      return res.writeHead(200, { 'content-type': 'text/html' }).end(PAGE)
+    const file = resolve(ROOT, '.' + decodeURIComponent(url.pathname))
+    if (!file.startsWith(ROOT) || !existsSync(file)) return res.writeHead(404).end()
+    res
+      .writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' })
+      .end(readFileSync(file))
+  })
+  return new Promise(ok => server.listen(0, () => ok(server)))
 }
 
-const written = buildPlates();
-mkdirSync("shots/plates", { recursive: true });
-const server = await serve();
-const port = server.address().port;
-const browser = await chromium.launch({ args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
-const cards = [];
+const written = buildPlates()
+mkdirSync('shots/plates', { recursive: true })
+const server = await serve()
+const port = server.address().port
+const browser = await chromium.launch({
+  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+})
+const cards = []
 try {
-  const page = await browser.newPage({ viewport: { width: 800, height: 640 } });
-  page.on("pageerror", (e) => console.error("page:", e.message));
+  const page = await browser.newPage({ viewport: { width: 800, height: 640 } })
+  page.on('pageerror', e => console.error('page:', e.message))
   for (const w of written) {
-    const name = w.file.split("/").pop().replace(".3mf", "");
+    const name = w.file.split('/').pop().replace('.3mf', '')
     // A seat's plate once in each seat's colour, as [label, colour].
-    const colours = w.plate.colour === "player" ? PLAYER_COLOURS.map((c, k) => [`seat ${k + 1}`, c]) : [[w.plate.colour, COLOUR[w.plate.colour]]];
-    const shots = [];
+    const colours =
+      w.plate.colour === 'player'
+        ? PLAYER_COLOURS.map((c, k) => [`seat ${k + 1}`, c])
+        : [[w.plate.colour, COLOUR[w.plate.colour]]]
+    const shots = []
     for (const [label, hex] of colours) {
-      await page.goto(`http://localhost:${port}/plate.html?file=/cad/${w.file}&color=${encodeURIComponent(hex)}`);
-      await page.waitForFunction(() => window.done, null, { timeout: 120000 });
-      const png = `${name}${colours.length > 1 ? `-${label.replace(" ", "-")}` : ""}.png`;
-      await page.locator("canvas").screenshot({ path: `shots/plates/${png}` });
-      shots.push({ png, label, hex });
+      await page.goto(
+        `http://localhost:${port}/plate.html?file=/cad/${w.file}&color=${encodeURIComponent(hex)}`
+      )
+      await page.waitForFunction(() => window.done, null, { timeout: 120000 })
+      const png = `${name}${colours.length > 1 ? `-${label.replace(' ', '-')}` : ''}.png`
+      await page.locator('canvas').screenshot({ path: `shots/plates/${png}` })
+      shots.push({ png, label, hex })
     }
-    cards.push({ name, w, shots });
+    cards.push({ name, w, shots })
   }
-  const swatch = (label, hex) => `<span class=sw style="background:${hex}"></span>${label} ${hex}`;
+  const swatch = (label, hex) => `<span class=sw style="background:${hex}"></span>${label} ${hex}`
   const html = `<html><body style="margin:0;background:#1e1e1e;color:#e8dfc8;font:15px Inter,system-ui,sans-serif;width:1640px">
 <style>h1{margin:14px 16px 4px;font-size:28px}h2{background:#2a2a2a;color:#f07860;margin:10px 0 0;padding:6px 16px;font-size:18px}
 .grid{display:flex;flex-wrap:wrap;gap:14px;padding:12px 16px}.card{width:524px;background:#262626}.card.wide{width:100%}
@@ -107,20 +122,26 @@ figcaption{color:#ccc;margin-top:3px}.sw{display:inline-block;width:12px;height:
 <h1>Print plates for a table of six (Prusa MK4S, ${BED.x} x ${BED.y} mm)</h1>
 <p class=list>One 3MF a bed, in cad/out/plates/. Each plate is one colour, the game's where it draws the piece: print it in the nearest filament.</p>
 <div class=grid>${cards
-  .map(
-    ({ name, w, shots }) => `<div class="card${shots.length > 1 ? " wide" : ""}"><h2>${name}: ${w.plate.title}</h2>
-<p class=list>${w.pieces} pieces: ${counts(w.plate).map(([p, n]) => `${n} ${p.split("/").pop()}`).join(", ")}</p>
-<div class=r>${shots.map(({ png, label, hex }) => `<figure><img src="${png}"><figcaption>${swatch(label, hex)}</figcaption></figure>`).join("")}</div></div>`
-  )
-  .join("\n")}</div>
-</body></html>`;
-  writeFileSync("shots/plates/index.html", html);
-  await page.setViewportSize({ width: 1640, height: 900 });
-  await page.goto(`http://localhost:${port}/cad/shots/plates/index.html`);
-  await page.waitForLoadState("networkidle");
-  await page.screenshot({ path: "shots/plates/plates.png", fullPage: true });
-  console.log("shots/plates/plates.png");
+    .map(
+      ({
+        name,
+        w,
+        shots,
+      }) => `<div class="card${shots.length > 1 ? ' wide' : ''}"><h2>${name}: ${w.plate.title}</h2>
+<p class=list>${w.pieces} pieces: ${counts(w.plate)
+        .map(([p, n]) => `${n} ${p.split('/').pop()}`)
+        .join(', ')}</p>
+<div class=r>${shots.map(({ png, label, hex }) => `<figure><img src="${png}"><figcaption>${swatch(label, hex)}</figcaption></figure>`).join('')}</div></div>`
+    )
+    .join('\n')}</div>
+</body></html>`
+  writeFileSync('shots/plates/index.html', html)
+  await page.setViewportSize({ width: 1640, height: 900 })
+  await page.goto(`http://localhost:${port}/cad/shots/plates/index.html`)
+  await page.waitForLoadState('networkidle')
+  await page.screenshot({ path: 'shots/plates/plates.png', fullPage: true })
+  console.log('shots/plates/plates.png')
 } finally {
-  await browser.close();
-  server.close();
+  await browser.close()
+  server.close()
 }

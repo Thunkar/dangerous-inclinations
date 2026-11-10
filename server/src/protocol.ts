@@ -3,11 +3,11 @@
  * Every server → client game message carries a per-recipient GameView; a
  * GameState never leaves the server during a live game.
  */
-import type { GameEvent, GameView, PlayerAction } from "@dangerous-inclinations/engine";
+import type { GameEvent, GameView, PlayerAction } from '@dangerous-inclinations/engine'
 
 export interface ViewPayload {
-  view: GameView;
-  events: GameEvent[];
+  view: GameView
+  events: GameEvent[]
 }
 
 /**
@@ -16,33 +16,33 @@ export interface ViewPayload {
  */
 export interface TurnSummary {
   /** Position in the game's recording, for `GET /api/games/:gameId/turns/:index`. */
-  index: number;
+  index: number
   /** The round (`GameState.turn`) the turn was played in. */
-  turn: number;
+  turn: number
   /** Whose turn it was. */
-  actorId: string;
+  actorId: string
   /** Events of the turn the caller may see. */
-  eventCount: number;
+  eventCount: number
 }
 
 /** A turn as the caller saw it: the views it ran between and its events. */
 export interface TurnFrames {
-  from: GameView;
-  to: GameView;
-  events: GameEvent[];
+  from: GameView
+  to: GameView
+  events: GameEvent[]
 }
 
 export interface TurnExecutedPayload extends ViewPayload {
   /** Who acted. */
-  playerId: string;
-  turnNumber: number;
+  playerId: string
+  turnNumber: number
   /** Only present when the recipient is the actor. */
-  actions?: PlayerAction[];
+  actions?: PlayerAction[]
 }
 
 interface TurnErrorPayload {
-  error?: string;
-  errors?: string[];
+  error?: string
+  errors?: string[]
 }
 
 /**
@@ -51,30 +51,30 @@ interface TurnErrorPayload {
  * shown to humans in the UI but not fed to other agents.
  */
 export interface ChatMessage {
-  id: string;
-  gameId: string;
-  playerId: string;
-  name: string;
-  kind: "say" | "think";
-  text: string;
+  id: string
+  gameId: string
+  playerId: string
+  name: string
+  kind: 'say' | 'think'
+  text: string
   /** Game turn when it was said. */
-  turn: number;
+  turn: number
   /** ISO timestamp. */
-  at: string;
+  at: string
 }
 
 /** A dry run of a turn: what the engine would say, without committing anything. */
 export interface PreviewPayload {
-  ok: boolean;
-  error?: string;
-  errors?: string[];
+  ok: boolean
+  error?: string
+  errors?: string[]
   /** Events the caller would see, when the turn is legal. */
-  events?: GameEvent[];
+  events?: GameEvent[]
 }
 
 export type ServerGameMessage =
-  | { type: "CONNECTED"; room: "game"; roomId: string }
-  | { type: "GAME_VIEW"; payload: ViewPayload }
-  | { type: "TURN_EXECUTED"; payload: TurnExecutedPayload }
-  | { type: "TURN_ERROR"; payload: TurnErrorPayload }
-  | { type: "CHAT"; payload: ChatMessage };
+  | { type: 'CONNECTED'; room: 'game'; roomId: string }
+  | { type: 'GAME_VIEW'; payload: ViewPayload }
+  | { type: 'TURN_EXECUTED'; payload: TurnExecutedPayload }
+  | { type: 'TURN_ERROR'; payload: TurnErrorPayload }
+  | { type: 'CHAT'; payload: ChatMessage }

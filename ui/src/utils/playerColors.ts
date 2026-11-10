@@ -18,4 +18,3 @@ export function getPlayerColor(index: number): string {
   if (index < 0) return NEUTRAL_PLAYER_COLOR
   return PLAYER_COLORS[index % PLAYER_COLORS.length]
 }
-

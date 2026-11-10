@@ -1,4 +1,4 @@
-import { resolveShipAppearance, type ShipAppearance } from "../models/appearance.ts";
+import { resolveShipAppearance, type ShipAppearance } from '../models/appearance.ts'
 /**
  * What one player is allowed to know.
  *
@@ -23,144 +23,144 @@ import type {
   Station,
   GamePhase,
   Wreck,
-} from "../models/game.ts";
-import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
-import type { HoldItemKind, Mission } from "../models/missions.ts";
-import { aboard, holdItemKind } from "../models/missions.ts";
-import type { SlotGroup, SubsystemId, SubsystemType } from "../models/subsystems.ts";
-import { getDissipationCapacity, isDestroyed, lowestCriticalFace } from "./ship.ts";
-import { completedMissions } from "./missions/missionChecks.ts";
+} from '../models/game.ts'
+import { MAX_HEAT, MAX_REACTION_MASS } from '../models/game.ts'
+import type { HoldItemKind, Mission } from '../models/missions.ts'
+import { aboard, holdItemKind } from '../models/missions.ts'
+import type { SlotGroup, SubsystemId, SubsystemType } from '../models/subsystems.ts'
+import { getDissipationCapacity, isDestroyed, lowestCriticalFace } from './ship.ts'
+import { completedMissions } from './missions/missionChecks.ts'
 
 interface PublicShipView {
-  wellId: string;
-  ring: number;
-  sector: number;
-  facing: Player["ship"]["facing"];
-  hitPoints: number;
-  maxHitPoints: number;
-  heat: number;
+  wellId: string
+  ring: number
+  sector: number
+  facing: Player['ship']['facing']
+  hitPoints: number
+  maxHitPoints: number
+  heat: number
   /** Fuel aboard: cubes on the loadout, in the open like the hull and the heat. */
-  fuel: number;
-  isDestroyed: boolean;
+  fuel: number
+  isDestroyed: boolean
 }
 
-export type SlotKnowledge = "own" | "revealed" | "scanned" | null;
+export type SlotKnowledge = 'own' | 'revealed' | 'scanned' | null
 
 export interface SlotView {
-  id: SubsystemId;
-  group: SlotGroup;
-  index: number;
+  id: SubsystemId
+  group: SlotGroup
+  index: number
   /** null = face-down and unknown to the viewer. */
-  type: SubsystemType | null;
-  isBroken: boolean | null;
-  knownVia: SlotKnowledge;
+  type: SubsystemType | null
+  isBroken: boolean | null
+  knownVia: SlotKnowledge
   /**
    * Energy cubes on the tile. Public: a hint about what the tile is. It stays
    * until its owner's next turn starts, so between turns it is what they used
    * or powered on their last one.
    */
-  allocatedEnergy: number;
+  allocatedEnergy: number
   /**
    * Missiles left in a missiles tile, or null when the viewer cannot read the
    * tile. Ammo is private only while the tile is: a missiles tile reveals
    * itself the first time it launches, and after that the table can count what
    * is left. (A "rack" is the ballistic rack, a different tile.)
    */
-  ammo: number | null;
+  ammo: number | null
 }
 
 interface FixedSystemView {
-  id: SubsystemId;
-  type: SubsystemType;
-  isBroken: boolean;
-  allocatedEnergy: number;
+  id: SubsystemId
+  type: SubsystemType
+  isBroken: boolean
+  allocatedEnergy: number
 }
 
 export interface PlayerView {
-  appearance?: ShipAppearance;
-  id: string;
-  name: string;
-  isMe: boolean;
-  isActive: boolean;
-  hasSubmittedLoadout: boolean;
-  hasDeployed: boolean;
-  home: Position | null;
+  appearance?: ShipAppearance
+  id: string
+  name: string
+  isMe: boolean
+  isActive: boolean
+  hasSubmittedLoadout: boolean
+  hasDeployed: boolean
+  home: Position | null
   /**
    * Back at Home from a respawn and untouchable until the end of the turn
    * they play next: no shot, no missile and no scan reaches them, and they
    * fire at nobody and scan nobody on it. Public: a ship nobody can touch is
    * something the whole table can see.
    */
-  recovering: boolean;
-  ship: PublicShipView | null;
-  fixed: FixedSystemView[];
-  slots: SlotView[];
+  recovering: boolean
+  ship: PublicShipView | null
+  fixed: FixedSystemView[]
+  slots: SlotView[]
   /** Tokens aboard (public: they sit on the ship). */
-  cargoAboard: { crates: number; data: number };
+  cargoAboard: { crates: number; data: number }
   /** Total tokens aboard. */
-  cargoCount: number;
-  points: number;
-  completedMissions: Mission[];
+  cargoCount: number
+  points: number
+  completedMissions: Mission[]
   /**
    * The players whose Escort markers sit on this ship. Public: the marker is
    * on the table face-up, though the card it came from stays in its holder's
    * hand.
    */
-  escortedBy: string[];
+  escortedBy: string[]
   /**
    * Planets whose station this player has sold at: each buys nothing more
    * from them. Public: a marker on the station.
    */
-  soldAt: string[];
+  soldAt: string[]
   /**
    * The items aboard, one token each, so a pirate can name the one it takes.
    * The kind is public (a crate, loot or data on the ship). The id is an
    * opaque token dealt with the card (`dealMissionOffers`) and says nothing
    * about which card the item belongs to; that stays in the owner's hand.
    */
-  hold: { cargoId: string; kind: HoldItemKind }[];
+  hold: { cargoId: string; kind: HoldItemKind }[]
 }
 
 interface OwnShipStats {
-  dissipationCapacity: number;
-  maxReactionMass: number;
+  dissipationCapacity: number
+  maxReactionMass: number
   /** The lowest d10 face that is a critical for my shots now (`lowestCriticalFace`). */
-  lowestCriticalFace: number;
+  lowestCriticalFace: number
   /**
    * Top of the heat track: above this, the excess is hull damage. Nothing on
    * the loadout carries into the owner's check: the energy on it now is last
    * turn's, and it comes off when their turn starts, so the check bills only
    * what this turn's actions put on.
    */
-  maxHeat: number;
+  maxHeat: number
 }
 
 export interface GameView {
-  turn: number;
-  phase: GamePhase;
-  activePlayerIndex: number;
-  activePlayerId: string;
-  players: PlayerView[];
-  stations: Station[];
-  missiles: Missile[];
+  turn: number
+  phase: GamePhase
+  activePlayerIndex: number
+  activePlayerId: string
+  players: PlayerView[]
+  stations: Station[]
+  missiles: Missile[]
   /** What destroyed ships left behind, until a Salvage holder takes it. Public. */
-  wrecks: Wreck[];
-  winnerId?: string;
+  wrecks: Wreck[]
+  winnerId?: string
   /** Someone has reached the points needed; the game ends when this round does. */
-  finalRound: boolean;
+  finalRound: boolean
   /**
    * Points that trigger the final round, as the table agreed before the deal.
    * Public: everyone is playing to the same number.
    */
-  pointsToWin: number;
+  pointsToWin: number
   /** The viewer's full player record, or null for a spectator. */
-  me: Player | null;
-  myStats: OwnShipStats | null;
+  me: Player | null
+  myStats: OwnShipStats | null
 }
 
 function shipView(player: Player): PublicShipView | null {
-  if (!player.hasDeployed) return null;
-  const s = player.ship;
+  if (!player.hasDeployed) return null
+  const s = player.ship
   return {
     wellId: s.wellId,
     ring: s.ring,
@@ -171,25 +171,25 @@ function shipView(player: Player): PublicShipView | null {
     heat: s.heat.currentHeat,
     fuel: s.reactionMass,
     isDestroyed: isDestroyed(s),
-  };
+  }
 }
 
 function playerViewFor(state: GameState, player: Player, viewer: Player | null): PlayerView {
-  const isMe = viewer?.id === player.id;
-  const scanned = new Set(viewer?.intel[player.id] ?? []);
-  const loadoutKnown = player.hasSubmittedLoadout;
+  const isMe = viewer?.id === player.id
+  const scanned = new Set(viewer?.intel[player.id] ?? [])
+  const loadoutKnown = player.hasSubmittedLoadout
 
   const slots: SlotView[] = player.ship.subsystems
-    .filter((s) => s.slotGroup !== undefined)
-    .map((s) => {
+    .filter(s => s.slotGroup !== undefined)
+    .map(s => {
       const known: SlotKnowledge = isMe
-        ? "own"
+        ? 'own'
         : s.isRevealed
-          ? "revealed"
+          ? 'revealed'
           : scanned.has(s.id)
-            ? "scanned"
-            : null;
-      const visible = known !== null && loadoutKnown;
+            ? 'scanned'
+            : null
+      const visible = known !== null && loadoutKnown
       return {
         id: s.id,
         group: s.slotGroup!,
@@ -198,9 +198,9 @@ function playerViewFor(state: GameState, player: Player, viewer: Player | null):
         isBroken: visible ? s.isBroken : null,
         knownVia: visible ? known : null,
         allocatedEnergy: s.allocatedEnergy,
-        ammo: visible && s.type === "missiles" ? (s.ammo ?? 0) : null,
-      };
-    });
+        ammo: visible && s.type === 'missiles' ? (s.ammo ?? 0) : null,
+      }
+    })
 
   return {
     id: player.id,
@@ -214,8 +214,8 @@ function playerViewFor(state: GameState, player: Player, viewer: Player | null):
     recovering: player.recovering,
     ship: shipView(player),
     fixed: player.ship.subsystems
-      .filter((s) => s.slotGroup === undefined)
-      .map((s) => ({
+      .filter(s => s.slotGroup === undefined)
+      .map(s => ({
         id: s.id,
         type: s.type,
         isBroken: s.isBroken,
@@ -223,32 +223,32 @@ function playerViewFor(state: GameState, player: Player, viewer: Player | null):
       })),
     slots,
     cargoAboard: {
-      crates: aboard(player.cargo).filter((c) => c.kind === "crate").length,
-      data: aboard(player.cargo).filter((c) => c.kind === "data").length,
+      crates: aboard(player.cargo).filter(c => c.kind === 'crate').length,
+      data: aboard(player.cargo).filter(c => c.kind === 'data').length,
     },
     cargoCount: aboard(player.cargo).length,
     points: player.points,
     completedMissions: completedMissions(player),
     soldAt: [...player.soldAt],
-    hold: aboard(player.cargo).map((c) => ({ cargoId: c.id, kind: holdItemKind(c) })),
+    hold: aboard(player.cargo).map(c => ({ cargoId: c.id, kind: holdItemKind(c) })),
     escortedBy: state.players
-      .filter((p) =>
+      .filter(p =>
         p.missions.some(
-          (m) => m.type === "escort" && !m.isCompleted && m.markedPlayerId === player.id
+          m => m.type === 'escort' && !m.isCompleted && m.markedPlayerId === player.id
         )
       )
-      .map((p) => p.id),
-  };
+      .map(p => p.id),
+  }
 }
 
 export function viewFor(state: GameState, viewerId: string | null): GameView {
-  const me = viewerId ? (state.players.find((p) => p.id === viewerId) ?? null) : null;
+  const me = viewerId ? (state.players.find(p => p.id === viewerId) ?? null) : null
   return {
     turn: state.turn,
     phase: state.phase,
     activePlayerIndex: state.activePlayerIndex,
-    activePlayerId: state.players[state.activePlayerIndex]?.id ?? "",
-    players: state.players.map((p) => playerViewFor(state, p, me)),
+    activePlayerId: state.players[state.activePlayerIndex]?.id ?? '',
+    players: state.players.map(p => playerViewFor(state, p, me)),
     stations: state.stations,
     missiles: state.missiles,
     wrecks: state.wrecks,
@@ -264,15 +264,15 @@ export function viewFor(state: GameState, viewerId: string | null): GameView {
           maxHeat: MAX_HEAT,
         }
       : null,
-  };
+  }
 }
 
 /** Public positions of every deployed, living opponent (for range checks). */
 export function opponentPositions(view: GameView): Array<{ id: string; position: Position }> {
   return view.players
-    .filter((p) => !p.isMe && p.ship && !p.ship.isDestroyed)
-    .map((p) => ({
+    .filter(p => !p.isMe && p.ship && !p.ship.isDestroyed)
+    .map(p => ({
       id: p.id,
       position: { wellId: p.ship!.wellId, ring: p.ship!.ring, sector: p.ship!.sector },
-    }));
+    }))
 }

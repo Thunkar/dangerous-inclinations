@@ -218,7 +218,8 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
   // The fixed scoop at the foot of the core's forward face, under the bow module.
   slab([0.3, 0.2, 0.6], [-1.35, FLOOR + 0.1, 0], m.steel)
   box([0.06, 0.15, 0.46], [-1.19, FLOOR + 0.1, 0], m.rubber)
-  for (const z of [-0.16, -0.05, 0.05, 0.16]) box([0.06, 0.13, 0.03], [-1.17, FLOOR + 0.1, z], m.pale)
+  for (const z of [-0.16, -0.05, 0.05, 0.16])
+    box([0.06, 0.13, 0.03], [-1.17, FLOOR + 0.1, z], m.pale)
   // The command citadel on the core, ahead of the climb: a raised pale
   // block with an armoured slit and its windows looking forward over the
   // bow module.
@@ -379,7 +380,11 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
       const { tooth } = GRILLE
       const inside = mouth.h - 0.025
       const across = 2 * (mouth.w - 0.025)
-      for (let yc = mouth.y - inside + tooth; yc + tooth <= mouth.y + inside + 1e-6; yc += 2 * tooth) {
+      for (
+        let yc = mouth.y - inside + tooth;
+        yc + tooth <= mouth.y + inside + 1e-6;
+        yc += 2 * tooth
+      ) {
         const louvre = new Shape()
         louvre.moveTo(grille - 0.01, yc - tooth)
         louvre.lineTo(grille + tooth, yc)
@@ -496,7 +501,13 @@ export function buildMantis(body: Group, put: Put, m: MantisInk) {
           g
         )
       // The pad it sits on, as long as the pump and as wide, so nothing of it hangs.
-      box([0.44, roof + 0.05 - (H - 0.01), 0.26], [aft + 0.28, (roof + 0.05 + H - 0.01) / 2, z], m.steel, undefined, g)
+      box(
+        [0.44, roof + 0.05 - (H - 0.01), 0.26],
+        [aft + 0.28, (roof + 0.05 + H - 0.01) / 2, z],
+        m.steel,
+        undefined,
+        g
+      )
       // Its feed laid on the roof, half sunk in it, so it does not hang.
       pipe([aft + 0.46, H + 0.01, z], [CORE_AFT + 0.45, H + 0.01, z], 0.035, m.copper, g)
     }

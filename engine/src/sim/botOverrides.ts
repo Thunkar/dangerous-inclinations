@@ -14,67 +14,67 @@
  * the same bots. The server and the UI never see it: they read
  * `DEFAULT_BOT_PARAMETERS` as written.
  */
-import { DEFAULT_BOT_PARAMETERS, type BotParameters } from "../ai/types.ts";
+import { DEFAULT_BOT_PARAMETERS, type BotParameters } from '../ai/types.ts'
 
-export type BotOverrides = Partial<BotParameters>;
+export type BotOverrides = Partial<BotParameters>
 
 /** Keys whose value is one of a fixed set of words, and what those words are. */
 const ENUM_VALUES: Partial<Record<keyof BotParameters, readonly string[]>> = {
-  targetPreference: ["closest", "weakest", "mission"],
-};
+  targetPreference: ['closest', 'weakest', 'mission'],
+}
 const BOOLEAN_KEYS: ReadonlySet<keyof BotParameters> = new Set<keyof BotParameters>([
-  "conserveAmmo",
-  "scanUnknowns",
-]);
+  'conserveAmmo',
+  'scanUnknowns',
+])
 const NUMBER_KEYS: ReadonlySet<keyof BotParameters> = new Set<keyof BotParameters>([
-  "aggressiveness",
-  "repairHullThreshold",
-  "lowFuelThreshold",
-]);
+  'aggressiveness',
+  'repairHullThreshold',
+  'lowFuelThreshold',
+])
 
 const KEYS: Array<keyof BotParameters> = [
   ...NUMBER_KEYS,
   ...BOOLEAN_KEYS,
   ...(Object.keys(ENUM_VALUES) as Array<keyof BotParameters>),
-];
+]
 
 export function parseBotOverrides(text: string): BotOverrides {
-  const out: BotOverrides = {};
-  for (const pair of text.split(",")) {
-    if (!pair.trim()) continue;
-    const eq = pair.indexOf("=");
-    if (eq === -1) throw new Error(`Bot override "${pair}" needs parameter=value`);
-    const key = pair.slice(0, eq).trim() as keyof BotParameters;
-    const raw = pair.slice(eq + 1).trim();
+  const out: BotOverrides = {}
+  for (const pair of text.split(',')) {
+    if (!pair.trim()) continue
+    const eq = pair.indexOf('=')
+    if (eq === -1) throw new Error(`Bot override "${pair}" needs parameter=value`)
+    const key = pair.slice(0, eq).trim() as keyof BotParameters
+    const raw = pair.slice(eq + 1).trim()
     if (!KEYS.includes(key))
-      throw new Error(`Unknown bot parameter "${key}". Known: ${KEYS.join(", ")}`);
+      throw new Error(`Unknown bot parameter "${key}". Known: ${KEYS.join(', ')}`)
 
-    const allowed = ENUM_VALUES[key];
+    const allowed = ENUM_VALUES[key]
     if (allowed) {
       if (!allowed.includes(raw))
-        throw new Error(`Bot override "${pair}" must be one of: ${allowed.join(", ")}`);
-      (out as Record<string, unknown>)[key] = raw;
+        throw new Error(`Bot override "${pair}" must be one of: ${allowed.join(', ')}`)
+      ;(out as Record<string, unknown>)[key] = raw
     } else if (BOOLEAN_KEYS.has(key)) {
-      if (raw !== "true" && raw !== "false")
-        throw new Error(`Bot override "${pair}" must be true or false`);
-      (out as Record<string, unknown>)[key] = raw === "true";
+      if (raw !== 'true' && raw !== 'false')
+        throw new Error(`Bot override "${pair}" must be true or false`)
+      ;(out as Record<string, unknown>)[key] = raw === 'true'
     } else {
-      const value = Number(raw);
-      if (!Number.isFinite(value)) throw new Error(`Bot override "${pair}" needs a number`);
-      (out as Record<string, unknown>)[key] = value;
+      const value = Number(raw)
+      if (!Number.isFinite(value)) throw new Error(`Bot override "${pair}" needs a number`)
+      ;(out as Record<string, unknown>)[key] = value
     }
   }
-  return out;
+  return out
 }
 
 export function applyBotOverrides(overrides?: BotOverrides): void {
-  if (!overrides) return;
-  Object.assign(DEFAULT_BOT_PARAMETERS, overrides);
+  if (!overrides) return
+  Object.assign(DEFAULT_BOT_PARAMETERS, overrides)
 }
 
 /** The overrides in force, as the benchmark stamps them on its page. */
 export function describeBotOverrides(overrides?: BotOverrides): string {
   return Object.entries(overrides ?? {})
     .map(([key, value]) => `${key}=${value}`)
-    .join(", ");
+    .join(', ')
 }

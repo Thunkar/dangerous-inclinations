@@ -15,18 +15,18 @@
  *   actually catch up).
  * Nothing fires across gravity wells.
  */
-import type { Position, ShipState, Station } from "../models/game.ts";
-import type { Subsystem, WeaponStats } from "../models/subsystems.ts";
-import { getSubsystemConfig } from "../models/subsystems.ts";
-import { forwardDistance, positionOf, sectorDistance } from "./geometry.ts";
-import { missileCanReach } from "./missiles.ts";
+import type { Position, ShipState, Station } from '../models/game.ts'
+import type { Subsystem, WeaponStats } from '../models/subsystems.ts'
+import { getSubsystemConfig } from '../models/subsystems.ts'
+import { forwardDistance, positionOf, sectorDistance } from './geometry.ts'
+import { missileCanReach } from './missiles.ts'
 import {
   getSideFiringDirection,
   getSubsystemSide,
   isOnBoard,
   isRingDirectionValid,
-} from "./ship.ts";
-import { isMooredAt, isMooredMidTurn } from "./stations.ts";
+} from './ship.ts'
+import { isMooredAt, isMooredMidTurn } from './stations.ts'
 
 /**
  * A seat as the targeting rules read it: a `Player`, or the `PlayerView` a
@@ -34,9 +34,9 @@ import { isMooredAt, isMooredMidTurn } from "./stations.ts";
  * and hull. A seat with no ship (not deployed, in a view) is not on the board.
  */
 export interface Seat {
-  hasDeployed: boolean;
-  recovering: boolean;
-  ship: Pick<ShipState, "wellId" | "ring" | "sector" | "hitPoints"> | null;
+  hasDeployed: boolean
+  recovering: boolean
+  ship: Pick<ShipState, 'wellId' | 'ring' | 'sector' | 'hitPoints'> | null
 }
 
 /**
@@ -45,7 +45,7 @@ export interface Seat {
  * marker ask this, and then say for themselves why a berth refuses them.
  */
 export function isTouchable(target: Seat): boolean {
-  return isOnBoard(target) && !target.recovering;
+  return isOnBoard(target) && !target.recovering
 }
 
 /**
@@ -55,7 +55,7 @@ export function isTouchable(target: Seat): boolean {
  * {@link canFireFrom} of the attacker. A moored ship may still scan others.
  */
 export function canBeTargeted(target: Seat, stations: Station[]): boolean {
-  return isTouchable(target) && !isMooredAt(stations, positionOf(target.ship!));
+  return isTouchable(target) && !isMooredAt(stations, positionOf(target.ship!))
 }
 
 /**
@@ -65,18 +65,18 @@ export function canBeTargeted(target: Seat, stations: Station[]): boolean {
  * turn on ({@link isMooredMidTurn}). One that arrives this turn still fires.
  */
 export function canFireFrom(start: Position, at: Position, stations: Station[]): boolean {
-  return !isMooredMidTurn(stations, start, at);
+  return !isMooredMidTurn(stations, start, at)
 }
 
 export function isInWeaponRange(
   weapon: Subsystem,
-  attacker: Pick<ShipState, "wellId" | "ring" | "sector" | "facing">,
+  attacker: Pick<ShipState, 'wellId' | 'ring' | 'sector' | 'facing'>,
   target: Position
 ): boolean {
-  const stats = getSubsystemConfig(weapon.type).weaponStats;
-  if (!stats) return false;
-  if (target.wellId !== attacker.wellId) return false;
-  return checkRange(stats, weapon, attacker, target);
+  const stats = getSubsystemConfig(weapon.type).weaponStats
+  if (!stats) return false
+  if (target.wellId !== attacker.wellId) return false
+  return checkRange(stats, weapon, attacker, target)
 }
 
 /**
@@ -87,31 +87,31 @@ export function isInWeaponRange(
  * its well must share it with the target.
  */
 export function inSpinalBox(
-  attacker: Pick<ShipState, "ring" | "sector" | "facing"> & { wellId?: Position["wellId"] },
+  attacker: Pick<ShipState, 'ring' | 'sector' | 'facing'> & { wellId?: Position['wellId'] },
   target: Position,
   sectorRange: number
 ): boolean {
-  if (attacker.wellId !== undefined && attacker.wellId !== target.wellId) return false;
-  if (target.ring !== attacker.ring) return false;
-  if (sectorDistance(attacker.sector, target.sector) === 0) return true;
+  if (attacker.wellId !== undefined && attacker.wellId !== target.wellId) return false
+  if (target.ring !== attacker.ring) return false
+  if (sectorDistance(attacker.sector, target.sector) === 0) return true
   const ahead =
-    attacker.facing === "prograde"
+    attacker.facing === 'prograde'
       ? forwardDistance(attacker.sector, target.sector)
-      : forwardDistance(target.sector, attacker.sector);
-  return ahead > 0 && ahead <= sectorRange;
+      : forwardDistance(target.sector, attacker.sector)
+  return ahead > 0 && ahead <= sectorRange
 }
 
 function checkRange(
   stats: WeaponStats,
   weapon: Subsystem,
-  attacker: Pick<ShipState, "ring" | "sector" | "facing">,
+  attacker: Pick<ShipState, 'ring' | 'sector' | 'facing'>,
   target: Position
 ): boolean {
-  const ringDist = Math.abs(target.ring - attacker.ring);
-  const sectorDist = sectorDistance(attacker.sector, target.sector);
+  const ringDist = Math.abs(target.ring - attacker.ring)
+  const sectorDist = sectorDistance(attacker.sector, target.sector)
   // A boxed weapon always carries its box; a turret has none (fails closed).
-  const ringRange = stats.ringRange ?? 0;
-  const sectorRange = stats.sectorRange ?? 0;
+  const ringRange = stats.ringRange ?? 0
+  const sectorRange = stats.sectorRange ?? 0
 
   /**
    * Point blank. Two ships sharing a sector are on top of each other, and every
@@ -120,29 +120,29 @@ function checkRange(
    * a missile could reach a ship you were sitting on, which is not a rule
    * anyone would write down, and a Piracy card puts you there on purpose.
    */
-  if (ringDist === 0 && sectorDist === 0) return true;
+  if (ringDist === 0 && sectorDist === 0) return true
 
   switch (stats.arc) {
-    case "spinal":
-      return inSpinalBox(attacker, target, sectorRange);
-    case "broadside": {
-      if (sectorDist > sectorRange) return false;
-      if (ringDist === 0) return stats.canTargetSameRing === true && sectorDist > 0;
-      if (ringDist > ringRange) return false;
+    case 'spinal':
+      return inSpinalBox(attacker, target, sectorRange)
+    case 'broadside': {
+      if (sectorDist > sectorRange) return false
+      if (ringDist === 0) return stats.canTargetSameRing === true && sectorDist > 0
+      if (ringDist > ringRange) return false
       if (stats.sideRestricted) {
-        const side = getSubsystemSide(weapon);
+        const side = getSubsystemSide(weapon)
         if (side) {
-          const direction = getSideFiringDirection(side, attacker.facing);
-          if (!isRingDirectionValid(attacker.ring, target.ring, direction)) return false;
+          const direction = getSideFiringDirection(side, attacker.facing)
+          if (!isRingDirectionValid(attacker.ring, target.ring, direction)) return false
         }
       }
-      return true;
+      return true
     }
-    case "turret":
+    case 'turret':
       // Self-guided: the well is the only limit. Whether the projectile can
       // still catch a drifting target is the projectile's problem, not the
       // launcher's: a missile that never closes is simply wasted.
-      return true;
+      return true
   }
 }
 
@@ -159,11 +159,11 @@ function checkRange(
  */
 export function canEngage(
   weapon: Subsystem,
-  attacker: Pick<ShipState, "wellId" | "ring" | "sector" | "facing">,
+  attacker: Pick<ShipState, 'wellId' | 'ring' | 'sector' | 'facing'>,
   target: Position
 ): boolean {
-  if (!isInWeaponRange(weapon, attacker, target)) return false;
-  const stats = getSubsystemConfig(weapon.type).weaponStats;
-  if (stats?.arc !== "turret") return true;
-  return missileCanReach(attacker, target);
+  if (!isInWeaponRange(weapon, attacker, target)) return false
+  const stats = getSubsystemConfig(weapon.type).weaponStats
+  if (stats?.arc !== 'turret') return true
+  return missileCanReach(attacker, target)
 }

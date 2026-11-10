@@ -25,11 +25,11 @@
  * §Stations), does neither: it slides past untouchable prey and stays in
  * flight, and no rack rolls at it. Missiles never cross gravity wells.
  */
-import type { GameState, Missile, Player, Position } from "../models/game.ts";
-import type { SubsystemId } from "../models/subsystems.ts";
-import { getMissileStats, interceptsPerRack, isPowered } from "../models/subsystems.ts";
-import type { EventDraft } from "../models/events.ts";
-import { rollD10, nextEntityId } from "../utils/rng.ts";
+import type { GameState, Missile, Player, Position } from '../models/game.ts'
+import type { SubsystemId } from '../models/subsystems.ts'
+import { getMissileStats, interceptsPerRack, isPowered } from '../models/subsystems.ts'
+import type { EventDraft } from '../models/events.ts'
+import { rollD10, nextEntityId } from '../utils/rng.ts'
 import {
   driftPosition,
   positionOf,
@@ -37,15 +37,15 @@ import {
   sectorDistance,
   sectorStepToward,
   wrapSector,
-} from "./geometry.ts";
-import { resolveAttack } from "./damage.ts";
-import { addHeat, isDestroyed, isOnBoard, updateSubsystem, useSubsystem } from "./ship.ts";
-import { canBeTargeted } from "./targeting.ts";
+} from './geometry.ts'
+import { resolveAttack } from './damage.ts'
+import { addHeat, isDestroyed, isOnBoard, updateSubsystem, useSubsystem } from './ship.ts'
+import { canBeTargeted } from './targeting.ts'
 
-const MISSILE = getMissileStats();
+const MISSILE = getMissileStats()
 
 /** A ballistic rack with energy on it destroys a missile on this d10 roll or better. */
-export const INTERCEPT_ROLL = 2;
+export const INTERCEPT_ROLL = 2
 
 /**
  * Heat on the defender's track for each rack that answers missiles in a
@@ -55,7 +55,7 @@ export const INTERCEPT_ROLL = 2;
  * is the attacker's choice, and pushed the sensor bow with three launchers
  * over its bar; a flat charge per turn moved the least.
  */
-export const INTERCEPT_HEAT = 2;
+export const INTERCEPT_HEAT = 2
 
 export function createMissile(
   state: GameState,
@@ -70,23 +70,23 @@ export function createMissile(
     ...positionOf(owner.ship),
     movesMade: 0,
     criticalTarget,
-  };
+  }
 }
 
 /** Move up to `steps` toward `target`: rings first, then sectors. Same well only. */
 export function stepToward(from: Position, target: Position, steps: number): Position {
-  if (from.wellId !== target.wellId) return from;
-  let { ring, sector } = from;
-  let left = steps;
+  if (from.wellId !== target.wellId) return from
+  let { ring, sector } = from
+  let left = steps
   while (left > 0 && ring !== target.ring) {
-    ring += target.ring > ring ? 1 : -1;
-    left--;
+    ring += target.ring > ring ? 1 : -1
+    left--
   }
   while (left > 0 && wrapSector(sector) !== wrapSector(target.sector)) {
-    sector = wrapSector(sector + sectorStepToward(sector, target.sector));
-    left--;
+    sector = wrapSector(sector + sectorStepToward(sector, target.sector))
+    left--
   }
-  return { wellId: from.wellId, ring, sector };
+  return { wellId: from.wellId, ring, sector }
 }
 
 /**
@@ -95,28 +95,28 @@ export function stepToward(from: Position, target: Position, steps: number): Pos
  * target, and only then drifts. The launch flight has no ride at all: it is
  * flown the moment the missile is launched, from the sector it was dropped on.
  */
-export type MissileOrder = "ride_first" | "fly_first";
+export type MissileOrder = 'ride_first' | 'fly_first'
 
 /** One move of a missile in one order: the path to draw, where it ends, whether it attacks. */
 export interface MissileMove {
-  order: MissileOrder;
+  order: MissileOrder
   /** Every point it passes, the first its start (after the ride, if it rides first). */
-  path: Position[];
+  path: Position[]
   /** Where the missile is when the move is over. */
-  end: Position;
+  end: Position
   /** The flight ended on the target's sector: the missile attacks there. */
-  hits: boolean;
+  hits: boolean
 }
 
 function flightFrom(from: Position, target: Position): Position[] {
-  const path: Position[] = [from];
-  if (from.wellId !== target.wellId) return path;
-  let current = from;
+  const path: Position[] = [from]
+  if (from.wellId !== target.wellId) return path
+  let current = from
   for (let i = 0; i < MISSILE.stepsPerMove && !samePosition(current, target); i++) {
-    current = stepToward(current, target, 1);
-    path.push(current);
+    current = stepToward(current, target, 1)
+    path.push(current)
   }
-  return path;
+  return path
 }
 
 function moveIn(
@@ -124,26 +124,26 @@ function moveIn(
   target: Position,
   order: MissileOrder
 ): MissileMove {
-  const start = positionOf(missile);
-  if (missile.movesMade === 0 || order === "ride_first") {
-    const path = flightFrom(missile.movesMade === 0 ? start : driftPosition(start), target);
-    const end = path[path.length - 1];
-    return { order: "ride_first", path, end, hits: samePosition(end, target) };
+  const start = positionOf(missile)
+  if (missile.movesMade === 0 || order === 'ride_first') {
+    const path = flightFrom(missile.movesMade === 0 ? start : driftPosition(start), target)
+    const end = path[path.length - 1]
+    return { order: 'ride_first', path, end, hits: samePosition(end, target) }
   }
-  const path = flightFrom(start, target);
-  const landed = path[path.length - 1];
-  if (samePosition(landed, target)) return { order, path, end: landed, hits: true };
-  const end = driftPosition(landed);
-  return { order, path: [...path, end], end, hits: false };
+  const path = flightFrom(start, target)
+  const landed = path[path.length - 1]
+  if (samePosition(landed, target)) return { order, path, end: landed, hits: true }
+  const end = driftPosition(landed)
+  return { order, path: [...path, end], end, hits: false }
 }
 
 /** The orders a missile may choose between this move: none on the launch flight. */
 const ordersFor = (missile: { movesMade: number }): MissileOrder[] =>
-  missile.movesMade === 0 ? ["ride_first"] : ["ride_first", "fly_first"];
+  missile.movesMade === 0 ? ['ride_first'] : ['ride_first', 'fly_first']
 
 /** Steps between two points of one well: the ring gap and the sectors round. */
 const stepsBetween = (a: Position, b: Position) =>
-  Math.abs(a.ring - b.ring) + sectorDistance(a.sector, b.sector);
+  Math.abs(a.ring - b.ring) + sectorDistance(a.sector, b.sector)
 
 /**
  * The move a missile makes, in the order its owner would choose: one that
@@ -157,13 +157,13 @@ export function planMissileMove(
   missile: Position & { movesMade: number },
   target: Position
 ): MissileMove {
-  const moves = ordersFor(missile).map((order) => moveIn(missile, target, order));
-  const hit = moves.find((m) => m.hits);
-  if (hit) return hit;
-  const coasted = driftPosition(target);
+  const moves = ordersFor(missile).map(order => moveIn(missile, target, order))
+  const hit = moves.find(m => m.hits)
+  if (hit) return hit
+  const coasted = driftPosition(target)
   const reach = (p: Position) =>
-    Math.min(stepsBetween(p, coasted), stepsBetween(driftPosition(p), coasted));
-  return moves.reduce((best, m) => (reach(m.end) < reach(best.end) ? m : best));
+    Math.min(stepsBetween(p, coasted), stepsBetween(driftPosition(p), coasted))
+  return moves.reduce((best, m) => (reach(m.end) < reach(best.end) ? m : best))
 }
 
 /**
@@ -174,7 +174,7 @@ export function projectMissilePath(
   missile: Position & { movesMade: number },
   target: Position
 ): Position[] {
-  return planMissileMove(missile, target).path;
+  return planMissileMove(missile, target).path
 }
 
 /**
@@ -187,18 +187,18 @@ export function projectMissilePath(
  * can know: the target moves after the missile is away.
  */
 export function missileCanReach(from: Position, target: Position): boolean {
-  if (from.wellId !== target.wellId) return false;
+  if (from.wellId !== target.wellId) return false
   const reaches = (missile: Position & { movesMade: number }, victim: Position): boolean => {
-    if (missile.movesMade >= MISSILE.maxMoves) return false;
-    return ordersFor(missile).some((order) => {
-      const move = moveIn(missile, victim, order);
+    if (missile.movesMade >= MISSILE.maxMoves) return false
+    return ordersFor(missile).some(order => {
+      const move = moveIn(missile, victim, order)
       return (
         move.hits ||
         reaches({ ...move.end, movesMade: missile.movesMade + 1 }, driftPosition(victim))
-      );
-    });
-  };
-  return reaches({ ...from, movesMade: 0 }, target);
+      )
+    })
+  }
+  return reaches({ ...from, movesMade: 0 }, target)
 }
 
 /**
@@ -207,12 +207,12 @@ export function missileCanReach(from: Position, target: Position): boolean {
  * the launch? The target cannot move in between: it is the launcher's turn.
  */
 export function landsOnLaunch(from: Position, target: Position): boolean {
-  return moveIn({ ...from, movesMade: 0 }, target, "ride_first").hits;
+  return moveIn({ ...from, movesMade: 0 }, target, 'ride_first').hits
 }
 
 interface MissileProcessResult {
-  state: GameState;
-  events: EventDraft[];
+  state: GameState
+  events: EventDraft[]
 }
 
 /**
@@ -225,16 +225,16 @@ interface MissileProcessResult {
  * leaves it where it is. `launched` are new tokens not yet on the board.
  */
 export function flyLaunchedMissiles(state: GameState, launched: Missile[]): MissileProcessResult {
-  const events: EventDraft[] = [];
-  const flown: Missile[] = [];
-  let next = state;
+  const events: EventDraft[] = []
+  const flown: Missile[] = []
+  let next = state
   for (const missile of launched) {
-    const flight = flyMissile(next, missile);
-    next = flight.state;
-    events.push(...flight.events);
-    if (flight.survivor) flown.push({ ...flight.survivor, launchedThisTurn: true });
+    const flight = flyMissile(next, missile)
+    next = flight.state
+    events.push(...flight.events)
+    if (flight.survivor) flown.push({ ...flight.survivor, launchedThisTurn: true })
   }
-  return { state: { ...next, missiles: [...next.missiles, ...flown] }, events };
+  return { state: { ...next, missiles: [...next.missiles, ...flown] }, events }
 }
 
 /**
@@ -243,33 +243,33 @@ export function flyLaunchedMissiles(state: GameState, launched: Missile[]): Miss
  * a missile launched this turn has flown already and only loses its mark.
  */
 export function processOwnerMissiles(state: GameState, ownerId: string): MissileProcessResult {
-  const events: EventDraft[] = [];
-  if (!state.players.some((p) => p.id === ownerId)) return { state, events };
+  const events: EventDraft[] = []
+  if (!state.players.some(p => p.id === ownerId)) return { state, events }
 
-  const survivors: Missile[] = [];
-  let next = state;
+  const survivors: Missile[] = []
+  let next = state
   for (const missile of state.missiles) {
     if (missile.ownerId !== ownerId) {
-      survivors.push(missile);
-      continue;
+      survivors.push(missile)
+      continue
     }
     if (missile.launchedThisTurn) {
-      const { launchedThisTurn: _flown, ...inFlight } = missile;
-      survivors.push(inFlight);
-      continue;
+      const { launchedThisTurn: _flown, ...inFlight } = missile
+      survivors.push(inFlight)
+      continue
     }
-    const flight = flyMissile(next, missile);
-    next = flight.state;
-    events.push(...flight.events);
-    if (flight.survivor) survivors.push(flight.survivor);
+    const flight = flyMissile(next, missile)
+    next = flight.state
+    events.push(...flight.events)
+    if (flight.survivor) survivors.push(flight.survivor)
   }
 
-  return { state: { ...next, missiles: survivors }, events };
+  return { state: { ...next, missiles: survivors }, events }
 }
 
 interface Flight extends MissileProcessResult {
   /** The missile still in the air after its move, or null once it is spent. */
-  survivor: Missile | null;
+  survivor: Missile | null
 }
 
 /**
@@ -280,49 +280,49 @@ interface Flight extends MissileProcessResult {
  * now, so the critical range is the sensor's at this moment.
  */
 function flyMissile(state: GameState, missile: Missile): Flight {
-  const events: EventDraft[] = [];
-  const ownerId = missile.ownerId;
-  const players = [...state.players];
-  const targetIndex = players.findIndex((p) => p.id === missile.targetId);
-  const target = targetIndex >= 0 ? players[targetIndex] : undefined;
-  const at = positionOf(missile);
+  const events: EventDraft[] = []
+  const ownerId = missile.ownerId
+  const players = [...state.players]
+  const targetIndex = players.findIndex(p => p.id === missile.targetId)
+  const target = targetIndex >= 0 ? players[targetIndex] : undefined
+  const at = positionOf(missile)
 
   if (!target || !isOnBoard(target)) {
-    events.push({ type: "missile_expired", missileId: missile.id, ownerId, at });
-    return { state, events, survivor: null };
+    events.push({ type: 'missile_expired', missileId: missile.id, ownerId, at })
+    return { state, events, survivor: null }
   }
 
   // Rolls advance the copy's RNG, never the caller's state.
-  const next: GameState = { ...state };
-  const targetPos = positionOf(target.ship);
+  const next: GameState = { ...state }
+  const targetPos = positionOf(target.ship)
 
   // A ship that just came back cannot be touched until its returning turn
   // is over (RULES §Destruction and Respawn), and a moored one cannot be
   // fired at (RULES §Stations), so a missile that catches either neither
   // attacks nor is shot down: it stays in the air with one more move behind
   // it and burns out on schedule.
-  const untouchable = !canBeTargeted(target, state.stations);
+  const untouchable = !canBeTargeted(target, state.stations)
   // Prey nobody may touch is not worth stopping for: the missile rides first,
   // as it always did, and flies past.
   const move = untouchable
-    ? moveIn(missile, targetPos, "ride_first")
-    : planMissileMove(missile, targetPos);
-  const moved = move.end;
+    ? moveIn(missile, targetPos, 'ride_first')
+    : planMissileMove(missile, targetPos)
+  const moved = move.end
 
   if (untouchable || !move.hits) {
-    const movesMade = missile.movesMade + 1;
+    const movesMade = missile.movesMade + 1
     if (movesMade >= MISSILE.maxMoves) {
-      events.push({ type: "missile_expired", missileId: missile.id, ownerId, at: moved });
-      return { state, events, survivor: null };
+      events.push({ type: 'missile_expired', missileId: missile.id, ownerId, at: moved })
+      return { state, events, survivor: null }
     }
     events.push({
-      type: "missile_moved",
+      type: 'missile_moved',
       missileId: missile.id,
       ownerId,
       to: moved,
       movesLeft: MISSILE.maxMoves - movesMade,
-    });
-    return { state, events, survivor: { ...missile, ...moved, movesMade } };
+    })
+    return { state, events, survivor: { ...missile, ...moved, movesMade } }
   }
 
   // On target. Point defence first: a rack that is up (powered, or fired, on
@@ -333,32 +333,32 @@ function flyMissile(state: GameState, missile: Missile): Flight {
   //
   // The racks are read off the target as it stands now, because an earlier
   // missile of the same salvo may already have broken one or heated the ship.
-  let targetShip = target.ship;
+  let targetShip = target.ship
   const rack = targetShip.subsystems.find(
-    (s) =>
-      s.type === "ballistic_rack" &&
+    s =>
+      s.type === 'ballistic_rack' &&
       isPowered(s) &&
       !s.isBroken &&
       s.spentThisTurn < interceptsPerRack()
-  );
+  )
   if (rack) {
     // The first roll of a player-turn uses the rack and flips it face-up,
     // and is the turn's INTERCEPT_HEAT on its owner's track: one salvo or
     // several, one missile or four, answering them costs the same.
     if (!rack.usedThisTurn) {
-      const used = useSubsystem(targetShip, target.id, rack.id, "intercepted");
-      targetShip = used.ship;
-      events.push(...used.events);
+      const used = useSubsystem(targetShip, target.id, rack.id, 'intercepted')
+      targetShip = used.ship
+      events.push(...used.events)
     }
-    const heat = rack.spentThisTurn === 0 ? INTERCEPT_HEAT : 0;
-    targetShip = addHeat(targetShip, heat);
-    targetShip = updateSubsystem(targetShip, rack.id, (r) => ({
+    const heat = rack.spentThisTurn === 0 ? INTERCEPT_HEAT : 0
+    targetShip = addHeat(targetShip, heat)
+    targetShip = updateSubsystem(targetShip, rack.id, r => ({
       spentThisTurn: r.spentThisTurn + 1,
-    }));
-    const roll = rollD10(next);
-    const destroyed = roll >= INTERCEPT_ROLL;
+    }))
+    const roll = rollD10(next)
+    const destroyed = roll >= INTERCEPT_ROLL
     events.push({
-      type: "missile_intercepted",
+      type: 'missile_intercepted',
       missileId: missile.id,
       ownerId,
       targetId: target.id,
@@ -366,16 +366,16 @@ function flyMissile(state: GameState, missile: Missile): Flight {
       destroyed,
       rackId: rack.id,
       heat,
-    });
+    })
     if (destroyed) {
-      players[targetIndex] = { ...target, ship: targetShip };
-      return { state: { ...next, players }, events, survivor: null };
+      players[targetIndex] = { ...target, ship: targetShip }
+      return { state: { ...next, players }, events, survivor: null }
     }
     // roll of 1: the rack fired but missed; fall through to the attack
   }
 
-  const owner = players.find((p) => p.id === ownerId)!;
-  const roll = rollD10(next);
+  const owner = players.find(p => p.id === ownerId)!
+  const roll = rollD10(next)
   const outcome = resolveAttack(
     targetShip,
     target.id,
@@ -384,13 +384,13 @@ function flyMissile(state: GameState, missile: Missile): Flight {
     roll,
     owner.ship,
     ownerId
-  );
-  players[targetIndex] = { ...target, ship: outcome.ship };
+  )
+  players[targetIndex] = { ...target, ship: outcome.ship }
   events.push({
-    type: "attack_resolved",
+    type: 'attack_resolved',
     attackerId: ownerId,
     targetId: target.id,
-    weaponType: "missiles",
+    weaponType: 'missiles',
     missileId: missile.id,
     roll,
     result: outcome.hitResult.result,
@@ -398,15 +398,15 @@ function flyMissile(state: GameState, missile: Missile): Flight {
     toHull: outcome.hitResult.damageToHull,
     absorbed: outcome.hitResult.absorbed,
     targetHullAfter: outcome.ship.hitPoints,
-  });
-  events.push(...outcome.events);
+  })
+  events.push(...outcome.events)
   if (isDestroyed(outcome.ship) && !isDestroyed(target.ship)) {
     events.push({
-      type: "ship_destroyed",
+      type: 'ship_destroyed',
       victimId: target.id,
       killerId: ownerId,
-      cause: "missile",
-    });
+      cause: 'missile',
+    })
   }
-  return { state: { ...next, players }, events, survivor: null };
+  return { state: { ...next, players }, events, survivor: null }
 }

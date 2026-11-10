@@ -28,13 +28,7 @@ import {
   type Item,
 } from '../../../engine/src/test/game/actionOrder.scenarios.ts'
 import { checkEach } from '../../../engine/src/test/testUtils.ts'
-import {
-  criticalFrom,
-  planActions,
-  previewPlan,
-  type PlanExtras,
-  type PlanStep,
-} from './preview'
+import { criticalFrom, planActions, previewPlan, type PlanExtras, type PlanStep } from './preview'
 
 const NO_EXTRAS: PlanExtras = { repair: null, dockSale: null }
 

@@ -6,11 +6,11 @@
  * (actionProcessors.ts); a kill by a missile from an earlier turn or by the
  * heat check, where it comes in the turn (turns.ts).
  */
-import type { GameState, Wreck } from "../models/game.ts";
-import type { EventDraft } from "../models/events.ts";
-import { dropCargo } from "./respawn.ts";
-import { positionOf } from "./geometry.ts";
-import { nextEntityId } from "../utils/rng.ts";
+import type { GameState, Wreck } from '../models/game.ts'
+import type { EventDraft } from '../models/events.ts'
+import { dropCargo } from './respawn.ts'
+import { positionOf } from './geometry.ts'
+import { nextEntityId } from '../utils/rng.ts'
 
 /**
  * The one place a destruction is settled, whatever did it (a weapon, a
@@ -25,50 +25,50 @@ export function applyDestructions(
   source: EventDraft[],
   sink: EventDraft[]
 ): GameState {
-  let next = state;
+  let next = state
   for (const e of source) {
-    if (e.type !== "ship_destroyed") continue;
-    const index = next.players.findIndex((p) => p.id === e.victimId);
-    if (index === -1) continue;
-    const victim = next.players[index];
-    const dropped = dropCargo(victim);
-    const players = [...next.players];
-    players[index] = dropped.player;
-    sink.push(...dropped.events);
-    next = { ...next, players };
+    if (e.type !== 'ship_destroyed') continue
+    const index = next.players.findIndex(p => p.id === e.victimId)
+    if (index === -1) continue
+    const victim = next.players[index]
+    const dropped = dropCargo(victim)
+    const players = [...next.players]
+    players[index] = dropped.player
+    sink.push(...dropped.events)
+    next = { ...next, players }
 
     // Its missiles in flight go with it.
-    const lost = next.missiles.filter((m) => m.ownerId === victim.id);
+    const lost = next.missiles.filter(m => m.ownerId === victim.id)
     if (lost.length > 0) {
-      next = { ...next, missiles: next.missiles.filter((m) => m.ownerId !== victim.id) };
+      next = { ...next, missiles: next.missiles.filter(m => m.ownerId !== victim.id) }
       for (const missile of lost) {
         sink.push({
-          type: "missile_expired",
+          type: 'missile_expired',
           missileId: missile.id,
           ownerId: victim.id,
           at: positionOf(missile),
-        });
+        })
       }
     }
 
     // The wreck: where the ship was when it died. A destroyed ship stays on
     // its sector until it respawns, so its position is the place.
-    const wreck: Wreck = { id: nextEntityId(next, "wreck"), ...positionOf(victim.ship) };
-    next = { ...next, wrecks: [...next.wrecks, wreck] };
+    const wreck: Wreck = { id: nextEntityId(next, 'wreck'), ...positionOf(victim.ship) }
+    next = { ...next, wrecks: [...next.wrecks, wreck] }
     sink.push({
-      type: "wreck_left",
+      type: 'wreck_left',
       wreckId: wreck.id,
       victimId: victim.id,
       at: positionOf(victim.ship),
-    });
+    })
 
     // Escort: every marker on the dead ship comes back to its owner, and the
     // dead ship's own markers come off whatever they sit on and back to hand.
     // Nothing after the dock can destroy the ship whose turn it is, so a
     // destroyed carrier never sold this turn and no marker on it was paid.
-    next = settleEscorts(next, victim.id, sink);
+    next = settleEscorts(next, victim.id, sink)
   }
-  return next;
+  return next
 }
 
 /**
@@ -77,36 +77,36 @@ export function applyDestructions(
  * Escort `victimId` holds that has a marker out comes back too.
  */
 export function settleEscorts(state: GameState, victimId: string, sink: EventDraft[]): GameState {
-  let changed = false;
-  const players = state.players.map((player) => {
-    let touched = false;
-    const missions = player.missions.map((m) => {
-      if (m.type !== "escort" || m.isCompleted || m.markedPlayerId === null) return m;
+  let changed = false
+  const players = state.players.map(player => {
+    let touched = false
+    const missions = player.missions.map(m => {
+      if (m.type !== 'escort' || m.isCompleted || m.markedPlayerId === null) return m
       if (player.id === victimId) {
-        touched = true;
+        touched = true
         sink.push({
-          type: "escort_released",
+          type: 'escort_released',
           escortId: player.id,
           carrierId: m.markedPlayerId,
           missionId: m.id,
-          cause: "escort_destroyed",
-        });
-        return { ...m, markedPlayerId: null };
+          cause: 'escort_destroyed',
+        })
+        return { ...m, markedPlayerId: null }
       }
-      if (m.markedPlayerId !== victimId) return m;
-      touched = true;
+      if (m.markedPlayerId !== victimId) return m
+      touched = true
       sink.push({
-        type: "escort_released",
+        type: 'escort_released',
         escortId: player.id,
         carrierId: victimId,
         missionId: m.id,
-        cause: "carrier_destroyed",
-      });
-      return { ...m, markedPlayerId: null };
-    });
-    if (!touched) return player;
-    changed = true;
-    return { ...player, missions };
-  });
-  return changed ? { ...state, players } : state;
+        cause: 'carrier_destroyed',
+      })
+      return { ...m, markedPlayerId: null }
+    })
+    if (!touched) return player
+    changed = true
+    return { ...player, missions }
+  })
+  return changed ? { ...state, players } : state
 }

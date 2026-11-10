@@ -148,8 +148,7 @@ export const railgun: ModuleBuild = (kit, p) => {
     // The channel face: steel lips at its edges and the cyan conductor sunk
     // between them, both rising out of the breech.
     const inner = RAIL.x - RAIL.h
-    for (const z of [-0.15, 0.15])
-      box(flank, [0.07, L(1.17), 0.07], [inner, Y(1.415), z], m.steel)
+    for (const z of [-0.15, 0.15]) box(flank, [0.07, L(1.17), 0.07], [inner, Y(1.415), z], m.steel)
     box(flank, [0.07, L(1.14), 0.24], [inner + 0.015, Y(1.4), 0], m.cyan)
 
     // Pale armour along the rail's outer face, under the clamps.

@@ -59,7 +59,10 @@ function sidesOf(poly: [number, number][]): Half[] {
 }
 
 /** A plane of a half-space as the print takes it. */
-const toPlane = ({ n, d }: Half) => ({ normal: n.toArray(), at: n.clone().multiplyScalar(d).toArray() })
+const toPlane = ({ n, d }: Half) => ({
+  normal: n.toArray(),
+  at: n.clone().multiplyScalar(d).toArray(),
+})
 
 /** The print's description of a prism through `ring` ([y, z]) from x0 to x1: an extrusion along X. */
 function prismAlongX(ring: [number, number][], x0: number, x1: number): SolidSpec {
@@ -68,7 +71,9 @@ function prismAlongX(ring: [number, number][], x0: number, x1: number): SolidSpe
     return t + a * d - c * b
   }, 0)
   const shape = new Shape()
-  ;(area < 0 ? [...ring].reverse() : ring).forEach(([y, z], i) => (i ? shape.lineTo(y, z) : shape.moveTo(y, z)))
+  ;(area < 0 ? [...ring].reverse() : ring).forEach(([y, z], i) =>
+    i ? shape.lineTo(y, z) : shape.moveTo(y, z)
+  )
   shape.closePath()
   const geo = extrudeSolid(shape, { depth: x1 - x0, bevelEnabled: false })
   // The shape's x and y are the ship's Y and Z and its depth the ship's X: a rotation.
@@ -288,7 +293,12 @@ export function buildShrike(body: Group, put: Put, m: ShrikeInk) {
     })
     // And along each chamfer.
     for (const c of chamfers(lip))
-      cut(flareOut, [face(0), behind(depth + 0.01), { n: c.n.clone().negate(), d: -c.d }], flarePrism, m.pale)
+      cut(
+        flareOut,
+        [face(0), behind(depth + 0.01), { n: c.n.clone().negate(), d: -c.d }],
+        flarePrism,
+        m.pale
+      )
     // The recess's roof: above a 45-degree line from the lip's top edge on
     // the face down to the grille's back.
     const roofAt = top - lip - (front + k * lip)
@@ -479,10 +489,10 @@ function stern(
     fin(
       // Its edges run on along the cheek's, so its foot has no underside.
       [
-        [end + 0.12, 0.632 + (0.132 * (flat - 0.62)) / (end - aft + 0.02) * -1],
+        [end + 0.12, 0.632 + ((0.132 * (flat - 0.62)) / (end - aft + 0.02)) * -1],
         [end - 0.012, 0.632],
         [end - 0.012, -0.632],
-        [end + 0.12, -0.632 - (0.132 * (flat - 0.62)) / (end - aft + 0.02) * -1],
+        [end + 0.12, -0.632 - ((0.132 * (flat - 0.62)) / (end - aft + 0.02)) * -1],
       ],
       skin + 0.02,
       z,

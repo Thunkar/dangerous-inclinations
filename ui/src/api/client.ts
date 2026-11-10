@@ -43,7 +43,10 @@ async function apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (!response.ok) {
       const message =
-        data?.error ?? (data?.errors && data.errors.length > 0 ? data.errors.join('; ') : `HTTP ${response.status}`)
+        data?.error ??
+        (data?.errors && data.errors.length > 0
+          ? data.errors.join('; ')
+          : `HTTP ${response.status}`)
       throw new APIClientError(message, response.status)
     }
 

@@ -35,24 +35,25 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       if (!client) throw new Error('WebSocket client not initialised')
       await client.connect(room, roomId)
     },
-    [client],
+    [client]
   )
 
   const disconnect = useCallback(
     (room: WebSocketRoom, roomId?: string) => {
       client?.disconnect(room, roomId)
     },
-    [client],
+    [client]
   )
 
   const send = useCallback(
-    (room: WebSocketRoom, message: unknown, roomId?: string): boolean => client?.send(room, message, roomId) ?? false,
-    [client],
+    (room: WebSocketRoom, message: unknown, roomId?: string): boolean =>
+      client?.send(room, message, roomId) ?? false,
+    [client]
   )
 
   const isConnected = useCallback(
     (room: WebSocketRoom, roomId?: string): boolean => client?.isConnected(room, roomId) ?? false,
-    [client],
+    [client]
   )
 
   return (

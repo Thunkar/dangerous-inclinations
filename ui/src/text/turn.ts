@@ -62,5 +62,6 @@ export const TURN = {
   },
 
   /** The one rule of the opening round, and of a ship's first turn back from Home. */
-  quiet: 'During the first round you can only move: no weapon fires, nobody scans and nobody seizes.',
+  quiet:
+    'During the first round you can only move: no weapon fires, nobody scans and nobody seizes.',
 } as const

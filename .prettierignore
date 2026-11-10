@@ -4,3 +4,11 @@
 **/.turbo/**
 **/.yarn/**
 yarn.lock
+# Prose and generated pages keep their own layout: Prettier would realign
+# every table in RULES.md, CLAUDE.md and the benchmark page each run.
+**/*.md
+**/*.html
+# The CAD pipeline's outputs.
+cad/shots/
+cad/out/
+cad/.runs/

@@ -26,24 +26,24 @@ import type {
   SurveyAction,
   SalvageAction,
   Missile,
-} from "../models/game.ts";
-import { MAX_REACTION_MASS, MOVE_ACTION_TYPES, isTacticalAction } from "../models/game.ts";
-import type { EventDraft } from "../models/events.ts";
-import { getSubsystemConfig, type WeaponType } from "../models/subsystems.ts";
-import { BURN_COSTS, WELL_TRANSFER_COSTS, calculateJumpMassCost } from "../models/rings.ts";
-import { findJump, phasedJumpDestination } from "../models/gravityWells.ts";
-import { rollD10 } from "../utils/rng.ts";
-import { positionOf, ringVelocity } from "./geometry.ts";
-import { applyOrbitalMovement, applyBurn, applyRotation, recoilRing } from "./movement.ts";
-import { resolveAttack } from "./damage.ts";
-import { createMissile, flyLaunchedMissiles } from "./missiles.ts";
-import { processScan } from "./scan.ts";
-import { isMooredMidTurn } from "./stations.ts";
-import { markCarrier } from "./escort.ts";
-import { seizeItem } from "./piracy.ts";
-import { takeSurveyData } from "./survey.ts";
-import { salvageWreck, wreckToSalvage } from "./salvage.ts";
-import { applyDestructions } from "./destruction.ts";
+} from '../models/game.ts'
+import { MAX_REACTION_MASS, MOVE_ACTION_TYPES, isTacticalAction } from '../models/game.ts'
+import type { EventDraft } from '../models/events.ts'
+import { getSubsystemConfig, type WeaponType } from '../models/subsystems.ts'
+import { BURN_COSTS, WELL_TRANSFER_COSTS, calculateJumpMassCost } from '../models/rings.ts'
+import { findJump, phasedJumpDestination } from '../models/gravityWells.ts'
+import { rollD10 } from '../utils/rng.ts'
+import { positionOf, ringVelocity } from './geometry.ts'
+import { applyOrbitalMovement, applyBurn, applyRotation, recoilRing } from './movement.ts'
+import { resolveAttack } from './damage.ts'
+import { createMissile, flyLaunchedMissiles } from './missiles.ts'
+import { processScan } from './scan.ts'
+import { isMooredMidTurn } from './stations.ts'
+import { markCarrier } from './escort.ts'
+import { seizeItem } from './piracy.ts'
+import { takeSurveyData } from './survey.ts'
+import { salvageWreck, wreckToSalvage } from './salvage.ts'
+import { applyDestructions } from './destruction.ts'
 import {
   findSubsystem,
   hasWorkingCompressor,
@@ -53,7 +53,7 @@ import {
   updateSubsystem,
   useSubsystem,
   workingCompressors,
-} from "./ship.ts";
+} from './ship.ts'
 import {
   validateActionSequence,
   validatePowerAction,
@@ -70,16 +70,16 @@ import {
   validateScanAction,
   validateWellTransferAction,
   type TurnContext,
-} from "./validators.ts";
+} from './validators.ts'
 
 interface ProcessResult {
-  success: boolean;
-  state: GameState;
-  events: EventDraft[];
-  errors?: string[];
+  success: boolean
+  state: GameState
+  events: EventDraft[]
+  errors?: string[]
 }
 
-type Step = { state: GameState; events: EventDraft[] };
+type Step = { state: GameState; events: EventDraft[] }
 
 /**
  * A shot, scan, seizure or Escort marker declared at a ship that was
@@ -88,12 +88,12 @@ type Step = { state: GameState; events: EventDraft[] };
  * still fail validation.
  */
 function targetGone(state: GameState, targetId: string): boolean {
-  const target = state.players.find((p) => p.id === targetId);
-  return !!target && target.hasDeployed && isDestroyed(target.ship);
+  const target = state.players.find(p => p.id === targetId)
+  return !!target && target.hasDeployed && isDestroyed(target.ship)
 }
 
 function withPlayer(state: GameState, playerId: string, update: (p: Player) => Player): GameState {
-  return { ...state, players: state.players.map((p) => (p.id === playerId ? update(p) : p)) };
+  return { ...state, players: state.players.map(p => (p.id === playerId ? update(p) : p)) }
 }
 
 /**
@@ -106,34 +106,34 @@ export function processActions(
   actions: PlayerAction[],
   turn: TurnContext
 ): ProcessResult {
-  const sequenceErrors = validateActionSequence(actions);
+  const sequenceErrors = validateActionSequence(actions)
   if (sequenceErrors.length > 0)
-    return { success: false, state, events: [], errors: sequenceErrors };
+    return { success: false, state, events: [], errors: sequenceErrors }
 
-  let current = state;
-  const events: EventDraft[] = [];
+  let current = state
+  const events: EventDraft[] = []
 
   const run = <A extends PlayerAction>(
     action: A,
     validate: (s: GameState, a: A) => string[],
     process: (s: GameState, a: A) => Step
   ): string[] | null => {
-    const errors = validate(current, action);
-    if (errors.length > 0) return errors;
-    const step = process(current, action);
-    current = step.state;
-    events.push(...step.events);
+    const errors = validate(current, action)
+    if (errors.length > 0) return errors
+    const step = process(current, action)
+    current = step.state
+    events.push(...step.events)
     // A ship this action destroyed is settled here, before the next action
     // (RULES §Destruction and Respawn): its wreck is on the board, its cargo
     // dropped and its Escort markers back in hand for everything after it.
-    current = applyDestructions(current, step.events, events);
-    return null;
-  };
+    current = applyDestructions(current, step.events, events)
+    return null
+  }
 
-  const repairs = actions.filter((a): a is RepairAction => a.type === "repair");
+  const repairs = actions.filter((a): a is RepairAction => a.type === 'repair')
   const tactical = actions
     .filter(isTacticalAction)
-    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0));
+    .sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
 
   // One tile a turn: a cold ship's crew get to one thing, not to the loadout.
   if (repairs.length > 1) {
@@ -141,153 +141,153 @@ export function processActions(
       success: false,
       state,
       events: [],
-      errors: ["Only one subsystem may be repaired in a turn"],
-    };
+      errors: ['Only one subsystem may be repaired in a turn'],
+    }
   }
   for (const a of repairs) {
-    const errors = validateRepairAction(current, a);
-    if (errors.length > 0) return { success: false, state, events: [], errors };
+    const errors = validateRepairAction(current, a)
+    if (errors.length > 0) return { success: false, state, events: [], errors }
   }
   // One visit, one sale: the sale is named once and read at docking (turns.ts).
-  const dockSales = actions.filter((a): a is DockSaleAction => a.type === "dock_sale");
+  const dockSales = actions.filter((a): a is DockSaleAction => a.type === 'dock_sale')
   if (dockSales.length > 1) {
     return {
       success: false,
       state,
       events: [],
-      errors: ["Only one sale may be named for a visit"],
-    };
+      errors: ['Only one sale may be named for a visit'],
+    }
   }
   for (const a of dockSales) {
-    const errors = validateDockSaleAction(current, a);
-    if (errors.length > 0) return { success: false, state, events: [], errors };
+    const errors = validateDockSaleAction(current, a)
+    if (errors.length > 0) return { success: false, state, events: [], errors }
   }
 
   // Each marker names a different ship, and each seizure a different item.
   // Whether each one holds is asked at its place in the sequence, below.
-  const named = actions.flatMap((a) => (a.type === "escort_mark" ? [a.data.carrierId] : []));
+  const named = actions.flatMap(a => (a.type === 'escort_mark' ? [a.data.carrierId] : []))
   if (new Set(named).size !== named.length)
     return {
       success: false,
       state,
       events: [],
-      errors: ["Each Escort marker goes on a different ship"],
-    };
-  const seized = actions.flatMap((a) =>
-    a.type === "seize" ? [`${a.data.victimId}/${a.data.cargoId}`] : []
-  );
+      errors: ['Each Escort marker goes on a different ship'],
+    }
+  const seized = actions.flatMap(a =>
+    a.type === 'seize' ? [`${a.data.victimId}/${a.data.cargoId}`] : []
+  )
   if (new Set(seized).size !== seized.length)
-    return { success: false, state, events: [], errors: ["Each seizure names a different item"] };
+    return { success: false, state, events: [], errors: ['Each seizure names a different item'] }
   // One dive a turn and one wreck a turn (RULES §Missions): two of a kind
   // are two jobs, so a second card needs a second turn.
-  if (actions.filter((a) => a.type === "survey").length > 1)
-    return { success: false, state, events: [], errors: ["One survey a turn"] };
-  if (actions.filter((a) => a.type === "salvage").length > 1)
-    return { success: false, state, events: [], errors: ["One wreck a turn"] };
+  if (actions.filter(a => a.type === 'survey').length > 1)
+    return { success: false, state, events: [], errors: ['One survey a turn'] }
+  if (actions.filter(a => a.type === 'salvage').length > 1)
+    return { success: false, state, events: [], errors: ['One wreck a turn'] }
 
   // Ships alive when the turn began: shots at one of these that dies mid-turn are skipped, not errors.
-  const aliveAtStart = new Set(state.players.filter(isOnBoard).map((p) => p.id));
+  const aliveAtStart = new Set(state.players.filter(isOnBoard).map(p => p.id))
   for (const a of tactical) {
-    let err: string[] | null = null;
+    let err: string[] | null = null
     switch (a.type) {
-      case "power":
-        err = run(a, validatePowerAction, processPower);
-        break;
-      case "rotate":
-        err = run(a, validateRotateAction, processRotation);
-        break;
-      case "coast":
-        err = run(a, validateCoastAction, (s, c) => processCoast(s, c, turn));
-        break;
-      case "burn":
-        err = run(a, validateBurnAction, processBurn);
-        break;
-      case "well_transfer":
-        err = run(a, validateWellTransferAction, processWellTransfer);
-        break;
-      case "fire_weapon":
+      case 'power':
+        err = run(a, validatePowerAction, processPower)
+        break
+      case 'rotate':
+        err = run(a, validateRotateAction, processRotation)
+        break
+      case 'coast':
+        err = run(a, validateCoastAction, (s, c) => processCoast(s, c, turn))
+        break
+      case 'burn':
+        err = run(a, validateBurnAction, processBurn)
+        break
+      case 'well_transfer':
+        err = run(a, validateWellTransferAction, processWellTransfer)
+        break
+      case 'fire_weapon':
         if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
           events.push({
-            type: "action_skipped",
+            type: 'action_skipped',
             playerId: a.playerId,
-            action: "fire_weapon",
+            action: 'fire_weapon',
             targetId: a.data.targetPlayerId,
-            reason: "target_destroyed",
-          });
-          break;
+            reason: 'target_destroyed',
+          })
+          break
         }
-        err = run(a, (s, f) => validateFireWeaponAction(s, f, turn), processFireWeapon);
-        break;
-      case "scan":
+        err = run(a, (s, f) => validateFireWeaponAction(s, f, turn), processFireWeapon)
+        break
+      case 'scan':
         if (aliveAtStart.has(a.data.targetPlayerId) && targetGone(current, a.data.targetPlayerId)) {
           events.push({
-            type: "action_skipped",
+            type: 'action_skipped',
             playerId: a.playerId,
-            action: "scan",
+            action: 'scan',
             targetId: a.data.targetPlayerId,
-            reason: "target_destroyed",
-          });
-          break;
+            reason: 'target_destroyed',
+          })
+          break
         }
-        err = run(a, validateScanAction, (s, sa: ScanAction) => processScan(s, sa));
-        break;
-      case "seize":
+        err = run(a, validateScanAction, (s, sa: ScanAction) => processScan(s, sa))
+        break
+      case 'seize':
         // A ship a shot destroyed earlier in the turn drops what it carried:
         // there is nothing left to take (RULES §Missions, Piracy).
         if (aliveAtStart.has(a.data.victimId) && targetGone(current, a.data.victimId)) {
           events.push({
-            type: "action_skipped",
+            type: 'action_skipped',
             playerId: a.playerId,
-            action: "seize",
+            action: 'seize',
             targetId: a.data.victimId,
-            reason: "target_destroyed",
-          });
-          break;
+            reason: 'target_destroyed',
+          })
+          break
         }
-        err = run(a, (s, sz) => validateSeizeAction(s, sz, turn), processSeize);
-        break;
-      case "escort_mark":
+        err = run(a, (s, sz) => validateSeizeAction(s, sz, turn), processSeize)
+        break
+      case 'escort_mark':
         // A carrier a shot destroyed earlier in the turn is off the board:
         // there is nothing to put a marker on (RULES §Missions, Escort).
         if (aliveAtStart.has(a.data.carrierId) && targetGone(current, a.data.carrierId)) {
           events.push({
-            type: "action_skipped",
+            type: 'action_skipped',
             playerId: a.playerId,
-            action: "escort_mark",
+            action: 'escort_mark',
             targetId: a.data.carrierId,
-            reason: "target_destroyed",
-          });
-          break;
+            reason: 'target_destroyed',
+          })
+          break
         }
-        err = run(a, (s, m) => validateEscortMarkAction(s, m, turn), processEscortMark);
-        break;
-      case "survey":
-        err = run(a, validateSurveyAction, processSurvey);
-        break;
-      case "salvage":
-        err = run(a, validateSalvageAction, processSalvage);
-        break;
+        err = run(a, (s, m) => validateEscortMarkAction(s, m, turn), processEscortMark)
+        break
+      case 'survey':
+        err = run(a, validateSurveyAction, processSurvey)
+        break
+      case 'salvage':
+        err = run(a, validateSalvageAction, processSalvage)
+        break
     }
-    if (err) return { success: false, state, events: [], errors: err };
+    if (err) return { success: false, state, events: [], errors: err }
   }
 
   // Orbital drift is not optional: a turn without a movement action coasts.
-  if (!tactical.some((a) => MOVE_ACTION_TYPES.has(a.type))) {
-    const active = current.players[current.activePlayerIndex];
+  if (!tactical.some(a => MOVE_ACTION_TYPES.has(a.type))) {
+    const active = current.players[current.activePlayerIndex]
     const err = run(
       {
-        type: "coast",
+        type: 'coast',
         playerId: active.id,
         sequence: tactical.length + 1,
         data: { activateScoop: false },
       } as CoastAction,
       validateCoastAction,
       (s, c) => processCoast(s, c, turn)
-    );
-    if (err) return { success: false, state, events: [], errors: err };
+    )
+    if (err) return { success: false, state, events: [], errors: err }
   }
 
-  return { success: true, state: current, events };
+  return { success: true, state: current, events }
 }
 
 // ---------------------------------------------------------------------------
@@ -302,24 +302,24 @@ export function processActions(
  * widens the critical range of the shots sequenced after it, not before.
  */
 function processPower(state: GameState, action: PowerAction): Step {
-  const events: EventDraft[] = [];
-  const next = withPlayer(state, action.playerId, (p) => {
-    const sub = findSubsystem(p.ship, action.data.subsystemId)!;
-    const amount = requestedDraw(sub.type, action.data.amount);
+  const events: EventDraft[] = []
+  const next = withPlayer(state, action.playerId, p => {
+    const sub = findSubsystem(p.ship, action.data.subsystemId)!
+    const amount = requestedDraw(sub.type, action.data.amount)
     const ship = updateSubsystem(p.ship, sub.id, {
       allocatedEnergy: amount,
       usedThisTurn: true,
-    });
+    })
     events.push({
-      type: "subsystem_powered",
+      type: 'subsystem_powered',
       playerId: action.playerId,
       subsystemId: sub.id,
       ...(sub.isRevealed ? { subsystemType: sub.type } : {}),
       amount,
-    });
-    return { ...p, ship };
-  });
-  return { state: next, events };
+    })
+    return { ...p, ship }
+  })
+  return { state: next, events }
 }
 
 // ---------------------------------------------------------------------------
@@ -327,27 +327,27 @@ function processPower(state: GameState, action: PowerAction): Step {
 // ---------------------------------------------------------------------------
 
 function processRotation(state: GameState, action: RotateAction): Step {
-  const events: EventDraft[] = [];
-  let heat = 0;
-  const next = withPlayer(state, action.playerId, (p) => {
-    const used = useSubsystem(applyRotation(p.ship, action.data.targetFacing), p.id, "rotation");
-    heat = used.heat;
-    events.push(...used.events);
-    return { ...p, ship: used.ship };
-  });
+  const events: EventDraft[] = []
+  let heat = 0
+  const next = withPlayer(state, action.playerId, p => {
+    const used = useSubsystem(applyRotation(p.ship, action.data.targetFacing), p.id, 'rotation')
+    heat = used.heat
+    events.push(...used.events)
+    return { ...p, ship: used.ship }
+  })
   events.push({
-    type: "rotated",
+    type: 'rotated',
     playerId: action.playerId,
     facing: action.data.targetFacing,
     heat,
-  });
-  return { state: next, events };
+  })
+  return { state: next, events }
 }
 
 function processCoast(state: GameState, action: CoastAction, turn: TurnContext): Step {
-  const events: EventDraft[] = [];
-  let massScooped = 0;
-  let heat = 0;
+  const events: EventDraft[] = []
+  let massScooped = 0
+  let heat = 0
   // A ship docked at a station is moored: it holds its berth and rides the
   // station at the end of the round instead of drifting now (RULES §Stations,
   // Moored). Only a berth held since the turn began: a ship the turn has put
@@ -355,105 +355,105 @@ function processCoast(state: GameState, action: CoastAction, turn: TurnContext):
   const moored = isMooredMidTurn(
     state.stations,
     turn.start,
-    state.players.find((p) => p.id === action.playerId)!.ship
-  );
-  const next = withPlayer(state, action.playerId, (p) => {
-    let ship = applyOrbitalMovement(p.ship, moored);
+    state.players.find(p => p.id === action.playerId)!.ship
+  )
+  const next = withPlayer(state, action.playerId, p => {
+    let ship = applyOrbitalMovement(p.ship, moored)
     if (action.data.activateScoop) {
-      const used = useSubsystem(ship, p.id, "scoop");
-      ship = used.ship;
-      heat = used.heat;
-      events.push(...used.events);
+      const used = useSubsystem(ship, p.id, 'scoop')
+      ship = used.ship
+      heat = used.heat
+      events.push(...used.events)
       massScooped = Math.min(
         ringVelocity(ship.wellId, ship.ring),
         MAX_REACTION_MASS - ship.reactionMass
-      );
-      ship = { ...ship, reactionMass: ship.reactionMass + massScooped };
+      )
+      ship = { ...ship, reactionMass: ship.reactionMass + massScooped }
     }
-    return { ...p, ship };
-  });
-  const to = positionOf(next.players.find((p) => p.id === action.playerId)!.ship);
+    return { ...p, ship }
+  })
+  const to = positionOf(next.players.find(p => p.id === action.playerId)!.ship)
   events.push({
-    type: "coasted",
+    type: 'coasted',
     playerId: action.playerId,
     to,
     scooped: action.data.activateScoop,
     heat,
     ...(moored ? { moored: true } : {}),
-  });
+  })
   if (action.data.activateScoop) {
-    events.push({ type: "fuel_scooped", playerId: action.playerId, amount: massScooped });
+    events.push({ type: 'fuel_scooped', playerId: action.playerId, amount: massScooped })
   }
-  return { state: next, events };
+  return { state: next, events }
 }
 
 function processBurn(state: GameState, action: BurnAction): Step {
-  const events: EventDraft[] = [];
-  const before = positionOf(state.players.find((p) => p.id === action.playerId)!.ship);
-  let massSpent = 0;
-  let heat = 0;
-  const next = withPlayer(state, action.playerId, (p) => {
-    const drifted = applyOrbitalMovement(p.ship);
-    const burned = applyBurn(drifted, action.data.burnIntensity, action.data.sectorAdjustment);
-    massSpent = burned.massSpent;
+  const events: EventDraft[] = []
+  const before = positionOf(state.players.find(p => p.id === action.playerId)!.ship)
+  let massSpent = 0
+  let heat = 0
+  const next = withPlayer(state, action.playerId, p => {
+    const drifted = applyOrbitalMovement(p.ship)
+    const burned = applyBurn(drifted, action.data.burnIntensity, action.data.sectorAdjustment)
+    massSpent = burned.massSpent
     const used = useSubsystem(
       burned.ship,
       p.id,
-      "engines",
-      "fired",
+      'engines',
+      'fired',
       BURN_COSTS[action.data.burnIntensity].energy
-    );
-    heat = used.heat;
-    events.push(...used.events);
-    return { ...p, ship: used.ship };
-  });
-  const to = positionOf(next.players.find((p) => p.id === action.playerId)!.ship);
+    )
+    heat = used.heat
+    events.push(...used.events)
+    return { ...p, ship: used.ship }
+  })
+  const to = positionOf(next.players.find(p => p.id === action.playerId)!.ship)
   events.push({
-    type: "burned",
+    type: 'burned',
     playerId: action.playerId,
     intensity: action.data.burnIntensity,
     from: before,
     to,
     massSpent,
     heat,
-  });
-  return { state: next, events };
+  })
+  return { state: next, events }
 }
 
 function processWellTransfer(state: GameState, action: WellTransferAction): Step {
-  const events: EventDraft[] = [];
-  const player = state.players.find((p) => p.id === action.playerId)!;
-  const from = positionOf(player.ship);
-  const jump = findJump(from, action.data.destinationWellId)!;
-  const sectorAdjustment = action.data.sectorAdjustment;
+  const events: EventDraft[] = []
+  const player = state.players.find(p => p.id === action.playerId)!
+  const from = positionOf(player.ship)
+  const jump = findJump(from, action.data.destinationWellId)!
+  const sectorAdjustment = action.data.sectorAdjustment
   // Validated above: the phased landing is inside the arrival arc.
-  const destination = phasedJumpDestination(jump, sectorAdjustment)!;
-  let heat = 0;
-  const compressed = hasWorkingCompressor(player.ship);
+  const destination = phasedJumpDestination(jump, sectorAdjustment)!
+  let heat = 0
+  const compressed = hasWorkingCompressor(player.ship)
   // A compressor cuts the lane's own fuel to COMPRESSED_JUMP_MASS; the
   // phasing is paid either way.
-  const massSpent = calculateJumpMassCost(sectorAdjustment, compressed);
+  const massSpent = calculateJumpMassCost(sectorAdjustment, compressed)
 
-  const next = withPlayer(state, action.playerId, (p) => {
-    let ship = { ...p.ship, ...destination, reactionMass: p.ship.reactionMass - massSpent };
-    const used = useSubsystem(ship, p.id, "engines", "fired", WELL_TRANSFER_COSTS.energy);
-    ship = used.ship;
-    heat = used.heat;
-    events.push(...used.events);
+  const next = withPlayer(state, action.playerId, p => {
+    let ship = { ...p.ship, ...destination, reactionMass: p.ship.reactionMass - massSpent }
+    const used = useSubsystem(ship, p.id, 'engines', 'fired', WELL_TRANSFER_COSTS.energy)
+    ship = used.ship
+    heat = used.heat
+    events.push(...used.events)
     if (compressed) {
       // The compressor takes no cubes, so it adds no heat; it flips face-up
       // the first time it pays for a lane.
       for (const compressor of workingCompressors(ship)) {
-        const r = useSubsystem(ship, p.id, compressor.id, "compressed_jump");
-        ship = r.ship;
-        heat += r.heat;
-        events.push(...r.events);
+        const r = useSubsystem(ship, p.id, compressor.id, 'compressed_jump')
+        ship = r.ship
+        heat += r.heat
+        events.push(...r.events)
       }
     }
-    return { ...p, ship };
-  });
+    return { ...p, ship }
+  })
   events.push({
-    type: "jumped",
+    type: 'jumped',
     playerId: action.playerId,
     from,
     to: destination,
@@ -461,8 +461,8 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
     massSpent,
     compressed,
     heat,
-  });
-  return { state: next, events };
+  })
+  return { state: next, events }
 }
 
 // ---------------------------------------------------------------------------
@@ -476,8 +476,8 @@ function processSeize(state: GameState, action: SeizeAction): Step {
     action.playerId,
     action.data.victimId,
     action.data.cargoId
-  );
-  return { state: next, events: [event] };
+  )
+  return { state: next, events: [event] }
 }
 
 // ---------------------------------------------------------------------------
@@ -486,8 +486,8 @@ function processSeize(state: GameState, action: SeizeAction): Step {
 
 /** Take the dive's data (validated): no tile is used. */
 function processSurvey(state: GameState, action: SurveyAction): Step {
-  const { state: next, event } = takeSurveyData(state, action.playerId);
-  return { state: next, events: [event] };
+  const { state: next, event } = takeSurveyData(state, action.playerId)
+  return { state: next, events: [event] }
 }
 
 /**
@@ -496,27 +496,27 @@ function processSurvey(state: GameState, action: SurveyAction): Step {
  * finding none (the shot before it did not kill) is simply not taken.
  */
 function processSalvage(state: GameState, action: SalvageAction): Step {
-  const wreck = wreckToSalvage(state, action.playerId, action.data.wreckId);
+  const wreck = wreckToSalvage(state, action.playerId, action.data.wreckId)
   if (!wreck)
     return {
       state,
       events: [
         {
-          type: "action_skipped",
+          type: 'action_skipped',
           playerId: action.playerId,
-          action: "salvage",
-          reason: "no_wreck",
+          action: 'salvage',
+          reason: 'no_wreck',
         },
       ],
-    };
-  const { state: next, event } = salvageWreck(state, action.playerId, wreck.id);
-  return { state: next, events: [event] };
+    }
+  const { state: next, event } = salvageWreck(state, action.playerId, wreck.id)
+  return { state: next, events: [event] }
 }
 
 /** Put the first marker in hand on the carrier (validated): no tile is used. */
 function processEscortMark(state: GameState, action: EscortMarkAction): Step {
-  const { state: next, event } = markCarrier(state, action.playerId, action.data.carrierId);
-  return { state: next, events: [event] };
+  const { state: next, event } = markCarrier(state, action.playerId, action.data.carrierId)
+  return { state: next, events: [event] }
 }
 
 // ---------------------------------------------------------------------------
@@ -524,78 +524,73 @@ function processEscortMark(state: GameState, action: EscortMarkAction): Step {
 // ---------------------------------------------------------------------------
 
 function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
-  const events: EventDraft[] = [];
-  const players = [...state.players];
-  const attackerIndex = players.findIndex((p) => p.id === action.playerId);
-  const targetIndex = players.findIndex((p) => p.id === action.data.targetPlayerId);
-  let attacker = players[attackerIndex];
-  const weapon = findSubsystem(attacker.ship, action.data.subsystemId)!;
-  const config = getSubsystemConfig(weapon.type);
+  const events: EventDraft[] = []
+  const players = [...state.players]
+  const attackerIndex = players.findIndex(p => p.id === action.playerId)
+  const targetIndex = players.findIndex(p => p.id === action.data.targetPlayerId)
+  let attacker = players[attackerIndex]
+  const weapon = findSubsystem(attacker.ship, action.data.subsystemId)!
+  const config = getSubsystemConfig(weapon.type)
   // Validated: the subsystem is a weapon.
-  const weaponType = weapon.type as WeaponType;
+  const weaponType = weapon.type as WeaponType
 
   // A missiles tile may empty as much of its magazine as it likes at one ship
   // in one action, and that is one use of the tile: its cubes are charged once
   // however big the salvo, because the magazine is what limits missiles.
-  const salvo = weaponType === "missiles" ? Math.max(1, Math.trunc(action.data.count ?? 1)) : 1;
-  const used = useSubsystem(attacker.ship, attacker.id, weapon.id, "fired");
-  attacker = { ...attacker, ship: used.ship };
+  const salvo = weaponType === 'missiles' ? Math.max(1, Math.trunc(action.data.count ?? 1)) : 1
+  const used = useSubsystem(attacker.ship, attacker.id, weapon.id, 'fired')
+  attacker = { ...attacker, ship: used.ship }
   events.push({
-    type: "weapon_fired",
+    type: 'weapon_fired',
     attackerId: attacker.id,
     targetId: action.data.targetPlayerId,
     subsystemId: weapon.id,
     weaponType,
     heat: used.heat,
-    ...(weaponType === "missiles" ? { count: salvo } : {}),
-  });
-  events.push(...used.events);
+    ...(weaponType === 'missiles' ? { count: salvo } : {}),
+  })
+  events.push(...used.events)
 
-  let working: GameState = { ...state, players };
+  let working: GameState = { ...state, players }
 
-  if (weaponType === "missiles") {
-    const launched: Missile[] = [];
+  if (weaponType === 'missiles') {
+    const launched: Missile[] = []
     for (let i = 0; i < salvo; i++) {
       // createMissile draws the next entity id off `working`, so each round of
       // the salvo gets its own token.
       launched.push(
-        createMissile(
-          working,
-          attacker,
-          action.data.targetPlayerId,
-          action.data.criticalTarget
-        )
-      );
+        createMissile(working, attacker, action.data.targetPlayerId, action.data.criticalTarget)
+      )
     }
     attacker = {
       ...attacker,
       // Validated: the magazine holds the salvo.
-      ship: updateSubsystem(attacker.ship, weapon.id, (s) => ({ ammo: s.ammo! - salvo })),
-    };
-    players[attackerIndex] = attacker;
-    working = { ...working, players };
+      ship: updateSubsystem(attacker.ship, weapon.id, s => ({ ammo: s.ammo! - salvo })),
+    }
+    players[attackerIndex] = attacker
+    working = { ...working, players }
     for (const missile of launched) {
       events.push({
-        type: "missile_launched",
+        type: 'missile_launched',
         ownerId: attacker.id,
         missileId: missile.id,
         targetId: action.data.targetPlayerId,
         at: positionOf(attacker.ship),
         criticalTarget: action.data.criticalTarget,
-      });
+      })
     }
     // The salvo flies now, at its place in the turn (RULES §Weapons,
     // Missiles): a hit lands before the actions sequenced after it, and
     // rolls with the critical range the sensor gives the attacker as it
     // stands. A kill is settled as soon as this action is (processActions).
-    const flight = flyLaunchedMissiles(working, launched);
-    working = flight.state;
-    events.push(...flight.events);
+    const flight = flyLaunchedMissiles(working, launched)
+    working = flight.state
+    events.push(...flight.events)
   } else {
-    players[attackerIndex] = attacker;
-    const target = players[targetIndex];
-    const roll = rollD10(working);
-    const stats = config.weaponStats!;
+    players[attackerIndex] = attacker
+    const target = players[targetIndex]
+    const roll = rollD10(working)
+    const stats = config.weaponStats!
     const outcome = resolveAttack(
       target.ship,
       target.id,
@@ -609,10 +604,10 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
         shieldPointsPerEnergy: stats.shieldPointsPerEnergy,
         disrupts: stats.disrupts === true,
       }
-    );
-    players[targetIndex] = { ...target, ship: outcome.ship };
+    )
+    players[targetIndex] = { ...target, ship: outcome.ship }
     events.push({
-      type: "attack_resolved",
+      type: 'attack_resolved',
       attackerId: attacker.id,
       targetId: target.id,
       weaponType,
@@ -623,60 +618,60 @@ function processFireWeapon(state: GameState, action: FireWeaponAction): Step {
       absorbed: outcome.hitResult.absorbed,
       targetHullAfter: outcome.ship.hitPoints,
       ...(outcome.hitResult.blocked ? { blocked: true as const } : {}),
-    });
-    events.push(...outcome.events);
+    })
+    events.push(...outcome.events)
     if (isDestroyed(outcome.ship) && !isDestroyed(target.ship)) {
       events.push({
-        type: "ship_destroyed",
+        type: 'ship_destroyed',
         victimId: target.id,
         killerId: attacker.id,
-        cause: "weapon",
-      });
+        cause: 'weapon',
+      })
     }
-    working = { ...working, players };
+    working = { ...working, players }
   }
 
   // Recoil. The attacker is read back off the board: a salvo's flight may have changed it.
   if (config.weaponStats?.hasRecoil) {
-    attacker = working.players[attackerIndex];
+    attacker = working.players[attackerIndex]
     if (action.data.compensateRecoil) {
       const compensated = useSubsystem(
         attacker.ship,
         attacker.id,
-        "engines",
-        "fired",
+        'engines',
+        'fired',
         BURN_COSTS.soft.energy
-      );
+      )
       const ship = {
         ...compensated.ship,
         reactionMass: compensated.ship.reactionMass - BURN_COSTS.soft.mass,
-      };
-      attacker = { ...attacker, ship };
-      events.push(...compensated.events);
+      }
+      attacker = { ...attacker, ship }
+      events.push(...compensated.events)
       events.push({
-        type: "recoil",
+        type: 'recoil',
         playerId: attacker.id,
         compensated: true,
         massSpent: BURN_COSTS.soft.mass,
         heat: compensated.heat,
-      });
+      })
     } else {
       // Validated: the push stays on the rings.
-      const ring = recoilRing(attacker.ship) ?? attacker.ship.ring;
-      attacker = { ...attacker, ship: { ...attacker.ship, ring } };
+      const ring = recoilRing(attacker.ship) ?? attacker.ship.ring
+      attacker = { ...attacker, ship: { ...attacker.ship, ring } }
       events.push({
-        type: "recoil",
+        type: 'recoil',
         playerId: attacker.id,
         compensated: false,
         to: positionOf(attacker.ship),
         massSpent: 0,
         heat: 0,
-      });
+      })
     }
-    const after = [...working.players];
-    after[attackerIndex] = attacker;
-    working = { ...working, players: after };
+    const after = [...working.players]
+    after[attackerIndex] = attacker
+    working = { ...working, players: after }
   }
 
-  return { state: working, events };
+  return { state: working, events }
 }

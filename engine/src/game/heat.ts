@@ -24,26 +24,26 @@
  * That is what makes a hot turn a decision rather than a cliff: you can take one
  * and climb back out over the quiet turns after it.
  */
-import type { ShipState } from "../models/game.ts";
-import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT } from "../models/game.ts";
-import type { EventDraft } from "../models/events.ts";
-import type { SubsystemId } from "../models/subsystems.ts";
+import type { ShipState } from '../models/game.ts'
+import { DEFAULT_DISSIPATION_CAPACITY, MAX_HEAT } from '../models/game.ts'
+import type { EventDraft } from '../models/events.ts'
+import type { SubsystemId } from '../models/subsystems.ts'
 import {
   findSubsystem,
   getDissipationCapacity,
   heatFromCubes,
   revealSubsystem,
   updateSubsystem,
-} from "./ship.ts";
+} from './ship.ts'
 
 /** The heat a ship would be carrying at a check, before it dissipates. */
 export function heatAtCheck(ship: ShipState): number {
-  return ship.heat.currentHeat + heatFromCubes(ship.subsystems);
+  return ship.heat.currentHeat + heatFromCubes(ship.subsystems)
 }
 
 /** Heat left on the track after a check: capped at the top, then dissipated. */
 export function heatAfterCheck(heat: number, dissipation: number): number {
-  return Math.max(0, Math.min(heat, MAX_HEAT) - dissipation);
+  return Math.max(0, Math.min(heat, MAX_HEAT) - dissipation)
 }
 
 /**
@@ -75,39 +75,39 @@ export function resolveEndOfTurnHeat(
   /** Tile the owner named for a cold repair, if any. */
   repairChoice?: SubsystemId
 ): { ship: ShipState; damage: number; events: EventDraft[] } {
-  const cubes = heatFromCubes(ship.subsystems);
-  const heat = heatAtCheck(ship);
-  const dissipation = getDissipationCapacity(ship.subsystems);
-  const damage = Math.max(0, heat - MAX_HEAT);
-  const carried = heatAfterCheck(heat, dissipation);
-  const events: EventDraft[] = [];
-  let next = ship;
+  const cubes = heatFromCubes(ship.subsystems)
+  const heat = heatAtCheck(ship)
+  const dissipation = getDissipationCapacity(ship.subsystems)
+  const damage = Math.max(0, heat - MAX_HEAT)
+  const carried = heatAfterCheck(heat, dissipation)
+  const events: EventDraft[] = []
+  let next = ship
 
   if (heat === 0 && repairChoice !== undefined) {
-    const sub = findSubsystem(next, repairChoice);
+    const sub = findSubsystem(next, repairChoice)
     if (sub?.isBroken) {
-      next = updateSubsystem(next, repairChoice, { isBroken: false });
+      next = updateSubsystem(next, repairChoice, { isBroken: false })
       events.push({
-        type: "subsystem_repaired",
+        type: 'subsystem_repaired',
         playerId,
         subsystemId: repairChoice,
         subsystemType: sub.type,
-      });
+      })
     }
   }
 
   // Radiators show themselves whenever they dissipate heat the base ship could not.
   if (heat > DEFAULT_DISSIPATION_CAPACITY && dissipation > DEFAULT_DISSIPATION_CAPACITY) {
-    for (const radiator of ship.subsystems.filter((s) => s.type === "radiator" && !s.isBroken)) {
-      const r = revealSubsystem(next, playerId, radiator.id, "dissipating");
-      next = r.ship;
-      events.push(...r.events);
+    for (const radiator of ship.subsystems.filter(s => s.type === 'radiator' && !s.isBroken)) {
+      const r = revealSubsystem(next, playerId, radiator.id, 'dissipating')
+      next = r.ship
+      events.push(...r.events)
     }
   }
 
-  const dissipated = Math.min(heat, MAX_HEAT) - carried;
-  events.push({ type: "heat_check", playerId, heat, cubes, dissipated, damage, carried });
-  if (damage > 0) next = { ...next, hitPoints: Math.max(0, next.hitPoints - damage) };
+  const dissipated = Math.min(heat, MAX_HEAT) - carried
+  events.push({ type: 'heat_check', playerId, heat, cubes, dissipated, damage, carried })
+  if (damage > 0) next = { ...next, hitPoints: Math.max(0, next.hitPoints - damage) }
 
-  return { ship: { ...next, heat: { currentHeat: carried } }, damage, events };
+  return { ship: { ...next, heat: { currentHeat: carried } }, damage, events }
 }

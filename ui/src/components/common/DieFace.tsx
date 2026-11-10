@@ -23,7 +23,15 @@ const OUTCOME_TEXT: Record<DieRoll['outcome'], string> = {
   leaked: 'leaked',
 }
 
-export function DieFace({ roll, outcome, size = 34 }: { roll: number; outcome: DieRoll['outcome']; size?: number }) {
+export function DieFace({
+  roll,
+  outcome,
+  size = 34,
+}: {
+  roll: number
+  outcome: DieRoll['outcome']
+  size?: number
+}) {
   const color = OUTCOME_COLOR[outcome]
   return (
     <Box
@@ -71,7 +79,9 @@ export function DieResult({
       : `1 miss · 2–${critFrom - 1} hit · ${critFrom}–10 crit`
 
   return (
-    <Tooltip title={`${nameOf(die.attackerId)} → ${nameOf(die.targetId)} · ${die.label} · ${scale}`}>
+    <Tooltip
+      title={`${nameOf(die.attackerId)} → ${nameOf(die.targetId)} · ${die.label} · ${scale}`}
+    >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
         <DieFace roll={die.roll} outcome={die.outcome} size={size} />
         <Box sx={{ minWidth: 0 }}>

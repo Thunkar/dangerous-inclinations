@@ -29,86 +29,86 @@
  *      (spread out, don't start in someone's railgun arc).
  * Ties are broken by the game's seeded RNG through `pick`.
  */
-import { HOME_RING, HOME_RINGS, BLACK_HOLE_ID, arcSectors } from "../../models/gravityWells.ts";
-import type { Position } from "../../models/game.ts";
-import type { Mission, MissionType } from "../../models/missions.ts";
-import { getSubsystemConfig } from "../../models/subsystems.ts";
-import { SECTORS_PER_RING } from "../../models/rings.ts";
-import { forwardDistance, positionOf, sectorDistance, wrapSector } from "../../game/geometry.ts";
-import { planetLane } from "./danger.ts";
-import { DEPLOYMENT_GAP, legalDeploymentsAgainst } from "../../game/deployment.ts";
-import type { GameView } from "../../game/view.ts";
-import { isOpenMission } from "../types.ts";
+import { HOME_RING, HOME_RINGS, BLACK_HOLE_ID, arcSectors } from '../../models/gravityWells.ts'
+import type { Position } from '../../models/game.ts'
+import type { Mission, MissionType } from '../../models/missions.ts'
+import { getSubsystemConfig } from '../../models/subsystems.ts'
+import { SECTORS_PER_RING } from '../../models/rings.ts'
+import { forwardDistance, positionOf, sectorDistance, wrapSector } from '../../game/geometry.ts'
+import { planetLane } from './danger.ts'
+import { DEPLOYMENT_GAP, legalDeploymentsAgainst } from '../../game/deployment.ts'
+import type { GameView } from '../../game/view.ts'
+import { isOpenMission } from '../types.ts'
 
 export interface DeploymentChoice {
-  wellId: string;
-  ring: number;
-  sector: number;
+  wellId: string
+  ring: number
+  sector: number
 }
 
 /** The inner deployment ring: the fastest a ship may start on. */
-const FAST_RING = HOME_RINGS[0];
+const FAST_RING = HOME_RINGS[0]
 
 /** Cards whose holder has to come to somebody. */
 const HUNTING_MISSIONS = new Set<MissionType>([
-  "destroy_ship",
-  "intercept_transmission",
-  "piracy",
-  "escort",
-]);
+  'destroy_ship',
+  'intercept_transmission',
+  'piracy',
+  'escort',
+])
 
 /** Where the ships already placed sit, as the view shows them. */
 export function placedShipPositions(view: GameView): Position[] {
-  return view.players.filter((p) => p.hasDeployed && p.ship).map((p) => positionOf(p.ship!));
+  return view.players.filter(p => p.hasDeployed && p.ship).map(p => positionOf(p.ship!))
 }
 
 /** Ring-5 sectors from which a jump to `planetId` is possible: its outbound lane. */
 function laneSectorsTo(planetId: string): number[] {
-  const lane = planetLane(planetId, "outbound");
-  return lane ? arcSectors(lane.blackHoleArc) : [];
+  const lane = planetLane(planetId, 'outbound')
+  return lane ? arcSectors(lane.blackHoleArc) : []
 }
 
 export function chooseDeployment(view: GameView, pick: (n: number) => number): DeploymentChoice {
-  const placed = placedShipPositions(view);
-  const legal = legalDeploymentsAgainst(placed);
-  if (legal.length === 0) return { wellId: BLACK_HOLE_ID, ring: HOME_RING, sector: 0 };
+  const placed = placedShipPositions(view)
+  const legal = legalDeploymentsAgainst(placed)
+  if (legal.length === 0) return { wellId: BLACK_HOLE_ID, ring: HOME_RING, sector: 0 }
 
   const take = (from: Position[]): DeploymentChoice => {
-    const p = from[pick(from.length)];
-    return positionOf(p);
-  };
-  const onRing = (ring: number) => legal.filter((p) => p.ring === ring);
+    const p = from[pick(from.length)]
+    return positionOf(p)
+  }
+  const onRing = (ring: number) => legal.filter(p => p.ring === ring)
   const farthest = (from: Position[]): Position[] => {
-    if (placed.length === 0 || from.length === 0) return from;
+    if (placed.length === 0 || from.length === 0) return from
     const clearance = (p: Position) =>
-      Math.min(...placed.map((q) => sectorDistance(p.sector, q.sector)));
-    const best = Math.max(...from.map(clearance));
-    return from.filter((p) => clearance(p) === best);
-  };
+      Math.min(...placed.map(q => sectorDistance(p.sector, q.sector)))
+    const best = Math.max(...from.map(clearance))
+    return from.filter(p => clearance(p) === best)
+  }
 
-  const missions = (view.me?.missions ?? []).filter(isOpenMission);
+  const missions = (view.me?.missions ?? []).filter(isOpenMission)
 
   // 1. Line up with the lane toward the first Deliver pickup.
-  const pickup = missions.find((m) => m.type === "deliver_cargo");
-  if (pickup && pickup.type === "deliver_cargo") {
-    const wanted = new Set<number>();
+  const pickup = missions.find(m => m.type === 'deliver_cargo')
+  if (pickup && pickup.type === 'deliver_cargo') {
+    const wanted = new Set<number>()
     for (const s of laneSectorsTo(pickup.pickupPlanetId)) {
-      wanted.add(s);
-      wanted.add(wrapSector(s - 2));
+      wanted.add(s)
+      wanted.add(wrapSector(s - 2))
     }
-    const lined = onRing(HOME_RING).filter((p) => wanted.has(p.sector));
-    if (lined.length > 0) return take(lined);
+    const lined = onRing(HOME_RING).filter(p => wanted.has(p.sector))
+    if (lined.length > 0) return take(lined)
   }
 
   // 2. Next to a placed Destroy or Intercept target, on its ring.
-  const nearTarget = targetSectors(view, missions, legal);
-  if (nearTarget.length > 0) return take(nearTarget);
+  const nearTarget = targetSectors(view, missions, legal)
+  if (nearTarget.length > 0) return take(nearTarget)
 
   // 3/4. The fast ring if this seat has to reach somebody, the outer ring
   // otherwise; either way as far as possible from the ships already placed.
-  const hunting = missions.some((m) => HUNTING_MISSIONS.has(m.type));
-  const wantedRing = onRing(hunting ? FAST_RING : HOME_RING);
-  return take(farthest(wantedRing.length > 0 ? wantedRing : legal));
+  const hunting = missions.some(m => HUNTING_MISSIONS.has(m.type))
+  const wantedRing = onRing(hunting ? FAST_RING : HOME_RING)
+  return take(farthest(wantedRing.length > 0 ? wantedRing : legal))
 }
 
 /**
@@ -121,31 +121,29 @@ function targetSectors(
   missions: readonly Mission[],
   legal: Position[]
 ): Position[] {
-  const card = missions.find(
-    (m) => m.type === "destroy_ship" || m.type === "intercept_transmission"
-  );
-  if (card?.type !== "destroy_ship" && card?.type !== "intercept_transmission") return [];
-  const target = view.players.find((p) => p.id === card.targetPlayerId && p.hasDeployed && p.ship);
-  if (!target?.ship) return [];
-  const t = positionOf(target.ship);
-  const ring = legal.filter((p) => p.wellId === t.wellId && p.ring === t.ring);
-  if (ring.length === 0) return [];
+  const card = missions.find(m => m.type === 'destroy_ship' || m.type === 'intercept_transmission')
+  if (card?.type !== 'destroy_ship' && card?.type !== 'intercept_transmission') return []
+  const target = view.players.find(p => p.id === card.targetPlayerId && p.hasDeployed && p.ship)
+  if (!target?.ship) return []
+  const t = positionOf(target.ship)
+  const ring = legal.filter(p => p.wellId === t.wellId && p.ring === t.ring)
+  if (ring.length === 0) return []
 
   // Sectors from a candidate forward to the target: what a prograde-facing
   // railgun reads as "ahead", and at most half a ring for a ship behind it.
-  const ahead = (p: Position) => forwardDistance(p.sector, t.sector);
+  const ahead = (p: Position) => forwardDistance(p.sector, t.sector)
 
-  if (card.type === "destroy_ship" && view.me?.ship.subsystems.some((s) => s.type === "railgun")) {
-    const range = getSubsystemConfig("railgun").weaponStats?.sectorRange ?? 0;
-    const inWindow = ring.filter((p) => ahead(p) >= DEPLOYMENT_GAP && ahead(p) <= range);
+  if (card.type === 'destroy_ship' && view.me?.ship.subsystems.some(s => s.type === 'railgun')) {
+    const range = getSubsystemConfig('railgun').weaponStats?.sectorRange ?? 0
+    const inWindow = ring.filter(p => ahead(p) >= DEPLOYMENT_GAP && ahead(p) <= range)
     if (inWindow.length > 0) {
-      const best = Math.min(...inWindow.map(ahead));
-      return inWindow.filter((p) => ahead(p) === best);
+      const best = Math.min(...inWindow.map(ahead))
+      return inWindow.filter(p => ahead(p) === best)
     }
   }
 
-  const nearest = Math.min(...ring.map((p) => sectorDistance(p.sector, t.sector)));
-  const closest = ring.filter((p) => sectorDistance(p.sector, t.sector) === nearest);
-  const behind = closest.filter((p) => ahead(p) <= SECTORS_PER_RING / 2);
-  return behind.length > 0 ? behind : closest;
+  const nearest = Math.min(...ring.map(p => sectorDistance(p.sector, t.sector)))
+  const closest = ring.filter(p => sectorDistance(p.sector, t.sector) === nearest)
+  const behind = closest.filter(p => ahead(p) <= SECTORS_PER_RING / 2)
+  return behind.length > 0 ? behind : closest
 }

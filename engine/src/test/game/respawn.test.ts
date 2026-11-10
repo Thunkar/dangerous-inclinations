@@ -1,11 +1,11 @@
-import { viewFor } from "../../game/view.ts";
-import { describe, it, expect } from "vitest";
-import { PLANET_OUTER_RING } from "../../models/gravityWells.ts";
-import { dropCargo, findRespawnPosition, needsRespawn, respawnPlayer } from "../../game/respawn.ts";
-import type { GameState, Player, Position } from "../../models/game.ts";
-import type { Cargo } from "../../models/missions.ts";
-import { dataAboard } from "../../models/missions.ts";
-import { getSubsystemConfig, isPowered } from "../../models/subsystems.ts";
+import { viewFor } from '../../game/view.ts'
+import { describe, it, expect } from 'vitest'
+import { PLANET_OUTER_RING } from '../../models/gravityWells.ts'
+import { dropCargo, findRespawnPosition, needsRespawn, respawnPlayer } from '../../game/respawn.ts'
+import type { GameState, Player, Position } from '../../models/game.ts'
+import type { Cargo } from '../../models/missions.ts'
+import { dataAboard } from '../../models/missions.ts'
+import { getSubsystemConfig, isPowered } from '../../models/subsystems.ts'
 import {
   LOADOUTS,
   power,
@@ -40,158 +40,158 @@ import {
   withSub,
   crateCargo,
   GAMMA,
-} from "../testUtils.ts";
+} from '../testUtils.ts'
 
-const crate = crateCargo(BETA, GAMMA);
-const data = dataCargo("data-intercept-p1", "intercept-p1");
+const crate = crateCargo(BETA, GAMMA)
+const data = dataCargo('data-intercept-p1', 'intercept-p1')
 
 /** p2 destroyed and next to act, carrying scars from its previous life. */
 function wreck(): GameState {
   let state = makeTwoPlayerGame(
     {},
-    { ring: 2, sector: 5, facing: "retrograde" },
+    { ring: 2, sector: 5, facing: 'retrograde' },
     { activePlayerIndex: 1 }
-  );
-  state = withShip(state, "p2", { hitPoints: 0, reactionMass: 2, heat: { currentHeat: 7 } });
-  state = withPower(state, "p2", "side-2", 2);
-  state = withSub(state, "p2", "side-0", { isRevealed: true });
-  state = withSub(state, "p2", "engines", { isBroken: true });
-  state = withPlayer(state, "p2", {
+  )
+  state = withShip(state, 'p2', { hitPoints: 0, reactionMass: 2, heat: { currentHeat: 7 } })
+  state = withPower(state, 'p2', 'side-2', 2)
+  state = withSub(state, 'p2', 'side-0', { isRevealed: true })
+  state = withSub(state, 'p2', 'engines', { isBroken: true })
+  state = withPlayer(state, 'p2', {
     home: { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 },
     points: 1,
-    intel: { p1: ["side-1"] },
-  });
-  return state;
+    intel: { p1: ['side-1'] },
+  })
+  return state
 }
 
-describe("respawn: destruction drops cargo", () => {
-  it("a kill drops picked-up crates and destroys data", () => {
+describe('respawn: destruction drops cargo', () => {
+  it('a kill drops picked-up crates and destroys data', () => {
     let state = withPower(
       makeTwoPlayerGame({ ring: 3, sector: 0 }, { ring: 3, sector: 2 }),
-      "p1",
-      "forward-0",
+      'p1',
+      'forward-0',
       4
-    );
-    state = withShip(state, "p2", { hitPoints: 4 });
+    )
+    state = withShip(state, 'p2', { hitPoints: 4 })
     // The intercept's data is aboard and is lost: the card has to scan again.
-    const intercept = interceptMission("p1");
-    state = withPlayer(state, "p2", {
+    const intercept = interceptMission('p1')
+    state = withPlayer(state, 'p2', {
       cargo: [
         crate,
         { ...data, missionId: intercept.id },
-        { ...crate, id: "crate-2", isPickedUp: false },
+        { ...crate, id: 'crate-2', isPickedUp: false },
       ],
       missions: [intercept],
-    });
-    const result = executeTurnAs(state, fire(1, "forward-0", "p2"));
-    expect(eventsOf(result.events, "cargo_dropped")).toEqual([
-      expect.objectContaining({ playerId: "p2", crates: 1, data: 1 }),
-    ]);
-    const p2 = getPlayer(result.gameState, "p2");
-    expect(p2.cargo.map((c) => [c.id, c.isPickedUp])).toEqual([
+    })
+    const result = executeTurnAs(state, fire(1, 'forward-0', 'p2'))
+    expect(eventsOf(result.events, 'cargo_dropped')).toEqual([
+      expect.objectContaining({ playerId: 'p2', crates: 1, data: 1 }),
+    ])
+    const p2 = getPlayer(result.gameState, 'p2')
+    expect(p2.cargo.map(c => [c.id, c.isPickedUp])).toEqual([
       [crate.id, false],
-      ["crate-2", false],
-    ]);
-    expect(dataAboard(p2, intercept)).toBe(false);
-  });
+      ['crate-2', false],
+    ])
+    expect(dataAboard(p2, intercept)).toBe(false)
+  })
 
-  it("dropping cargo leaves the cards as they were", () => {
+  it('dropping cargo leaves the cards as they were', () => {
     const player: Player = {
-      ...makePlayer("p2"),
+      ...makePlayer('p2'),
       cargo: [data],
-      missions: [{ ...interceptMission("p1"), isCompleted: true }],
-    };
-    expect(dropCargo(player).player.missions).toBe(player.missions);
-  });
+      missions: [{ ...interceptMission('p1'), isCompleted: true }],
+    }
+    expect(dropCargo(player).player.missions).toBe(player.missions)
+  })
 
-  const seized = (c: Cargo): Cargo => ({ ...c, isPickedUp: false });
+  const seized = (c: Cargo): Cargo => ({ ...c, isPickedUp: false })
   it.each<[string, Cargo, Cargo[], { crates: number; data: number } | null]>([
     [
-      "a Deliver crate aboard goes back to its dock",
+      'a Deliver crate aboard goes back to its dock',
       crate,
       [seized(crate)],
       { crates: 1, data: 0 },
     ],
-    ["a Deliver crate still on its dock stays there", seized(crate), [seized(crate)], null],
-    ["loot aboard is lost", lootCargo("loot-1", "piracy-1"), [], { crates: 1, data: 0 }],
-    ["loot a pirate took is gone with it", seized(lootCargo("loot-1", "piracy-1")), [], null],
-    ["data aboard is lost", data, [], { crates: 0, data: 1 }],
-    ["data a pirate took is gone with it", seized(data), [], null],
-  ])("%s", (_label, item, left, counted) => {
-    const result = dropCargo({ ...makePlayer("p2"), cargo: [item] });
-    expect(result.player.cargo).toEqual(left);
+    ['a Deliver crate still on its dock stays there', seized(crate), [seized(crate)], null],
+    ['loot aboard is lost', lootCargo('loot-1', 'piracy-1'), [], { crates: 1, data: 0 }],
+    ['loot a pirate took is gone with it', seized(lootCargo('loot-1', 'piracy-1')), [], null],
+    ['data aboard is lost', data, [], { crates: 0, data: 1 }],
+    ['data a pirate took is gone with it', seized(data), [], null],
+  ])('%s', (_label, item, left, counted) => {
+    const result = dropCargo({ ...makePlayer('p2'), cargo: [item] })
+    expect(result.player.cargo).toEqual(left)
     expect(result.events).toEqual(
-      counted ? [expect.objectContaining({ type: "cargo_dropped", ...counted })] : []
-    );
-  });
-});
+      counted ? [expect.objectContaining({ type: 'cargo_dropped', ...counted })] : []
+    )
+  })
+})
 
-describe("respawn: who needs it", () => {
+describe('respawn: who needs it', () => {
   it.each([
-    ["deployed and destroyed", true, 0, true],
-    ["deployed and alive", true, 3, false],
-    ["destroyed but never deployed", false, 0, false],
-  ])("%s -> %s", (_label, hasDeployed, hitPoints, expected) => {
-    const player = makePlayer("p2", undefined, undefined, {
+    ['deployed and destroyed', true, 0, true],
+    ['deployed and alive', true, 3, false],
+    ['destroyed but never deployed', false, 0, false],
+  ])('%s -> %s', (_label, hasDeployed, hitPoints, expected) => {
+    const player = makePlayer('p2', undefined, undefined, {
       hasDeployed,
       ship: { hitPoints } as never,
-    });
-    expect(needsRespawn(player)).toBe(expected);
-  });
-});
+    })
+    expect(needsRespawn(player)).toBe(expected)
+  })
+})
 
-describe("respawn: the turn after dying", () => {
-  it("the ship reappears at Home, fresh, and the turn ends without executing any action", () => {
-    const state = wreck();
-    const result = executeTurnAs(state, burn(1, "soft"), fire(2, "forward-0", "nobody"));
-    expect(result.errors).toBeUndefined();
-    expect(eventTypes(result.events)).toEqual(["respawned", "coasted", "stations_moved"]);
+describe('respawn: the turn after dying', () => {
+  it('the ship reappears at Home, fresh, and the turn ends without executing any action', () => {
+    const state = wreck()
+    const result = executeTurnAs(state, burn(1, 'soft'), fire(2, 'forward-0', 'nobody'))
+    expect(result.errors).toBeUndefined()
+    expect(eventTypes(result.events)).toEqual(['respawned', 'coasted', 'stations_moved'])
     // Home is Beta ring 4 sector 7 and that ring drifts 1: the ship is placed
     // and the orbit carries it before the turn ends.
-    const back = { wellId: BETA, ring: PLANET_OUTER_RING, sector: 8 };
-    expect(eventsOf(result.events, "respawned")[0]).toMatchObject({
-      playerId: "p2",
+    const back = { wellId: BETA, ring: PLANET_OUTER_RING, sector: 8 }
+    expect(eventsOf(result.events, 'respawned')[0]).toMatchObject({
+      playerId: 'p2',
       position: back,
-    });
+    })
 
-    const ship = getShip(result.gameState, "p2");
+    const ship = getShip(result.gameState, 'p2')
     expect(ship).toMatchObject({
       ...back,
-      facing: "prograde",
+      facing: 'prograde',
       hitPoints: 10,
       reactionMass: 10,
       heat: { currentHeat: 0 },
-    });
+    })
     expect(
-      ship.subsystems.every((s) => s.allocatedEnergy === 0 && !isPowered(s) && !s.isBroken)
-    ).toBe(true);
-    expect(result.gameState.activePlayerIndex).toBe(0);
-    expect(result.gameState.turn).toBe(state.turn + 1);
-  });
+      ship.subsystems.every(s => s.allocatedEnergy === 0 && !isPowered(s) && !s.isBroken)
+    ).toBe(true)
+    expect(result.gameState.activePlayerIndex).toBe(0)
+    expect(result.gameState.turn).toBe(state.turn + 1)
+  })
 
-  it("face-up tiles stay face-up; the rest stay face-down", () => {
-    const state = mustExecute(wreck());
-    expect(getSub(state, "p2", "side-0").isRevealed).toBe(true);
-    expect(getSub(state, "p2", "side-1").isRevealed).toBe(false);
-    expect(getSub(state, "p2", "engines").isRevealed).toBe(true);
-  });
+  it('face-up tiles stay face-up; the rest stay face-down', () => {
+    const state = mustExecute(wreck())
+    expect(getSub(state, 'p2', 'side-0').isRevealed).toBe(true)
+    expect(getSub(state, 'p2', 'side-1').isRevealed).toBe(false)
+    expect(getSub(state, 'p2', 'engines').isRevealed).toBe(true)
+  })
 
-  it("missions, score, intel and unpicked crates survive death", () => {
-    let state = withPlayer(wreck(), "p2", {
+  it('missions, score, intel and unpicked crates survive death', () => {
+    let state = withPlayer(wreck(), 'p2', {
       cargo: [{ ...crate, isPickedUp: false }],
       missions: [surveyMission()],
-    });
-    state = mustExecute(state);
-    const p2 = getPlayer(state, "p2");
+    })
+    state = mustExecute(state)
+    const p2 = getPlayer(state, 'p2')
     expect(p2).toMatchObject({
       points: 1,
-      intel: { p1: ["side-1"] },
+      intel: { p1: ['side-1'] },
       home: { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 },
-    });
-    expect(p2.missions).toHaveLength(1);
-    expect(p2.cargo).toEqual([{ ...crate, isPickedUp: false }]);
-  });
-});
+    })
+    expect(p2.missions).toHaveLength(1)
+    expect(p2.cargo).toEqual([{ ...crate, isPickedUp: false }])
+  })
+})
 
 /**
  * Coming back is deploying again, so the turn after the respawn is a first
@@ -199,7 +199,7 @@ describe("respawn: the turn after dying", () => {
  * rotation and a move are all hers, no weapon of hers fires and she scans
  * nobody, and she stays untouchable until that turn is over.
  */
-describe("respawn: the turn back is a first round of its own", () => {
+describe('respawn: the turn back is a first round of its own', () => {
   /**
    * p2 just back from Home and to act, sharing p1's sector: point blank for
    * every weapon it carries (a sensor bow with a laser and a launcher: every
@@ -207,68 +207,68 @@ describe("respawn: the turn back is a first round of its own", () => {
    * rule stands between it and a shot.
    */
   function returning(at: Partial<Position> = {}): GameState {
-    const where = { ring: 3, sector: 0, ...at };
+    const where = { ring: 3, sector: 0, ...at }
     let state = makeTwoPlayerGame(
       { ...where, loadout: LOADOUTS.sensorPortGuns },
       { ...where, loadout: LOADOUTS.sensorPortGuns },
       { activePlayerIndex: 1 }
-    );
-    state = withPlayer(state, "p2", { recovering: true });
+    )
+    state = withPlayer(state, 'p2', { recovering: true })
     for (const [id, type] of [
-      ["forward-0", "sensor_array"],
-      ["side-0", "laser"],
-      ["side-1", "missiles"],
+      ['forward-0', 'sensor_array'],
+      ['side-0', 'laser'],
+      ['side-1', 'missiles'],
     ] as const) {
-      state = withPower(state, "p2", id, getSubsystemConfig(type).minEnergy);
+      state = withPower(state, 'p2', id, getSubsystemConfig(type).minEnergy)
     }
-    return state;
+    return state
   }
 
   const reaching = () =>
     [
-      ["a shot", "weapon_fired", () => fire(1, "side-0", "p1")],
-      ["a salvo", "missile_launched", () => fire(1, "side-1", "p1", "engines", undefined, 2)],
-      ["a scan", "scanned", () => scan(1, "p1", "side-0")],
-    ] as const;
+      ['a shot', 'weapon_fired', () => fire(1, 'side-0', 'p1')],
+      ['a salvo', 'missile_launched', () => fire(1, 'side-1', 'p1', 'engines', undefined, 2)],
+      ['a scan', 'scanned', () => scan(1, 'p1', 'side-0')],
+    ] as const
 
-  it.each(reaching())("refuses %s on the turn back from Home", (_what, event, action) => {
-    const state = returning();
-    const result = executeTurnAs(state, action());
-    expectRefused(result, state);
+  it.each(reaching())('refuses %s on the turn back from Home', (_what, event, action) => {
+    const state = returning()
+    const result = executeTurnAs(state, action())
+    expectRefused(result, state)
     // The same ship not coming back is let through: the flag is the reason.
     expectRefusedUnless(
       result,
-      executeTurnAs(withPlayer(state, "p2", { recovering: false }), action())
-    );
-    expect(eventTypes(result.events)).not.toContain(event);
-  });
+      executeTurnAs(withPlayer(state, 'p2', { recovering: false }), action())
+    )
+    expect(eventTypes(result.events)).not.toContain(event)
+  })
 
-  it.each(reaching())("allows %s the turn after that", (_what, event, action) => {
+  it.each(reaching())('allows %s the turn after that', (_what, event, action) => {
     // p2 flies its quiet turn, p1 takes theirs, and p2 comes round live. Both
     // ships are on ring 3, so they drift together and stay point blank.
-    let state = mustExecute(returning(), coast(1));
-    state = mustExecute(state, coast(1));
-    const result = executeTurnAs(state, action());
-    expect(result.errors ?? []).toEqual([]);
-    expect(eventTypes(result.events)).toContain(event);
-  });
+    let state = mustExecute(returning(), coast(1))
+    state = mustExecute(state, coast(1))
+    const result = executeTurnAs(state, action())
+    expect(result.errors ?? []).toEqual([])
+    expect(eventTypes(result.events)).toContain(event)
+  })
 
   it.each([
-    ["powers a tile", "subsystem_powered", returning, [power(1, "side-2", 2)]],
-    ["rotates", "rotated", returning, [rotate(1, "retrograde")]],
-    ["burns", "burned", returning, [burn(1, "soft")]],
-    ["jumps", "jumped", () => returning({ ring: 5, sector: 17 }), [jump(1, ALPHA)]],
+    ['powers a tile', 'subsystem_powered', returning, [power(1, 'side-2', 2)]],
+    ['rotates', 'rotated', returning, [rotate(1, 'retrograde')]],
+    ['burns', 'burned', returning, [burn(1, 'soft')]],
+    ['jumps', 'jumped', () => returning({ ring: 5, sector: 17 }), [jump(1, ALPHA)]],
     [
-      "scoops",
-      "fuel_scooped",
-      () => withShip(returning(), "p2", { reactionMass: 5 }),
+      'scoops',
+      'fuel_scooped',
+      () => withShip(returning(), 'p2', { reactionMass: 5 }),
       [coast(1, true)],
     ],
-  ])("still %s on it", (_what, event, build, actions) => {
-    const result = executeTurnAs(build(), ...actions);
-    expect(result.errors ?? []).toEqual([]);
-    expect(eventTypes(result.events)).toContain(event);
-  });
+  ])('still %s on it', (_what, event, build, actions) => {
+    const result = executeTurnAs(build(), ...actions)
+    expect(result.errors ?? []).toEqual([])
+    expect(eventTypes(result.events)).toContain(event)
+  })
 
   /**
    * p1 retrograde with a spinal railgun, p2 three sectors behind it on ring 5
@@ -277,67 +277,67 @@ describe("respawn: the turn back is a first round of its own", () => {
   function underTheGun(): GameState {
     const state = makeTwoPlayerGame(
       // Ring 4, so the retrograde shot's recoil has a ring outward to go to.
-      { wellId: BH, ring: 4, sector: 5, facing: "retrograde" },
+      { wellId: BH, ring: 4, sector: 5, facing: 'retrograde' },
       { wellId: BH, ring: 4, sector: 2, loadout: LOADOUTS.sensorPortGuns }
-    );
+    )
     return withPlayer(
-      withPower(state, "p1", "forward-0", getSubsystemConfig("railgun").minEnergy),
-      "p2",
+      withPower(state, 'p1', 'forward-0', getSubsystemConfig('railgun').minEnergy),
+      'p2',
       { recovering: true }
-    );
+    )
   }
 
-  it("nobody reaches it while the other seats play, and everybody does once its turn is over", () => {
-    const state = underTheGun();
-    const early = executeTurnAs(state, fire(1, "forward-0", "p2"));
+  it('nobody reaches it while the other seats play, and everybody does once its turn is over', () => {
+    const state = underTheGun()
+    const early = executeTurnAs(state, fire(1, 'forward-0', 'p2'))
     expectRefusedUnless(
       early,
-      executeTurnAs(withPlayer(state, "p2", { recovering: false }), fire(1, "forward-0", "p2"))
-    );
-    expect(eventTypes(early.events)).not.toContain("weapon_fired");
+      executeTurnAs(withPlayer(state, 'p2', { recovering: false }), fire(1, 'forward-0', 'p2'))
+    )
+    expect(eventTypes(early.events)).not.toContain('weapon_fired')
 
     // p1 plays out its turn: the round moving on does not spend p2's flag.
-    let next = mustExecute(state, coast(1));
-    expect(getPlayer(next, "p2").recovering).toBe(true);
-    expect(viewFor(next, "p1").players[1].recovering).toBe(true);
+    let next = mustExecute(state, coast(1))
+    expect(getPlayer(next, 'p2').recovering).toBe(true)
+    expect(viewFor(next, 'p1').players[1].recovering).toBe(true)
 
     // p2 flies its quiet turn, and the flag goes out with it.
-    next = mustExecute(next, coast(1));
-    expect(getPlayer(next, "p2").recovering).toBe(false);
-    expect(viewFor(next, "p1").players[1].recovering).toBe(false);
+    next = mustExecute(next, coast(1))
+    expect(getPlayer(next, 'p2').recovering).toBe(false)
+    expect(viewFor(next, 'p1').players[1].recovering).toBe(false)
 
-    const late = executeTurnAs(next, fire(1, "forward-0", "p2"));
-    expect(late.errors ?? []).toEqual([]);
-    expect(eventTypes(late.events)).toContain("weapon_fired");
-  });
+    const late = executeTurnAs(next, fire(1, 'forward-0', 'p2'))
+    expect(late.errors ?? []).toEqual([])
+    expect(eventTypes(late.events)).toContain('weapon_fired')
+  })
 
-  it("nobody scans it either: the rule is not only about weapons", () => {
+  it('nobody scans it either: the rule is not only about weapons', () => {
     // p1's sensor one sector behind p2, well inside scan range.
     const sensing = makeTwoPlayerGame(
       { loadout: LOADOUTS.sensorLaserMissiles, ring: 3, sector: 0 },
       { ring: 3, sector: 1 }
-    );
-    const state = withPlayer(sensing, "p2", { recovering: true });
-    const result = executeTurnAs(state, scan(1, "p2", "side-0"));
-    expectRefused(result, state);
-    expectRefusedUnless(result, executeTurnAs(sensing, scan(1, "p2", "side-0")));
-    expect(eventTypes(result.events)).not.toContain("scanned");
-  });
-});
+    )
+    const state = withPlayer(sensing, 'p2', { recovering: true })
+    const result = executeTurnAs(state, scan(1, 'p2', 'side-0'))
+    expectRefused(result, state)
+    expectRefusedUnless(result, executeTurnAs(sensing, scan(1, 'p2', 'side-0')))
+    expect(eventTypes(result.events)).not.toContain('scanned')
+  })
+})
 
 /**
  * Coming back is not standing still (RULES §A Turn): the ship is placed at
  * Home and its ring carries it from there, which is what the board animates
  * and what a missile has to chase.
  */
-describe("respawn: the returning ship drifts", () => {
+describe('respawn: the returning ship drifts', () => {
   /** p2 destroyed with Home at `home` and next to act; p1 parked out of the way. */
   function returning(home: { wellId: string; ring: number; sector: number }): GameState {
     const state = makeGameState(
-      [makePlayer("p1", { wellId: BH, ring: 5, sector: 0 }), makePlayer("p2")],
+      [makePlayer('p1', { wellId: BH, ring: 5, sector: 0 }), makePlayer('p2')],
       { activePlayerIndex: 1 }
-    );
-    return withPlayer(withShip(state, "p2", { hitPoints: 0 }), "p2", { home });
+    )
+    return withPlayer(withShip(state, 'p2', { hitPoints: 0 }), 'p2', { home })
   }
 
   it.each([
@@ -346,68 +346,68 @@ describe("respawn: the returning ship drifts", () => {
   ])(
     "carries the ship its ring's velocity on %s ring %i: sector 5 to %i",
     (wellId, ring, sector) => {
-      const result = executeTurnAs(returning({ wellId, ring, sector: 5 }));
-      expect(result.errors).toBeUndefined();
-      const to = { wellId, ring, sector };
-      expect(getShip(result.gameState, "p2")).toMatchObject(to);
-      expect(eventsOf(result.events, "respawned")).toEqual([
-        expect.objectContaining({ playerId: "p2", position: to }),
-      ]);
-      expect(eventsOf(result.events, "coasted")).toEqual([
-        expect.objectContaining({ playerId: "p2", to, recovering: true, scooped: false, heat: 0 }),
-      ]);
+      const result = executeTurnAs(returning({ wellId, ring, sector: 5 }))
+      expect(result.errors).toBeUndefined()
+      const to = { wellId, ring, sector }
+      expect(getShip(result.gameState, 'p2')).toMatchObject(to)
+      expect(eventsOf(result.events, 'respawned')).toEqual([
+        expect.objectContaining({ playerId: 'p2', position: to }),
+      ])
+      expect(eventsOf(result.events, 'coasted')).toEqual([
+        expect.objectContaining({ playerId: 'p2', to, recovering: true, scooped: false, heat: 0 }),
+      ])
     }
-  );
+  )
 
-  it("drifts into an occupied sector: ships may share one, only placement avoids it", () => {
+  it('drifts into an occupied sector: ships may share one, only placement avoids it', () => {
     // Ring 4 drifts 2: Home on sector 5, p1 parked on sector 7.
-    let state = returning({ wellId: BH, ring: 4, sector: 5 });
-    state = withShip(state, "p1", { wellId: BH, ring: 4, sector: 7 });
-    const result = executeTurnAs(state);
-    expect(result.errors).toBeUndefined();
-    expect(getShip(result.gameState, "p2").sector).toBe(7);
-    expect(getShip(result.gameState, "p1").sector).toBe(7);
-  });
-});
+    let state = returning({ wellId: BH, ring: 4, sector: 5 })
+    state = withShip(state, 'p1', { wellId: BH, ring: 4, sector: 7 })
+    const result = executeTurnAs(state)
+    expect(result.errors).toBeUndefined()
+    expect(getShip(result.gameState, 'p2').sector).toBe(7)
+    expect(getShip(result.gameState, 'p1').sector).toBe(7)
+  })
+})
 
-describe("respawn: choosing the sector", () => {
-  const home = { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 };
+describe('respawn: choosing the sector', () => {
+  const home = { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }
 
-  it("uses Home when it is free", () => {
-    expect(findRespawnPosition(makeTwoPlayerGame(), home, "p2")).toEqual(home);
-  });
+  it('uses Home when it is free', () => {
+    expect(findRespawnPosition(makeTwoPlayerGame(), home, 'p2')).toEqual(home)
+  })
 
-  it("takes the nearest free sector, trying +1 before -1", () => {
+  it('takes the nearest free sector, trying +1 before -1', () => {
     const blockers = (sectors: number[]) =>
       makeGameState([
-        makePlayer("p2"),
+        makePlayer('p2'),
         ...sectors.map((sector, i) =>
           makePlayer(`b${i}`, { wellId: BETA, ring: PLANET_OUTER_RING, sector })
         ),
-      ]);
-    expect(findRespawnPosition(blockers([7]), home, "p2")).toEqual({ ...home, sector: 8 });
-    expect(findRespawnPosition(blockers([7, 8]), home, "p2")).toEqual({ ...home, sector: 6 });
-    expect(findRespawnPosition(blockers([7, 8, 6]), home, "p2")).toEqual({ ...home, sector: 9 });
-  });
+      ])
+    expect(findRespawnPosition(blockers([7]), home, 'p2')).toEqual({ ...home, sector: 8 })
+    expect(findRespawnPosition(blockers([7, 8]), home, 'p2')).toEqual({ ...home, sector: 6 })
+    expect(findRespawnPosition(blockers([7, 8, 6]), home, 'p2')).toEqual({ ...home, sector: 9 })
+  })
 
-  it("ignores wrecks, undeployed ships and itself", () => {
+  it('ignores wrecks, undeployed ships and itself', () => {
     let state = makeGameState([
-      makePlayer("p2", { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }),
-      makePlayer("wreck", { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }),
-      makePlayer("ghost", { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }),
-    ]);
-    state = withShip(state, "wreck", { hitPoints: 0 });
-    state = withPlayer(state, "ghost", { hasDeployed: false });
-    expect(findRespawnPosition(state, home, "p2")).toEqual(home);
-  });
+      makePlayer('p2', { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }),
+      makePlayer('wreck', { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }),
+      makePlayer('ghost', { wellId: BETA, ring: PLANET_OUTER_RING, sector: 7 }),
+    ])
+    state = withShip(state, 'wreck', { hitPoints: 0 })
+    state = withPlayer(state, 'ghost', { hasDeployed: false })
+    expect(findRespawnPosition(state, home, 'p2')).toEqual(home)
+  })
 
-  it("a player without a Home cannot respawn", () => {
-    const state = withPlayer(wreck(), "p2", { home: null });
-    const direct = respawnPlayer(state, 1);
-    expect(direct.state).toBe(state);
-    expect(direct.events).toEqual([]);
-    const result = executeTurnAs(state);
-    expect(getShip(result.gameState, "p2").hitPoints).toBe(0);
-    expect(getShip(result.gameState, "p2").wellId).toBe(BH);
-  });
-});
+  it('a player without a Home cannot respawn', () => {
+    const state = withPlayer(wreck(), 'p2', { home: null })
+    const direct = respawnPlayer(state, 1)
+    expect(direct.state).toBe(state)
+    expect(direct.events).toEqual([])
+    const result = executeTurnAs(state)
+    expect(getShip(result.gameState, 'p2').hitPoints).toBe(0)
+    expect(getShip(result.gameState, 'p2').wellId).toBe(BH)
+  })
+})

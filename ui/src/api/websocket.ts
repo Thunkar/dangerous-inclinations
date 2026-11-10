@@ -99,10 +99,10 @@ export class GameWebSocketClient {
         settle(resolve)
       }
 
-      ws.onmessage = (event) => {
+      ws.onmessage = event => {
         try {
           const data: unknown = JSON.parse(event.data as string)
-          this.handlersFor(key).message.forEach((handler) => handler(data))
+          this.handlersFor(key).message.forEach(handler => handler(data))
         } catch {
           // Malformed frame; ignore.
         }
@@ -114,11 +114,14 @@ export class GameWebSocketClient {
 
       ws.onclose = () => {
         connection.opening = undefined
-        this.handlersFor(key).close.forEach((handler) => handler())
+        this.handlersFor(key).close.forEach(handler => handler())
         settle(() => reject(new Error(`WebSocket ${key} closed before it opened`)))
         // Superseded by a newer socket for this key: nothing to clean up.
         if (this.connections.get(key) !== connection) return
-        if (connection.intentionalDisconnect || connection.reconnectAttempts >= this.maxReconnectAttempts) {
+        if (
+          connection.intentionalDisconnect ||
+          connection.reconnectAttempts >= this.maxReconnectAttempts
+        ) {
           this.connections.delete(key)
           return
         }
@@ -129,7 +132,11 @@ export class GameWebSocketClient {
     return opening
   }
 
-  private scheduleReconnect(room: WebSocketRoom, roomId: string | undefined, connection: RoomConnection): void {
+  private scheduleReconnect(
+    room: WebSocketRoom,
+    roomId: string | undefined,
+    connection: RoomConnection
+  ): void {
     const delay = Math.min(this.baseReconnectDelay * 2 ** connection.reconnectAttempts, 10000)
     connection.reconnectTimeout = setTimeout(() => {
       connection.reconnectTimeout = undefined
@@ -148,7 +155,10 @@ export class GameWebSocketClient {
       clearTimeout(connection.reconnectTimeout)
       connection.reconnectTimeout = undefined
     }
-    if (connection.ws.readyState === WebSocket.OPEN || connection.ws.readyState === WebSocket.CONNECTING) {
+    if (
+      connection.ws.readyState === WebSocket.OPEN ||
+      connection.ws.readyState === WebSocket.CONNECTING
+    ) {
       connection.ws.close()
     }
   }
@@ -192,6 +202,6 @@ export class GameWebSocketClient {
   disconnectAll(): void {
     const all = [...this.connections.values()]
     this.connections.clear()
-    all.forEach((connection) => this.teardown(connection))
+    all.forEach(connection => this.teardown(connection))
   }
 }

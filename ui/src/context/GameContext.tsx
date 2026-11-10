@@ -21,7 +21,14 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { GameEvent, GameRecording, GameView, PlayerAction, ShipLoadout, ShipAppearance } from '@dangerous-inclinations/engine'
+import type {
+  GameEvent,
+  GameRecording,
+  GameView,
+  PlayerAction,
+  ShipLoadout,
+  ShipAppearance,
+} from '@dangerous-inclinations/engine'
 import { filterEventsFor, reconstructStateAtTurn, viewFor } from '@dangerous-inclinations/engine'
 import type {
   ChatKind,
@@ -52,7 +59,7 @@ export type Animator = (
   prev: GameView,
   next: GameView,
   events: GameEvent[],
-  done: () => void,
+  done: () => void
 ) => void | (() => void)
 
 /** A turn's pair of views and its events: exactly what the animator needs. */
@@ -111,7 +118,11 @@ export interface GameContextValue {
   seats: Seat[]
   nameOf: (playerId: string) => string
   submitTurn: (actions: PlayerAction[]) => void
-  submitLoadout: (loadout: ShipLoadout, missionIds: string[], appearance?: ShipAppearance) => Promise<void>
+  submitLoadout: (
+    loadout: ShipLoadout,
+    missionIds: string[],
+    appearance?: ShipAppearance
+  ) => Promise<void>
   deploy: (sector: number, ring: number) => Promise<void>
   registerAnimator: (animator: Animator | null) => void
   /** Every player-turn of the game this seat saw something of, oldest first. */
@@ -178,7 +189,7 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
     const from = viewRef.current
     viewRef.current = update.view
     setView(update.view)
-    setLog((prev) => (update.replaceLog ? update.events : [...prev, ...update.events]))
+    setLog(prev => (update.replaceLog ? update.events : [...prev, ...update.events]))
     // `replaceLog` is a resync of the whole game, not a turn that was played,
     // and a turn with nothing in it is not one either.
     if (update.replaceLog || update.events.length === 0) return
@@ -189,10 +200,10 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
       eventCount: update.events.length,
       frames: { from, to: update.view, events: update.events },
     }
-    setHistory((prev) =>
-      prev.some((r) => r.key === record.key)
-        ? prev.map((r) => (r.key === record.key ? { ...r, frames: record.frames } : r))
-        : [...prev, record],
+    setHistory(prev =>
+      prev.some(r => r.key === record.key)
+        ? prev.map(r => (r.key === record.key ? { ...r, frames: record.frames } : r))
+        : [...prev, record]
     )
   }, [])
 
@@ -202,19 +213,26 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
    * while they arrived) stay on the end.
    */
   const mergeListed = useCallback((listed: TurnSummary[]) => {
-    setHistory((prev) => {
-      const byKey = new Map(prev.map((r) => [r.key, r]))
-      const fromServer: TurnRecord[] = listed.map((t) => {
+    setHistory(prev => {
+      const byKey = new Map(prev.map(r => [r.key, r]))
+      const fromServer: TurnRecord[] = listed.map(t => {
         const key = turnKey(t.turn, t.actorId)
-        return { key, turn: t.turn, actorId: t.actorId, eventCount: t.eventCount, index: t.index, frames: byKey.get(key)?.frames }
+        return {
+          key,
+          turn: t.turn,
+          actorId: t.actorId,
+          eventCount: t.eventCount,
+          index: t.index,
+          frames: byKey.get(key)?.frames,
+        }
       })
-      const known = new Set(fromServer.map((r) => r.key))
-      return [...fromServer, ...prev.filter((r) => !known.has(r.key))]
+      const known = new Set(fromServer.map(r => r.key))
+      return [...fromServer, ...prev.filter(r => !known.has(r.key))]
     })
   }, [])
 
   const cacheFrames = useCallback((key: string, frames: TurnFrames) => {
-    setHistory((prev) => prev.map((r) => (r.key === key ? { ...r, frames } : r)))
+    setHistory(prev => prev.map(r => (r.key === key ? { ...r, frames } : r)))
   }, [])
 
   const pump = useCallback(() => {
@@ -252,7 +270,7 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
       queueRef.current.push(update)
       if (!processingRef.current) pump()
     },
-    [pump],
+    [pump]
   )
 
   const reset = useCallback((nextView: GameView, nextLog: GameEvent[]) => {
@@ -273,11 +291,22 @@ function useViewQueue(initialView: GameView, initialLog: GameEvent[]) {
     animatorRef.current = animator
   }, [])
 
-  return { view, log, isAnimating, enqueue, reset, registerAnimator, latestRef, history, mergeListed, cacheFrames }
+  return {
+    view,
+    log,
+    isAnimating,
+    enqueue,
+    reset,
+    registerAnimator,
+    latestRef,
+    history,
+    mergeListed,
+    cacheFrames,
+  }
 }
 
 function makeNameOf(view: GameView) {
-  return (playerId: string) => view.players.find((p) => p.id === playerId)?.name ?? playerId
+  return (playerId: string) => view.players.find(p => p.id === playerId)?.name ?? playerId
 }
 
 // ---------------------------------------------------------------------------
@@ -294,9 +323,9 @@ function useChat(gameId: string) {
   const [chat, setChat] = useState<ChatMessage[]>([])
 
   const merge = useCallback((incoming: ChatMessage[]) => {
-    setChat((prev) => {
-      const seen = new Set(prev.map((m) => m.id))
-      const added = incoming.filter((m) => !seen.has(m.id))
+    setChat(prev => {
+      const seen = new Set(prev.map(m => m.id))
+      const added = incoming.filter(m => !seen.has(m.id))
       return added.length === 0 ? prev : [...prev, ...added]
     })
   }, [])
@@ -305,13 +334,13 @@ function useChat(gameId: string) {
     let cancelled = false
     setChat([])
     getChat(gameId)
-      .then((response) => {
+      .then(response => {
         if (cancelled) return
         // History first, then whatever arrived over the socket while it loaded.
-        setChat((live) => {
+        setChat(live => {
           const history = response.messages ?? []
-          const seen = new Set(history.map((m) => m.id))
-          return [...history, ...live.filter((m) => !seen.has(m.id))]
+          const seen = new Set(history.map(m => m.id))
+          return [...history, ...live.filter(m => !seen.has(m.id))]
         })
       })
       .catch(() => {
@@ -329,7 +358,7 @@ function useChat(gameId: string) {
       const { message } = await postChat(gameId, trimmed, kind)
       merge([message])
     },
-    [gameId, merge],
+    [gameId, merge]
   )
 
   return { chat, merge, sendChat }
@@ -340,7 +369,11 @@ function useChat(gameId: string) {
 // ---------------------------------------------------------------------------
 
 function isGameMessage(data: unknown): data is GameSocketMessage {
-  return typeof data === 'object' && data !== null && typeof (data as { type?: unknown }).type === 'string'
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { type?: unknown }).type === 'string'
+  )
 }
 
 interface LiveGameProps {
@@ -354,8 +387,17 @@ interface LiveGameProps {
 function LiveGameProvider({ gameId, initialView, initialEvents, seats, children }: LiveGameProps) {
   const { client, connect } = useWebSocket()
   const { playerId } = usePlayer()
-  const { view, log, isAnimating, enqueue, registerAnimator, latestRef, history, mergeListed, cacheFrames } =
-    useViewQueue(initialView, initialEvents)
+  const {
+    view,
+    log,
+    isAnimating,
+    enqueue,
+    registerAnimator,
+    latestRef,
+    history,
+    mergeListed,
+    cacheFrames,
+  } = useViewQueue(initialView, initialEvents)
   const [turnErrors, setTurnErrors] = useState<string[]>([])
   const { chat, merge: mergeChat, sendChat } = useChat(gameId)
 
@@ -366,7 +408,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
     // The whole game back to its first turn: on joining and on a resync.
     const refreshTimeline = () => {
       getTurns(gameId)
-        .then((response) => {
+        .then(response => {
           if (!cancelled) mergeListed(response.turns)
         })
         .catch(() => {
@@ -376,18 +418,25 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
 
     const unsubscribe = client.onMessage(
       'game',
-      (data) => {
+      data => {
         if (!isGameMessage(data)) return
         switch (data.type) {
           case 'GAME_VIEW':
-            enqueue({ view: data.payload.view, events: data.payload.events, animate: false, replaceLog: true })
+            enqueue({
+              view: data.payload.view,
+              events: data.payload.events,
+              animate: false,
+              replaceLog: true,
+            })
             refreshTimeline()
             break
           case 'TURN_EXECUTED':
             enqueue({ view: data.payload.view, events: data.payload.events, animate: true })
             break
           case 'TURN_ERROR':
-            setTurnErrors(data.payload.errors ?? (data.payload.error ? [data.payload.error] : ['Turn rejected']))
+            setTurnErrors(
+              data.payload.errors ?? (data.payload.error ? [data.payload.error] : ['Turn rejected'])
+            )
             break
           case 'CHAT':
             mergeChat([data.payload])
@@ -396,7 +445,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
             break
         }
       },
-      gameId,
+      gameId
     )
 
     connect('game', gameId).catch(() => {
@@ -421,7 +470,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
         setTurnErrors(['Not connected to the game'])
       }
     },
-    [client, gameId, latestRef],
+    [client, gameId, latestRef]
   )
 
   const submitLoadout = useCallback(
@@ -429,7 +478,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
       const result = await submitLoadoutAPI(gameId, loadout, missionIds, appearance)
       enqueue({ view: result.view, events: [], animate: false })
     },
-    [gameId, enqueue],
+    [gameId, enqueue]
   )
 
   const deploy = useCallback(
@@ -437,7 +486,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
       const result = await deployShipAPI(gameId, sector, ring)
       enqueue({ view: result.view, events: [], animate: false })
     },
-    [gameId, enqueue],
+    [gameId, enqueue]
   )
 
   const nameOf = useMemo(() => makeNameOf(view), [view])
@@ -447,7 +496,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
   const fetchingRef = useRef(new Set<string>())
   const replayTurn = useCallback(
     (key: string) => {
-      const record = history.find((r) => r.key === key)
+      const record = history.find(r => r.key === key)
       if (!record) return
       const play = (frames: TurnFrames) =>
         enqueue({ view: frames.to, events: frames.events, animate: true, replayFrom: frames.from })
@@ -455,14 +504,14 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
       if (record.index === undefined || fetchingRef.current.has(key)) return
       fetchingRef.current.add(key)
       getTurnFrames(gameId, record.index)
-        .then((frames) => {
+        .then(frames => {
           cacheFrames(key, frames)
           play(frames)
         })
         .catch(() => setTurnErrors(['Could not load that turn']))
         .finally(() => fetchingRef.current.delete(key))
     },
-    [enqueue, history, gameId, cacheFrames],
+    [enqueue, history, gameId, cacheFrames]
   )
 
   const value = useMemo<GameContextValue>(
@@ -503,7 +552,7 @@ function LiveGameProvider({ gameId, initialView, initialEvents, seats, children 
       registerAnimator,
       history,
       replayTurn,
-    ],
+    ]
   )
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>
@@ -519,9 +568,18 @@ interface GameProviderProps {
 }
 
 /** Loads the view for `gameId` and keeps it live over the WebSocket. */
-export function GameProvider({ gameId, children, fallback = null, renderError }: GameProviderProps) {
+export function GameProvider({
+  gameId,
+  children,
+  fallback = null,
+  renderError,
+}: GameProviderProps) {
   const { isLoading: playerLoading } = usePlayer()
-  const [initial, setInitial] = useState<{ view: GameView; events: GameEvent[]; seats: Seat[] } | null>(null)
+  const [initial, setInitial] = useState<{
+    view: GameView
+    events: GameEvent[]
+    seats: Seat[]
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -530,10 +588,15 @@ export function GameProvider({ gameId, children, fallback = null, renderError }:
     setInitial(null)
     setError(null)
     getGame(gameId)
-      .then((response) => {
-        if (!cancelled) setInitial({ view: response.view, events: response.events ?? [], seats: response.seats ?? [] })
+      .then(response => {
+        if (!cancelled)
+          setInitial({
+            view: response.view,
+            events: response.events ?? [],
+            seats: response.seats ?? [],
+          })
       })
-      .catch((e) => {
+      .catch(e => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       })
     return () => {
@@ -576,19 +639,47 @@ const NO_CHAT: ChatMessage[] = []
 const NO_SEATS: Seat[] = []
 const NO_HISTORY: TurnRecord[] = []
 
-function replayView(recording: GameRecording, turnIndex: number, perspectiveId: string | null): GameView {
+function replayView(
+  recording: GameRecording,
+  turnIndex: number,
+  perspectiveId: string | null
+): GameView {
   return viewFor(reconstructStateAtTurn(recording, turnIndex), perspectiveId)
 }
 
-function replayLog(recording: GameRecording, turnIndex: number, perspectiveId: string | null): GameEvent[] {
-  return recording.turns.slice(0, Math.max(0, turnIndex + 1)).flatMap((t) => filterEventsFor(t.events, perspectiveId))
+function replayLog(
+  recording: GameRecording,
+  turnIndex: number,
+  perspectiveId: string | null
+): GameEvent[] {
+  return recording.turns
+    .slice(0, Math.max(0, turnIndex + 1))
+    .flatMap(t => filterEventsFor(t.events, perspectiveId))
 }
 
-export function ReplayGameProvider({ recording, turnIndex, perspectiveId, children }: ReplayGameProviderProps) {
-  const initialView = useMemo(() => replayView(recording, turnIndex, perspectiveId), [recording, turnIndex, perspectiveId])
-  const initialLog = useMemo(() => replayLog(recording, turnIndex, perspectiveId), [recording, turnIndex, perspectiveId])
-  const { view, log, isAnimating, enqueue, reset, registerAnimator } = useViewQueue(initialView, initialLog)
-  const lastRef = useRef<{ turnIndex: number; perspectiveId: string | null; recording: GameRecording }>({
+export function ReplayGameProvider({
+  recording,
+  turnIndex,
+  perspectiveId,
+  children,
+}: ReplayGameProviderProps) {
+  const initialView = useMemo(
+    () => replayView(recording, turnIndex, perspectiveId),
+    [recording, turnIndex, perspectiveId]
+  )
+  const initialLog = useMemo(
+    () => replayLog(recording, turnIndex, perspectiveId),
+    [recording, turnIndex, perspectiveId]
+  )
+  const { view, log, isAnimating, enqueue, reset, registerAnimator } = useViewQueue(
+    initialView,
+    initialLog
+  )
+  const lastRef = useRef<{
+    turnIndex: number
+    perspectiveId: string | null
+    recording: GameRecording
+  }>({
     turnIndex,
     perspectiveId,
     recording,
@@ -597,10 +688,18 @@ export function ReplayGameProvider({ recording, turnIndex, perspectiveId, childr
   useEffect(() => {
     const last = lastRef.current
     lastRef.current = { turnIndex, perspectiveId, recording }
-    if (last.recording === recording && last.perspectiveId === perspectiveId && last.turnIndex === turnIndex) return
+    if (
+      last.recording === recording &&
+      last.perspectiveId === perspectiveId &&
+      last.turnIndex === turnIndex
+    )
+      return
 
     const nextView = replayView(recording, turnIndex, perspectiveId)
-    const stepForward = last.recording === recording && last.perspectiveId === perspectiveId && turnIndex === last.turnIndex + 1
+    const stepForward =
+      last.recording === recording &&
+      last.perspectiveId === perspectiveId &&
+      turnIndex === last.turnIndex + 1
     if (stepForward) {
       const events = filterEventsFor(recording.turns[turnIndex]?.events ?? [], perspectiveId)
       enqueue({ view: nextView, events, animate: true })
@@ -635,7 +734,7 @@ export function ReplayGameProvider({ recording, turnIndex, perspectiveId, childr
       history: NO_HISTORY,
       replayTurn: noop,
     }),
-    [view, log, isAnimating, nameOf, noop, asyncNoop, registerAnimator],
+    [view, log, isAnimating, nameOf, noop, asyncNoop, registerAnimator]
   )
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>

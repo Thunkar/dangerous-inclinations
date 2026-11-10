@@ -10,28 +10,28 @@
  * the behaviour it drives, all from `viewFor` fixtures: the bot never sees
  * anything a player in its seat would not.
  */
-import { describe, it, expect } from "vitest";
-import type { Cargo } from "../../models/missions.ts";
-import { DEFAULT_POINTS_TO_WIN } from "../../models/missions.ts";
-import type { GameState, Position, ShipLoadout } from "../../models/game.ts";
+import { describe, it, expect } from 'vitest'
+import type { Cargo } from '../../models/missions.ts'
+import { DEFAULT_POINTS_TO_WIN } from '../../models/missions.ts'
+import type { GameState, Position, ShipLoadout } from '../../models/game.ts'
 import {
   BLACK_HOLE_OUTER_RING,
   PLANETS,
   PLANET_OUTER_RING,
   STATION_RING,
-} from "../../models/gravityWells.ts";
-import { circuitRoutes } from "../../game/missions/missionDeck.ts";
-import { viewFor } from "../../game/view.ts";
-import { executeTurn } from "../../game/turns.ts";
-import { getStationForPlanet } from "../../game/stations.ts";
-import { botDecideActions } from "../../ai/index.ts";
-import { INTERDICT_DANGER } from "../../ai/types.ts";
-import type { Opponent } from "../../ai/types.ts";
+} from '../../models/gravityWells.ts'
+import { circuitRoutes } from '../../game/missions/missionDeck.ts'
+import { viewFor } from '../../game/view.ts'
+import { executeTurn } from '../../game/turns.ts'
+import { getStationForPlanet } from '../../game/stations.ts'
+import { botDecideActions } from '../../ai/index.ts'
+import { INTERDICT_DANGER } from '../../ai/types.ts'
+import type { Opponent } from '../../ai/types.ts'
 import {
   assessDanger,
   cheapTurnEstimate,
   predictedDeliveryPlanets,
-} from "../../ai/behaviors/danger.ts";
+} from '../../ai/behaviors/danger.ts'
 import {
   LOADOUTS,
   ALPHA,
@@ -55,174 +55,174 @@ import {
   planAgainst,
   shortOfStation,
   situationOf,
-} from "../testUtils.ts";
+} from '../testUtils.ts'
 
 /** Where a Deliver crate loaded at each planet goes (the deck prints only these routes). */
-const CIRCUIT_NEXT = new Map(circuitRoutes(PLANETS.map((p) => p.id)));
+const CIRCUIT_NEXT = new Map(circuitRoutes(PLANETS.map(p => p.id)))
 
 /**
  * A point short of the three that win, with a crate in the hold: the delivery
  * is worth two, so the next dock ends the game.
  */
-const ONE_FROM_WINNING = DEFAULT_POINTS_TO_WIN - 1;
+const ONE_FROM_WINNING = DEFAULT_POINTS_TO_WIN - 1
 
 function aboutToWin(
   state: GameState,
   playerId: string,
   cargo: Cargo[] = [crateCargo(ALPHA, BETA)]
 ) {
-  return withPlayer(state, playerId, { points: ONE_FROM_WINNING, cargo });
+  return withPlayer(state, playerId, { points: ONE_FROM_WINNING, cargo })
 }
 
 function opponent(state: GameState, viewerId: string, id: string): Opponent {
-  const found = situationOf(state, viewerId).opponents.find((o) => o.player.id === id);
-  if (!found) throw new Error(`no opponent ${id}`);
-  return found;
+  const found = situationOf(state, viewerId).opponents.find(o => o.player.id === id)
+  if (!found) throw new Error(`no opponent ${id}`)
+  return found
 }
 
-describe("cheap turn estimates: the map has a direction of travel", () => {
+describe('cheap turn estimates: the map has a direction of travel', () => {
   /**
    * The estimate ranks every "which station?" the bots ask, and the lanes are
    * one-way arcs at fixed sectors, so which planet is near depends on where
    * you are standing. An estimate that only counted rings tied all three and
    * the first planet listed won every tie.
    */
-  const WELLS = [BH, ALPHA, BETA, GAMMA];
+  const WELLS = [BH, ALPHA, BETA, GAMMA]
   const station = (planetId: string): Position => ({
     wellId: planetId,
     ring: STATION_RING,
     sector: 0,
-  });
-  const laneRing = (wellId: string) => (wellId === BH ? BLACK_HOLE_OUTER_RING : PLANET_OUTER_RING);
+  })
+  const laneRing = (wellId: string) => (wellId === BH ? BLACK_HOLE_OUTER_RING : PLANET_OUTER_RING)
 
-  it("prices the planets by where their lane door sits on black hole ring 5", () => {
+  it('prices the planets by where their lane door sits on black hole ring 5', () => {
     // Reading ring 5 prograde: out to Beta (0-3), out to Gamma (8-11), out to
     // Alpha (16-19). On sector 0 you are already under Beta's door.
-    const from: Position = { wellId: BH, ring: 4, sector: 0 };
+    const from: Position = { wellId: BH, ring: 4, sector: 0 }
 
     expect(cheapTurnEstimate(from, station(BETA))).toBeLessThan(
       cheapTurnEstimate(from, station(GAMMA))
-    );
+    )
     expect(cheapTurnEstimate(from, station(GAMMA))).toBeLessThan(
       cheapTurnEstimate(from, station(ALPHA))
-    );
-  });
+    )
+  })
 
   it.each([
     [ALPHA, GAMMA, BETA],
     [GAMMA, BETA, ALPHA],
     [BETA, ALPHA, GAMMA],
-  ])("from %s the cheap next stop is %s and not %s", (from, near, far) => {
+  ])('from %s the cheap next stop is %s and not %s', (from, near, far) => {
     // The jump home lands beside the next planet's door: Alpha -> Gamma ->
     // Beta -> Alpha is the circuit, and the estimate has to see it.
-    const at: Position = { wellId: from, ring: STATION_RING, sector: 0 };
+    const at: Position = { wellId: from, ring: STATION_RING, sector: 0 }
 
-    expect(cheapTurnEstimate(at, station(near))).toBeLessThan(cheapTurnEstimate(at, station(far)));
-  });
+    expect(cheapTurnEstimate(at, station(near))).toBeLessThan(cheapTurnEstimate(at, station(far)))
+  })
 
-  it("never prices a crossing between two wells below the ring legs plus the jump", () => {
+  it('never prices a crossing between two wells below the ring legs plus the jump', () => {
     // Overestimating a trip only nudges a bot toward an easier goal;
     // underestimating the jump itself would make a crossing look free.
     // Sector 17 is inside every planet's inbound arc and inside Alpha's
     // outbound one, so on those rows the jump is all there is above the
     // ring legs.
-    const pairs = WELLS.flatMap((a) => WELLS.filter((b) => b !== a).map((b) => [a, b] as const));
+    const pairs = WELLS.flatMap(a => WELLS.filter(b => b !== a).map(b => [a, b] as const))
     checkEach(
       pairs,
       ([fromWell, toWell]) => `${fromWell} -> ${toWell}`,
       ([fromWell, toWell]) => {
-        const from: Position = { wellId: fromWell, ring: 2, sector: 17 };
-        const to: Position = { wellId: toWell, ring: 1, sector: 19 };
+        const from: Position = { wellId: fromWell, ring: 2, sector: 17 }
+        const to: Position = { wellId: toWell, ring: 1, sector: 19 }
         const ringLegs =
-          Math.abs(from.ring - laneRing(fromWell)) + Math.abs(to.ring - laneRing(toWell));
-        expect(cheapTurnEstimate(from, to)).toBeGreaterThanOrEqual(ringLegs + 1);
+          Math.abs(from.ring - laneRing(fromWell)) + Math.abs(to.ring - laneRing(toWell))
+        expect(cheapTurnEstimate(from, to)).toBeGreaterThanOrEqual(ringLegs + 1)
       }
-    );
-  });
+    )
+  })
 
-  it("leaves a target in the same well as the rings plus the shortest arc", () => {
+  it('leaves a target in the same well as the rings plus the shortest arc', () => {
     // Two rings crossed and six sectors of drift at three sectors a turn.
     expect(
       cheapTurnEstimate({ wellId: BH, ring: 4, sector: 0 }, { wellId: BH, ring: 2, sector: 6 })
-    ).toBe(4);
-  });
-});
+    ).toBe(4)
+  })
+})
 
-describe("danger: reading the scoreboard and the hold", () => {
-  it("scores a player one card from the win with a crate aboard as the one to stop", () => {
+describe('danger: reading the scoreboard and the hold', () => {
+  it('scores a player one card from the win with a crate aboard as the one to stop', () => {
     const state = aboutToWin(
       makeTwoPlayerGame(
         { loadout: LOADOUTS.raider },
         { wellId: ALPHA, ring: STATION_RING, sector: 4 }
       ),
-      "p2"
-    );
-    expect(opponent(state, "p1", "p2").danger.score).toBeGreaterThanOrEqual(INTERDICT_DANGER);
-  });
+      'p2'
+    )
+    expect(opponent(state, 'p1', 'p2').danger.score).toBeGreaterThanOrEqual(INTERDICT_DANGER)
+  })
 
-  it("scores an empty-handed player with nothing on the board as no danger at all", () => {
+  it('scores an empty-handed player with nothing on the board as no danger at all', () => {
     const state = makeTwoPlayerGame(
       { loadout: LOADOUTS.raider },
       { wellId: BH, ring: 3, sector: 12 }
-    );
-    expect(opponent(state, "p1", "p2").danger.score).toBeLessThan(0.2);
-  });
+    )
+    expect(opponent(state, 'p1', 'p2').danger.score).toBeLessThan(0.2)
+  })
 
-  it("takes a crate seriously only in proportion to the score behind it", () => {
+  it('takes a crate seriously only in proportion to the score behind it', () => {
     // The same crate, the same sector, two very different players.
     const base = makeTwoPlayerGame(
       { loadout: LOADOUTS.raider },
       { wellId: ALPHA, ring: 2, sector: 4 }
-    );
-    const leader = aboutToWin(base, "p2");
-    const nobody = withPlayer(base, "p2", {
+    )
+    const leader = aboutToWin(base, 'p2')
+    const nobody = withPlayer(base, 'p2', {
       points: 0,
       cargo: [crateCargo(ALPHA, BETA)],
-    });
+    })
 
-    expect(opponent(leader, "p1", "p2").danger.score).toBeGreaterThan(
-      opponent(nobody, "p1", "p2").danger.score
-    );
-  });
+    expect(opponent(leader, 'p1', 'p2').danger.score).toBeGreaterThan(
+      opponent(nobody, 'p1', 'p2').danger.score
+    )
+  })
 
-  it.each(PLANETS.map((p) => p.id))(
+  it.each(PLANETS.map(p => p.id))(
     "puts the next planet round the circuit first for a crate in %s's well",
-    (planetId) => {
+    planetId => {
       // The Deliver deck prints only the circuit routes, so a crate loaded here
       // goes on to the next planet; the rest follow, since a crate loaded
       // elsewhere is delivered here and loot sells anywhere.
-      const stations = makeGameState([]).stations;
+      const stations = makeGameState([]).stations
       const planets = predictedDeliveryPlanets(
         { wellId: planetId, ring: STATION_RING, sector: 4 },
         1,
         0,
         stations
-      );
+      )
 
-      expect(planets[0]).toBe(CIRCUIT_NEXT.get(planetId));
-      expect([...planets].sort()).toEqual(PLANETS.map((p) => p.id).sort());
+      expect(planets[0]).toBe(CIRCUIT_NEXT.get(planetId))
+      expect([...planets].sort()).toEqual(PLANETS.map(p => p.id).sort())
     }
-  );
+  )
 
-  it("keeps every station on the list for data, including the one overhead", () => {
+  it('keeps every station on the list for data, including the one overhead', () => {
     // Scan and survey data is handed over at any station at all.
-    const stations = makeGameState([]).stations;
+    const stations = makeGameState([]).stations
     const planets = predictedDeliveryPlanets(
       { wellId: ALPHA, ring: STATION_RING, sector: 4 },
       0,
       1,
       stations
-    );
+    )
 
-    expect(planets).toContain(ALPHA);
-    expect(planets).toHaveLength(3);
-  });
+    expect(planets).toContain(ALPHA)
+    expect(planets).toHaveLength(3)
+  })
 
-  it("names the next station round the circuit for a carrier and none for an empty hold", () => {
+  it('names the next station round the circuit for a carrier and none for an empty hold', () => {
     const holds: Array<[number, string | null]> = [
       [1, CIRCUIT_NEXT.get(ALPHA)!],
       [0, null],
-    ];
+    ]
     checkEach(
       holds,
       ([crates]) => `${crates} crates`,
@@ -232,212 +232,212 @@ describe("danger: reading the scoreboard and the hold", () => {
           { wellId: ALPHA, ring: STATION_RING, sector: 4 },
           makeGameState([]).stations,
           DEFAULT_POINTS_TO_WIN
-        );
-        expect(danger.deliveryPosition?.wellId ?? null).toBe(station);
-        expect(danger.turnsToDelivery < Infinity).toBe(station !== null);
+        )
+        expect(danger.deliveryPosition?.wellId ?? null).toBe(station)
+        expect(danger.turnsToDelivery < Infinity).toBe(station !== null)
       }
-    );
-  });
-});
+    )
+  })
+})
 
-describe("interdiction goals", () => {
+describe('interdiction goals', () => {
   /** Bot on Alpha ring 1 with a gun; two rivals, one of them about to win. */
   function threeWay(): GameState {
-    const station = getStationForPlanet(makeGameState([]).stations, ALPHA)!;
+    const station = getStationForPlanet(makeGameState([]).stations, ALPHA)!
     return makeGameState([
       makePlayer(
-        "p1",
+        'p1',
         { wellId: ALPHA, ring: STATION_RING, sector: station.sector + 6 },
         LOADOUTS.raider
       ),
-      makePlayer("p2", { wellId: ALPHA, ring: STATION_RING, sector: station.sector + 2 }),
-      makePlayer("p3", { wellId: GAMMA, ring: 3, sector: 12 }),
-    ]);
+      makePlayer('p2', { wellId: ALPHA, ring: STATION_RING, sector: station.sector + 2 }),
+      makePlayer('p3', { wellId: GAMMA, ring: 3, sector: 12 }),
+    ])
   }
 
   // The bot holds no card at all: denial is a goal of its own.
   it.each<[string, boolean]>([
-    ["carrying a crate", true],
-    ["with nothing aboard: nowhere it must be, nothing a kill takes", false],
-  ])("interdicts a rival about to win %s", (_label, carrying) => {
-    const state = aboutToWin(threeWay(), "p2", carrying ? [crateCargo(BETA, ALPHA)] : []);
-    const goal = situationOf(state, "p1").currentGoal;
-    const interdicts = goal?.type === "interdict" && goal.plan !== undefined;
-    expect(interdicts ? goal.targetPlayerId : null).toBe(carrying ? "p2" : null);
-  });
+    ['carrying a crate', true],
+    ['with nothing aboard: nowhere it must be, nothing a kill takes', false],
+  ])('interdicts a rival about to win %s', (_label, carrying) => {
+    const state = aboutToWin(threeWay(), 'p2', carrying ? [crateCargo(BETA, ALPHA)] : [])
+    const goal = situationOf(state, 'p1').currentGoal
+    const interdicts = goal?.type === 'interdict' && goal.plan !== undefined
+    expect(interdicts ? goal.targetPlayerId : null).toBe(carrying ? 'p2' : null)
+  })
 
-  it("picks the more dangerous of two rivals", () => {
-    let state = threeWay();
+  it('picks the more dangerous of two rivals', () => {
+    let state = threeWay()
     // p3 is moved next door so distance cannot be what decides it.
-    state = withShip(state, "p3", {
+    state = withShip(state, 'p3', {
       wellId: ALPHA,
       ring: STATION_RING,
-      sector: getShip(state, "p1").sector + 1,
-    });
+      sector: getShip(state, 'p1').sector + 1,
+    })
     // p3 has data aboard and a station under it, but nothing face-up: every
     // card is worth two now, so a rival one card short is a rival about to
     // win however close the other one happens to be sitting.
-    state = withPlayer(state, "p3", { points: 0, cargo: [dataCargo()] });
-    state = aboutToWin(state, "p2", [crateCargo(BETA, ALPHA)]);
-    const situation = situationOf(state, "p1");
+    state = withPlayer(state, 'p3', { points: 0, cargo: [dataCargo()] })
+    state = aboutToWin(state, 'p2', [crateCargo(BETA, ALPHA)])
+    const situation = situationOf(state, 'p1')
 
-    expect(opponent(state, "p1", "p2").danger.score).toBeGreaterThan(
-      opponent(state, "p1", "p3").danger.score
-    );
-    expect(situation.currentGoal?.type).toBe("interdict");
-    expect(situation.currentGoal?.targetPlayerId).toBe("p2");
-  });
+    expect(opponent(state, 'p1', 'p2').danger.score).toBeGreaterThan(
+      opponent(state, 'p1', 'p3').danger.score
+    )
+    expect(situation.currentGoal?.type).toBe('interdict')
+    expect(situation.currentGoal?.targetPlayerId).toBe('p2')
+  })
 
-  it("keeps racing when it is closer to its own last card than they are to theirs", () => {
+  it('keeps racing when it is closer to its own last card than they are to theirs', () => {
     // Both are one dock from the win and both are orbiting Alpha, so the
     // public reading of the race is the trip out of this well: a crate cannot
     // be delivered where it was loaded, and the way out is Alpha's inbound
     // lane on ring 4 sectors 16-19. The bot is the one sitting just short of
     // it and p2 is most of a lap behind, so the bot gets home first: turning
     // to fight would hand the game to the third player.
-    let state = aboutToWin(threeWay(), "p2", [crateCargo(BETA, ALPHA)]);
-    state = withPlayer(state, "p1", {
+    let state = aboutToWin(threeWay(), 'p2', [crateCargo(BETA, ALPHA)])
+    state = withPlayer(state, 'p1', {
       points: ONE_FROM_WINNING,
       cargo: [crateCargo(BETA, ALPHA)],
       missions: [deliverMission(BETA, ALPHA)],
-    });
-    state = withShip(state, "p1", { sector: 13 });
-    const situation = situationOf(state, "p1");
+    })
+    state = withShip(state, 'p1', { sector: 13 })
+    const situation = situationOf(state, 'p1')
 
     expect(situation.myDanger.turnsToWin).toBeLessThanOrEqual(
-      opponent(state, "p1", "p2").danger.turnsToWin
-    );
-    expect(situation.currentGoal?.type).not.toBe("interdict");
-  });
+      opponent(state, 'p1', 'p2').danger.turnsToWin
+    )
+    expect(situation.currentGoal?.type).not.toBe('interdict')
+  })
 
   // The wall below (two face-up shields, a cube each) stops a two-damage rack
   // whole, but a soaked volley still strips the cubes and a critical breaks
   // what it names whether or not the shot got through, so the rack is worth
   // the trip. A hull with no gun at all has nothing to bring. Same board, same
   // rival, same score: only the bot's hull differs.
-  it("diverts to a walled leader behind any gun, and not without one", () => {
+  it('diverts to a walled leader behind any gun, and not without one', () => {
     const hulls: Array<[string, ShipLoadout, boolean]> = [
-      ["a rack the wall can stop", LOADOUTS.sensorRack, true],
-      ["no gun at all", LOADOUTS.unarmed, false],
-      ["a railgun and a launcher", LOADOUTS.raider, true],
-      ["one broadside laser", LOADOUTS.sensorStarboardLaser, true],
-    ];
+      ['a rack the wall can stop', LOADOUTS.sensorRack, true],
+      ['no gun at all', LOADOUTS.unarmed, false],
+      ['a railgun and a launcher', LOADOUTS.raider, true],
+      ['one broadside laser', LOADOUTS.sensorStarboardLaser, true],
+    ]
     checkEach(
       hulls,
       ([label]) => label,
       ([, loadout, diverts]) => {
         let state = aboutToWin(
           makeGameState([
-            makePlayer("p1", { wellId: ALPHA, ring: STATION_RING, sector: 6 }, loadout),
+            makePlayer('p1', { wellId: ALPHA, ring: STATION_RING, sector: 6 }, loadout),
             makePlayer(
-              "p2",
+              'p2',
               { wellId: ALPHA, ring: STATION_RING, sector: 8 },
               LOADOUTS.sensorWalls
             ),
           ]),
-          "p2",
+          'p2',
           [crateCargo(BETA, ALPHA)]
-        );
-        for (const id of ["side-2", "side-3"] as const) {
-          state = withPower(withSub(state, "p2", id, { isRevealed: true }), "p2", id, 1);
+        )
+        for (const id of ['side-2', 'side-3'] as const) {
+          state = withPower(withSub(state, 'p2', id, { isRevealed: true }), 'p2', id, 1)
         }
-        expect(situationOf(state, "p1").currentGoal?.type === "interdict").toBe(diverts);
+        expect(situationOf(state, 'p1').currentGoal?.type === 'interdict').toBe(diverts)
       }
-    );
-  });
+    )
+  })
 
-  it("aims the interception at the next planet round the circuit, not at the pickup", () => {
+  it('aims the interception at the next planet round the circuit, not at the pickup', () => {
     // A crate on a ship in Alpha's well was loaded at Alpha, and the Deliver
     // deck sends it on round the circuit: the ambush is set there.
-    const next = CIRCUIT_NEXT.get(ALPHA)!;
-    const state = aboutToWin(threeWay(), "p2", [crateCargo(ALPHA, next)]);
-    expect(opponent(state, "p1", "p2").danger.deliveryPosition?.wellId).toBe(next);
-    expect(situationOf(state, "p1").currentGoal?.type).toBe("interdict");
-  });
-});
+    const next = CIRCUIT_NEXT.get(ALPHA)!
+    const state = aboutToWin(threeWay(), 'p2', [crateCargo(ALPHA, next)])
+    expect(opponent(state, 'p1', 'p2').danger.deliveryPosition?.wellId).toBe(next)
+    expect(situationOf(state, 'p1').currentGoal?.type).toBe('interdict')
+  })
+})
 
-describe("opportunistic fire", () => {
-  it("shoots the player about to win while still flying a cargo run", () => {
+describe('opportunistic fire', () => {
+  it('shoots the player about to win while still flying a cargo run', () => {
     // The bot's own goal is a dock at Alpha: it takes the shot on the way
     // past, because the turn is spent either way.
-    const berth = berthOf(makeGameState([]), ALPHA);
+    const berth = berthOf(makeGameState([]), ALPHA)
     let state = withMissions(
       shortOfStation(
         makeGameState([
-          makePlayer("p1", undefined, LOADOUTS.raider),
-          makePlayer("p2", { ...berth, sector: berth.sector + 2 }),
+          makePlayer('p1', undefined, LOADOUTS.raider),
+          makePlayer('p2', { ...berth, sector: berth.sector + 2 }),
         ]),
-        "p1",
+        'p1',
         ALPHA
       ),
-      "p1",
+      'p1',
       [deliverMission(ALPHA, BETA)]
-    );
-    state = aboutToWin(state, "p2", [crateCargo(BETA, GAMMA)]);
+    )
+    state = aboutToWin(state, 'p2', [crateCargo(BETA, GAMMA)])
 
-    const decision = botDecideActions(viewFor(state, "p1"));
-    const shots = decision.actions.filter((a) => a.type === "fire_weapon");
+    const decision = botDecideActions(viewFor(state, 'p1'))
+    const shots = decision.actions.filter(a => a.type === 'fire_weapon')
 
-    expect(situationOf(state, "p1").currentGoal).toMatchObject({ planetId: ALPHA });
-    expect(shots.length).toBeGreaterThan(0);
-    for (const shot of shots) expect(shot.data.targetPlayerId).toBe("p2");
-    expect(executeTurn(state, decision.actions).errors).toBeUndefined();
-  });
+    expect(situationOf(state, 'p1').currentGoal).toMatchObject({ planetId: ALPHA })
+    expect(shots.length).toBeGreaterThan(0)
+    for (const shot of shots) expect(shot.data.targetPlayerId).toBe('p2')
+    expect(executeTurn(state, decision.actions).errors).toBeUndefined()
+  })
 
-  it("prefers the leader to a closer bystander when both are in the arc", () => {
+  it('prefers the leader to a closer bystander when both are in the arc', () => {
     let state = makeGameState([
-      makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }, LOADOUTS.raider),
-      makePlayer("p2", { wellId: BH, ring: 3, sector: 3 }),
-      makePlayer("p3", { wellId: BH, ring: 3, sector: 2 }),
-    ]);
-    state = withSub(state, "p1", "engines", { isBroken: true });
-    state = aboutToWin(state, "p2", [crateCargo(BETA, GAMMA)]);
+      makePlayer('p1', { wellId: BH, ring: 3, sector: 0 }, LOADOUTS.raider),
+      makePlayer('p2', { wellId: BH, ring: 3, sector: 3 }),
+      makePlayer('p3', { wellId: BH, ring: 3, sector: 2 }),
+    ])
+    state = withSub(state, 'p1', 'engines', { isBroken: true })
+    state = aboutToWin(state, 'p2', [crateCargo(BETA, GAMMA)])
 
-    const shots = botDecideActions(viewFor(state, "p1")).actions.filter(
-      (a) => a.type === "fire_weapon"
-    );
-    expect(shots.length).toBeGreaterThan(0);
-    expect(shots[0].data.targetPlayerId).toBe("p2");
-  });
-});
+    const shots = botDecideActions(viewFor(state, 'p1')).actions.filter(
+      a => a.type === 'fire_weapon'
+    )
+    expect(shots.length).toBeGreaterThan(0)
+    expect(shots[0].data.targetPlayerId).toBe('p2')
+  })
+})
 
-describe("denial valuation", () => {
+describe('denial valuation', () => {
   function duel(): GameState {
     const state = makeGameState([
-      makePlayer("p1", { wellId: BH, ring: 3, sector: 0 }, LOADOUTS.raider),
-      makePlayer("p2", { wellId: BH, ring: 3, sector: 3 }),
-    ]);
-    return withSub(state, "p1", "engines", { isBroken: true });
+      makePlayer('p1', { wellId: BH, ring: 3, sector: 0 }, LOADOUTS.raider),
+      makePlayer('p2', { wellId: BH, ring: 3, sector: 3 }),
+    ])
+    return withSub(state, 'p1', 'engines', { isBroken: true })
   }
 
-  it("prices a kill on a loaded leader above a kill on an empty one", () => {
+  it('prices a kill on a loaded leader above a kill on an empty one', () => {
     // A destroyed ship drops everything it carries and loses its next turn.
-    const loaded = aboutToWin(withShip(duel(), "p2", { hitPoints: 2 }), "p2", [
+    const loaded = aboutToWin(withShip(duel(), 'p2', { hitPoints: 2 }), 'p2', [
       crateCargo(BETA, GAMMA),
       dataCargo(),
-    ]);
-    const empty = withPlayer(withShip(duel(), "p2", { hitPoints: 2 }), "p2", {
+    ])
+    const empty = withPlayer(withShip(duel(), 'p2', { hitPoints: 2 }), 'p2', {
       points: ONE_FROM_WINNING,
       cargo: [],
-    });
+    })
 
-    const withCargo = planAgainst(loaded, "p1", "p2");
-    const without = planAgainst(empty, "p1", "p2");
+    const withCargo = planAgainst(loaded, 'p1', 'p2')
+    const without = planAgainst(empty, 'p1', 'p2')
 
-    expect(withCargo.killsTarget).toBe(true);
-    expect(withCargo.denialValue).toBeGreaterThan(without.denialValue);
-  });
+    expect(withCargo.killsTarget).toBe(true)
+    expect(withCargo.denialValue).toBeGreaterThan(without.denialValue)
+  })
 
-  it("counts a hit on anyone, and counts it far higher on the player about to win", () => {
+  it('counts a hit on anyone, and counts it far higher on the player about to win', () => {
     // What a shot takes off a ship does not depend on the scoreboard: their
     // hull, and on a kill their hold and their next two turns. The scoreboard
     // decides how urgent that is, not whether it is worth anything.
-    const nobody = planAgainst(duel(), "p1", "p2");
-    const leader = planAgainst(aboutToWin(duel(), "p2"), "p1", "p2");
+    const nobody = planAgainst(duel(), 'p1', 'p2')
+    const leader = planAgainst(aboutToWin(duel(), 'p2'), 'p1', 'p2')
     // The same volley at the same ship: only the price differs.
-    expect(leader.expectedHullDamage).toBe(nobody.expectedHullDamage);
-    expect(nobody.expectedHullDamage).toBeGreaterThan(0);
-    expect(nobody.denialValue).toBeGreaterThan(0);
-    expect(leader.denialValue).toBeGreaterThan(nobody.denialValue * 1.5);
-  });
-});
+    expect(leader.expectedHullDamage).toBe(nobody.expectedHullDamage)
+    expect(nobody.expectedHullDamage).toBeGreaterThan(0)
+    expect(nobody.denialValue).toBeGreaterThan(0)
+    expect(leader.denialValue).toBeGreaterThan(nobody.denialValue * 1.5)
+  })
+})

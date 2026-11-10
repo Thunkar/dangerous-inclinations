@@ -339,10 +339,7 @@ export interface WreckCrowd {
   ships: number
 }
 
-function wreckOffset(
-  position: Position,
-  crowd: WreckCrowd
-): { radial: number; along: number } {
+function wreckOffset(position: Position, crowd: WreckCrowd): { radial: number; along: number } {
   const radial = crowd.ships > 0 ? ((crowd.ships - 1) / 2) * CROWD_STEP + WRECK_CLEARANCE : 0
   const arc =
     (2 * Math.PI * (ringRadius(position.wellId, position.ring) + radial)) / SECTORS_PER_RING

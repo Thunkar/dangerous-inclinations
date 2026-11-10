@@ -6,7 +6,17 @@
  * are now, after it from where you end up, and the range preview follows, as
  * does the critical range once a scan has put energy on the sensor.
  */
-import { Box, Chip, FormControlLabel, IconButton, MenuItem, Select, Switch, Tooltip, Typography } from '@mui/material'
+import {
+  Box,
+  Chip,
+  FormControlLabel,
+  IconButton,
+  MenuItem,
+  Select,
+  Switch,
+  Tooltip,
+  Typography,
+} from '@mui/material'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import CloseIcon from '@mui/icons-material/Close'
@@ -51,10 +61,25 @@ function PowerRow({ sub, n }: { sub: Subsystem; n: number }) {
   return (
     <Box data-testid="power-row" sx={ROW_SX}>
       <Box sx={{ flex: 1, minWidth: 0, pl: 0.25 }}>
-        <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: '0.85rem', color: TABLE.ink, lineHeight: 1.3 }}>
+        <Typography
+          sx={{
+            fontFamily: FONT_MONO,
+            fontWeight: 600,
+            fontSize: '0.85rem',
+            color: TABLE.ink,
+            lineHeight: 1.3,
+          }}
+        >
           {n}. Power {slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))} at {plan.powers[sub.id]}
         </Typography>
-        <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.78rem', color: TABLE.inkFaint, lineHeight: 1.3 }}>
+        <Typography
+          sx={{
+            fontFamily: FONT_MONO,
+            fontSize: '0.78rem',
+            color: TABLE.inkFaint,
+            lineHeight: 1.3,
+          }}
+        >
           first, and it works until your next turn
         </Typography>
       </Box>
@@ -74,15 +99,19 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
   // What a seizure takes, by kind: the hold is public that far.
   const item =
     step.kind === 'seize'
-      ? view.players
-          .find(p => p.id === step.victimId)
-          ?.hold.find(i => i.cargoId === step.cargoId)?.kind
+      ? view.players.find(p => p.id === step.victimId)?.hold.find(i => i.cargoId === step.cargoId)
+          ?.kind
       : undefined
 
   return (
     <Box sx={ROW_SX}>
       <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-        <IconButton size="small" sx={{ p: 0.1 }} onClick={() => plan.reorderStep(step.id, -1)} disabled={index === 0}>
+        <IconButton
+          size="small"
+          sx={{ p: 0.1 }}
+          onClick={() => plan.reorderStep(step.id, -1)}
+          disabled={index === 0}
+        >
           <ArrowUpwardIcon sx={{ fontSize: 13 }} />
         </IconButton>
         <IconButton
@@ -96,10 +125,25 @@ function StepRow({ step, index, offset }: { step: PlanStep; index: number; offse
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontFamily: FONT_MONO, fontWeight: 600, fontSize: '0.85rem', color: TABLE.ink, lineHeight: 1.3 }}>
+        <Typography
+          sx={{
+            fontFamily: FONT_MONO,
+            fontWeight: 600,
+            fontSize: '0.85rem',
+            color: TABLE.ink,
+            lineHeight: 1.3,
+          }}
+        >
           {offset + index + 1}. {stepTitle(step, nameOf, hullOf(plan.me), weapon, item)}
         </Typography>
-        <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.78rem', color: TABLE.inkFaint, lineHeight: 1.3 }}>
+        <Typography
+          sx={{
+            fontFamily: FONT_MONO,
+            fontSize: '0.78rem',
+            color: TABLE.inkFaint,
+            lineHeight: 1.3,
+          }}
+        >
           from {placeLabel(at.position)} · {at.facing}
         </Typography>
 
@@ -132,7 +176,9 @@ function stepTitle(
       if (step.move.kind === 'coast') return step.move.scoop ? 'Coast, scoop fuel' : 'Coast'
       if (step.move.kind === 'burn')
         return `${step.move.intensity[0].toUpperCase()}${step.move.intensity.slice(1)} burn${
-          step.move.adjustment ? `, phase ${step.move.adjustment > 0 ? '+' : ''}${step.move.adjustment}` : ''
+          step.move.adjustment
+            ? `, phase ${step.move.adjustment > 0 ? '+' : ''}${step.move.adjustment}`
+            : ''
         }`
       return `Jump to ${getWellName(step.move.destinationWellId)}`
     case 'fire':
@@ -157,10 +203,10 @@ function stepTitle(
 function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
   const plan = usePlan()
   const { nameOf, view } = useGame()
-  const weapon = plan.pendingSubsystems.find((s) => s.id === step.subsystemId)
+  const weapon = plan.pendingSubsystems.find(s => s.id === step.subsystemId)
   /** Their slot, named for their hull with what you know sits in it. */
-  const victim = view.players.find((p) => p.id === step.targetId)
-  const theirs = victim?.slots.find((slot) => slot.id === step.criticalTarget)
+  const victim = view.players.find(p => p.id === step.targetId)
+  const theirs = victim?.slots.find(slot => slot.id === step.criticalTarget)
   const config = weapon ? getSubsystemConfig(weapon.type) : null
   const inRange = plan.targetsInRange(step)
   const picking = plan.picking?.kind === 'crit' && plan.picking.stepId === step.id
@@ -169,7 +215,7 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
    * allow the shot (a missile is self-guided and nobody stops you throwing
    * one away) so the target stays in the list, marked.
    */
-  const outOfReach = new Set(plan.targetsOutOfReach(step).map((t) => t.id))
+  const outOfReach = new Set(plan.targetsOutOfReach(step).map(t => t.id))
   const wasted = step.targetId !== null && outOfReach.has(step.targetId)
   /**
    * One action launches as many of this tile's rounds as you like at one ship
@@ -204,14 +250,14 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
         size="small"
         value={step.targetId ?? ''}
         displayEmpty
-        onChange={(e) => plan.updateStep(step.id, { targetId: e.target.value || null })}
+        onChange={e => plan.updateStep(step.id, { targetId: e.target.value || null })}
         onOpen={() => plan.setFocusWeapon(step.subsystemId)}
         sx={{ fontSize: '0.82rem', minWidth: 116, '& .MuiSelect-select': { py: 0.35 } }}
       >
         <MenuItem value="" sx={{ fontSize: '0.82rem' }}>
           {inRange.length === 0 ? 'nothing in range' : 'pick a target'}
         </MenuItem>
-        {inRange.map((target) => (
+        {inRange.map(target => (
           <MenuItem key={target.id} value={target.id} sx={{ fontSize: '0.82rem' }}>
             {nameOf(target.id)}
             {outOfReach.has(target.id) ? ' · too far to catch' : ''}
@@ -224,10 +270,10 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
           <Select
             size="small"
             value={Math.min(step.count, ammo)}
-            onChange={(e) => plan.updateStep(step.id, { count: Number(e.target.value) })}
+            onChange={e => plan.updateStep(step.id, { count: Number(e.target.value) })}
             sx={{ fontSize: '0.82rem', minWidth: 72, '& .MuiSelect-select': { py: 0.35 } }}
           >
-            {Array.from({ length: ammo }, (_, i) => i + 1).map((n) => (
+            {Array.from({ length: ammo }, (_, i) => i + 1).map(n => (
               <MenuItem key={n} value={n} sx={{ fontSize: '0.82rem' }}>
                 ×{n}
               </MenuItem>
@@ -291,11 +337,13 @@ function FireControls({ step }: { step: Extract<PlanStep, { kind: 'fire' }> }) {
               <Switch
                 size="small"
                 checked={step.compensateRecoil}
-                onChange={(e) => plan.updateStep(step.id, { compensateRecoil: e.target.checked })}
+                onChange={e => plan.updateStep(step.id, { compensateRecoil: e.target.checked })}
               />
             }
             label={
-              <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft }}>compensate recoil</Typography>
+              <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft }}>
+                compensate recoil
+              </Typography>
             }
           />
         </Tooltip>
@@ -310,10 +358,10 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
   const inRange = plan.targetsInRange(step)
   const picking = plan.picking?.kind === 'peek' && plan.picking.stepId === step.id
 
-  const target = step.targetId ? view.players.find((p) => p.id === step.targetId) : undefined
+  const target = step.targetId ? view.players.find(p => p.id === step.targetId) : undefined
   const slots = target?.slots ?? []
-  const faceDown = slots.filter((slot) => slot.type === null)
-  const chosen = step.peekSlot ? slots.find((slot) => slot.id === step.peekSlot) : undefined
+  const faceDown = slots.filter(slot => slot.type === null)
+  const chosen = step.peekSlot ? slots.find(slot => slot.id === step.peekSlot) : undefined
   const note = !target
     ? null
     : faceDown.length === 0
@@ -328,13 +376,13 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
         size="small"
         value={step.targetId ?? ''}
         displayEmpty
-        onChange={(e) => plan.updateStep(step.id, { targetId: e.target.value || null })}
+        onChange={e => plan.updateStep(step.id, { targetId: e.target.value || null })}
         sx={{ fontSize: '0.82rem', minWidth: 116, '& .MuiSelect-select': { py: 0.35 } }}
       >
         <MenuItem value="" sx={{ fontSize: '0.82rem' }}>
           {inRange.length === 0 ? 'nobody up to 3 sectors ahead' : 'pick a target'}
         </MenuItem>
-        {inRange.map((target) => (
+        {inRange.map(target => (
           <MenuItem key={target.id} value={target.id} sx={{ fontSize: '0.82rem' }}>
             {nameOf(target.id)}
           </MenuItem>
@@ -358,7 +406,9 @@ function ScanControls({ step }: { step: Extract<PlanStep, { kind: 'scan' }> }) {
       </Tooltip>
 
       {note && (
-        <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.3, width: '100%' }}>
+        <Typography
+          sx={{ fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.3, width: '100%' }}
+        >
           {note}
         </Typography>
       )}
@@ -381,7 +431,7 @@ function SeizeControls({
   const plan = usePlan()
   const shotFirst = plan.steps
     .slice(0, index)
-    .some((s) => s.kind === 'fire' && s.targetId === step.victimId)
+    .some(s => s.kind === 'fire' && s.targetId === step.victimId)
   if (!shotFirst) return null
   return (
     <Typography sx={{ fontSize: '0.78rem', color: TABLE.inkSoft, lineHeight: 1.3, mt: 0.5 }}>

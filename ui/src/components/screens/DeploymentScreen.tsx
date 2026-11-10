@@ -102,8 +102,8 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
         >
           <Panel title="Ring and sector" dense sx={{ flexShrink: 0 }}>
             <Typography variant="body2" sx={{ color: TABLE.inkSoft, lineHeight: 1.4 }}>
-              Black Hole Ring {orList(HOME_RINGS)}, at least {DEPLOYMENT_GAP} sectors from
-              every ship already placed. That position becomes your Home.
+              Black Hole Ring {orList(HOME_RINGS)}, at least {DEPLOYMENT_GAP} sectors from every
+              ship already placed. That position becomes your Home.
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.75, mt: 0.75 }}>
               {HOME_RINGS.map(r => (
@@ -163,7 +163,10 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
                 return open ? (
                   <Box key={sector}>{cell}</Box>
                 ) : (
-                  <Tooltip key={sector} title={`closer than ${DEPLOYMENT_GAP} sectors to a placed ship`}>
+                  <Tooltip
+                    key={sector}
+                    title={`closer than ${DEPLOYMENT_GAP} sectors to a placed ship`}
+                  >
                     <Box>{cell}</Box>
                   </Tooltip>
                 )
@@ -244,9 +247,8 @@ export function DeploymentScreen({ headerRight }: { headerRight?: React.ReactNod
           )}
           {myTurn && (
             <Alert severity="success">
-              Place your ship on Black Hole Ring {orList(HOME_RINGS)}, at least{' '}
-              {DEPLOYMENT_GAP} sectors from every ship already placed. That position becomes your
-              Home.
+              Place your ship on Black Hole Ring {orList(HOME_RINGS)}, at least {DEPLOYMENT_GAP}{' '}
+              sectors from every ship already placed. That position becomes your Home.
             </Alert>
           )}
 

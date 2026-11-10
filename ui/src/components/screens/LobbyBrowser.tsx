@@ -39,14 +39,15 @@ interface LobbyBrowserProps {
 }
 
 function isGlobalMessage(data: unknown): data is GlobalSocketMessage {
-  return typeof data === 'object' && data !== null && typeof (data as { type?: unknown }).type === 'string'
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { type?: unknown }).type === 'string'
+  )
 }
 
 /** Table sizes on offer: whatever the rules allow (RULES §Setup). */
-const SEAT_COUNTS = Array.from(
-  { length: MAX_PLAYERS - MIN_PLAYERS + 1 },
-  (_, i) => MIN_PLAYERS + i
-)
+const SEAT_COUNTS = Array.from({ length: MAX_PLAYERS - MIN_PLAYERS + 1 }, (_, i) => MIN_PLAYERS + i)
 
 export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyBrowserProps) {
   const { playerName, setPlayerName } = usePlayer()
@@ -86,9 +87,13 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
 
   useEffect(() => {
     if (!client) return
-    const unsubscribe = client.onMessage('global', (data) => {
+    const unsubscribe = client.onMessage('global', data => {
       if (!isGlobalMessage(data)) return
-      if (data.type === 'LOBBY_CREATED' || data.type === 'LOBBY_DELETED' || data.type === 'LOBBY_UPDATED') {
+      if (
+        data.type === 'LOBBY_CREATED' ||
+        data.type === 'LOBBY_DELETED' ||
+        data.type === 'LOBBY_UPDATED'
+      ) {
         refresh()
       }
     })
@@ -104,7 +109,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
       const lobby = await createLobby(
         newName.trim() || `${playerName}'s table`,
         newMax,
-        newPassword || undefined,
+        newPassword || undefined
       )
       await joinLobby(lobby.lobbyId, newPassword || undefined)
       setCreateOpen(false)
@@ -131,12 +136,15 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
   }
 
   return (
-    <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3, gap: 2 }}>
+    <Box
+      sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', p: 3, gap: 2 }}
+    >
       <Typography variant="h3" sx={{ color: TABLE.ink, mt: 3 }}>
         Dangerous Inclinations
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft, mb: 1 }}>
-        Orbital manoeuvre, heat management and hidden objectives for {MIN_PLAYERS}–{MAX_PLAYERS} players.
+        Orbital manoeuvre, heat management and hidden objectives for {MIN_PLAYERS}–{MAX_PLAYERS}{' '}
+        players.
       </Typography>
 
       <Panel
@@ -165,7 +173,12 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
                 <RefreshIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateOpen(true)}
+            >
               New table
             </Button>
           </Box>
@@ -192,7 +205,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
           </Typography>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 1 }}>
-            {lobbies.map((lobby) => (
+            {lobbies.map(lobby => (
               <Box
                 key={lobby.lobbyId}
                 sx={{
@@ -205,7 +218,9 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
                   bgcolor: TABLE.plateSunk,
                 }}
               >
-                <Typography sx={{ fontWeight: 700, color: TABLE.ink }}>{lobby.lobbyName}</Typography>
+                <Typography sx={{ fontWeight: 700, color: TABLE.ink }}>
+                  {lobby.lobbyName}
+                </Typography>
                 {lobby.hasPassword && <LockIcon sx={{ fontSize: 15, color: TABLE.inkSoft }} />}
                 <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>
                   {lobby.currentPlayers}/{lobby.maxPlayers} seats
@@ -238,19 +253,29 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
       </Panel>
 
       {/* Create */}
-      <Dialog open={createOpen} onClose={() => !busy && setCreateOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={createOpen}
+        onClose={() => !busy && setCreateOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle>New table</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <TextField
             label="Table name"
             value={newName}
-            onChange={(e) => setNewName(e.target.value)}
+            onChange={e => setNewName(e.target.value)}
             placeholder={`${playerName}'s table`}
             autoFocus
             fullWidth
           />
-          <Select value={newMax} onChange={(e) => setNewMax(Number(e.target.value))} fullWidth size="small">
-            {SEAT_COUNTS.map((n) => (
+          <Select
+            value={newMax}
+            onChange={e => setNewMax(Number(e.target.value))}
+            fullWidth
+            size="small"
+          >
+            {SEAT_COUNTS.map(n => (
               <MenuItem key={n} value={n}>
                 {n} players
               </MenuItem>
@@ -259,7 +284,7 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
           <TextField
             label="Password (optional)"
             value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
+            onChange={e => setNewPassword(e.target.value)}
             fullWidth
           />
         </DialogContent>
@@ -274,14 +299,19 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
       </Dialog>
 
       {/* Join with password */}
-      <Dialog open={joinTarget !== null} onClose={() => !busy && setJoinTarget(null)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={joinTarget !== null}
+        onClose={() => !busy && setJoinTarget(null)}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle>Join {joinTarget?.lobbyName}</DialogTitle>
         <DialogContent>
           <TextField
             label="Password"
             type="password"
             value={joinPassword}
-            onChange={(e) => setJoinPassword(e.target.value)}
+            onChange={e => setJoinPassword(e.target.value)}
             autoFocus
             fullWidth
           />
@@ -304,7 +334,12 @@ export function LobbyBrowser({ onLobbyJoined, onOpenRecordings, notice }: LobbyB
       <Dialog open={nameOpen} onClose={() => setNameOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Your name</DialogTitle>
         <DialogContent>
-          <TextField value={draftName} onChange={(e) => setDraftName(e.target.value)} autoFocus fullWidth />
+          <TextField
+            value={draftName}
+            onChange={e => setDraftName(e.target.value)}
+            autoFocus
+            fullWidth
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setNameOpen(false)}>Cancel</Button>

@@ -16,40 +16,43 @@
  * unless the target has a shield with cubes still ready this turn, which
  * blocks it whole.
  */
-import type { ShipState } from "../models/game.ts";
-import { BASE_CRITICAL_FACE } from "../models/game.ts";
-import { SHIELD_POINTS_PER_ENERGY, shieldCubesReady } from "../models/subsystems.ts";
-import type { SubsystemId } from "../models/subsystems.ts";
-import type { EventDraft } from "../models/events.ts";
-import type { HitRollResult, WeaponHitResult } from "../models/weapons.ts";
+import type { ShipState } from '../models/game.ts'
+import { BASE_CRITICAL_FACE } from '../models/game.ts'
+import { SHIELD_POINTS_PER_ENERGY, shieldCubesReady } from '../models/subsystems.ts'
+import type { SubsystemId } from '../models/subsystems.ts'
+import type { EventDraft } from '../models/events.ts'
+import type { HitRollResult, WeaponHitResult } from '../models/weapons.ts'
 import {
   addHeat,
   breakSubsystem,
   lowestCriticalFace,
   revealSubsystem,
   updateSubsystem,
-} from "./ship.ts";
+} from './ship.ts'
 
 /** What a d10 face does: 1 misses, `criticalFace` and above is a critical, the rest hit. */
-export function rollToResult(roll: number, criticalFace: number = BASE_CRITICAL_FACE): HitRollResult {
-  if (roll <= 1) return "miss";
-  return roll >= criticalFace ? "critical" : "hit";
+export function rollToResult(
+  roll: number,
+  criticalFace: number = BASE_CRITICAL_FACE
+): HitRollResult {
+  if (roll <= 1) return 'miss'
+  return roll >= criticalFace ? 'critical' : 'hit'
 }
 
 interface AttackOutcome {
-  ship: ShipState;
-  hitResult: WeaponHitResult;
-  events: EventDraft[];
+  ship: ShipState
+  hitResult: WeaponHitResult
+  events: EventDraft[]
 }
 
 /** How a weapon meets shields; read off its `WeaponStats`. */
 export interface AttackOptions {
   /** Laser fire: shields are electromagnetic and do not stop it. */
-  ignoresShields?: boolean;
+  ignoresShields?: boolean
   /** Points a shield cube absorbs; omitted is SHIELD_POINTS_PER_ENERGY. */
-  shieldPointsPerEnergy?: number;
+  shieldPointsPerEnergy?: number
   /** Disruptor: no damage, a hit breaks the named slot unless a shield is up. */
-  disrupts?: boolean;
+  disrupts?: boolean
 }
 
 /**
@@ -67,13 +70,13 @@ export function resolveAttack(
   attackerPlayerId?: string,
   options: AttackOptions = {}
 ): AttackOutcome {
-  const { ignoresShields = false, disrupts = false } = options;
-  const perCube = options.shieldPointsPerEnergy ?? SHIELD_POINTS_PER_ENERGY;
+  const { ignoresShields = false, disrupts = false } = options
+  const perCube = options.shieldPointsPerEnergy ?? SHIELD_POINTS_PER_ENERGY
   // A disruptor has no critical to widen: 2-10 is a hit whatever a sensor says.
-  const rolled = rollToResult(roll, lowestCriticalFace(attacker.subsystems));
-  const result = disrupts && rolled === "critical" ? "hit" : rolled;
+  const rolled = rollToResult(roll, lowestCriticalFace(attacker.subsystems))
+  const result = disrupts && rolled === 'critical' ? 'hit' : rolled
 
-  if (result === "miss") {
+  if (result === 'miss') {
     return {
       ship: target,
       events: [],
@@ -84,29 +87,27 @@ export function resolveAttack(
         damageToHull: 0,
         absorbed: 0,
       },
-    };
+    }
   }
 
-  const events: EventDraft[] = [];
-  let ship = target;
+  const events: EventDraft[] = []
+  let ship = target
 
-  if (disrupts) return disrupt(ship, targetPlayerId, criticalTarget, roll, attackerPlayerId);
+  if (disrupts) return disrupt(ship, targetPlayerId, criticalTarget, roll, attackerPlayerId)
 
   // Shields absorb first, tile by tile in slot order, except laser damage,
   // which goes straight to the hull.
-  let remainingDamage = damage;
-  let absorbed = 0;
+  let remainingDamage = damage
+  let absorbed = 0
   const shields = ignoresShields
     ? []
-    : ship.subsystems.filter(
-        (s) => s.type === "shields" && shieldCubesReady(s) > 0 && !s.isBroken
-      );
+    : ship.subsystems.filter(s => s.type === 'shields' && shieldCubesReady(s) > 0 && !s.isBroken)
   for (const shield of shields) {
-    if (remainingDamage <= 0) break;
-    const take = Math.min(remainingDamage, shieldCubesReady(shield) * perCube);
-    if (take <= 0) continue;
+    if (remainingDamage <= 0) break
+    const take = Math.min(remainingDamage, shieldCubesReady(shield) * perCube)
+    if (take <= 0) continue
     // A cube absorbs whole: one that stops a single point of plasma is spent.
-    const spent = Math.ceil(take / perCube);
+    const spent = Math.ceil(take / perCube)
     // The cubes that absorbed are spent for this player-turn: they stay on
     // the subsystem (heat at the owner's check, and dumped whole by a
     // critical that breaks it) but stop nothing more until play passes, when
@@ -115,17 +116,17 @@ export function resolveAttack(
     // check like anything else carried there.
     ship = updateSubsystem(ship, shield.id, {
       spentThisTurn: shield.spentThisTurn + spent,
-    });
-    ship = addHeat(ship, take);
-    const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
-    ship = r.ship;
-    events.push(...r.events);
-    remainingDamage -= take;
-    absorbed += take;
+    })
+    ship = addHeat(ship, take)
+    const r = revealSubsystem(ship, targetPlayerId, shield.id, 'absorbed')
+    ship = r.ship
+    events.push(...r.events)
+    remainingDamage -= take
+    absorbed += take
   }
-  const toHull = remainingDamage;
+  const toHull = remainingDamage
 
-  ship = { ...ship, hitPoints: Math.max(0, ship.hitPoints - toHull) };
+  ship = { ...ship, hitPoints: Math.max(0, ship.hitPoints - toHull) }
 
   // A critical breaks the slot it named whether or not the shot reached the
   // hull. It used to need `toHull > 0`, which meant shields that held ate the
@@ -133,10 +134,10 @@ export function resolveAttack(
   // the one best protected from being named. A shield that absorbed keeps its
   // cubes on, so breaking it dumps them all as heat on top of the points it
   // took, and the tile is gone until a dock.
-  if (result === "critical") {
-    const broken = breakNamed(ship, targetPlayerId, criticalTarget, attackerPlayerId);
-    ship = broken.ship;
-    events.push(...broken.events);
+  if (result === 'critical') {
+    const broken = breakNamed(ship, targetPlayerId, criticalTarget, attackerPlayerId)
+    ship = broken.ship
+    events.push(...broken.events)
   }
 
   return {
@@ -149,7 +150,7 @@ export function resolveAttack(
       damageToHull: toHull,
       absorbed,
     },
-  };
+  }
 }
 
 /** Break the slot an attacker named, crediting the attacker on the event. */
@@ -159,13 +160,13 @@ function breakNamed(
   criticalTarget: SubsystemId,
   attackerPlayerId: string | undefined
 ): { ship: ShipState; events: EventDraft[] } {
-  const broken = breakSubsystem(ship, targetPlayerId, criticalTarget);
+  const broken = breakSubsystem(ship, targetPlayerId, criticalTarget)
   return {
     ship: broken.ship,
-    events: broken.events.map((e) =>
-      e.type === "subsystem_broken" ? { ...e, by: attackerPlayerId } : e
+    events: broken.events.map(e =>
+      e.type === 'subsystem_broken' ? { ...e, by: attackerPlayerId } : e
     ),
-  };
+  }
 }
 
 /**
@@ -183,19 +184,19 @@ function disrupt(
   attackerPlayerId: string | undefined
 ): AttackOutcome {
   const shield = ship.subsystems.find(
-    (s) => s.type === "shields" && shieldCubesReady(s) > 0 && !s.isBroken
-  );
+    s => s.type === 'shields' && shieldCubesReady(s) > 0 && !s.isBroken
+  )
   const hitResult: WeaponHitResult = {
     roll,
-    result: "hit",
+    result: 'hit',
     damage: 0,
     damageToHull: 0,
     absorbed: 0,
-  };
-  if (shield) {
-    const r = revealSubsystem(ship, targetPlayerId, shield.id, "absorbed");
-    return { ship: r.ship, events: r.events, hitResult: { ...hitResult, blocked: true } };
   }
-  const broken = breakNamed(ship, targetPlayerId, criticalTarget, attackerPlayerId);
-  return { ship: broken.ship, events: broken.events, hitResult };
+  if (shield) {
+    const r = revealSubsystem(ship, targetPlayerId, shield.id, 'absorbed')
+    return { ship: r.ship, events: r.events, hitResult: { ...hitResult, blocked: true } }
+  }
+  const broken = breakNamed(ship, targetPlayerId, criticalTarget, attackerPlayerId)
+  return { ship: broken.ship, events: broken.events, hitResult }
 }

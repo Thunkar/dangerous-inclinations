@@ -183,7 +183,8 @@ yarn dev            # UI (localhost:5173)
 yarn dev:server     # server (localhost:3000), needs Redis: docker-compose up -d
 yarn dev:all
 yarn build          # engine must build before server/ui typecheck
-yarn test           # every test, engine and ui (turbo builds the engine first)
+yarn test           # Prettier's check, then every test, engine and ui (turbo builds the engine first)
+yarn format         # one Prettier style for the whole repo (.prettierrc.json); prose and pages are left alone
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1
 yarn workspace @dangerous-inclinations/engine sim --games=100 --bots=3 --baseSeed=1 --tiebreak --tiles=ballistic_rack.damage=3
 yarn workspace @dangerous-inclinations/server smoke   # no Redis needed: leak checks on every message

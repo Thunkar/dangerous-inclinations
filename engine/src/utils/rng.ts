@@ -10,57 +10,57 @@
  * and advance its rngState in place. The deal shuffles with an `Rng` directly.
  */
 
-import type { GameState } from "../models/game.ts";
+import type { GameState } from '../models/game.ts'
 
 export class Rng {
-  state: number;
+  state: number
 
   constructor(seed: number) {
-    this.state = seed | 0;
+    this.state = seed | 0
   }
 
   /** Step the PRNG and return a float in [0, 1). */
   next(): number {
-    let t = (this.state = (this.state + 0x6d2b79f5) | 0);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    let t = (this.state = (this.state + 0x6d2b79f5) | 0)
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 
   /** Integer in [0, max). */
   rollInt(max: number): number {
-    return Math.floor(this.next() * max);
+    return Math.floor(this.next() * max)
   }
 
   /** d10 roll, returns 1..10. */
   rollD10(): number {
-    return this.rollInt(10) + 1;
+    return this.rollInt(10) + 1
   }
 
   /** Random index into a non-empty array. */
   pickIndex<T>(arr: readonly T[]): number {
-    return this.rollInt(arr.length);
+    return this.rollInt(arr.length)
   }
 
   /** Returns a new array, Fisher-Yates shuffled. */
   shuffle<T>(arr: readonly T[]): T[] {
-    const result = [...arr];
+    const result = [...arr]
     for (let i = result.length - 1; i > 0; i--) {
-      const j = this.rollInt(i + 1);
-      [result[i], result[j]] = [result[j], result[i]];
+      const j = this.rollInt(i + 1)
+      ;[result[i], result[j]] = [result[j], result[i]]
     }
-    return result;
+    return result
   }
 }
 
 /** Read GameState's PRNG into an Rng handle. */
 function getRng(state: GameState): Rng {
-  return new Rng(state.rngState);
+  return new Rng(state.rngState)
 }
 
 /** Write the PRNG state back to GameState. */
 function commitRng(state: GameState, rng: Rng): void {
-  state.rngState = rng.state;
+  state.rngState = rng.state
 }
 
 /**
@@ -69,21 +69,21 @@ function commitRng(state: GameState, rng: Rng): void {
  * untouched.
  */
 export function rollD10(state: GameState): number {
-  if (state.forcedRollValue !== undefined) return state.forcedRollValue;
-  const rng = getRng(state);
-  const v = rng.rollD10();
-  commitRng(state, rng);
-  return v;
+  if (state.forcedRollValue !== undefined) return state.forcedRollValue
+  const rng = getRng(state)
+  const v = rng.rollD10()
+  commitRng(state, rng)
+  return v
 }
 
 /**
  * Pick a random index against GameState's RNG, advancing it.
  */
 export function pickIndex<T>(state: GameState, arr: readonly T[]): number {
-  const rng = getRng(state);
-  const i = rng.pickIndex(arr);
-  commitRng(state, rng);
-  return i;
+  const rng = getRng(state)
+  const i = rng.pickIndex(arr)
+  commitRng(state, rng)
+  return i
 }
 
 /**
@@ -92,9 +92,9 @@ export function pickIndex<T>(state: GameState, arr: readonly T[]): number {
  * and unique across a single game.
  */
 export function nextEntityId(state: GameState, prefix: string): string {
-  const id = state.nextEntityId;
-  state.nextEntityId = id + 1;
-  return `${prefix}-${id}`;
+  const id = state.nextEntityId
+  state.nextEntityId = id + 1
+  return `${prefix}-${id}`
 }
 
 /**
@@ -104,7 +104,7 @@ export function nextEntityId(state: GameState, prefix: string): string {
  * GameState so the run is reproducible from there.
  */
 export function freshSeed(): number {
-  return (Math.random() * 0x100000000) | 0;
+  return (Math.random() * 0x100000000) | 0
 }
 
 /**
@@ -112,14 +112,14 @@ export function freshSeed(): number {
  * If `seed` is omitted, a random seed is generated and captured on the state.
  */
 export function createDeterminismFields(seed?: number): {
-  rngSeed: number;
-  rngState: number;
-  nextEntityId: number;
+  rngSeed: number
+  rngState: number
+  nextEntityId: number
 } {
-  const finalSeed = seed ?? freshSeed();
+  const finalSeed = seed ?? freshSeed()
   return {
     rngSeed: finalSeed,
     rngState: finalSeed,
     nextEntityId: 0,
-  };
+  }
 }

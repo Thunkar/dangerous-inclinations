@@ -11,28 +11,28 @@
  * is yours alone.
  */
 
-import type { Position, Facing, BurnIntensity, Wreck } from "./game.ts";
-import type { SubsystemId, SubsystemType, WeaponType } from "./subsystems.ts";
-import type { CargoKind, Mission, SaleKind } from "./missions.ts";
-import type { HitRollResult } from "./weapons.ts";
+import type { Position, Facing, BurnIntensity, Wreck } from './game.ts'
+import type { SubsystemId, SubsystemType, WeaponType } from './subsystems.ts'
+import type { CargoKind, Mission, SaleKind } from './missions.ts'
+import type { HitRollResult } from './weapons.ts'
 
 interface Base {
-  turn: number;
+  turn: number
   /** Player ids allowed to see this event. Omitted = public. */
-  privateTo?: string[];
+  privateTo?: string[]
 }
 
 export type RevealReason =
-  | "fired"
-  | "intercepted"
-  | "absorbed"
-  | "scanned"
-  | "dissipating"
-  | "compressed_jump"
-  | "broken";
+  | 'fired'
+  | 'intercepted'
+  | 'absorbed'
+  | 'scanned'
+  | 'dissipating'
+  | 'compressed_jump'
+  | 'broken'
 
 export type GameEvent =
-  | (Base & { type: "respawned"; playerId: string; position: Position })
+  | (Base & { type: 'respawned'; playerId: string; position: Position })
   | (Base & {
       /**
        * A `power` action put energy on a shield, a rack or a sensor. Public, as
@@ -40,326 +40,326 @@ export type GameEvent =
        * present when the tile is already face-up: on a face-down tile it would
        * tell the table what the cubes only hint at.
        */
-      type: "subsystem_powered";
-      playerId: string;
-      subsystemId: SubsystemId;
-      subsystemType?: SubsystemType;
+      type: 'subsystem_powered'
+      playerId: string
+      subsystemId: SubsystemId
+      subsystemType?: SubsystemType
       /** Cubes the tile now holds. */
-      amount: number;
+      amount: number
     })
   | (Base & {
-      type: "rotated";
-      playerId: string;
-      facing: Facing;
+      type: 'rotated'
+      playerId: string
+      facing: Facing
       /** The cubes the rotation put on the thrusters: its heat at the check. */
-      heat: number;
+      heat: number
     })
   | (Base & {
-      type: "coasted";
-      playerId: string;
-      to: Position;
-      scooped: boolean;
-      heat: number;
+      type: 'coasted'
+      playerId: string
+      to: Position
+      scooped: boolean
+      heat: number
       /** Docked at a station: the ship holds its berth instead of drifting. */
-      moored?: boolean;
+      moored?: boolean
       /**
        * Nobody was flying: a recovering ship carried along by its orbit on a
        * turn it could not act in (RULES §A Turn). It never scoops or heats.
        */
-      recovering?: boolean;
+      recovering?: boolean
     })
-  | (Base & { type: "fuel_scooped"; playerId: string; amount: number })
+  | (Base & { type: 'fuel_scooped'; playerId: string; amount: number })
   | (Base & {
-      type: "burned";
-      playerId: string;
-      intensity: BurnIntensity;
-      from: Position;
-      to: Position;
-      massSpent: number;
-      heat: number;
+      type: 'burned'
+      playerId: string
+      intensity: BurnIntensity
+      from: Position
+      to: Position
+      massSpent: number
+      heat: number
     })
   | (Base & {
-      type: "jumped";
-      playerId: string;
-      from: Position;
-      to: Position;
+      type: 'jumped'
+      playerId: string
+      from: Position
+      to: Position
       /** Sectors the arrival was phased by inside the arrival arc (1 fuel each). */
-      sectorAdjustment: number;
+      sectorAdjustment: number
       /** Fuel spent, phasing included; a compressor cuts the lane's share. */
-      massSpent: number;
+      massSpent: number
       /** A working fuel compressor was aboard, so the lane cost less. */
-      compressed: boolean;
-      heat: number;
+      compressed: boolean
+      heat: number
     })
   | (Base & {
-      type: "weapon_fired";
-      attackerId: string;
-      targetId: string;
-      subsystemId: SubsystemId;
-      weaponType: WeaponType;
+      type: 'weapon_fired'
+      attackerId: string
+      targetId: string
+      subsystemId: SubsystemId
+      weaponType: WeaponType
       /** The whole action's heat: for a salvo, the tile's cubes once, whatever its size. */
-      heat: number;
+      heat: number
       /** Missiles only: how many went up in this one action. */
-      count?: number;
+      count?: number
     })
   | (Base & {
-      type: "attack_resolved";
-      attackerId: string;
-      targetId: string;
-      weaponType: WeaponType;
+      type: 'attack_resolved'
+      attackerId: string
+      targetId: string
+      weaponType: WeaponType
       /** The missile that made the attack, which is spent by it; absent for a gun. */
-      missileId?: string;
-      roll: number;
-      result: HitRollResult;
-      damage: number;
-      toHull: number;
-      absorbed: number;
-      targetHullAfter: number;
+      missileId?: string
+      roll: number
+      result: HitRollResult
+      damage: number
+      toHull: number
+      absorbed: number
+      targetHullAfter: number
       /** A disruptor hit that a powered shield stopped: nothing broke. */
-      blocked?: true;
+      blocked?: true
     })
   | (Base & {
-      type: "recoil";
-      playerId: string;
-      compensated: boolean;
-      to?: Position;
-      massSpent: number;
-      heat: number;
+      type: 'recoil'
+      playerId: string
+      compensated: boolean
+      to?: Position
+      massSpent: number
+      heat: number
     })
   | (Base & {
-      type: "missile_launched";
-      ownerId: string;
-      missileId: string;
-      targetId: string;
-      at: Position;
-      criticalTarget: SubsystemId;
+      type: 'missile_launched'
+      ownerId: string
+      missileId: string
+      targetId: string
+      at: Position
+      criticalTarget: SubsystemId
     })
   | (Base & {
-      type: "missile_moved";
-      missileId: string;
-      ownerId: string;
-      to: Position;
-      movesLeft: number;
+      type: 'missile_moved'
+      missileId: string
+      ownerId: string
+      to: Position
+      movesLeft: number
     })
   | (Base & {
-      type: "missile_intercepted";
-      missileId: string;
-      ownerId: string;
-      targetId: string;
-      roll: number;
+      type: 'missile_intercepted'
+      missileId: string
+      ownerId: string
+      targetId: string
+      roll: number
       /** 2+ destroys the missile; on a 1 the rack fired and missed. */
-      destroyed: boolean;
+      destroyed: boolean
       /** The rack that rolled: intercepting turns it face-up, so naming it tells nothing new. */
-      rackId: SubsystemId;
+      rackId: SubsystemId
       /** Heat this roll put on the target's track: INTERCEPT_HEAT on a rack's first roll of a player-turn, else 0. */
-      heat: number;
+      heat: number
     })
-  | (Base & { type: "missile_expired"; missileId: string; ownerId: string; at: Position })
+  | (Base & { type: 'missile_expired'; missileId: string; ownerId: string; at: Position })
   | (Base & {
-      type: "subsystem_broken";
-      playerId: string;
-      subsystemId: SubsystemId;
-      subsystemType: SubsystemType;
-      energyLost: number;
+      type: 'subsystem_broken'
+      playerId: string
+      subsystemId: SubsystemId
+      subsystemType: SubsystemType
+      energyLost: number
       /** Attacker whose critical hit broke it (absent for other causes). */
-      by?: string;
+      by?: string
     })
   | (Base & {
-      type: "subsystem_revealed";
-      playerId: string;
-      subsystemId: SubsystemId;
-      subsystemType: SubsystemType;
-      reason: RevealReason;
+      type: 'subsystem_revealed'
+      playerId: string
+      subsystemId: SubsystemId
+      subsystemType: SubsystemType
+      reason: RevealReason
     })
   | (Base & {
-      type: "ship_destroyed";
-      victimId: string;
-      killerId?: string;
-      cause: "weapon" | "missile" | "heat";
+      type: 'ship_destroyed'
+      victimId: string
+      killerId?: string
+      cause: 'weapon' | 'missile' | 'heat'
     })
   | (Base & {
       /** A cold ship's crew got outside and fixed one thing (RULES §Energy and Heat). */
-      type: "subsystem_repaired";
-      playerId: string;
-      subsystemId: SubsystemId;
-      subsystemType: SubsystemType;
+      type: 'subsystem_repaired'
+      playerId: string
+      subsystemId: SubsystemId
+      subsystemType: SubsystemType
     })
   | (Base & {
-      type: "heat_check";
-      playerId: string;
+      type: 'heat_check'
+      playerId: string
       /** Heat on the track when the check ran, the loadout's cubes included. */
-      heat: number;
+      heat: number
       /** The part of `heat` that is cubes sitting on the loadout. */
-      cubes: number;
+      cubes: number
       /**
        * Heat the check dissipated: min(heat, MAX_HEAT) - carried. Not
        * the ship's dissipation, which would give a face-down radiator away on
        * a cool check (RULES §Hidden Information: it shows only above 5).
        */
-      dissipated: number;
+      dissipated: number
       /** Hull taken for the part of `heat` above MAX_HEAT. */
-      damage: number;
+      damage: number
       /** Heat that rides into the next turn: min(heat, MAX_HEAT) - dissipation. */
-      carried: number;
+      carried: number
     })
   | (Base & {
-      type: "scanned";
-      scannerId: string;
+      type: 'scanned'
+      scannerId: string
       /** The sensor that scanned: scanning turns it face-up. */
-      sensorId: SubsystemId;
-      targetId: string;
-      peekedSlot: SubsystemId;
-      heat: number;
+      sensorId: SubsystemId
+      targetId: string
+      peekedSlot: SubsystemId
+      heat: number
     })
   | (Base & {
-      type: "scan_result";
-      scannerId: string;
-      targetId: string;
-      slot: SubsystemId;
-      subsystemType: SubsystemType;
+      type: 'scan_result'
+      scannerId: string
+      targetId: string
+      slot: SubsystemId
+      subsystemType: SubsystemType
     })
   | (Base & {
-      type: "docked";
-      playerId: string;
-      planetId: string;
-      hullRestored: number;
-      repaired: SubsystemId[];
-      missilesReloaded: boolean;
+      type: 'docked'
+      playerId: string
+      planetId: string
+      hullRestored: number
+      repaired: SubsystemId[]
+      missilesReloaded: boolean
       /** What the station bought: the kind of item sold, the fuel, or null for nothing. */
-      sold: SaleKind | null;
+      sold: SaleKind | null
     })
   | (Base & {
-      type: "cargo_picked_up";
-      playerId: string;
-      cargoId: string;
-      kind: CargoKind;
-      planetId: string;
+      type: 'cargo_picked_up'
+      playerId: string
+      cargoId: string
+      kind: CargoKind
+      planetId: string
     })
   | (Base & {
-      type: "cargo_delivered";
-      playerId: string;
-      cargoId: string;
-      kind: CargoKind;
-      planetId: string;
+      type: 'cargo_delivered'
+      playerId: string
+      cargoId: string
+      kind: CargoKind
+      planetId: string
     })
   | (Base & {
       /** Piracy: an item the pirate named, taken off a ship sharing its sector. */
-      type: "cargo_seized";
-      pirateId: string;
-      victimId: string;
+      type: 'cargo_seized'
+      pirateId: string
+      victimId: string
       /** What was taken. */
-      kind: CargoKind;
+      kind: CargoKind
       /** The victim's item, whose card goes back to undone. */
-      cargoId: string;
-      at: Position;
+      cargoId: string
+      at: Position
     })
   | (Base & {
       /** A destroyed ship leaves a wreck where it died (RULES §Missions, Salvage). */
-      type: "wreck_left";
-      wreckId: string;
-      victimId: string;
-      at: Position;
+      type: 'wreck_left'
+      wreckId: string
+      victimId: string
+      at: Position
     })
   | (Base & {
       /** Salvage: a wreck's black box taken aboard; it rides as the card's data. */
-      type: "wreck_salvaged";
-      playerId: string;
-      wreckId: string;
-      cargoId: string;
-      at: Position;
+      type: 'wreck_salvaged'
+      playerId: string
+      wreckId: string
+      cargoId: string
+      at: Position
     })
   | (Base & {
       /** Escort: a marker put on a carrier. Public: the marker is face-up. */
-      type: "escort_marked";
-      escortId: string;
-      carrierId: string;
-      missionId: string;
+      type: 'escort_marked'
+      escortId: string
+      carrierId: string
+      missionId: string
     })
   | (Base & {
       /**
        * Escort: the marked ship or the escort was destroyed (`cause`), and the
        * marker came off the carrier and back to its owner's hand. Public.
        */
-      type: "escort_released";
-      escortId: string;
-      carrierId: string;
-      missionId: string;
-      cause: "carrier_destroyed" | "escort_destroyed";
+      type: 'escort_released'
+      escortId: string
+      carrierId: string
+      missionId: string
+      cause: 'carrier_destroyed' | 'escort_destroyed'
     })
   | (Base & {
       /** Tanker: fuel pumped into a station's drums on arrival. */
-      type: "fuel_pumped";
-      playerId: string;
-      amount: number;
-      planetId: string;
+      type: 'fuel_pumped'
+      playerId: string
+      amount: number
+      planetId: string
     })
   | (Base & {
-      type: "cargo_dropped";
-      playerId: string;
-      crates: number;
-      data: number;
+      type: 'cargo_dropped'
+      playerId: string
+      crates: number
+      data: number
     })
   | (Base & {
-      type: "data_acquired";
-      playerId: string;
+      type: 'data_acquired'
+      playerId: string
       /** Which card took data: an Intercept's scan or a Survey's dive. */
-      kind: "scan" | "survey";
-      missionId: string;
+      kind: 'scan' | 'survey'
+      missionId: string
     })
   | (Base & {
-      type: "mission_completed";
-      playerId: string;
-      mission: Mission;
-      points: number;
+      type: 'mission_completed'
+      playerId: string
+      mission: Mission
+      points: number
     })
   | (Base & {
-      type: "stations_moved";
+      type: 'stations_moved'
       /** Docked ships that rode their station round with it. */
-      riders: string[];
+      riders: string[]
       /** Wrecks drift with the stations, once a round, by their ring's speed. */
-      wrecks: Wreck[];
+      wrecks: Wreck[]
     })
   | (Base & {
-      type: "action_skipped";
-      playerId: string;
-      action: "fire_weapon" | "scan" | "seize" | "escort_mark";
-      targetId: string;
-      reason: "target_destroyed";
+      type: 'action_skipped'
+      playerId: string
+      action: 'fire_weapon' | 'scan' | 'seize' | 'escort_mark'
+      targetId: string
+      reason: 'target_destroyed'
     })
   | (Base & {
       /** A salvage naming no wreck found none in the sector at its point in the turn. */
-      type: "action_skipped";
-      playerId: string;
-      action: "salvage";
-      reason: "no_wreck";
+      type: 'action_skipped'
+      playerId: string
+      action: 'salvage'
+      reason: 'no_wreck'
     })
-  | (Base & { type: "deployed"; playerId: string; position: Position })
+  | (Base & { type: 'deployed'; playerId: string; position: Position })
   /** Someone reached the points needed; the round is played out (turnsLeft more seats act). */
-  | (Base & { type: "final_round"; playerId: string; points: number; turnsLeft: number })
+  | (Base & { type: 'final_round'; playerId: string; points: number; turnsLeft: number })
   | (Base & {
-      type: "game_ended";
-      winnerId: string;
+      type: 'game_ended'
+      winnerId: string
       /** What separated first from second in the standings. */
-      decidedBy: "points" | "hull" | "fuel" | "seat";
-    });
+      decidedBy: 'points' | 'hull' | 'fuel' | 'seat'
+    })
 
-export type GameEventType = GameEvent["type"];
+export type GameEventType = GameEvent['type']
 
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
 /** An event before the turn number is stamped on it. */
-export type EventDraft = DistributiveOmit<GameEvent, "turn">;
+export type EventDraft = DistributiveOmit<GameEvent, 'turn'>
 
 export function stampEvents(drafts: EventDraft[], turn: number): GameEvent[] {
-  return drafts.map((d) => ({ ...d, turn }) as GameEvent);
+  return drafts.map(d => ({ ...d, turn }) as GameEvent)
 }
 
 /** True if `viewerId` may see the event. */
 export function canSeeEvent(event: GameEvent, viewerId: string | null): boolean {
-  if (!event.privateTo) return true;
-  return viewerId !== null && event.privateTo.includes(viewerId);
+  if (!event.privateTo) return true
+  return viewerId !== null && event.privateTo.includes(viewerId)
 }
 
 export function filterEventsFor(events: GameEvent[], viewerId: string | null): GameEvent[] {
-  return events.filter((e) => canSeeEvent(e, viewerId));
+  return events.filter(e => canSeeEvent(e, viewerId))
 }

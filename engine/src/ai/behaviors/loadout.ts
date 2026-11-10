@@ -5,15 +5,15 @@
  * is picked by the game's seeded RNG among the flyable ones, and the hull
  * follows from the hand.
  */
-import type { ShipLoadout } from "../../models/game.ts";
-import type { Mission, MissionType, SecondaryKind } from "../../models/missions.ts";
-import { missionsMissingRequirements } from "../../game/loadout.ts";
-import { isOpenMission } from "../types.ts";
+import type { ShipLoadout } from '../../models/game.ts'
+import type { Mission, MissionType, SecondaryKind } from '../../models/missions.ts'
+import { missionsMissingRequirements } from '../../game/loadout.ts'
+import { isOpenMission } from '../types.ts'
 import {
   MISSIONS_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
   isPrimaryType,
-} from "../../models/missions.ts";
+} from '../../models/missions.ts'
 
 /**
  * A hull is two decisions, both read off the hand. **The role** is the plan
@@ -22,47 +22,47 @@ import {
  * being the default. A preset's role is the list it is in, never its bow: the
  * corsair flies a missile bow and the warden a disruptor bow, and both hunt.
  */
-export type BotRole = "interceptor" | "hunter" | "hauler";
+export type BotRole = 'interceptor' | 'hunter' | 'hauler'
 export type BotPresetId =
-  | "gunship"
-  | "lancer"
-  | "corsair"
-  | "warden"
-  | "raider"
-  | "watcher"
-  | "picket"
-  | "sentry"
-  | "freighter"
-  | "convoy"
-  | "smuggler"
-  | "ghost";
+  | 'gunship'
+  | 'lancer'
+  | 'corsair'
+  | 'warden'
+  | 'raider'
+  | 'watcher'
+  | 'picket'
+  | 'sentry'
+  | 'freighter'
+  | 'convoy'
+  | 'smuggler'
+  | 'ghost'
 
-export const BOT_ROLES: readonly BotRole[] = ["interceptor", "hunter", "hauler"];
+export const BOT_ROLES: readonly BotRole[] = ['interceptor', 'hunter', 'hauler']
 
 /** Each role's presets, the default first. */
 export const PRESETS_BY_ROLE: Record<BotRole, readonly BotPresetId[]> = {
-  hunter: ["gunship", "lancer", "corsair", "warden"],
-  interceptor: ["raider", "watcher", "picket", "sentry"],
-  hauler: ["freighter", "convoy", "smuggler", "ghost"],
-};
+  hunter: ['gunship', 'lancer', 'corsair', 'warden'],
+  interceptor: ['raider', 'watcher', 'picket', 'sentry'],
+  hauler: ['freighter', 'convoy', 'smuggler', 'ghost'],
+}
 
 export const PRESET_NAMES: Record<BotPresetId, string> = {
-  gunship: "Gunship",
-  lancer: "Lancer",
-  corsair: "Corsair",
-  warden: "Warden",
-  raider: "Raider",
-  watcher: "Watcher",
-  picket: "Picket",
-  sentry: "Sentry",
-  freighter: "Freighter",
-  convoy: "Convoy",
-  smuggler: "Smuggler",
-  ghost: "Ghost",
-};
+  gunship: 'Gunship',
+  lancer: 'Lancer',
+  corsair: 'Corsair',
+  warden: 'Warden',
+  raider: 'Raider',
+  watcher: 'Watcher',
+  picket: 'Picket',
+  sentry: 'Sentry',
+  freighter: 'Freighter',
+  convoy: 'Convoy',
+  smuggler: 'Smuggler',
+  ghost: 'Ghost',
+}
 
 export function presetRole(id: BotPresetId): BotRole {
-  return BOT_ROLES.find((role) => PRESETS_BY_ROLE[role].includes(id))!;
+  return BOT_ROLES.find(role => PRESETS_BY_ROLE[role].includes(id))!
 }
 
 /**
@@ -130,57 +130,57 @@ export function presetRole(id: BotPresetId): BotRole {
  */
 export const BOT_PRESET_LOADOUTS: Record<BotPresetId, ShipLoadout> = {
   gunship: {
-    forwardSlots: ["railgun"],
-    sideSlots: ["laser", "ballistic_rack", "shields", "radiator"],
+    forwardSlots: ['railgun'],
+    sideSlots: ['laser', 'ballistic_rack', 'shields', 'radiator'],
   },
   lancer: {
-    forwardSlots: ["railgun"],
-    sideSlots: ["plasma_cannon", "plasma_cannon", "laser", "radiator"],
+    forwardSlots: ['railgun'],
+    sideSlots: ['plasma_cannon', 'plasma_cannon', 'laser', 'radiator'],
   },
   corsair: {
-    forwardSlots: ["missiles"],
-    sideSlots: ["laser", "laser", "laser", "radiator"],
+    forwardSlots: ['missiles'],
+    sideSlots: ['laser', 'laser', 'laser', 'radiator'],
   },
   warden: {
-    forwardSlots: ["disruptor"],
-    sideSlots: ["plasma_cannon", "plasma_cannon", "shields", "radiator"],
+    forwardSlots: ['disruptor'],
+    sideSlots: ['plasma_cannon', 'plasma_cannon', 'shields', 'radiator'],
   },
   raider: {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "disruptor", "radiator", "plasma_cannon"],
+    forwardSlots: ['sensor_array'],
+    sideSlots: ['shields', 'disruptor', 'radiator', 'plasma_cannon'],
   },
   watcher: {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["shields", "shields", "radiator", "laser"],
+    forwardSlots: ['sensor_array'],
+    sideSlots: ['shields', 'shields', 'radiator', 'laser'],
   },
   picket: {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["missiles", "missiles", "radiator", "shields"],
+    forwardSlots: ['sensor_array'],
+    sideSlots: ['missiles', 'missiles', 'radiator', 'shields'],
   },
   sentry: {
-    forwardSlots: ["sensor_array"],
-    sideSlots: ["laser", "ballistic_rack", "shields", "radiator"],
+    forwardSlots: ['sensor_array'],
+    sideSlots: ['laser', 'ballistic_rack', 'shields', 'radiator'],
   },
   freighter: {
-    forwardSlots: ["fuel_compressor"],
-    sideSlots: ["shields", "shields", "radiator", "laser"],
+    forwardSlots: ['fuel_compressor'],
+    sideSlots: ['shields', 'shields', 'radiator', 'laser'],
   },
   convoy: {
-    forwardSlots: ["fuel_compressor"],
-    sideSlots: ["ballistic_rack", "ballistic_rack", "shields", "radiator"],
+    forwardSlots: ['fuel_compressor'],
+    sideSlots: ['ballistic_rack', 'ballistic_rack', 'shields', 'radiator'],
   },
   smuggler: {
-    forwardSlots: ["fuel_compressor"],
-    sideSlots: ["missiles", "missiles", "radiator", "shields"],
+    forwardSlots: ['fuel_compressor'],
+    sideSlots: ['missiles', 'missiles', 'radiator', 'shields'],
   },
   ghost: {
-    forwardSlots: ["fuel_compressor"],
-    sideSlots: ["disruptor", "laser", "plasma_cannon", "radiator"],
+    forwardSlots: ['fuel_compressor'],
+    sideSlots: ['disruptor', 'laser', 'plasma_cannon', 'radiator'],
   },
-};
+}
 
-function count(missions: Mission[], ...types: Mission["type"][]): number {
-  return missions.filter((m) => types.includes(m.type)).length;
+function count(missions: Mission[], ...types: Mission['type'][]): number {
+  return missions.filter(m => types.includes(m.type)).length
 }
 
 /**
@@ -189,10 +189,10 @@ function count(missions: Mission[], ...types: Mission["type"][]): number {
  * loadout can make, so the secondaries never move the role.
  */
 function classifyRole(missions: Mission[]): BotRole {
-  const active = missions.filter(isOpenMission);
-  if (count(active, "intercept_transmission") > 0) return "interceptor";
-  if (count(active, "destroy_ship") > 0) return "hunter";
-  return "hauler";
+  const active = missions.filter(isOpenMission)
+  if (count(active, 'intercept_transmission') > 0) return 'interceptor'
+  if (count(active, 'destroy_ship') > 0) return 'hunter'
+  return 'hauler'
 }
 
 /**
@@ -208,13 +208,13 @@ function classifyRole(missions: Mission[]): BotRole {
  * - Tanker carries fuel worth chasing: the ghost breaks the pursuer.
  */
 const KIT: Record<BotRole, Partial<Record<SecondaryKind, BotPresetId>>> = {
-  hunter: { piracy: "lancer", salvage: "corsair", escort: "warden" },
-  interceptor: { salvage: "picket", escort: "sentry", survey: "watcher" },
-  hauler: { piracy: "convoy", escort: "convoy", salvage: "smuggler", tanker: "ghost" },
-};
+  hunter: { piracy: 'lancer', salvage: 'corsair', escort: 'warden' },
+  interceptor: { salvage: 'picket', escort: 'sentry', survey: 'watcher' },
+  hauler: { piracy: 'convoy', escort: 'convoy', salvage: 'smuggler', tanker: 'ghost' },
+}
 
 /** When the two secondaries ask for different kits, the earlier card decides. */
-const KIT_PRIORITY: readonly SecondaryKind[] = ["piracy", "salvage", "escort", "survey", "tanker"];
+const KIT_PRIORITY: readonly SecondaryKind[] = ['piracy', 'salvage', 'escort', 'survey', 'tanker']
 
 /**
  * The secondaries a preset is fitted for: the cards whose kit in its role
@@ -222,8 +222,8 @@ const KIT_PRIORITY: readonly SecondaryKind[] = ["piracy", "salvage", "escort", "
  * so it has none (the printed loadout cards read it as "any").
  */
 export function presetSecondaries(id: BotPresetId): SecondaryKind[] {
-  const kit = KIT[presetRole(id)];
-  return KIT_PRIORITY.filter((kind) => kit[kind] === id);
+  const kit = KIT[presetRole(id)]
+  return KIT_PRIORITY.filter(kind => kit[kind] === id)
 }
 
 /**
@@ -241,18 +241,18 @@ export function presetSecondaries(id: BotPresetId): SecondaryKind[] {
  * damage. The designer chose this bloodier table on purpose.
  */
 export function classifyPreset(missions: Mission[]): BotPresetId {
-  const role = classifyRole(missions);
-  const fallback = PRESETS_BY_ROLE[role][0];
-  const open = missions.filter((m) => !m.isCompleted);
+  const role = classifyRole(missions)
+  const fallback = PRESETS_BY_ROLE[role][0]
+  const open = missions.filter(m => !m.isCompleted)
   for (const kind of KIT_PRIORITY) {
-    const ask = KIT[role][kind];
-    if (ask && ask !== fallback && count(open, kind) > 0) return ask;
+    const ask = KIT[role][kind]
+    if (ask && ask !== fallback && count(open, kind) > 0) return ask
   }
-  return fallback;
+  return fallback
 }
 
 export function selectBotLoadout(missions: Mission[]): ShipLoadout {
-  return BOT_PRESET_LOADOUTS[classifyPreset(missions)];
+  return BOT_PRESET_LOADOUTS[classifyPreset(missions)]
 }
 
 /**
@@ -287,17 +287,17 @@ export function selectBotMissions(
   primary?: MissionType,
   pick?: (n: number) => number
 ): Mission[] {
-  if (offers.length <= MISSIONS_PER_PLAYER) return offers;
+  if (offers.length <= MISSIONS_PER_PLAYER) return offers
   // Give up the experiment's constraints one at a time rather than all at
   // once: the forced primary first, then the forced loadout. The last resort is a
   // hand of whatever was offered, which only a hand-built deal can reach:
   // every real deal holds three primaries and three secondaries.
-  let hands = validHands(offers, hull, primary);
-  if (hands.length === 0) hands = validHands(offers, hull);
-  if (hands.length === 0) hands = validHands(offers, undefined, primary);
-  if (hands.length === 0) hands = validHands(offers);
-  if (hands.length === 0) return offers.slice(0, MISSIONS_PER_PLAYER);
-  return hands[pick ? pick(hands.length) : 0];
+  let hands = validHands(offers, hull, primary)
+  if (hands.length === 0) hands = validHands(offers, hull)
+  if (hands.length === 0) hands = validHands(offers, undefined, primary)
+  if (hands.length === 0) hands = validHands(offers)
+  if (hands.length === 0) return offers.slice(0, MISSIONS_PER_PLAYER)
+  return hands[pick ? pick(hands.length) : 0]
 }
 
 /**
@@ -314,18 +314,18 @@ export function validHands(
   hull?: ShipLoadout,
   primary?: MissionType
 ): Mission[][] {
-  const primaries = offers.filter((m) => isPrimaryType(m.type));
-  const secondaries = offers.filter((m) => !isPrimaryType(m.type));
-  const hands: Mission[][] = [];
+  const primaries = offers.filter(m => isPrimaryType(m.type))
+  const secondaries = offers.filter(m => !isPrimaryType(m.type))
+  const hands: Mission[][] = []
   for (const lead of primaries) {
-    if (primary !== undefined && lead.type !== primary) continue;
+    if (primary !== undefined && lead.type !== primary) continue
     for (const kept of secondaryCombinations(secondaries, SECONDARIES_PER_PLAYER)) {
-      const hand = [lead, ...kept];
-      if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) continue;
-      hands.push(hand);
+      const hand = [lead, ...kept]
+      if (hull !== undefined && missionsMissingRequirements(hand, hull).length > 0) continue
+      hands.push(hand)
     }
   }
-  return hands;
+  return hands
 }
 
 /**
@@ -335,12 +335,12 @@ export function validHands(
  * three of one kind, and a hand keeps any two.
  */
 function secondaryCombinations(offers: Mission[], count: number): Mission[][] {
-  if (count <= 0) return [[]];
-  const hands: Mission[][] = [];
+  if (count <= 0) return [[]]
+  const hands: Mission[][] = []
   for (let i = 0; i <= offers.length - count; i++) {
     for (const rest of secondaryCombinations(offers.slice(i + 1), count - 1)) {
-      hands.push([offers[i], ...rest]);
+      hands.push([offers[i], ...rest])
     }
   }
-  return hands;
+  return hands
 }

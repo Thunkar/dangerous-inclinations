@@ -1,10 +1,10 @@
 // Lets plain Node (with --experimental-strip-types) import the cad's
 // TypeScript, which reaches the game's modules, written for Vite with
 // extensionless imports: a relative import that names no file gets ".ts".
-import { register } from "node:module";
+import { register } from 'node:module'
 
 register(
-  "data:text/javascript," +
+  'data:text/javascript,' +
     encodeURIComponent(`
 export async function resolve(specifier, context, next) {
   try {
@@ -14,4 +14,4 @@ export async function resolve(specifier, context, next) {
     throw error;
   }
 }`)
-);
+)

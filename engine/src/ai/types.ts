@@ -5,15 +5,15 @@
  * opponents as public information (position, hull, heat, face-up subsystems and
  * whatever its scans revealed). Nothing here reads a GameState.
  */
-import type { Facing, Player, PlayerAction, Position, ShipState } from "../models/game.ts";
-import type { Subsystem, SubsystemId, SubsystemType } from "../models/subsystems.ts";
-import type { GameView, PlayerView, SlotView } from "../game/view.ts";
-import type { Mission } from "../models/missions.ts";
-import type { MovementPlan } from "./movementPlanner/index.ts";
+import type { Facing, Player, PlayerAction, Position, ShipState } from '../models/game.ts'
+import type { Subsystem, SubsystemId, SubsystemType } from '../models/subsystems.ts'
+import type { GameView, PlayerView, SlotView } from '../game/view.ts'
+import type { Mission } from '../models/missions.ts'
+import type { MovementPlan } from './movementPlanner/index.ts'
 
 /** A card still in play: not done. */
 export function isOpenMission(m: Mission): boolean {
-  return !m.isCompleted;
+  return !m.isCompleted
 }
 
 /**
@@ -21,20 +21,20 @@ export function isOpenMission(m: Mission): boolean {
  * or scanned).
  */
 export interface KnownWeapon {
-  slotId: SubsystemId;
-  type: SubsystemType;
-  isBroken: boolean;
+  slotId: SubsystemId
+  type: SubsystemType
+  isBroken: boolean
   /** Whether it could hit the bot, right now, from the opponent's position. */
-  inRange: boolean;
+  inRange: boolean
 }
 
 /** The weapon a face-down slot's energy cubes suggest it holds (`analyzer.suspectedWeapon`). */
 export interface SuspectedWeapon {
-  type: SubsystemType;
+  type: SubsystemType
   /** Damage it would do if it is that weapon. */
-  damage: number;
+  damage: number
   /** 0-1: how much of a harmless subsystem the cube count also fits. */
-  confidence: number;
+  confidence: number
 }
 
 /**
@@ -44,11 +44,11 @@ export interface SuspectedWeapon {
  * dark slot may be anything.
  */
 export interface SuspectedSlot {
-  slot: SlotView;
+  slot: SlotView
   /** The weapon the cubes suggest, or null when they rule every weapon out. */
-  suspected: SuspectedWeapon | null;
+  suspected: SuspectedWeapon | null
   /** Whether that suspected weapon could reach the bot from where the opponent is. */
-  inRange: boolean;
+  inRange: boolean
 }
 
 /**
@@ -58,21 +58,21 @@ export interface SuspectedSlot {
  */
 export interface OpponentDanger {
   /** 0-1. Half their points out of the points that win, half how soon the rest can land. */
-  score: number;
+  score: number
   /** Points already face-up in front of them. */
-  points: number;
+  points: number
   /** Crates aboard: a Deliver in progress, and it ends at a station. */
-  crates: number;
+  crates: number
   /** Data aboard: an Intercept's, a Survey's or a Salvage black box. */
-  data: number;
+  data: number
   /** Stations the cargo could be going to, nearest first. Empty when the hold is. */
-  predictedPlanets: string[];
+  predictedPlanets: string[]
   /** The station they are most likely making for, or null with an empty hold. */
-  deliveryPosition: Position | null;
+  deliveryPosition: Position | null
   /** Turns we think they need to reach it (Infinity with an empty hold). */
-  turnsToDelivery: number;
+  turnsToDelivery: number
   /** Turns we think they need to win the game. */
-  turnsToWin: number;
+  turnsToWin: number
 }
 
 /**
@@ -81,21 +81,21 @@ export interface OpponentDanger {
  * goal selection, target selection and scoring, so they all agree on who
  * "the leader" is.
  */
-export const INTERDICT_DANGER = 0.6;
-export const CRITICAL_DANGER = 0.8;
+export const INTERDICT_DANGER = 0.6
+export const CRITICAL_DANGER = 0.8
 
 /**
  * A living, deployed opponent in the bot's view.
  */
 export interface Opponent {
-  player: PlayerView;
-  position: Position;
-  facing: Facing;
-  hull: number;
-  maxHull: number;
-  sameWell: boolean;
-  ringDistance: number;
-  sectorDistance: number;
+  player: PlayerView
+  position: Position
+  facing: Facing
+  hull: number
+  maxHull: number
+  sameWell: boolean
+  ringDistance: number
+  sectorDistance: number
   /**
    * Just back from a respawn: no shot, missile or scan may be aimed at them
    * until the turn they play next is over (RULES §Destruction and Respawn).
@@ -103,47 +103,47 @@ export interface Opponent {
    * is still allowed: that is a rendezvous, not an attack (and a wreck has
    * dropped its crate anyway, so there is nothing aboard to take).
    */
-  recovering: boolean;
+  recovering: boolean
   /**
    * Moored at a station while moored ships are safe (RULES §Stations): no
    * shot or missile may be aimed at them. Stations move only at the end of the
    * round, so this holds for the whole of the bot's turn.
    */
-  safeAtBerth: boolean;
+  safeAtBerth: boolean
   /** Weapon subsystems the bot has seen (face-up or scanned). */
-  knownWeapons: KnownWeapon[];
+  knownWeapons: KnownWeapon[]
   /** Face-down subsystems the bot has not seen, read through their energy cubes. */
-  unknownSlots: SuspectedSlot[];
+  unknownSlots: SuspectedSlot[]
   /**
    * Damage this ship's shields are expected to soak out of one turn's
    * volley: cubes on shield subsystems the bot can see, plus a fraction of the
    * cubes on face-down side slots that might be shields.
    */
-  shieldAbsorption: number;
+  shieldAbsorption: number
   /**
    * Threat estimate 0..1: known, powered weapons in range weigh fully,
    * face-down slots that could reach the bot weigh by their confidence.
    */
-  threat: number;
+  threat: number
   /**
    * How close they are to winning, and where their cargo has to go. This is
    * the other reason to shoot someone: stopping a delivery is worth as much
    * as making one.
    */
-  danger: OpponentDanger;
+  danger: OpponentDanger
 }
 
 export type BotGoalType =
-  | "hunt" // destroy: get weapons on the target
-  | "interdict" // no card needed: stop the player who is about to win
-  | "shadow" // intercept: get within scan range of the target
-  | "dock" // deliver, deliver data, repair: end a turn on a station
-  | "survey" // reach black hole ring SURVEY_RING and survey there
-  | "pirate" // piracy: end a turn in a loaded ship's exact sector
-  | "tanker" // tanker, short of fuel: scoop it up on a fast black hole ring
-  | "salvage" // salvage: reach a wreck's sector and salvage it (it drifts like a station)
-  | "escort" // escort: reach an undocked carrier to mark it; marker out, be in its well
-  | "patrol"; // nothing else to do: coast on the black hole ring the rivals are on
+  | 'hunt' // destroy: get weapons on the target
+  | 'interdict' // no card needed: stop the player who is about to win
+  | 'shadow' // intercept: get within scan range of the target
+  | 'dock' // deliver, deliver data, repair: end a turn on a station
+  | 'survey' // reach black hole ring SURVEY_RING and survey there
+  | 'pirate' // piracy: end a turn in a loaded ship's exact sector
+  | 'tanker' // tanker, short of fuel: scoop it up on a fast black hole ring
+  | 'salvage' // salvage: reach a wreck's sector and salvage it (it drifts like a station)
+  | 'escort' // escort: reach an undocked carrier to mark it; marker out, be in its well
+  | 'patrol' // nothing else to do: coast on the black hole ring the rivals are on
 
 /**
  * A goal derived from a mission (or from the need to repair). The bot
@@ -151,130 +151,130 @@ export type BotGoalType =
  * gets there.
  */
 export interface BotGoal {
-  type: BotGoalType;
+  type: BotGoalType
   /** Mission id, or one of the standing goal ids ("repair", "interdict", "patrol"). */
-  missionId: string;
-  description: string;
-  targetPlayerId?: string;
+  missionId: string
+  description: string
+  targetPlayerId?: string
   /** For dock goals: the planet whose station to reach. */
-  planetId?: string;
+  planetId?: string
   /**
    * For dock goals: the sale the visit must make for the goal, as a
    * `dock_sale` names it (an item's cargo id, or `SELL_FUEL`). Absent for a
    * pickup or a repair, which sell whatever this seat may sell there.
    */
-  dockSale?: string;
+  dockSale?: string
   /** For dock goals: the visit is also the repair stop (every dock repairs). */
-  repairs?: boolean;
+  repairs?: boolean
   /** For salvage goals: the wreck to reach and salvage (looked up in `view.wrecks`). */
-  wreckId?: string;
+  wreckId?: string
   /** Cheap estimate used for ranking; the chosen goal gets a real plan. */
-  estimatedTurns: number;
+  estimatedTurns: number
   /** Ranking bonus for goals that finish a mission step this trip. */
-  urgency: number;
-  plan?: MovementPlan;
+  urgency: number
+  plan?: MovementPlan
 }
 
 /**
  * The bot's own ship, digested.
  */
 export interface BotStatus {
-  hull: number;
-  maxHull: number;
-  heat: number;
-  dissipation: number;
+  hull: number
+  maxHull: number
+  heat: number
+  dissipation: number
   /**
    * Heat the ship can still take before the track redlines. Heat carries now,
    * so this is room to MAX_HEAT rather than room to the dissipation: a turn
    * that ends above the dissipation is not damage, it is a debt carried into
    * the next turn, and `ScoredActionPlan.heatCarried` is what prices it.
    */
-  heatBudget: number;
-  reactionMass: number;
-  maxReactionMass: number;
-  position: Position;
-  facing: Facing;
+  heatBudget: number
+  reactionMass: number
+  maxReactionMass: number
+  position: Position
+  facing: Facing
   /** Docked at a station: a coast holds the berth, and the scoop still runs. */
-  moored: boolean;
-  engines: Subsystem;
-  rotation: Subsystem;
-  scoop: Subsystem;
-  weapons: Subsystem[];
-  sensors: Subsystem[];
-  shields: Subsystem[];
-  racks: Subsystem[];
-  brokenSubsystems: Subsystem[];
+  moored: boolean
+  engines: Subsystem
+  rotation: Subsystem
+  scoop: Subsystem
+  weapons: Subsystem[]
+  sensors: Subsystem[]
+  shields: Subsystem[]
+  racks: Subsystem[]
+  brokenSubsystems: Subsystem[]
   /** A compressor aboard and unbroken, which is what cheapens a jump's fuel. */
-  hasCompressor: boolean;
+  hasCompressor: boolean
 }
 
 export interface TacticalSituation {
-  view: GameView;
-  me: Player;
-  ship: ShipState;
-  status: BotStatus;
+  view: GameView
+  me: Player
+  ship: ShipState
+  status: BotStatus
   /** The bot's own place in the race, scored the same way as every opponent's. */
-  myDanger: OpponentDanger;
-  opponents: Opponent[];
+  myDanger: OpponentDanger
+  opponents: Opponent[]
   /** Opponents in the same well, most threatening first. */
-  threats: Opponent[];
+  threats: Opponent[]
   /** Missiles in flight aimed at the bot, in its well. */
-  incomingMissiles: number;
-  goals: BotGoal[];
-  currentGoal: BotGoal | null;
+  incomingMissiles: number
+  goals: BotGoal[]
+  currentGoal: BotGoal | null
 }
 
 /**
  * Unscored action sequence candidate.
  */
 export interface ActionPlan {
-  actions: PlayerAction[];
-  description: string;
+  actions: PlayerAction[]
+  description: string
   /** Damage the volley delivers before shields, assuming every shot lands. */
-  expectedDamage: number;
+  expectedDamage: number
   /** `expectedDamage` less the shield cubes the bot can see on each target. */
-  expectedHullDamage: number;
+  expectedHullDamage: number
   /** Whether the volley is expected to destroy `targetId`. */
-  killsTarget: boolean;
+  killsTarget: boolean
   /** The main target the plan fires at, if any. */
-  targetId?: string;
+  targetId?: string
   /** Whether the movement follows the current goal's plan. */
-  followsGoal: boolean;
+  followsGoal: boolean
   /** Whether the plan scans someone. */
-  scans: boolean;
+  scans: boolean
   /** Hull damage the bot will take from heat at the end of the turn. */
-  heatDamage: number;
+  heatDamage: number
   /**
    * Heat still on the track after the check, riding into the next turn. Not
    * damage, but every point of it is a point of next turn's budget already
    * spent, so a plan that banks heat is worse than an equal one that does not.
    */
-  heatCarried: number;
+  heatCarried: number
   /** A broken subsystem this plan repairs by running cold, if any. */
-  repairs?: SubsystemId;
+  repairs?: SubsystemId
   /** Reaction mass spent. */
-  massSpent: number;
+  massSpent: number
   /** Whether the plan finishes a mission step (dock, survey, salvage, mark, scan, kill). */
-  completesStep: boolean;
+  completesStep: boolean
   /**
    * Denial: hull damage weighted by how close each victim is to winning,
    * plus a premium for a kill (it costs them their cargo and their next
    * turn). Damage on a player one delivery from the win is worth several
    * times the same damage on a bystander.
    */
-  denialValue: number;
+  denialValue: number
 }
 
 export interface PlanScores {
-  offense: number;
-  defense: number;
-  missionProgress: number;
-  resources: number;
+  offense: number
+  defense: number
+  missionProgress: number
+  resources: number
 }
 
 export interface ScoredActionPlan extends ActionPlan {
-  scores: PlanScores;
-  totalScore: number;
+  scores: PlanScores
+  totalScore: number
 }
 
 /**
@@ -283,27 +283,27 @@ export interface ScoredActionPlan extends ActionPlan {
  */
 export interface BotParameters {
   /** 0-1: weight of dealing damage versus mission progress and safety. */
-  aggressiveness: number;
+  aggressiveness: number
   /** Which opponent to shoot when several are in range. */
-  targetPreference: "closest" | "weakest" | "mission";
+  targetPreference: 'closest' | 'weakest' | 'mission'
   /** Hull at or below which the bot heads for a station to repair. */
-  repairHullThreshold: number;
+  repairHullThreshold: number
   /** Reaction mass below which the bot scoops while coasting. */
-  lowFuelThreshold: number;
+  lowFuelThreshold: number
   /** Hold missiles unless the shot is likely to land or matters for a mission. */
-  conserveAmmo: boolean;
+  conserveAmmo: boolean
   /** Spend heat and energy on scanning unknown enemy subsystems when adjacent. */
-  scanUnknowns: boolean;
+  scanUnknowns: boolean
 }
 
 export const DEFAULT_BOT_PARAMETERS: BotParameters = {
   aggressiveness: 0.6,
-  targetPreference: "mission",
+  targetPreference: 'mission',
   repairHullThreshold: 5,
   lowFuelThreshold: 6,
   conserveAmmo: false,
   scanUnknowns: true,
-};
+}
 
 /**
  * Human-readable record of a decision, for the UI and for sim diagnostics.
@@ -311,22 +311,22 @@ export const DEFAULT_BOT_PARAMETERS: BotParameters = {
  */
 export interface BotDecisionLog {
   situation: {
-    health: string;
-    heat: string;
-    fuel: string;
-    position: string;
-    threatCount: number;
-    targetCount: number;
-    currentGoal?: string;
-  };
-  threats: string[];
-  targets: string[];
-  reasoning: string[];
-  candidates: Array<{ description: string; scores: PlanScores; totalScore: number }>;
-  selectedCandidate: { description: string; totalScore: number; actionSummary: string[] };
+    health: string
+    heat: string
+    fuel: string
+    position: string
+    threatCount: number
+    targetCount: number
+    currentGoal?: string
+  }
+  threats: string[]
+  targets: string[]
+  reasoning: string[]
+  candidates: Array<{ description: string; scores: PlanScores; totalScore: number }>
+  selectedCandidate: { description: string; totalScore: number; actionSummary: string[] }
 }
 
 export interface BotDecision {
-  actions: PlayerAction[];
-  log: BotDecisionLog;
+  actions: PlayerAction[]
+  log: BotDecisionLog
 }

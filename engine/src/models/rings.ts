@@ -1,22 +1,22 @@
 /**
  * Ring geometry and movement costs. All rings have 24 sectors.
  */
-export const SECTORS_PER_RING = 24;
+export const SECTORS_PER_RING = 24
 
 /** A sector number brought back onto the ring (0..23). */
 export function wrapSector(sector: number): number {
-  return ((sector % SECTORS_PER_RING) + SECTORS_PER_RING) % SECTORS_PER_RING;
+  return ((sector % SECTORS_PER_RING) + SECTORS_PER_RING) % SECTORS_PER_RING
 }
 
 /** Sectors from `from` to `to` moving prograde (0..23). */
 export function forwardDistance(from: number, to: number): number {
-  return wrapSector(to - from);
+  return wrapSector(to - from)
 }
 
 /** Phasing: extra sectors that can be added during a burn (braking is limited by velocity). */
-export const MAX_SECTOR_ADJUSTMENT = 3;
-export const SECTOR_ADJUSTMENT_COST_PER_SECTOR = 1;
-export const MIN_FORWARD_MOVEMENT = 1;
+export const MAX_SECTOR_ADJUSTMENT = 3
+export const SECTOR_ADJUSTMENT_COST_PER_SECTOR = 1
+export const MIN_FORWARD_MOVEMENT = 1
 
 /**
  * Burn costs. A burn changes ring by `rings` in the facing direction
@@ -26,20 +26,20 @@ export const BURN_COSTS = {
   soft: { energy: 1, mass: 1, rings: 1 },
   medium: { energy: 2, mass: 2, rings: 2 },
   hard: { energy: 3, mass: 3, rings: 3 },
-} as const;
+} as const
 
 /** Jumping between wells through a transfer lane. */
 export const WELL_TRANSFER_COSTS = {
   energy: 3,
   mass: 3,
-} as const;
+} as const
 
 /**
  * Fuel a jump costs with a working fuel compressor is one against the lane's
  * three; the tile pays two of the three and never the phasing. A constant, not
  * a knob: a game is played under RULES.md and nothing else.
  */
-export const COMPRESSED_JUMP_MASS = 1;
+export const COMPRESSED_JUMP_MASS = 1
 
 /**
  * Allowed sector adjustment for a burn from a ring with the given velocity.
@@ -47,16 +47,16 @@ export const COMPRESSED_JUMP_MASS = 1;
  * (velocity 8: -7) and accelerate by up to MAX_SECTOR_ADJUSTMENT (+3).
  */
 export function getAdjustmentRange(velocity: number): { min: number; max: number } {
-  return { min: -(velocity - MIN_FORWARD_MOVEMENT), max: MAX_SECTOR_ADJUSTMENT };
+  return { min: -(velocity - MIN_FORWARD_MOVEMENT), max: MAX_SECTOR_ADJUSTMENT }
 }
 
 /** Phasing costs 1 fuel a sector, on a burn or on a jump. */
 function phasingMassCost(sectorAdjustment: number): number {
-  return Math.abs(sectorAdjustment) * SECTOR_ADJUSTMENT_COST_PER_SECTOR;
+  return Math.abs(sectorAdjustment) * SECTOR_ADJUSTMENT_COST_PER_SECTOR
 }
 
 export function calculateBurnMassCost(baseMassCost: number, sectorAdjustment: number): number {
-  return baseMassCost + phasingMassCost(sectorAdjustment);
+  return baseMassCost + phasingMassCost(sectorAdjustment)
 }
 
 /**
@@ -65,6 +65,6 @@ export function calculateBurnMassCost(baseMassCost: number, sectorAdjustment: nu
  * (RULES §Jump: "A compressor cheapens the jump, never the phasing").
  */
 export function calculateJumpMassCost(sectorAdjustment: number, hasCompressor: boolean): number {
-  const lane = hasCompressor ? COMPRESSED_JUMP_MASS : WELL_TRANSFER_COSTS.mass;
-  return lane + phasingMassCost(sectorAdjustment);
+  const lane = hasCompressor ? COMPRESSED_JUMP_MASS : WELL_TRANSFER_COSTS.mass
+  return lane + phasingMassCost(sectorAdjustment)
 }

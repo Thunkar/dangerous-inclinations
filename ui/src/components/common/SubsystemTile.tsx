@@ -164,7 +164,13 @@ export function SubsystemTile({
 
           {faceDown ? (
             <Typography
-              sx={{ fontFamily: FONT_MONO, fontSize: Math.max(13, glyph), fontWeight: 700, lineHeight: 1, color: TABLE.inkSoft }}
+              sx={{
+                fontFamily: FONT_MONO,
+                fontSize: Math.max(13, glyph),
+                fontWeight: 700,
+                lineHeight: 1,
+                color: TABLE.inkSoft,
+              }}
             >
               ?
             </Typography>
@@ -214,9 +220,20 @@ export function SubsystemTile({
             <Box
               component="svg"
               viewBox="0 0 100 100"
-              sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+              }}
             >
-              <path d="M14 14 L86 86 M86 14 L14 86" stroke={TABLE.danger} strokeWidth={8} strokeLinecap="square" />
+              <path
+                d="M14 14 L86 86 M86 14 L14 86"
+                stroke={TABLE.danger}
+                strokeWidth={8}
+                strokeLinecap="square"
+              />
             </Box>
           )}
         </Box>

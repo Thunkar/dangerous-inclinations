@@ -363,7 +363,9 @@ export function targetsInRange(
     const weapon = loadout.find(s => s.id === step.subsystemId)
     if (!weapon || !canFireFrom(me.ship, at.position, view.stations)) return []
     const attacker = { ...at.position, facing: at.facing }
-    return targets.filter(t => targetable(view, t.id) && isInWeaponRange(weapon, attacker, t.position))
+    return targets.filter(
+      t => targetable(view, t.id) && isInWeaponRange(weapon, attacker, t.position)
+    )
   }
   if (step.kind === 'scan') {
     const scanner = { ...at.position, facing: at.facing }
@@ -640,11 +642,7 @@ export function planIssues(
         else if (!step.targetId) problems.push(`${name}: pick a target`)
         else if (untouchable(step.targetId))
           problems.push(`${nameOf(step.targetId)} cannot be targeted until its turn back is over`)
-        else if (
-          target &&
-          isOnBoard(target) &&
-          !canBeTargeted(target, view.stations)
-        )
+        else if (target && isOnBoard(target) && !canBeTargeted(target, view.stations))
           problems.push(`${nameOf(step.targetId)} is moored: nobody fires at a ship at a berth`)
         else if (!inRange(step, at, step.targetId))
           problems.push(`${name}: target out of range from where you fire`)
@@ -677,7 +675,9 @@ export function planIssues(
         else if (!targetable(view, step.targetId))
           problems.push(`${nameOf(step.targetId)} is moored: nobody scans a ship at a berth`)
         else if (!inRange(step, at, step.targetId))
-          problems.push('Scan: the target must be on your ring, up to 3 sectors ahead or in your sector. Rotate first to face it')
+          problems.push(
+            'Scan: the target must be on your ring, up to 3 sectors ahead or in your sector. Rotate first to face it'
+          )
         if (!step.peekSlot) problems.push('Scan: choose which subsystem to look at')
         break
       }
@@ -815,7 +815,9 @@ export function dockOfferFor(
     { cargo: me.cargo, missions: me.missions, reactionMass: projectedFuel, soldAt: me.soldAt },
     station.planetId
   )
-  return offer.options.length > 0 || offer.soldHere ? { ...offer, planetId: station.planetId } : null
+  return offer.options.length > 0 || offer.soldHere
+    ? { ...offer, planetId: station.planetId }
+    : null
 }
 
 /** An item a seizure step may take, and whether the step goes before the move or after it. */
@@ -1203,7 +1205,6 @@ export function planActions(
     sale === SELL_NOTHING
       ? (preview.dockOffer?.options.length ?? 0) > 0
       : preview.dockOffer?.options.some(o => o.sale === sale)
-  if (sale !== null && offered)
-    list.push({ playerId: me.id, type: 'dock_sale', data: { sale } })
+  if (sale !== null && offered) list.push({ playerId: me.id, type: 'dock_sale', data: { sale } })
   return list
 }

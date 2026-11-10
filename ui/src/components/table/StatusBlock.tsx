@@ -212,15 +212,15 @@ export function StatusBlock({ accent }: { accent?: string }) {
           size={9}
         />
         <Tooltip
-          title={
-            [
-              planning && heatAfter > heatNow ? `${heatAfter - heatNow} energy on your subsystems.` : '',
-              `Dissipates ${dissipation}, carries ${carried}.`,
-              overHeat > 0 ? `−${overHeat} hull.` : `Over ${MAX_HEAT} costs hull.`,
-            ]
-              .filter(Boolean)
-              .join(' ')
-          }
+          title={[
+            planning && heatAfter > heatNow
+              ? `${heatAfter - heatNow} energy on your subsystems.`
+              : '',
+            `Dissipates ${dissipation}, carries ${carried}.`,
+            overHeat > 0 ? `−${overHeat} hull.` : `Over ${MAX_HEAT} costs hull.`,
+          ]
+            .filter(Boolean)
+            .join(' ')}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
             <PipTrack
@@ -241,7 +241,10 @@ export function StatusBlock({ accent }: { accent?: string }) {
                   )}
                   <Box
                     component="span"
-                    sx={{ color: atRedline ? TABLE.danger : TABLE.inkFaint, fontWeight: atRedline ? 700 : 400 }}
+                    sx={{
+                      color: atRedline ? TABLE.danger : TABLE.inkFaint,
+                      fontWeight: atRedline ? 700 : 400,
+                    }}
                   >
                     /{MAX_HEAT}
                   </Box>
@@ -281,9 +284,7 @@ export function StatusBlock({ accent }: { accent?: string }) {
 
       {/* Fuel, then a line of missiles per launcher */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35, minWidth: 0 }}>
-        <Tooltip
-          title="Fuel is public."
-        >
+        <Tooltip title="Fuel is public.">
           <Box sx={{ display: 'flex', minWidth: 0 }}>
             <PipTrack
               value={fuelNow}

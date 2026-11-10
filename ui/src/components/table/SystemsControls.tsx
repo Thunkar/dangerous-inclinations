@@ -81,7 +81,10 @@ export function SystemsControls() {
   }
 
   return (
-    <Box data-testid="systems" sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 0 }}>
+    <Box
+      data-testid="systems"
+      sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 0 }}
+    >
       {quiet && (
         <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.35 }}>
           {back
@@ -103,7 +106,11 @@ export function SystemsControls() {
       {defence.length > 0 && (
         <Group label="Defence">
           {defence.map(sub => (
-            <SystemRow key={sub.id} sub={sub} caption={defenceCaption(sub, plan.powers[sub.id] ?? 0)}>
+            <SystemRow
+              key={sub.id}
+              sub={sub}
+              caption={defenceCaption(sub, plan.powers[sub.id] ?? 0)}
+            >
               <PowerControl sub={sub} disabled={disabled} />
               {getSubsystemConfig(sub.type).weaponStats && (
                 <FireButton sub={sub} disabled={disabled} blocked={fireBlock(sub)} />
@@ -186,7 +193,15 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
  * One subsystem: its mark and its slot named with what sits in it, the
  * engine's numbers for it, and its controls on the right of the second line.
  */
-function SystemRow({ sub, caption, children }: { sub: Subsystem; caption: string; children: ReactNode }) {
+function SystemRow({
+  sub,
+  caption,
+  children,
+}: {
+  sub: Subsystem
+  caption: string
+  children: ReactNode
+}) {
   const plan = usePlan()
   return (
     <Box
@@ -207,7 +222,13 @@ function SystemRow({ sub, caption, children }: { sub: Subsystem; caption: string
         <SubsystemIcon type={sub.type} size={16} opacity={1} />
         <Typography
           noWrap
-          sx={{ fontSize: '0.875rem', fontWeight: 600, color: TABLE.ink, lineHeight: 1.3, minWidth: 0 }}
+          sx={{
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            color: TABLE.ink,
+            lineHeight: 1.3,
+            minWidth: 0,
+          }}
         >
           {slotWithSubsystem(sub.id, sub.type, hullOf(plan.me))}
         </Typography>
@@ -225,7 +246,9 @@ function SystemRow({ sub, caption, children }: { sub: Subsystem; caption: string
         >
           {caption}
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>{children}</Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+          {children}
+        </Box>
       </Box>
     </Box>
   )
@@ -306,7 +329,13 @@ function FireButton({
         disabled={disabled || Boolean(blocked)}
         onClick={() => plan.addFire(sub.id)}
         startIcon={<SubsystemIcon type={sub.type} size={14} color="currentColor" opacity={1} />}
-        sx={{ height: CONTROL_HEIGHT, minWidth: 0, px: 1.25, fontSize: '0.8rem', whiteSpace: 'nowrap' }}
+        sx={{
+          height: CONTROL_HEIGHT,
+          minWidth: 0,
+          px: 1.25,
+          fontSize: '0.8rem',
+          whiteSpace: 'nowrap',
+        }}
       >
         Fire
       </Button>

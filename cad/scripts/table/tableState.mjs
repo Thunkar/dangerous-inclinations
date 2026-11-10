@@ -9,9 +9,9 @@ import {
   cardForPlayer,
   isPrimaryType,
   MAX_PLAYERS,
-} from "@dangerous-inclinations/engine";
+} from '@dangerous-inclinations/engine'
 
-const PRINTED = { primary: buildPrimaryDeck(MAX_PLAYERS), secondary: buildSecondaryDeck() };
+const PRINTED = { primary: buildPrimaryDeck(MAX_PLAYERS), secondary: buildSecondaryDeck() }
 
 /** `s` for the table; `meta` is `{ seed, round }` and `score`, carried as given. */
 export function tableState(s, meta) {
@@ -22,21 +22,24 @@ export function tableState(s, meta) {
    * the left, so the holder's seat turns the count back into the card.
    */
   function printedCard(m, holder) {
-    const pile = isPrimaryType(m.type) ? "primary" : "secondary";
+    const pile = isPrimaryType(m.type) ? 'primary' : 'secondary'
     const same = (a, b) =>
       a.type === b.type &&
       a.targetPlayerId === b.targetPlayerId &&
       a.pickupPlanetId === b.pickupPlanetId &&
-      a.deliveryPlanetId === b.deliveryPlanetId;
-    const i = PRINTED[pile].findIndex((card) => {
-      if (card.targetOffset !== undefined && card.targetOffset >= s.players.length) return false;
-      return same(cardForPlayer(card, holder, s.players), m);
-    });
-    if (i < 0) throw new Error(`no printed card for ${JSON.stringify(m)}`);
-    return `${pile}-${i}`;
+      a.deliveryPlanetId === b.deliveryPlanetId
+    const i = PRINTED[pile].findIndex(card => {
+      if (card.targetOffset !== undefined && card.targetOffset >= s.players.length) return false
+      return same(cardForPlayer(card, holder, s.players), m)
+    })
+    if (i < 0) throw new Error(`no printed card for ${JSON.stringify(m)}`)
+    return `${pile}-${i}`
   }
-  const dealt = s.players.reduce((n, p) => n + p.missionOffers.length, 0);
-  const primaryOffers = s.players.reduce((n, p) => n + p.missionOffers.filter((m) => isPrimaryType(m.type)).length, 0);
+  const dealt = s.players.reduce((n, p) => n + p.missionOffers.length, 0)
+  const primaryOffers = s.players.reduce(
+    (n, p) => n + p.missionOffers.filter(m => isPrimaryType(m.type)).length,
+    0
+  )
   return {
     seed: meta.seed,
     round: meta.round,
@@ -49,7 +52,7 @@ export function tableState(s, meta) {
       primary: buildPrimaryDeck(s.players.length).length - primaryOffers,
       secondary: buildSecondaryDeck().length - (dealt - primaryOffers),
     },
-    players: s.players.map((p) => ({
+    players: s.players.map(p => ({
       id: p.id,
       name: p.name,
       points: p.points,
@@ -63,7 +66,7 @@ export function tableState(s, meta) {
         hull: p.ship.hitPoints,
         maxHull: p.ship.maxHitPoints,
         heat: p.ship.heat.currentHeat,
-        subsystems: p.ship.subsystems.map((x) => ({
+        subsystems: p.ship.subsystems.map(x => ({
           id: x.id,
           type: x.type,
           energy: x.allocatedEnergy,
@@ -73,17 +76,23 @@ export function tableState(s, meta) {
         })),
       },
       moored: isMooredAt(s.stations, p.ship),
-      cargo: aboard(p.cargo).map((c) => ({ id: c.id, kind: c.kind, loot: p.missions.some((m) => m.type === "piracy" && m.cargoId === c.id) })),
-      waiting: p.cargo.filter((c) => !c.isPickedUp && c.pickupPlanetId).map((c) => ({ id: c.id, kind: c.kind, at: c.pickupPlanetId })),
+      cargo: aboard(p.cargo).map(c => ({
+        id: c.id,
+        kind: c.kind,
+        loot: p.missions.some(m => m.type === 'piracy' && m.cargoId === c.id),
+      })),
+      waiting: p.cargo
+        .filter(c => !c.isPickedUp && c.pickupPlanetId)
+        .map(c => ({ id: c.id, kind: c.kind, at: c.pickupPlanetId })),
       soldAt: p.soldAt,
-      missions: p.missions.map((m) => ({
+      missions: p.missions.map(m => ({
         type: m.type,
         done: m.isCompleted,
-        marked: m.type === "escort" ? m.markedPlayerId : undefined,
+        marked: m.type === 'escort' ? m.markedPlayerId : undefined,
         card: printedCard(m, s.players.indexOf(p)),
         target: m.targetPlayerId,
         route: m.pickupPlanetId ? [m.pickupPlanetId, m.deliveryPlanetId] : m.deliveryPlanetId,
       })),
     })),
-  };
+  }
 }

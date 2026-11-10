@@ -5,8 +5,8 @@ import type {
   TransferArc,
   TransferLane,
   Position,
-} from "./game.ts";
-import { SECTORS_PER_RING, forwardDistance, wrapSector } from "./rings.ts";
+} from './game.ts'
+import { SECTORS_PER_RING, forwardDistance, wrapSector } from './rings.ts'
 
 /**
  * Black hole: 5 rings. Inner rings are much faster.
@@ -17,7 +17,7 @@ export const BLACKHOLE_RINGS: RingConfig[] = [
   { ring: 3, velocity: 4, sectors: SECTORS_PER_RING },
   { ring: 4, velocity: 2, sectors: SECTORS_PER_RING },
   { ring: 5, velocity: 1, sectors: SECTORS_PER_RING },
-];
+]
 
 /**
  * Planets: 4 rings each. Ring 2 holds the station; ring 4 holds the lanes.
@@ -39,53 +39,53 @@ export const PLANET_RINGS: RingConfig[] = [
   { ring: 2, velocity: 4, sectors: SECTORS_PER_RING },
   { ring: 3, velocity: 2, sectors: SECTORS_PER_RING },
   { ring: 4, velocity: 1, sectors: SECTORS_PER_RING },
-];
+]
 
-export const BLACK_HOLE_ID: GravityWellId = "blackhole";
+export const BLACK_HOLE_ID: GravityWellId = 'blackhole'
 const BLACK_HOLE: GravityWell = {
   id: BLACK_HOLE_ID,
-  name: "Black Hole",
-  type: "blackhole",
+  name: 'Black Hole',
+  type: 'blackhole',
   rings: BLACKHOLE_RINGS,
-};
+}
 
 const PLANET_ALPHA: GravityWell = {
-  id: "planet-alpha",
-  name: "Alpha",
-  type: "planet",
+  id: 'planet-alpha',
+  name: 'Alpha',
+  type: 'planet',
   rings: PLANET_RINGS,
-};
+}
 const PLANET_BETA: GravityWell = {
-  id: "planet-beta",
-  name: "Beta",
-  type: "planet",
+  id: 'planet-beta',
+  name: 'Beta',
+  type: 'planet',
   rings: PLANET_RINGS,
-};
+}
 const PLANET_GAMMA: GravityWell = {
-  id: "planet-gamma",
-  name: "Gamma",
-  type: "planet",
+  id: 'planet-gamma',
+  name: 'Gamma',
+  type: 'planet',
   rings: PLANET_RINGS,
-};
+}
 
 /** Index 0 is the black hole, followed by the planets at 120° intervals. */
-export const GRAVITY_WELLS: GravityWell[] = [BLACK_HOLE, PLANET_ALPHA, PLANET_BETA, PLANET_GAMMA];
-export const PLANETS: GravityWell[] = GRAVITY_WELLS.filter((w) => w.type === "planet");
+export const GRAVITY_WELLS: GravityWell[] = [BLACK_HOLE, PLANET_ALPHA, PLANET_BETA, PLANET_GAMMA]
+export const PLANETS: GravityWell[] = GRAVITY_WELLS.filter(w => w.type === 'planet')
 
 /** Everyone deploys together on one of these rings of the black hole; that sector becomes Home. */
-export const HOME_RINGS = [2, 3, 4] as const;
+export const HOME_RINGS = [2, 3, 4] as const
 /** The outer deployment ring: where a ship whose placement names no ring goes. */
-export const HOME_RING = 4;
+export const HOME_RING = 4
 /** Ring stations orbit on (planets only). Ring 1 is faster, and is the way in. */
-export const STATION_RING = 2;
+export const STATION_RING = 2
 /** The black hole's outer ring: all of it is lanes. */
-export const BLACK_HOLE_OUTER_RING = 5;
-export const PLANET_OUTER_RING = 4;
+export const BLACK_HOLE_OUTER_RING = 5
+export const PLANET_OUTER_RING = 4
 
-export const TRANSFER_ARC_LENGTH = 4;
+export const TRANSFER_ARC_LENGTH = 4
 
 function arc(wellId: GravityWellId, ring: number, startSector: number): TransferArc {
-  return { wellId, ring, startSector, length: TRANSFER_ARC_LENGTH };
+  return { wellId, ring, startSector, length: TRANSFER_ARC_LENGTH }
 }
 
 /**
@@ -98,94 +98,94 @@ function arc(wellId: GravityWellId, ring: number, startSector: number): Transfer
  */
 export const TRANSFER_LANES: TransferLane[] = [
   {
-    id: "beta-a",
-    planetId: "planet-beta",
-    direction: "outbound",
+    id: 'beta-a',
+    planetId: 'planet-beta',
+    direction: 'outbound',
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 0),
-    planetArc: arc("planet-beta", PLANET_OUTER_RING, 4),
+    planetArc: arc('planet-beta', PLANET_OUTER_RING, 4),
   },
   {
-    id: "alpha-a",
-    planetId: "planet-alpha",
-    direction: "inbound",
+    id: 'alpha-a',
+    planetId: 'planet-alpha',
+    direction: 'inbound',
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 4),
-    planetArc: arc("planet-alpha", PLANET_OUTER_RING, 16),
+    planetArc: arc('planet-alpha', PLANET_OUTER_RING, 16),
   },
   {
-    id: "gamma-a",
-    planetId: "planet-gamma",
-    direction: "outbound",
+    id: 'gamma-a',
+    planetId: 'planet-gamma',
+    direction: 'outbound',
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 8),
-    planetArc: arc("planet-gamma", PLANET_OUTER_RING, 4),
+    planetArc: arc('planet-gamma', PLANET_OUTER_RING, 4),
   },
   {
-    id: "beta-b",
-    planetId: "planet-beta",
-    direction: "inbound",
+    id: 'beta-b',
+    planetId: 'planet-beta',
+    direction: 'inbound',
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 12),
-    planetArc: arc("planet-beta", PLANET_OUTER_RING, 16),
+    planetArc: arc('planet-beta', PLANET_OUTER_RING, 16),
   },
   {
-    id: "alpha-b",
-    planetId: "planet-alpha",
-    direction: "outbound",
+    id: 'alpha-b',
+    planetId: 'planet-alpha',
+    direction: 'outbound',
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 16),
-    planetArc: arc("planet-alpha", PLANET_OUTER_RING, 4),
+    planetArc: arc('planet-alpha', PLANET_OUTER_RING, 4),
   },
   {
-    id: "gamma-b",
-    planetId: "planet-gamma",
-    direction: "inbound",
+    id: 'gamma-b',
+    planetId: 'planet-gamma',
+    direction: 'inbound',
     blackHoleArc: arc(BLACK_HOLE_ID, 5, 20),
-    planetArc: arc("planet-gamma", PLANET_OUTER_RING, 16),
+    planetArc: arc('planet-gamma', PLANET_OUTER_RING, 16),
   },
-];
+]
 
 /** The arc a lane is jumped from. */
 export function laneDepartureArc(lane: TransferLane): TransferArc {
-  return lane.direction === "outbound" ? lane.blackHoleArc : lane.planetArc;
+  return lane.direction === 'outbound' ? lane.blackHoleArc : lane.planetArc
 }
 
 /** The arc a lane lands on. */
 export function laneArrivalArc(lane: TransferLane): TransferArc {
-  return lane.direction === "outbound" ? lane.planetArc : lane.blackHoleArc;
+  return lane.direction === 'outbound' ? lane.planetArc : lane.blackHoleArc
 }
 
 export function getGravityWell(wellId: GravityWellId): GravityWell | undefined {
-  return GRAVITY_WELLS.find((w) => w.id === wellId);
+  return GRAVITY_WELLS.find(w => w.id === wellId)
 }
 
 export function getRingConfig(wellId: GravityWellId, ring: number): RingConfig | undefined {
-  return getGravityWell(wellId)?.rings.find((r) => r.ring === ring);
+  return getGravityWell(wellId)?.rings.find(r => r.ring === ring)
 }
 
 export function getWellName(wellId: GravityWellId): string {
-  return getGravityWell(wellId)?.name ?? wellId;
+  return getGravityWell(wellId)?.name ?? wellId
 }
 
 /** Number of rings in a well (the outermost ring number). */
 export function getMaxRing(wellId: GravityWellId): number {
-  return getGravityWell(wellId)?.rings.length ?? 1;
+  return getGravityWell(wellId)?.rings.length ?? 1
 }
 
 export function isPlanet(wellId: GravityWellId): boolean {
-  return getGravityWell(wellId)?.type === "planet";
+  return getGravityWell(wellId)?.type === 'planet'
 }
 
 /** Offset of `sector` inside `arc`, or -1 if the position is not in the arc. */
 export function arcOffset(arc: TransferArc, position: Position): number {
-  if (position.wellId !== arc.wellId || position.ring !== arc.ring) return -1;
-  const offset = forwardDistance(arc.startSector, position.sector);
-  return offset < arc.length ? offset : -1;
+  if (position.wellId !== arc.wellId || position.ring !== arc.ring) return -1
+  const offset = forwardDistance(arc.startSector, position.sector)
+  return offset < arc.length ? offset : -1
 }
 
 export function arcSectors(arc: TransferArc): number[] {
-  return Array.from({ length: arc.length }, (_, i) => wrapSector(arc.startSector + i));
+  return Array.from({ length: arc.length }, (_, i) => wrapSector(arc.startSector + i))
 }
 
 export interface JumpOption {
-  lane: TransferLane;
-  destination: Position;
+  lane: TransferLane
+  destination: Position
 }
 
 /**
@@ -193,11 +193,11 @@ export interface JumpOption {
  * contains the position. Arrival keeps the offset inside the arc.
  */
 export function getJumpOptions(position: Position): JumpOption[] {
-  const options: JumpOption[] = [];
+  const options: JumpOption[] = []
   for (const lane of TRANSFER_LANES) {
-    const offset = arcOffset(laneDepartureArc(lane), position);
-    if (offset < 0) continue;
-    const to = laneArrivalArc(lane);
+    const offset = arcOffset(laneDepartureArc(lane), position)
+    if (offset < 0) continue
+    const to = laneArrivalArc(lane)
     options.push({
       lane,
       destination: {
@@ -205,16 +205,16 @@ export function getJumpOptions(position: Position): JumpOption[] {
         ring: to.ring,
         sector: wrapSector(to.startSector + offset),
       },
-    });
+    })
   }
-  return options;
+  return options
 }
 
 export function findJump(
   position: Position,
   destinationWellId: GravityWellId
 ): JumpOption | undefined {
-  return getJumpOptions(position).find((o) => o.destination.wellId === destinationWellId);
+  return getJumpOptions(position).find(o => o.destination.wellId === destinationWellId)
 }
 
 /**
@@ -225,9 +225,9 @@ export function findJump(
  * of the arc.
  */
 export function getJumpAdjustmentRange(option: JumpOption): { min: number; max: number } {
-  const arc = laneArrivalArc(option.lane);
-  const offset = arcOffset(arc, option.destination);
-  return { min: -offset, max: arc.length - 1 - offset };
+  const arc = laneArrivalArc(option.lane)
+  const offset = arcOffset(arc, option.destination)
+  return { min: -offset, max: arc.length - 1 - offset }
 }
 
 /**
@@ -238,8 +238,8 @@ export function phasedJumpDestination(
   option: JumpOption,
   sectorAdjustment: number
 ): Position | undefined {
-  const arc = laneArrivalArc(option.lane);
-  const offset = arcOffset(arc, option.destination) + sectorAdjustment;
-  const sector = arcSectors(arc)[offset];
-  return sector === undefined ? undefined : { wellId: arc.wellId, ring: arc.ring, sector };
+  const arc = laneArrivalArc(option.lane)
+  const offset = arcOffset(arc, option.destination) + sectorAdjustment
+  const sector = arcSectors(arc)[offset]
+  return sector === undefined ? undefined : { wellId: arc.wellId, ring: arc.ring, sector }
 }

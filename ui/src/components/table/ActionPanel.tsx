@@ -335,8 +335,8 @@ function RepairControl() {
         <SectionLabel>Repair · one a turn, and only cold</SectionLabel>
         {offered.length === 0 ? (
           <Typography sx={{ fontFamily: FONT_MONO, fontSize: '0.74rem', color: TABLE.inkSoft }}>
-            This turn makes heat. A repair needs no energy on any subsystem: a plain
-            coast, no scoop, no shot, no scan, nothing powered.
+            This turn makes heat. A repair needs no energy on any subsystem: a plain coast, no
+            scoop, no shot, no scan, nothing powered.
           </Typography>
         ) : (
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
@@ -440,7 +440,11 @@ function DockSaleControl() {
   )
 }
 
-const ITEM_WORD: Record<SeizableItem['kind'], string> = { crate: 'crate', loot: 'loot', data: 'data' }
+const ITEM_WORD: Record<SeizableItem['kind'], string> = {
+  crate: 'crate',
+  loot: 'loot',
+  data: 'data',
+}
 
 /**
  * Piracy is a "you may" (RULES §Missions), and a step in the sequence. The
@@ -701,13 +705,7 @@ function Step({ n, label, children }: { n: number; label: string; children: Reac
 function ActionIcon({ type, className }: { type: SubsystemType; className?: string }) {
   // A Chip positions its icon by the class it clones in, so the class has to reach the SVG.
   return (
-    <SubsystemIcon
-      type={type}
-      size={14}
-      color="currentColor"
-      opacity={1}
-      className={className}
-    />
+    <SubsystemIcon type={type} size={14} color="currentColor" opacity={1} className={className} />
   )
 }
 
@@ -856,14 +854,9 @@ function MoveControls() {
    * cleared every turn, so there is no running scoop to read: a coast keeps
    * whatever the scoop chip was last set to, and starts off.
    */
-  const scoopReady = Boolean(
-    scoop && !scoop.isBroken && move.kind === 'coast' && move.scoop
-  )
+  const scoopReady = Boolean(scoop && !scoop.isBroken && move.kind === 'coast' && move.scoop)
   const burnDirection = plan.moveFrom.facing === 'prograde' ? 'outward' : 'inward'
-  const jumpFuel =
-    move.kind === 'jump'
-      ? calculateJumpMassCost(move.adjustment, compressor)
-      : 0
+  const jumpFuel = move.kind === 'jump' ? calculateJumpMassCost(move.adjustment, compressor) : 0
 
   /** What an intensity costs, or what is standing in its way. */
   const burnReason = (intensity: BurnIntensity) => {
@@ -1029,8 +1022,7 @@ function MoveControls() {
           />
           <Typography variant="caption" sx={{ color: TABLE.inkSoft, lineHeight: 1.3 }}>
             Engines at {WELL_TRANSFER_COSTS.energy}, {jumpFuel} fuel
-            {compressor ? COMPRESSOR_NOTE : ''}. Phasing
-            never lands you outside the arrival arc.
+            {compressor ? COMPRESSOR_NOTE : ''}. Phasing never lands you outside the arrival arc.
           </Typography>
         </Box>
       )}

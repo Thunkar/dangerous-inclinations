@@ -240,10 +240,7 @@ export function TableTalk({ sx }: { sx?: SxProps<Theme> } = {}) {
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
               {/* describeChild: the button keeps its own name, the tooltip only explains it. */}
-              <Tooltip
-                describeChild
-                title="Post as reasoning: italic and tagged, not table talk."
-              >
+              <Tooltip describeChild title="Post as reasoning: italic and tagged, not table talk.">
                 <Button
                   size="small"
                   onClick={() => setThinkOutLoud(v => !v)}

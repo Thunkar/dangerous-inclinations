@@ -9,12 +9,12 @@
  * Each table is a seeded state and a set of actions; every permutation of the
  * set is one turn, sequenced 1..n in that order.
  */
-import type { BurnIntensity, GameState, GravityWellId, Position } from "../../models/game.ts";
-import { oppositeFacing } from "../../models/game.ts";
-import type { SubsystemId } from "../../models/subsystems.ts";
-import { findJump, phasedJumpDestination } from "../../models/gravityWells.ts";
-import { positionOf } from "../../game/geometry.ts";
-import type { executeTurnAs } from "../testUtils.ts";
+import type { BurnIntensity, GameState, GravityWellId, Position } from '../../models/game.ts'
+import { oppositeFacing } from '../../models/game.ts'
+import type { SubsystemId } from '../../models/subsystems.ts'
+import { findJump, phasedJumpDestination } from '../../models/gravityWells.ts'
+import { positionOf } from '../../game/geometry.ts'
+import type { executeTurnAs } from '../testUtils.ts'
 import {
   ALPHA,
   BH,
@@ -45,50 +45,50 @@ import {
   piracyMission,
   withPlayer,
   LANDING,
-} from "../testUtils.ts";
+} from '../testUtils.ts'
 
-export type Draft = Parameters<typeof executeTurnAs>[1];
+export type Draft = Parameters<typeof executeTurnAs>[1]
 
 /** One action of a turn, before it is given its place in the sequence. */
 export type Item =
-  | { kind: "power"; tile: SubsystemId; amount: number }
-  | { kind: "rotate" }
-  | { kind: "coast"; scoop: boolean }
-  | { kind: "burn"; intensity: BurnIntensity }
-  | { kind: "jump"; to: GravityWellId }
-  | { kind: "fire"; tile: SubsystemId; target: string; compensate?: boolean; count?: number }
-  | { kind: "scan"; target: string }
-  | { kind: "seize"; victim: string; cargoId: string }
-  | { kind: "survey" }
+  | { kind: 'power'; tile: SubsystemId; amount: number }
+  | { kind: 'rotate' }
+  | { kind: 'coast'; scoop: boolean }
+  | { kind: 'burn'; intensity: BurnIntensity }
+  | { kind: 'jump'; to: GravityWellId }
+  | { kind: 'fire'; tile: SubsystemId; target: string; compensate?: boolean; count?: number }
+  | { kind: 'scan'; target: string }
+  | { kind: 'seize'; victim: string; cargoId: string }
+  | { kind: 'survey' }
   /** No `wreckId`: the first wreck in the sector there, a kill's included. */
-  | { kind: "salvage"; wreckId?: string }
-  | { kind: "mark"; carrier: string };
+  | { kind: 'salvage'; wreckId?: string }
+  | { kind: 'mark'; carrier: string }
 
 export function draftOf(item: Item, sequence: number): Draft {
   switch (item.kind) {
-    case "power":
-      return power(sequence, item.tile, item.amount);
-    case "rotate":
+    case 'power':
+      return power(sequence, item.tile, item.amount)
+    case 'rotate':
       // The facing is filled in when the ordering is known: see `draftsOf`.
-      return rotate(sequence, "prograde");
-    case "coast":
-      return coast(sequence, item.scoop);
-    case "burn":
-      return burn(sequence, item.intensity);
-    case "jump":
-      return jump(sequence, item.to);
-    case "fire":
-      return fire(sequence, item.tile, item.target, "engines", item.compensate, item.count);
-    case "scan":
-      return scan(sequence, item.target);
-    case "seize":
-      return seize(sequence, item.victim, item.cargoId);
-    case "survey":
-      return survey(sequence);
-    case "salvage":
-      return salvage(sequence, item.wreckId);
-    case "mark":
-      return escortMark(sequence, item.carrier);
+      return rotate(sequence, 'prograde')
+    case 'coast':
+      return coast(sequence, item.scoop)
+    case 'burn':
+      return burn(sequence, item.intensity)
+    case 'jump':
+      return jump(sequence, item.to)
+    case 'fire':
+      return fire(sequence, item.tile, item.target, 'engines', item.compensate, item.count)
+    case 'scan':
+      return scan(sequence, item.target)
+    case 'seize':
+      return seize(sequence, item.victim, item.cargoId)
+    case 'survey':
+      return survey(sequence)
+    case 'salvage':
+      return salvage(sequence, item.wreckId)
+    case 'mark':
+      return escortMark(sequence, item.carrier)
   }
 }
 
@@ -98,47 +98,47 @@ export function draftOf(item: Item, sequence: number): Draft {
  * a turn holds one rotation.
  */
 export function draftsOf(state: GameState, ordering: readonly Item[]): Draft[] {
-  const facing = state.players[state.activePlayerIndex].ship.facing;
+  const facing = state.players[state.activePlayerIndex].ship.facing
   return ordering.map((item, i) =>
-    item.kind === "rotate" ? rotate(i + 1, oppositeFacing(facing)) : draftOf(item, i + 1)
-  );
+    item.kind === 'rotate' ? rotate(i + 1, oppositeFacing(facing)) : draftOf(item, i + 1)
+  )
 }
 
 /** Every ordering of `items`, each one a permutation. */
 export function orderings<T>(items: readonly T[]): T[][] {
-  if (items.length <= 1) return [[...items]];
+  if (items.length <= 1) return [[...items]]
   return items.flatMap((item, i) =>
-    orderings([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [item, ...rest])
-  );
+    orderings([...items.slice(0, i), ...items.slice(i + 1)]).map(rest => [item, ...rest])
+  )
 }
 
 export const label = (ordering: readonly Item[]): string =>
   ordering
-    .map((i) => {
+    .map(i => {
       switch (i.kind) {
-        case "power":
-          return `power ${i.tile}`;
-        case "coast":
-          return i.scoop ? "scoop" : "coast";
-        case "burn":
-          return `${i.intensity} burn`;
-        case "jump":
-          return `jump ${i.to}`;
-        case "fire":
-          return `fire ${i.tile}@${i.target}${i.compensate ? " comp" : ""}`;
-        case "scan":
-          return `scan @${i.target}`;
-        case "seize":
-          return `seize @${i.victim}`;
-        case "salvage":
-          return i.wreckId === undefined ? "salvage" : `salvage ${i.wreckId}`;
-        case "mark":
-          return `mark @${i.carrier}`;
+        case 'power':
+          return `power ${i.tile}`
+        case 'coast':
+          return i.scoop ? 'scoop' : 'coast'
+        case 'burn':
+          return `${i.intensity} burn`
+        case 'jump':
+          return `jump ${i.to}`
+        case 'fire':
+          return `fire ${i.tile}@${i.target}${i.compensate ? ' comp' : ''}`
+        case 'scan':
+          return `scan @${i.target}`
+        case 'seize':
+          return `seize @${i.victim}`
+        case 'salvage':
+          return i.wreckId === undefined ? 'salvage' : `salvage ${i.wreckId}`
+        case 'mark':
+          return `mark @${i.carrier}`
         default:
-          return i.kind;
+          return i.kind
       }
     })
-    .join(" > ");
+    .join(' > ')
 
 // ---------------------------------------------------------------------------
 // States
@@ -148,7 +148,7 @@ export const label = (ordering: readonly Item[]): string =>
  * A d10 pinned to 8: a hit, or a critical when a sensor has energy on it, so
  * every shot says which critical range it was rolled against.
  */
-const PINNED_EIGHT = { forcedRollValue: 8 };
+const PINNED_EIGHT = { forcedRollValue: 8 }
 
 /**
  * p1 on black hole ring 3, sector 6, prograde, flying the brawler (railgun;
@@ -164,14 +164,14 @@ const PINNED_EIGHT = { forcedRollValue: 8 };
 export function brawlerState(): GameState {
   return makeGameState(
     [
-      makePlayer("p1", { wellId: BH, ring: 3, sector: 6 }, LOADOUTS.brawler),
-      makePlayer("p2", { wellId: BH, ring: 3, sector: 8 }),
-      makePlayer("p3", { wellId: BH, ring: 3, sector: 4 }),
-      makePlayer("p4", { wellId: BH, ring: 4, sector: 7 }),
-      makePlayer("p5", { wellId: BH, ring: 4, sector: 12 }),
+      makePlayer('p1', { wellId: BH, ring: 3, sector: 6 }, LOADOUTS.brawler),
+      makePlayer('p2', { wellId: BH, ring: 3, sector: 8 }),
+      makePlayer('p3', { wellId: BH, ring: 3, sector: 4 }),
+      makePlayer('p4', { wellId: BH, ring: 4, sector: 7 }),
+      makePlayer('p5', { wellId: BH, ring: 4, sector: 12 }),
     ],
     PINNED_EIGHT
-  );
+  )
 }
 
 /**
@@ -188,18 +188,18 @@ export function brawlerState(): GameState {
 export function sensorState(): GameState {
   return makeGameState(
     [
-      makePlayer("p1", { wellId: BH, ring: 3, sector: 6 }, LOADOUTS.sensorGuns),
-      makePlayer("p2", { wellId: BH, ring: 3, sector: 8 }),
-      makePlayer("p3", { wellId: BH, ring: 4, sector: 7 }),
-      makePlayer("p4", { wellId: BH, ring: 4, sector: 11 }),
+      makePlayer('p1', { wellId: BH, ring: 3, sector: 6 }, LOADOUTS.sensorGuns),
+      makePlayer('p2', { wellId: BH, ring: 3, sector: 8 }),
+      makePlayer('p3', { wellId: BH, ring: 4, sector: 7 }),
+      makePlayer('p4', { wellId: BH, ring: 4, sector: 11 }),
     ],
     PINNED_EIGHT
-  );
+  )
 }
 
 /** Where a jump from black hole ring 5, sector 17 to Alpha lands unphased. */
 export function alphaLanding(): Position {
-  return phasedJumpDestination(findJump({ wellId: BH, ring: 5, sector: 17 }, ALPHA)!, 0)!;
+  return phasedJumpDestination(findJump({ wellId: BH, ring: 5, sector: 17 }, ALPHA)!, 0)!
 }
 
 /**
@@ -212,15 +212,15 @@ export function alphaLanding(): Position {
  *    jump, the missiles' only once p1 is in Alpha's well.
  */
 export function laneState(): GameState {
-  const landing = alphaLanding();
+  const landing = alphaLanding()
   return makeGameState(
     [
-      makePlayer("p1", { wellId: BH, ring: 5, sector: 17, facing: "retrograde" }, LOADOUTS.brawler),
-      makePlayer("p2", { wellId: BH, ring: 5, sector: 15 }),
-      makePlayer("p3", { ...landing, sector: (landing.sector + 2) % 24 }),
+      makePlayer('p1', { wellId: BH, ring: 5, sector: 17, facing: 'retrograde' }, LOADOUTS.brawler),
+      makePlayer('p2', { wellId: BH, ring: 5, sector: 15 }),
+      makePlayer('p3', { ...landing, sector: (landing.sector + 2) % 24 }),
     ],
     PINNED_EIGHT
-  );
+  )
 }
 
 /**
@@ -232,11 +232,11 @@ export function laneState(): GameState {
 export function belowLaneState(): GameState {
   return makeGameState(
     [
-      makePlayer("p1", { wellId: BH, ring: 4, sector: 17, facing: "retrograde" }, LOADOUTS.brawler),
-      makePlayer("p2", { wellId: BH, ring: 4, sector: 15 }),
+      makePlayer('p1', { wellId: BH, ring: 4, sector: 17, facing: 'retrograde' }, LOADOUTS.brawler),
+      makePlayer('p2', { wellId: BH, ring: 4, sector: 15 }),
     ],
     PINNED_EIGHT
-  );
+  )
 }
 
 /**
@@ -250,11 +250,11 @@ export function belowLaneState(): GameState {
 export function stationState(): GameState {
   return makeGameState(
     [
-      makePlayer("p1", { wellId: ALPHA, ring: 3, sector: 22 }, LOADOUTS.brawler),
-      makePlayer("p2", { wellId: ALPHA, ring: 2, sector: 1 }),
+      makePlayer('p1', { wellId: ALPHA, ring: 3, sector: 22 }, LOADOUTS.brawler),
+      makePlayer('p2', { wellId: ALPHA, ring: 2, sector: 1 }),
     ],
     PINNED_EIGHT
-  );
+  )
 }
 
 /**
@@ -271,12 +271,12 @@ export function stationState(): GameState {
 export function stationRecoilState(): GameState {
   return makeGameState(
     [
-      makePlayer("p1", { wellId: ALPHA, ring: 3, sector: 0 }, LOADOUTS.brawler),
-      makePlayer("p2", { wellId: ALPHA, ring: 3, sector: 2 }),
-      makePlayer("p3", { wellId: ALPHA, ring: 2, sector: 1 }),
+      makePlayer('p1', { wellId: ALPHA, ring: 3, sector: 0 }, LOADOUTS.brawler),
+      makePlayer('p2', { wellId: ALPHA, ring: 3, sector: 2 }),
+      makePlayer('p3', { wellId: ALPHA, ring: 2, sector: 1 }),
     ],
     PINNED_EIGHT
-  );
+  )
 }
 
 /**
@@ -287,16 +287,16 @@ export function stationRecoilState(): GameState {
 export function berthState(): GameState {
   return makeGameState(
     [
-      makePlayer("p1", { wellId: ALPHA, ring: 2, sector: 0 }, LOADOUTS.brawler),
-      makePlayer("p2", { wellId: ALPHA, ring: 3, sector: 8 }),
+      makePlayer('p1', { wellId: ALPHA, ring: 2, sector: 0 }, LOADOUTS.brawler),
+      makePlayer('p2', { wellId: ALPHA, ring: 3, sector: 8 }),
     ],
     PINNED_EIGHT
-  );
+  )
 }
 
 /** The Deliver crate p2 carries in the piracy tables. */
-const PIRACY_VICTIM_CARD = deliverMission(ALPHA, BETA, "deliver-p2");
-export const PIRACY_CRATE = PIRACY_VICTIM_CARD.cargoId;
+const PIRACY_VICTIM_CARD = deliverMission(ALPHA, BETA, 'deliver-p2')
+export const PIRACY_CRATE = PIRACY_VICTIM_CARD.cargoId
 
 /**
  * p1 a pirate (a free Piracy card) flying the brawler, and p2 carrying a
@@ -308,13 +308,13 @@ export const PIRACY_CRATE = PIRACY_VICTIM_CARD.cargoId;
  *    along its own ring), and p2 has a full hull.
  */
 export function piracyState(together: boolean): GameState {
-  const state = alongside([piracyMission()], [PIRACY_VICTIM_CARD]);
-  const from = positionOf(getPlayer(state, "p1").ship);
-  const armed = withPlayer(state, "p1", {
-    ship: makePlayer("p1", together ? LANDING : from, LOADOUTS.brawler).ship,
-  });
-  const pinned = { ...armed, ...PINNED_EIGHT };
-  return together ? withShip(pinned, "p2", { hitPoints: 2 }) : pinned;
+  const state = alongside([piracyMission()], [PIRACY_VICTIM_CARD])
+  const from = positionOf(getPlayer(state, 'p1').ship)
+  const armed = withPlayer(state, 'p1', {
+    ship: makePlayer('p1', together ? LANDING : from, LOADOUTS.brawler).ship,
+  })
+  const pinned = { ...armed, ...PINNED_EIGHT }
+  return together ? withShip(pinned, 'p2', { hitPoints: 2 }) : pinned
 }
 
 /**
@@ -325,21 +325,21 @@ export function surveyState(): GameState {
   const state = makeTwoPlayerGame(
     { wellId: BH, ring: 1, sector: 0, loadout: LOADOUTS.brawler },
     { wellId: BH, ring: 4, sector: 12 }
-  );
-  return withMissions(state, "p1", [surveyMission()]);
+  )
+  return withMissions(state, 'p1', [surveyMission()])
 }
 
 /** p1 the brawler holding a Salvage on ring 3 at sector 0, on a wreck: a coast takes it off. */
-export const SALVAGE_WRECK = "wreck-order";
+export const SALVAGE_WRECK = 'wreck-order'
 export function salvageState(): GameState {
   const state = makeTwoPlayerGame(
     { wellId: BH, ring: 3, sector: 0, loadout: LOADOUTS.brawler },
     { wellId: BH, ring: 4, sector: 12 }
-  );
+  )
   return {
-    ...withMissions(state, "p1", [salvageMission()]),
+    ...withMissions(state, 'p1', [salvageMission()]),
     wrecks: [{ id: SALVAGE_WRECK, wellId: BH, ring: 3, sector: 0 }],
-  };
+  }
 }
 
 /**
@@ -348,8 +348,8 @@ export function salvageState(): GameState {
  * coast takes p1 out of the sector. No wreck anywhere until the kill.
  */
 export function killSalvageState(): GameState {
-  const state = withMissions(piracyState(true), "p1", [salvageMission()]);
-  return withPlayer(state, "p2", { cargo: [] });
+  const state = withMissions(piracyState(true), 'p1', [salvageMission()])
+  return withPlayer(state, 'p2', { cargo: [] })
 }
 
 /**
@@ -359,8 +359,8 @@ export function killSalvageState(): GameState {
  * the laser's box.
  */
 export function escortState(): GameState {
-  const state = piracyState(true);
-  return withMissions(state, "p1", [escortMission()]);
+  const state = piracyState(true)
+  return withMissions(state, 'p1', [escortMission()])
 }
 
 // ---------------------------------------------------------------------------
@@ -368,42 +368,42 @@ export function escortState(): GameState {
 // ---------------------------------------------------------------------------
 
 export interface OrderTable {
-  name: string;
-  build: () => GameState;
-  items: Item[];
+  name: string
+  build: () => GameState
+  items: Item[]
   /** What every ordering comes to: all accepted, all refused, or some of each. */
-  outcome: "accepted" | "refused" | "mixed";
+  outcome: 'accepted' | 'refused' | 'mixed'
 }
 
-const R: Item = { kind: "rotate" };
-const COAST: Item = { kind: "coast", scoop: false };
-const SCOOP: Item = { kind: "coast", scoop: true };
-const SOFT: Item = { kind: "burn", intensity: "soft" };
+const R: Item = { kind: 'rotate' }
+const COAST: Item = { kind: 'coast', scoop: false }
+const SCOOP: Item = { kind: 'coast', scoop: true }
+const SOFT: Item = { kind: 'burn', intensity: 'soft' }
 const rail = (target: string, compensate = false): Item => ({
-  kind: "fire",
-  tile: "forward-0",
+  kind: 'fire',
+  tile: 'forward-0',
   target,
   compensate,
-});
-const gun = (tile: SubsystemId, target: string): Item => ({ kind: "fire", tile, target });
+})
+const gun = (tile: SubsystemId, target: string): Item => ({ kind: 'fire', tile, target })
 const salvo = (target: string, count = 2): Item => ({
-  kind: "fire",
-  tile: "side-3",
+  kind: 'fire',
+  tile: 'side-3',
   target,
   count,
-});
-const powerOn = (tile: SubsystemId, amount: number): Item => ({ kind: "power", tile, amount });
-const scanAt = (target: string): Item => ({ kind: "scan", target });
+})
+const powerOn = (tile: SubsystemId, amount: number): Item => ({ kind: 'power', tile, amount })
+const scanAt = (target: string): Item => ({ kind: 'scan', target })
 
 export const ORDER_TABLES: OrderTable[] = [
   // The railgun's facing and recoil against a rotation, a laser and the move.
-  ...[COAST, SOFT].flatMap((move) =>
+  ...[COAST, SOFT].flatMap(move =>
     [false, true].map(
       (compensate): OrderTable => ({
-        name: `brawler: rotate, railgun ahead${compensate ? " compensated" : ""}, laser, ${label([move])}`,
+        name: `brawler: rotate, railgun ahead${compensate ? ' compensated' : ''}, laser, ${label([move])}`,
         build: () => brawlerState(),
-        items: [R, rail("p2", compensate), gun("side-0", "p4"), move],
-        outcome: compensate && move === SOFT ? "refused" : "mixed",
+        items: [R, rail('p2', compensate), gun('side-0', 'p4'), move],
+        outcome: compensate && move === SOFT ? 'refused' : 'mixed',
       })
     )
   ),
@@ -412,178 +412,178 @@ export const ORDER_TABLES: OrderTable[] = [
     (move): OrderTable => ({
       name: `brawler: rotate, railgun astern, rack, salvo, ${label([move])}`,
       build: () => brawlerState(),
-      items: [R, rail("p3"), gun("side-1", "p4"), salvo("p5"), move],
-      outcome: "mixed",
+      items: [R, rail('p3'), gun('side-1', 'p4'), salvo('p5'), move],
+      outcome: 'mixed',
     })
   ),
   {
-    name: "brawler: a rack powered and fired, a wall, a coast",
+    name: 'brawler: a rack powered and fired, a wall, a coast',
     build: () => brawlerState(),
-    items: [powerOn("side-1", 2), gun("side-1", "p4"), powerOn("side-2", 2), COAST],
-    outcome: "refused",
+    items: [powerOn('side-1', 2), gun('side-1', 'p4'), powerOn('side-2', 2), COAST],
+    outcome: 'refused',
   },
   {
     name: "brawler: a target only the burn brings into the railgun's arc",
     build: () => brawlerState(),
-    items: [SOFT, rail("p5"), R],
-    outcome: "mixed",
+    items: [SOFT, rail('p5'), R],
+    outcome: 'mixed',
   },
   // No move: the coast comes after every shot.
   ...[false, true].map(
     (compensate): OrderTable => ({
-      name: `brawler: no move, railgun${compensate ? " compensated" : ""}, rack, half wall`,
+      name: `brawler: no move, railgun${compensate ? ' compensated' : ''}, rack, half wall`,
       build: () => brawlerState(),
-      items: [rail("p2", compensate), gun("side-1", "p4"), powerOn("side-2", 1)],
+      items: [rail('p2', compensate), gun('side-1', 'p4'), powerOn('side-2', 1)],
       // The rack reaches p4 from ring 3, not from the ring the recoil leaves the ship on.
-      outcome: compensate ? "accepted" : "mixed",
+      outcome: compensate ? 'accepted' : 'mixed',
     })
   ),
   {
     name: "brawler dry: a scoop pays for the railgun's compensation",
     // An empty tank, and p2 five sectors ahead of the start: one ahead of the coast's end.
     build: () =>
-      withShip(withShip(brawlerState(), "p1", { reactionMass: 0 }), "p2", { sector: 11 }),
-    items: [SCOOP, rail("p2", true)],
-    outcome: "mixed",
+      withShip(withShip(brawlerState(), 'p1', { reactionMass: 0 }), 'p2', { sector: 11 }),
+    items: [SCOOP, rail('p2', true)],
+    outcome: 'mixed',
   },
   // The sensor: a scan or a power widens only the shots after it.
   ...[COAST, SOFT].map(
     (move): OrderTable => ({
       name: `sensor: scan, laser, plasma, ${label([move])}`,
       build: sensorState,
-      items: [scanAt("p2"), gun("side-0", "p3"), gun("side-1", "p3"), move],
-      outcome: "mixed",
+      items: [scanAt('p2'), gun('side-0', 'p3'), gun('side-1', 'p3'), move],
+      outcome: 'mixed',
     })
   ),
   {
-    name: "sensor: a sensor powered and scanned with",
+    name: 'sensor: a sensor powered and scanned with',
     build: sensorState,
-    items: [powerOn("forward-0", 2), scanAt("p2"), gun("side-0", "p3"), COAST],
-    outcome: "refused",
+    items: [powerOn('forward-0', 2), scanAt('p2'), gun('side-0', 'p3'), COAST],
+    outcome: 'refused',
   },
   // p2 is ahead: a rotation before the scan turns it astern, out of the box.
   ...[COAST, SOFT].map(
     (move): OrderTable => ({
       name: `sensor: rotate, scan, laser, salvo, ${label([move])}`,
       build: sensorState,
-      items: [R, scanAt("p2"), gun("side-0", "p3"), salvo("p4"), move],
-      outcome: "mixed",
+      items: [R, scanAt('p2'), gun('side-0', 'p3'), salvo('p4'), move],
+      outcome: 'mixed',
     })
   ),
   {
-    name: "sensor: powered sensor, laser, plasma, rotate",
+    name: 'sensor: powered sensor, laser, plasma, rotate',
     build: sensorState,
-    items: [powerOn("forward-0", 2), gun("side-0", "p3"), gun("side-1", "p3"), R],
-    outcome: "mixed",
+    items: [powerOn('forward-0', 2), gun('side-0', 'p3'), gun('side-1', 'p3'), R],
+    outcome: 'mixed',
   },
   {
-    name: "sensor: a scan only the burn reaches, and a laser only the start does",
+    name: 'sensor: a scan only the burn reaches, and a laser only the start does',
     build: sensorState,
-    items: [scanAt("p4"), SOFT, gun("side-0", "p3")],
-    outcome: "mixed",
+    items: [scanAt('p4'), SOFT, gun('side-0', 'p3')],
+    outcome: 'mixed',
   },
   {
-    name: "sensor: no move, scan, laser, plasma",
+    name: 'sensor: no move, scan, laser, plasma',
     build: sensorState,
-    items: [scanAt("p2"), gun("side-0", "p3"), gun("side-1", "p3")],
-    outcome: "accepted",
+    items: [scanAt('p2'), gun('side-0', 'p3'), gun('side-1', 'p3')],
+    outcome: 'accepted',
   },
   // Lanes: a jump needs prograde facing and the lane under it.
   ...[false, true].map(
     (compensate): OrderTable => ({
-      name: `lane: rotate, jump, railgun at Alpha${compensate ? " compensated" : ""}, salvo`,
+      name: `lane: rotate, jump, railgun at Alpha${compensate ? ' compensated' : ''}, salvo`,
       build: laneState,
-      items: [R, { kind: "jump", to: ALPHA }, rail("p3", compensate), salvo("p3")],
-      outcome: compensate ? "refused" : "mixed",
+      items: [R, { kind: 'jump', to: ALPHA }, rail('p3', compensate), salvo('p3')],
+      outcome: compensate ? 'refused' : 'mixed',
     })
   ),
   {
     // Facing retrograde the recoil leaves the rings; facing prograde p2 is astern,
     // and after the jump p2 is in another well.
-    name: "lane: rotate, jump, railgun on the lane ring",
+    name: 'lane: rotate, jump, railgun on the lane ring',
     build: laneState,
-    items: [R, { kind: "jump", to: ALPHA }, rail("p2")],
-    outcome: "refused",
+    items: [R, { kind: 'jump', to: ALPHA }, rail('p2')],
+    outcome: 'refused',
   },
   {
-    name: "below the lane: the recoil puts the ship on the lane",
+    name: 'below the lane: the recoil puts the ship on the lane',
     build: belowLaneState,
-    items: [rail("p2"), R, { kind: "jump", to: ALPHA }],
-    outcome: "mixed",
+    items: [rail('p2'), R, { kind: 'jump', to: ALPHA }],
+    outcome: 'mixed',
   },
   // The station: arriving is not being moored, until the turn docks.
   ...[SOFT, SCOOP].map(
     (move): OrderTable => ({
       name: `station: wall, rotate, ${label([move])}`,
       build: stationState,
-      items: [powerOn("side-2", 2), R, move],
-      outcome: "accepted",
+      items: [powerOn('side-2', 2), R, move],
+      outcome: 'accepted',
     })
   ),
   {
-    name: "station: rotate, a soft burn onto the station, the rack after arriving",
+    name: 'station: rotate, a soft burn onto the station, the rack after arriving',
     build: stationState,
-    items: [R, SOFT, gun("side-1", "p2")],
-    outcome: "mixed",
+    items: [R, SOFT, gun('side-1', 'p2')],
+    outcome: 'mixed',
   },
   ...[[COAST], []].map(
     (move): OrderTable => ({
-      name: `station: railgun recoil onto the station, rack${move.length ? ", coast" : ", no move"}`,
+      name: `station: railgun recoil onto the station, rack${move.length ? ', coast' : ', no move'}`,
       build: stationRecoilState,
-      items: [rail("p2"), gun("side-1", "p3"), ...move],
-      outcome: move.length ? "mixed" : "accepted",
+      items: [rail('p2'), gun('side-1', 'p3'), ...move],
+      outcome: move.length ? 'mixed' : 'accepted',
     })
   ),
   // Piracy: a seizure takes its item where it comes, and a kill before it
   // leaves nothing to take (skipped, not refused).
   {
-    name: "piracy: seize, a killing laser at the same ship, a coast",
+    name: 'piracy: seize, a killing laser at the same ship, a coast',
     build: () => piracyState(true),
-    items: [{ kind: "seize", victim: "p2", cargoId: PIRACY_CRATE }, gun("side-0", "p2"), COAST],
-    outcome: "mixed",
+    items: [{ kind: 'seize', victim: 'p2', cargoId: PIRACY_CRATE }, gun('side-0', 'p2'), COAST],
+    outcome: 'mixed',
   },
   {
-    name: "piracy: a coast onto the carrier, seize, a laser at it",
+    name: 'piracy: a coast onto the carrier, seize, a laser at it',
     build: () => piracyState(false),
-    items: [{ kind: "seize", victim: "p2", cargoId: PIRACY_CRATE }, gun("side-0", "p2"), COAST],
-    outcome: "mixed",
+    items: [{ kind: 'seize', victim: 'p2', cargoId: PIRACY_CRATE }, gun('side-0', 'p2'), COAST],
+    outcome: 'mixed',
   },
   // Survey: the data is taken on ring 1 wherever the turn then goes.
   {
-    name: "survey: survey, a burn off ring 1",
+    name: 'survey: survey, a burn off ring 1',
     build: surveyState,
-    items: [{ kind: "survey" }, SOFT],
-    outcome: "mixed",
+    items: [{ kind: 'survey' }, SOFT],
+    outcome: 'mixed',
   },
   // Salvage: the black box is taken on the wreck's sector, before the coast takes the ship off it.
   {
-    name: "salvage: salvage, a coast off the wreck",
+    name: 'salvage: salvage, a coast off the wreck',
     build: salvageState,
-    items: [{ kind: "salvage", wreckId: SALVAGE_WRECK }, COAST],
-    outcome: "mixed",
+    items: [{ kind: 'salvage', wreckId: SALVAGE_WRECK }, COAST],
+    outcome: 'mixed',
   },
   // A kill is settled at once: a salvage naming no wreck after the killing
   // shot takes its black box, one before it finds none (skipped, not refused).
   {
-    name: "salvage: a killing laser, a salvage naming no wreck, a coast",
+    name: 'salvage: a killing laser, a salvage naming no wreck, a coast',
     build: killSalvageState,
-    items: [gun("side-0", "p2"), { kind: "salvage" }, COAST],
-    outcome: "mixed",
+    items: [gun('side-0', 'p2'), { kind: 'salvage' }, COAST],
+    outcome: 'mixed',
   },
   // Escort: a marker goes on where it comes; a kill before it skips it, a
   // kill after it hands the marker back.
   {
-    name: "escort: mark, a killing laser at the carrier, a coast",
+    name: 'escort: mark, a killing laser at the carrier, a coast',
     build: escortState,
-    items: [{ kind: "mark", carrier: "p2" }, gun("side-0", "p2"), COAST],
-    outcome: "mixed",
+    items: [{ kind: 'mark', carrier: 'p2' }, gun('side-0', 'p2'), COAST],
+    outcome: 'mixed',
   },
   ...[SOFT, COAST].map(
     (move): OrderTable => ({
       name: `berth: salvo, ${label([move])}`,
       build: berthState,
-      items: [salvo("p2"), move],
-      outcome: move === SOFT ? "mixed" : "refused",
+      items: [salvo('p2'), move],
+      outcome: move === SOFT ? 'mixed' : 'refused',
     })
   ),
-];
+]

@@ -33,9 +33,9 @@ import type {
   Station,
   TransferArc,
   TransferLane,
-} from "../../models/game.ts";
-import type { Subsystem } from "../../models/subsystems.ts";
-import { MISSION_POINTS, isPrimaryType } from "../../models/missions.ts";
+} from '../../models/game.ts'
+import type { Subsystem } from '../../models/subsystems.ts'
+import { MISSION_POINTS, isPrimaryType } from '../../models/missions.ts'
 import {
   BLACK_HOLE_OUTER_RING,
   PLANETS,
@@ -45,59 +45,59 @@ import {
   isPlanet,
   laneArrivalArc,
   laneDepartureArc,
-} from "../../models/gravityWells.ts";
-import { forwardDistance, sectorDistance } from "../../game/geometry.ts";
-import { getStationForPlanet, stationPosition } from "../../game/stations.ts";
-import { circuitRoutes } from "../../game/missions/missionDeck.ts";
-import type { PlayerView } from "../../game/view.ts";
-import type { OpponentDanger } from "../types.ts";
-import type { MovementPlan, PlannerTarget } from "../movementPlanner/index.ts";
-import { nearDriftingShip, planFromShip, planShipToTarget } from "../movementPlanner/index.ts";
-import { weaponRangeTarget } from "./combat.ts";
+} from '../../models/gravityWells.ts'
+import { forwardDistance, sectorDistance } from '../../game/geometry.ts'
+import { getStationForPlanet, stationPosition } from '../../game/stations.ts'
+import { circuitRoutes } from '../../game/missions/missionDeck.ts'
+import type { PlayerView } from '../../game/view.ts'
+import type { OpponentDanger } from '../types.ts'
+import type { MovementPlan, PlannerTarget } from '../movementPlanner/index.ts'
+import { nearDriftingShip, planFromShip, planShipToTarget } from '../movementPlanner/index.ts'
+import { weaponRangeTarget } from './combat.ts'
 
 // ---------------------------------------------------------------------------
 // Cheap distances
 // ---------------------------------------------------------------------------
 
 /** Average sectors per turn used by the cheap estimate. */
-const AVERAGE_VELOCITY = 3;
+const AVERAGE_VELOCITY = 3
 
 /** A planet's lane in one direction: outbound from the black hole, or inbound back to it. */
 export function planetLane(
   planetId: string,
-  direction: TransferLane["direction"]
+  direction: TransferLane['direction']
 ): TransferLane | undefined {
-  return TRANSFER_LANES.find((l) => l.planetId === planetId && l.direction === direction);
+  return TRANSFER_LANES.find(l => l.planetId === planetId && l.direction === direction)
 }
 
 interface PlanetLanes {
   /** Black hole ring 5 arc the jump *to* this planet leaves from. */
-  departure: TransferArc;
+  departure: TransferArc
   /** Planet ring 4 arc the jump *home* leaves from. */
-  homeDeparture: TransferArc;
+  homeDeparture: TransferArc
   /** Black hole ring 5 sector that jump home lands on. */
-  homeArrival: number;
+  homeArrival: number
 }
 
 /** The two doors of every planet, read off the lane table once. */
-const PLANET_LANES: Record<string, PlanetLanes> = {};
+const PLANET_LANES: Record<string, PlanetLanes> = {}
 for (const planet of PLANETS) {
-  const out = planetLane(planet.id, "outbound");
-  const back = planetLane(planet.id, "inbound");
-  if (!out || !back) continue;
+  const out = planetLane(planet.id, 'outbound')
+  const back = planetLane(planet.id, 'inbound')
+  if (!out || !back) continue
   PLANET_LANES[planet.id] = {
     departure: laneDepartureArc(out),
     homeDeparture: laneDepartureArc(back),
     homeArrival: laneArrivalArc(back).startSector,
-  };
+  }
 }
 
-const planetLanes = (wellId: GravityWellId): PlanetLanes | undefined => PLANET_LANES[wellId];
+const planetLanes = (wellId: GravityWellId): PlanetLanes | undefined => PLANET_LANES[wellId]
 
 /** Turns of drift from `sector` prograde onto the nearest sector of `arc`. */
 function turnsToArc(sector: number, arc: TransferArc): number {
-  const ahead = Math.min(...arcSectors(arc).map((s) => forwardDistance(sector, s)));
-  return Math.ceil(ahead / AVERAGE_VELOCITY);
+  const ahead = Math.min(...arcSectors(arc).map(s => forwardDistance(sector, s)))
+  return Math.ceil(ahead / AVERAGE_VELOCITY)
 }
 
 /**
@@ -125,32 +125,32 @@ export function cheapTurnEstimate(from: Position, to: Position): number {
     return (
       Math.abs(from.ring - to.ring) +
       Math.ceil(sectorDistance(from.sector, to.sector) / AVERAGE_VELOCITY)
-    );
+    )
   }
 
   // Leaving a planet is always the same trip: out to the lane ring, round to
   // the inbound arc, jump, and you are on black hole ring 5 at a known sector.
-  let turns = 0;
-  let sector = from.sector;
-  const home = planetLanes(from.wellId);
+  let turns = 0
+  let sector = from.sector
+  const home = planetLanes(from.wellId)
   if (home) {
-    turns += Math.abs(from.ring - PLANET_OUTER_RING) + turnsToArc(from.sector, home.homeDeparture);
-    turns += 1;
-    sector = home.homeArrival;
+    turns += Math.abs(from.ring - PLANET_OUTER_RING) + turnsToArc(from.sector, home.homeDeparture)
+    turns += 1
+    sector = home.homeArrival
   } else {
-    turns += Math.abs(from.ring - BLACK_HOLE_OUTER_RING);
+    turns += Math.abs(from.ring - BLACK_HOLE_OUTER_RING)
   }
 
-  const destination = planetLanes(to.wellId);
-  if (!destination) return turns + Math.abs(to.ring - BLACK_HOLE_OUTER_RING);
+  const destination = planetLanes(to.wellId)
+  if (!destination) return turns + Math.abs(to.ring - BLACK_HOLE_OUTER_RING)
   return (
     turns + turnsToArc(sector, destination.departure) + 1 + Math.abs(to.ring - PLANET_OUTER_RING)
-  );
+  )
 }
 
 export function stationPositionFor(stations: Station[], planetId: string): Position | null {
-  const station = getStationForPlanet(stations, planetId);
-  return station ? stationPosition(station) : null;
+  const station = getStationForPlanet(stations, planetId)
+  return station ? stationPosition(station) : null
 }
 
 // ---------------------------------------------------------------------------
@@ -158,20 +158,20 @@ export function stationPositionFor(stations: Station[], planetId: string): Posit
 // ---------------------------------------------------------------------------
 
 /** Turns a player typically needs for one card, start to finish. */
-const TYPICAL_MISSION_TURNS = 12;
+const TYPICAL_MISSION_TURNS = 12
 /** What a primary card scores (Destroy, Deliver and Intercept score alike). */
-const PRIMARY_POINTS = MISSION_POINTS.deliver_cargo;
+const PRIMARY_POINTS = MISSION_POINTS.deliver_cargo
 /** What a secondary card scores (all five score alike). */
-const SECONDARY_POINTS = MISSION_POINTS.survey;
+const SECONDARY_POINTS = MISSION_POINTS.survey
 /** Turns of a delivery run left after a pickup, for a player not carrying yet. */
-const PICKUP_TO_DELIVERY_TURNS = 8;
+const PICKUP_TO_DELIVERY_TURNS = 8
 /** A turns-to-win of this many turns or more reads as no danger at all. */
-const DANGER_HORIZON = 30;
+const DANGER_HORIZON = 30
 
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
 
 /** Where a Deliver crate loaded at each planet goes: the next planet round the circuit. */
-const CIRCUIT_NEXT = new Map(circuitRoutes(PLANETS.map((p) => p.id)));
+const CIRCUIT_NEXT = new Map(circuitRoutes(PLANETS.map(p => p.id)))
 
 /**
  * Planets a carrier could be docking at, most likely first.
@@ -190,20 +190,20 @@ export function predictedDeliveryPlanets(
   data: number,
   stations: Station[]
 ): string[] {
-  if (crates <= 0 && data <= 0) return [];
-  const crateOnly = crates > 0 && data <= 0 && isPlanet(carrier.wellId);
-  const circuit = crateOnly ? CIRCUIT_NEXT.get(carrier.wellId) : undefined;
-  return PLANETS.map((p) => p.id)
-    .map((id) => ({ id, position: stationPositionFor(stations, id) }))
+  if (crates <= 0 && data <= 0) return []
+  const crateOnly = crates > 0 && data <= 0 && isPlanet(carrier.wellId)
+  const circuit = crateOnly ? CIRCUIT_NEXT.get(carrier.wellId) : undefined
+  return PLANETS.map(p => p.id)
+    .map(id => ({ id, position: stationPositionFor(stations, id) }))
     .filter((c): c is { id: string; position: Position } => c.position !== null)
-    .map((c) => ({ id: c.id, turns: cheapTurnEstimate(carrier, c.position) }))
+    .map(c => ({ id: c.id, turns: cheapTurnEstimate(carrier, c.position) }))
     .sort(
       (a, b) =>
         Number(b.id === circuit) - Number(a.id === circuit) ||
         a.turns - b.turns ||
         (a.id < b.id ? -1 : 1)
     )
-    .map((c) => c.id);
+    .map(c => c.id)
 }
 
 /**
@@ -228,42 +228,42 @@ export function predictedDeliveryPlanets(
  * secondary.
  */
 export function assessDanger(
-  player: Pick<PlayerView, "cargoAboard" | "points" | "completedMissions">,
+  player: Pick<PlayerView, 'cargoAboard' | 'points' | 'completedMissions'>,
   position: Position,
   stations: Station[],
   /** What this game plays to (`view.pointsToWin`). */
   pointsToWin: number
 ): OpponentDanger {
-  const crates = player.cargoAboard.crates;
-  const data = player.cargoAboard.data;
-  const points = player.points;
-  const carrying = crates + data > 0;
-  const primaryDone = player.completedMissions.some((m) => isPrimaryType(m.type));
+  const crates = player.cargoAboard.crates
+  const data = player.cargoAboard.data
+  const points = player.points
+  const carrying = crates + data > 0
+  const primaryDone = player.completedMissions.some(m => isPrimaryType(m.type))
 
-  const predictedPlanets = predictedDeliveryPlanets(position, crates, data, stations);
+  const predictedPlanets = predictedDeliveryPlanets(position, crates, data, stations)
   const nearestPlanets = carrying
     ? predictedPlanets
-    : predictedDeliveryPlanets(position, 0, 1, stations);
+    : predictedDeliveryPlanets(position, 0, 1, stations)
   const deliveryPosition = carrying
-    ? (stationPositionFor(stations, predictedPlanets[0] ?? "") ?? null)
-    : null;
-  const nearestStation = stationPositionFor(stations, nearestPlanets[0] ?? "");
-  const turnsToStation = nearestStation ? cheapTurnEstimate(position, nearestStation) : Infinity;
+    ? (stationPositionFor(stations, predictedPlanets[0] ?? '') ?? null)
+    : null
+  const nearestStation = stationPositionFor(stations, nearestPlanets[0] ?? '')
+  const turnsToStation = nearestStation ? cheapTurnEstimate(position, nearestStation) : Infinity
   const turnsToDelivery = deliveryPosition
     ? cheapTurnEstimate(position, deliveryPosition)
-    : Infinity;
+    : Infinity
 
   // The card in progress, then one typical card for every further card they
   // still need. A player with an empty hold has to reach a station before
   // anything can start, so their next card costs the trip plus the run.
-  const legTurns = carrying ? turnsToDelivery : turnsToStation + PICKUP_TO_DELIVERY_TURNS;
-  const legPoints = primaryDone ? SECONDARY_POINTS : PRIMARY_POINTS;
-  const pointsLeft = Math.max(0, pointsToWin - points - legPoints);
-  const cardsLeft = Math.ceil(pointsLeft / SECONDARY_POINTS);
-  const turnsToWin = legTurns + cardsLeft * TYPICAL_MISSION_TURNS;
+  const legTurns = carrying ? turnsToDelivery : turnsToStation + PICKUP_TO_DELIVERY_TURNS
+  const legPoints = primaryDone ? SECONDARY_POINTS : PRIMARY_POINTS
+  const pointsLeft = Math.max(0, pointsToWin - points - legPoints)
+  const cardsLeft = Math.ceil(pointsLeft / SECONDARY_POINTS)
+  const turnsToWin = legTurns + cardsLeft * TYPICAL_MISSION_TURNS
 
-  const progress = points / pointsToWin;
-  const imminence = clamp01(1 - turnsToWin / DANGER_HORIZON);
+  const progress = points / pointsToWin
+  const imminence = clamp01(1 - turnsToWin / DANGER_HORIZON)
 
   return {
     score: clamp01(0.5 * progress + 0.5 * imminence),
@@ -274,7 +274,7 @@ export function assessDanger(
     deliveryPosition,
     turnsToDelivery,
     turnsToWin,
-  };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -287,31 +287,31 @@ export function assessDanger(
  * on its outer ring, the only door into the well.
  */
 export function laneArrivalTarget(planetId: string): PlannerTarget {
-  const lane = planetLane(planetId, "outbound");
-  const sectors = new Set<number>(lane ? arcSectors(lane.planetArc) : []);
-  const first = [...sectors].sort((a, b) => a - b)[0] ?? 0;
+  const lane = planetLane(planetId, 'outbound')
+  const sectors = new Set<number>(lane ? arcSectors(lane.planetArc) : [])
+  const first = [...sectors].sort((a, b) => a - b)[0] ?? 0
   return {
     positionAt: () => ({ wellId: planetId, ring: PLANET_OUTER_RING, sector: first }),
-    isMatch: (pos) =>
+    isMatch: pos =>
       pos.wellId === planetId && pos.ring === PLANET_OUTER_RING && sectors.has(pos.sector),
     period: 1,
     describe: () => `${planetId} lane arcs`,
-  };
+  }
 }
 
 /** A shot this turn or next beats any ambush; take the chase when it is that close. */
-const IMMEDIATE_ENGAGE_TURNS = 2;
+const IMMEDIATE_ENGAGE_TURNS = 2
 /**
  * Turns added to a chase across open rings when it is compared with an
  * ambush. Standing where the target must come is worth a few turns of
  * waiting: the chase assumes they keep coasting, the ambush does not.
  */
-const CHASE_PENALTY = 3;
+const CHASE_PENALTY = 3
 
 export interface InterceptionPlan {
-  plan: MovementPlan;
+  plan: MovementPlan
   /** Where the bot decided to meet them. */
-  kind: "chase" | "station" | "lane";
+  kind: 'chase' | 'station' | 'lane'
 }
 
 /**
@@ -338,32 +338,30 @@ export function planInterception(
   danger: OpponentDanger,
   maxTurns: number
 ): InterceptionPlan | null {
-  if (weapons.length === 0) return null;
-  const chase = planShipToTarget(ship, weaponRangeTarget(weapons, target), maxTurns);
-  if (chase && chase.totalTurns <= IMMEDIATE_ENGAGE_TURNS) return { plan: chase, kind: "chase" };
+  if (weapons.length === 0) return null
+  const chase = planShipToTarget(ship, weaponRangeTarget(weapons, target), maxTurns)
+  if (chase && chase.totalTurns <= IMMEDIATE_ENGAGE_TURNS) return { plan: chase, kind: 'chase' }
 
-  const candidates: Array<{ plan: MovementPlan; kind: InterceptionPlan["kind"]; cost: number }> =
-    [];
-  if (chase)
-    candidates.push({ plan: chase, kind: "chase", cost: chase.totalTurns + CHASE_PENALTY });
+  const candidates: Array<{ plan: MovementPlan; kind: InterceptionPlan['kind']; cost: number }> = []
+  if (chase) candidates.push({ plan: chase, kind: 'chase', cost: chase.totalTurns + CHASE_PENALTY })
 
-  const destination = danger.deliveryPosition;
+  const destination = danger.deliveryPosition
   if (destination) {
-    const station = planShipToTarget(ship, weaponRangeTarget(weapons, destination), maxTurns);
-    if (station) candidates.push({ plan: station, kind: "station", cost: station.totalTurns });
+    const station = planShipToTarget(ship, weaponRangeTarget(weapons, destination), maxTurns)
+    if (station) candidates.push({ plan: station, kind: 'station', cost: station.totalTurns })
     if (destination.wellId !== target.wellId) {
-      const lane = planShipToTarget(ship, laneArrivalTarget(destination.wellId), maxTurns);
-      if (lane) candidates.push({ plan: lane, kind: "lane", cost: lane.totalTurns });
+      const lane = planShipToTarget(ship, laneArrivalTarget(destination.wellId), maxTurns)
+      if (lane) candidates.push({ plan: lane, kind: 'lane', cost: lane.totalTurns })
     }
   }
 
   // Deterministic: ties fall to the earlier kind (chase, station, lane).
-  let best: (typeof candidates)[number] | null = null;
-  for (const candidate of candidates) if (!best || candidate.cost < best.cost) best = candidate;
-  if (best) return { plan: best.plan, kind: best.kind };
+  let best: (typeof candidates)[number] | null = null
+  for (const candidate of candidates) if (!best || candidate.cost < best.cost) best = candidate
+  if (best) return { plan: best.plan, kind: best.kind }
 
   const fallback =
     planShipToTarget(ship, nearDriftingShip(target, 1), maxTurns) ??
-    planFromShip(ship, target, "fastest", maxTurns);
-  return fallback ? { plan: fallback, kind: "chase" } : null;
+    planFromShip(ship, target, 'fastest', maxTurns)
+  return fallback ? { plan: fallback, kind: 'chase' } : null
 }

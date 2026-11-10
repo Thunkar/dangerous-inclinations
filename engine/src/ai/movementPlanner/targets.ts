@@ -14,9 +14,9 @@
  * reachable state at layer ≥ 1.
  */
 
-import { SECTORS_PER_RING } from "../../models/rings.ts";
-import { ringVelocity, samePosition, sectorDistance, wrapSector } from "../../game/geometry.ts";
-import type { OrbitalPosition } from "./types.ts";
+import { SECTORS_PER_RING } from '../../models/rings.ts'
+import { ringVelocity, samePosition, sectorDistance, wrapSector } from '../../game/geometry.ts'
+import type { OrbitalPosition } from './types.ts'
 
 export interface PlannerTarget {
   /**
@@ -25,14 +25,14 @@ export interface PlannerTarget {
    * - `turn = 0` is the moment before the ship takes its first action.
    * - `turn = k ≥ 1` is the moment the ship's k-th action completes.
    */
-  positionAt(turn: number): OrbitalPosition;
+  positionAt(turn: number): OrbitalPosition
 
   /**
    * Whether the ship being at `pos` at planner turn `turn` counts as a
    * match. Defaults to spatial equality with `positionAt(turn)`. Override
    * for fuzzy targets ("within ±3 sectors of the enemy on my ring").
    */
-  isMatch?(pos: OrbitalPosition, turn: number): boolean;
+  isMatch?(pos: OrbitalPosition, turn: number): boolean
 
   /**
    * Number of turns after which the target's motion repeats. The forward
@@ -41,10 +41,10 @@ export interface PlannerTarget {
    * so the earlier one dominates. Static targets have period 1 (time is
    * irrelevant); a station advancing 4 sectors per round has period 6.
    */
-  period: number;
+  period: number
 
   /** Optional human-readable description for plan logs / debug dumps. */
-  describe?(): string;
+  describe?(): string
 }
 
 /** Turns until a body drifting `sectorsPerRound` per round is back where it started. */
@@ -52,12 +52,12 @@ export function driftPeriod(
   sectorsPerRound: number,
   sectorsInRing: number = SECTORS_PER_RING
 ): number {
-  const v = Math.abs(sectorsPerRound) % sectorsInRing;
-  if (v === 0) return 1;
-  let a = sectorsInRing;
-  let b = v;
-  while (b !== 0) [a, b] = [b, a % b];
-  return sectorsInRing / a;
+  const v = Math.abs(sectorsPerRound) % sectorsInRing
+  if (v === 0) return 1
+  let a = sectorsInRing
+  let b = v
+  while (b !== 0) [a, b] = [b, a % b]
+  return sectorsInRing / a
 }
 
 /**
@@ -66,10 +66,10 @@ export function driftPeriod(
 export function staticTarget(pos: OrbitalPosition): PlannerTarget {
   return {
     positionAt: () => pos,
-    isMatch: (p) => samePosition(p, pos),
+    isMatch: p => samePosition(p, pos),
     period: 1,
     describe: () => `${pos.wellId} R${pos.ring} S${pos.sector}`,
-  };
+  }
 }
 
 /**
@@ -89,7 +89,7 @@ export function orbitSectorAt(
   sectorsPerRound: number,
   turn: number
 ): number {
-  return wrapSector(start.sector + sectorsPerRound * Math.max(0, turn - 1));
+  return wrapSector(start.sector + sectorsPerRound * Math.max(0, turn - 1))
 }
 
 /**
@@ -104,13 +104,13 @@ export function orbitingTarget(
   const positionAt = (turn: number): OrbitalPosition => ({
     ...start,
     sector: wrapSector(start.sector + sectorsPerRound * Math.max(0, turn - 1)),
-  });
+  })
   return {
     positionAt,
     isMatch: (pos, turn) => samePosition(pos, positionAt(turn)),
     period: driftPeriod(sectorsPerRound, sectorsInRing),
     describe: () => `orbit@${start.wellId}R${start.ring}S${start.sector}+${sectorsPerRound}/round`,
-  };
+  }
 }
 
 /**
@@ -119,24 +119,24 @@ export function orbitingTarget(
  * and for closing to weapon range.
  */
 export function nearDriftingShip(start: OrbitalPosition, sectors: number): PlannerTarget {
-  const velocity = ringVelocity(start.wellId, start.ring);
+  const velocity = ringVelocity(start.wellId, start.ring)
   const positionAt = (turn: number): OrbitalPosition => ({
     ...start,
     sector: orbitSectorAt(start, velocity, turn),
-  });
+  })
   return {
     positionAt,
     isMatch: (pos, turn) => {
-      const t = positionAt(turn);
+      const t = positionAt(turn)
       return (
         pos.wellId === t.wellId &&
         pos.ring === t.ring &&
         sectorDistance(pos.sector, t.sector) <= sectors
-      );
+      )
     },
     period: driftPeriod(velocity),
     describe: () => `within ${sectors} of ${start.wellId} R${start.ring} S${start.sector}`,
-  };
+  }
 }
 
 /**
@@ -146,8 +146,8 @@ export function nearDriftingShip(start: OrbitalPosition, sectors: number): Plann
 export function anySectorOnRing(wellId: string, ring: number): PlannerTarget {
   return {
     positionAt: () => ({ wellId, ring, sector: 0 }),
-    isMatch: (pos) => pos.wellId === wellId && pos.ring === ring,
+    isMatch: pos => pos.wellId === wellId && pos.ring === ring,
     period: 1,
     describe: () => `${wellId} R${ring} (any sector)`,
-  };
+  }
 }

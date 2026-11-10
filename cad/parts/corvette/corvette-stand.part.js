@@ -1,4 +1,4 @@
-import { part } from "fluidcad/core";
-import { printStand } from "../../pieces/stand.ts";
+import { part } from 'fluidcad/core'
+import { printStand } from '../../pieces/stand.ts'
 
-export const stand = part("corvette stand", () => printStand("corvette"));
+export const stand = part('corvette stand', () => printStand('corvette'))

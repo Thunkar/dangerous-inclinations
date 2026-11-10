@@ -38,7 +38,10 @@ export function LobbyScreen() {
   }
 
   const start = canStart()
-  const seats = Array.from({ length: lobbyState.maxPlayers }, (_, i) => lobbyState.players[i] ?? null)
+  const seats = Array.from(
+    { length: lobbyState.maxPlayers },
+    (_, i) => lobbyState.players[i] ?? null
+  )
   const isHost = lobbyState.hostPlayerId === playerId
 
   return (
@@ -90,14 +93,21 @@ export function LobbyScreen() {
                   <PersonIcon sx={{ fontSize: 17, color: TABLE.inkSoft }} />
                 )
               ) : null}
-              <Typography sx={{ color: seat ? TABLE.ink : TABLE.inkSoft, fontWeight: seat ? 700 : 400 }}>
+              <Typography
+                sx={{ color: seat ? TABLE.ink : TABLE.inkSoft, fontWeight: seat ? 700 : 400 }}
+              >
                 {seat ? seat.playerName : 'empty seat'}
                 {seat?.playerId === playerId ? ' (you)' : ''}
                 {seat?.playerId === lobbyState.hostPlayerId ? ' · host' : ''}
               </Typography>
               {seat?.agent && (
                 <Typography
-                  sx={{ fontFamily: FONT_MONO, fontSize: '0.72rem', color: TABLE.inkSoft, whiteSpace: 'nowrap' }}
+                  sx={{
+                    fontFamily: FONT_MONO,
+                    fontSize: '0.72rem',
+                    color: TABLE.inkSoft,
+                    whiteSpace: 'nowrap',
+                  }}
                 >
                   {agentLabel(seat.agent)}
                 </Typography>

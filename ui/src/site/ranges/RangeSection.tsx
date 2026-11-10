@@ -58,7 +58,15 @@ function RangeSheets({ flip }: { flip: Flip }) {
             aria-hidden
           >
             {cropMarks(cards).map((m, i) => (
-              <line key={i} x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} stroke={INK} strokeWidth={0.2} />
+              <line
+                key={i}
+                x1={m.x1}
+                y1={m.y1}
+                x2={m.x2}
+                y2={m.y2}
+                stroke={INK}
+                strokeWidth={0.2}
+              />
             ))}
           </svg>
           {cards.map(slot => (
@@ -119,7 +127,10 @@ export function RangeSection() {
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 2, mt: 3 }}>
             <Segments
               value={flip}
-              options={(['long', 'short'] as const).map(value => ({ value, label: T.flips[value] }))}
+              options={(['long', 'short'] as const).map(value => ({
+                value,
+                label: T.flips[value],
+              }))}
               onChange={setFlip}
             />
             <Slab tone="red" onClick={printRanges}>

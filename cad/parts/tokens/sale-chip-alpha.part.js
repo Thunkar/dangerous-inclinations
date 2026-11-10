@@ -1,4 +1,4 @@
-import { part } from "fluidcad/core";
-import { buildSaleChip } from "../../pieces/markers/sale.ts";
+import { part } from 'fluidcad/core'
+import { buildSaleChip } from '../../pieces/markers/sale.ts'
 
-export const piece = part("Sale chip Alpha", () => buildSaleChip("alpha"));
+export const piece = part('Sale chip Alpha', () => buildSaleChip('alpha'))

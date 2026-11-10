@@ -430,7 +430,10 @@ export function HeatTrackerTool() {
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 3 }}>
           {mat.checked ? (
-            <Slab tone="red" onClick={() => setMat(m => ({ ...m, energy: {}, spent: {}, checked: false }))}>
+            <Slab
+              tone="red"
+              onClick={() => setMat(m => ({ ...m, energy: {}, spent: {}, checked: false }))}
+            >
               Start my turn
             </Slab>
           ) : (

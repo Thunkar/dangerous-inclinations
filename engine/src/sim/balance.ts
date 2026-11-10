@@ -72,99 +72,99 @@
  *   `diluted`    `stuck` under STUCK_FLOOR: the row's other flags are
  *                suppressed, because the row is not the row it claims to be
  */
-import { cpus } from "node:os";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import type { ShipLoadout } from "../models/game.ts";
-import { DEFAULT_POINTS_TO_WIN, type MissionType } from "../models/missions.ts";
+import { cpus } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type { ShipLoadout } from '../models/game.ts'
+import { DEFAULT_POINTS_TO_WIN, type MissionType } from '../models/missions.ts'
 import {
   BOT_PRESET_LOADOUTS,
   BOT_ROLES,
   PRESETS_BY_ROLE,
   type BotPresetId,
   type BotRole,
-} from "../ai/behaviors/loadout.ts";
-import { runBatch, type BatchResult } from "./batch.ts";
-import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from "./ruleOverrides.ts";
+} from '../ai/behaviors/loadout.ts'
+import { runBatch, type BatchResult } from './batch.ts'
+import { describeRuleOverrides, parseRuleOverrides, type RuleOverrides } from './ruleOverrides.ts'
 import {
   applyTileOverrides,
   describeTileOverrides,
   parseTileOverrides,
   type TileOverrides,
-} from "./tileOverrides.ts";
+} from './tileOverrides.ts'
 import {
   applyBotOverrides,
   describeBotOverrides,
   parseBotOverrides,
   type BotOverrides,
-} from "./botOverrides.ts";
-import { CARD_LABEL, type PerGameStats, type PerPlayerStats } from "./stats.ts";
+} from './botOverrides.ts'
+import { CARD_LABEL, type PerGameStats, type PerPlayerStats } from './stats.ts'
 
-const OUTLIER_MARGIN = 0.12;
-const STALL_SHARE = 0.2;
-const SLOW_FINISH = 0.9;
-const SLOW_ROUNDS = 50;
+const OUTLIER_MARGIN = 0.12
+const STALL_SHARE = 0.2
+const SLOW_FINISH = 0.9
+const SLOW_ROUNDS = 50
 /** Below this share of games actually flying the row, the row is diluted. */
-const STUCK_FLOOR = 0.9;
+const STUCK_FLOOR = 0.9
 
 const hull = (forward: string, sides: string): ShipLoadout => ({
-  forwardSlots: [forward] as ShipLoadout["forwardSlots"],
-  sideSlots: sides.split(",") as ShipLoadout["sideSlots"],
-});
+  forwardSlots: [forward] as ShipLoadout['forwardSlots'],
+  sideSlots: sides.split(',') as ShipLoadout['sideSlots'],
+})
 
-const preset = (id: BotPresetId): ShipLoadout => BOT_PRESET_LOADOUTS[id];
+const preset = (id: BotPresetId): ShipLoadout => BOT_PRESET_LOADOUTS[id]
 
-type Section = "baselines" | "logical" | "illogical" | "offbook" | "extreme";
+type Section = 'baselines' | 'logical' | 'illogical' | 'offbook' | 'extreme'
 /** Which bar a row is read against: seat 1's own hand, or one primary's. */
-type BarName = "any" | "destroy" | "deliver" | "intercept";
+type BarName = 'any' | 'destroy' | 'deliver' | 'intercept'
 
-const PRIMARY_OF: Record<Exclude<BarName, "any">, MissionType> = {
-  destroy: "destroy_ship",
-  deliver: "deliver_cargo",
-  intercept: "intercept_transmission",
-};
+const PRIMARY_OF: Record<Exclude<BarName, 'any'>, MissionType> = {
+  destroy: 'destroy_ship',
+  deliver: 'deliver_cargo',
+  intercept: 'intercept_transmission',
+}
 
 interface RowSpec {
   /** `section:name`, and what `--only=` takes. */
-  id: string;
-  section: Section;
+  id: string
+  section: Section
   /** The loadout, for the table. */
-  label: string;
+  label: string
   /** Omitted on a baseline row: the bot picks its own loadout. */
-  loadout?: ShipLoadout;
+  loadout?: ShipLoadout
   /** Omitted on an extreme row: the bot keeps whatever it is dealt. */
-  primary?: MissionType;
-  bar: BarName;
+  primary?: MissionType
+  bar: BarName
 }
 
-const baselineRows: RowSpec[] = (["destroy", "deliver", "intercept"] as const).map((bar) => ({
+const baselineRows: RowSpec[] = (['destroy', 'deliver', 'intercept'] as const).map(bar => ({
   id: `baselines:${bar}`,
-  section: "baselines",
-  label: "own loadout",
+  section: 'baselines',
+  label: 'own loadout',
   primary: PRIMARY_OF[bar],
-  bar: "any",
-}));
+  bar: 'any',
+}))
 
 /** The card each role is for. */
-const ROLE_CARD: Record<BotRole, Exclude<BarName, "any">> = {
-  interceptor: "intercept",
-  hunter: "destroy",
-  hauler: "deliver",
-};
+const ROLE_CARD: Record<BotRole, Exclude<BarName, 'any'>> = {
+  interceptor: 'intercept',
+  hunter: 'destroy',
+  hauler: 'deliver',
+}
 
 /** Each preset flown with the card its role is for. */
-const logicalRows: RowSpec[] = BOT_ROLES.flatMap((role) =>
+const logicalRows: RowSpec[] = BOT_ROLES.flatMap(role =>
   PRESETS_BY_ROLE[role].map(
     (id): RowSpec => ({
       id: `logical:${id}`,
-      section: "logical",
+      section: 'logical',
       label: `${id} (preset)`,
       loadout: preset(id),
       primary: PRIMARY_OF[ROLE_CARD[role]],
       bar: ROLE_CARD[role],
     })
   )
-);
+)
 
 /**
  * Loadouts that fight their card. A compressor cannot scan, so a hauler with an
@@ -179,231 +179,239 @@ const logicalRows: RowSpec[] = BOT_ROLES.flatMap((role) =>
  */
 const illogicalRows: RowSpec[] = (
   [
-    ["raider", "deliver"],
-    ["raider", "destroy"],
-    ["gunship", "deliver"],
-    ["sentry", "deliver"],
-    ["freighter", "destroy"],
-    ["convoy", "destroy"],
-  ] as Array<[BotPresetId, Exclude<BarName, "any">]>
+    ['raider', 'deliver'],
+    ['raider', 'destroy'],
+    ['gunship', 'deliver'],
+    ['sentry', 'deliver'],
+    ['freighter', 'destroy'],
+    ['convoy', 'destroy'],
+  ] as Array<[BotPresetId, Exclude<BarName, 'any'>]>
 ).map(([id, bar]) => ({
   id: `illogical:${id}+${bar}`,
-  section: "illogical",
+  section: 'illogical',
   label: `${id} (preset)`,
   loadout: preset(id),
   primary: PRIMARY_OF[bar],
   bar,
-}));
+}))
 
 /** Builds no preset offers, each flown with the card it is built for. */
 const offbookRows: RowSpec[] = (
   [
     [
-      "sensor_missiles3",
-      "sensor bow, missiles×3",
-      hull("sensor_array", "missiles,missiles,missiles,radiator"),
-      "destroy",
+      'sensor_missiles3',
+      'sensor bow, missiles×3',
+      hull('sensor_array', 'missiles,missiles,missiles,radiator'),
+      'destroy',
     ],
     [
-      "missile_boat",
-      "missile boat",
-      hull("missiles", "missiles,missiles,radiator,shields"),
-      "destroy",
+      'missile_boat',
+      'missile boat',
+      hull('missiles', 'missiles,missiles,radiator,shields'),
+      'destroy',
     ],
     [
-      "rack_hunter",
-      "rack hunter",
-      hull("railgun", "ballistic_rack,ballistic_rack,shields,radiator"),
-      "destroy",
+      'rack_hunter',
+      'rack hunter',
+      hull('railgun', 'ballistic_rack,ballistic_rack,shields,radiator'),
+      'destroy',
     ],
     [
-      "rail_lasers2",
-      "railgun + lasers×2 + radiators×2",
-      hull("railgun", "laser,laser,radiator,radiator"),
-      "destroy",
+      'rail_lasers2',
+      'railgun + lasers×2 + radiators×2',
+      hull('railgun', 'laser,laser,radiator,radiator'),
+      'destroy',
     ],
     // Shields opened the bow on 22 Sept and no bot will ever choose it, so
     // without this row nothing in the suite flies a loaded forward slot that
     // is not a sensor array.
     [
-      "bow_shield",
-      "a fifth wall in the bow",
-      hull("shields", "shields,shields,radiator,laser"),
-      "deliver",
+      'bow_shield',
+      'a fifth wall in the bow',
+      hull('shields', 'shields,shields,radiator,laser'),
+      'deliver',
     ],
     [
-      "interceptor_hunting",
-      "sensor bow + lasers×2 + shields + radiator, hunting",
-      hull("sensor_array", "shields,laser,laser,radiator"),
-      "destroy",
+      'interceptor_hunting',
+      'sensor bow + lasers×2 + shields + radiator, hunting',
+      hull('sensor_array', 'shields,laser,laser,radiator'),
+      'destroy',
     ],
     [
-      "rail_plasma2",
-      "railgun + plasma×2 + shields + radiator",
-      hull("railgun", "plasma_cannon,plasma_cannon,shields,radiator"),
-      "destroy",
+      'rail_plasma2',
+      'railgun + plasma×2 + shields + radiator',
+      hull('railgun', 'plasma_cannon,plasma_cannon,shields,radiator'),
+      'destroy',
     ],
     [
-      "interceptor_plasma",
-      "sensor bow + shields×2 + radiator + plasma",
-      hull("sensor_array", "shields,shields,radiator,plasma_cannon"),
-      "intercept",
+      'interceptor_plasma',
+      'sensor bow + shields×2 + radiator + plasma',
+      hull('sensor_array', 'shields,shields,radiator,plasma_cannon'),
+      'intercept',
     ],
     [
-      "disruptor_lasers2",
-      "disruptor + lasers×2 + shields + radiator",
-      hull("disruptor", "laser,laser,shields,radiator"),
-      "destroy",
+      'disruptor_lasers2',
+      'disruptor + lasers×2 + shields + radiator',
+      hull('disruptor', 'laser,laser,shields,radiator'),
+      'destroy',
     ],
     [
-      "hauler_shields3",
-      "compressor + shields×3 + radiator",
-      hull("fuel_compressor", "shields,shields,shields,radiator"),
-      "deliver",
+      'hauler_shields3',
+      'compressor + shields×3 + radiator',
+      hull('fuel_compressor', 'shields,shields,shields,radiator'),
+      'deliver',
     ],
     [
-      "hauler_shields3_laser",
-      "compressor + shields×3 + laser",
-      hull("fuel_compressor", "shields,shields,shields,laser"),
-      "deliver",
+      'hauler_shields3_laser',
+      'compressor + shields×3 + laser',
+      hull('fuel_compressor', 'shields,shields,shields,laser'),
+      'deliver',
     ],
     [
-      "rail_shields3",
-      "railgun + shields×3 + laser",
-      hull("railgun", "shields,shields,shields,laser"),
-      "destroy",
+      'rail_shields3',
+      'railgun + shields×3 + laser',
+      hull('railgun', 'shields,shields,shields,laser'),
+      'destroy',
     ],
     [
-      "sensor_shields3",
-      "sensor bow + shields×3 + laser",
-      hull("sensor_array", "shields,shields,shields,laser"),
-      "intercept",
+      'sensor_shields3',
+      'sensor bow + shields×3 + laser',
+      hull('sensor_array', 'shields,shields,shields,laser'),
+      'intercept',
     ],
-  ] as Array<[string, string, ShipLoadout, Exclude<BarName, "any">]>
+  ] as Array<[string, string, ShipLoadout, Exclude<BarName, 'any'>]>
 ).map(([name, label, loadout, bar]) => ({
   id: `offbook:${name}`,
-  section: "offbook",
+  section: 'offbook',
   label,
   loadout,
   primary: PRIMARY_OF[bar],
   bar,
-}));
+}))
 
 /** The sharpest shapes a player might try, each dealt a random legal hand. */
 const extremeRows: RowSpec[] = (
   [
     [
-      "shields2_lasers2",
-      "shields×2 + lasers×2",
-      hull("sensor_array", "shields,shields,laser,laser"),
+      'shields2_lasers2',
+      'shields×2 + lasers×2',
+      hull('sensor_array', 'shields,shields,laser,laser'),
     ],
-    ["scalpel3", "lasers×3 + shields", hull("sensor_array", "laser,laser,laser,shields")],
-    ["scalpel4", "lasers×4", hull("sensor_array", "laser,laser,laser,laser")],
+    ['scalpel3', 'lasers×3 + shields', hull('sensor_array', 'laser,laser,laser,shields')],
+    ['scalpel4', 'lasers×4', hull('sensor_array', 'laser,laser,laser,laser')],
     [
-      "turtle",
-      "shields×2 + radiators×2",
-      hull("sensor_array", "shields,shields,radiator,radiator"),
+      'turtle',
+      'shields×2 + radiators×2',
+      hull('sensor_array', 'shields,shields,radiator,radiator'),
     ],
-    ["bunker", "shields×4", hull("sensor_array", "shields,shields,shields,shields")],
-    ["fortress5", "shield bow + shields×4", hull("shields", "shields,shields,shields,shields")],
-    ["fortress4_laser", "shield bow + shields×3 + laser", hull("shields", "shields,shields,shields,laser")],
-    ["compressor_shields4", "compressor + shields×4", hull("fuel_compressor", "shields,shields,shields,shields")],
-    ["laserboat", "railgun + lasers×4", hull("railgun", "laser,laser,laser,laser")],
+    ['bunker', 'shields×4', hull('sensor_array', 'shields,shields,shields,shields')],
+    ['fortress5', 'shield bow + shields×4', hull('shields', 'shields,shields,shields,shields')],
     [
-      "rail_la2_rad2",
-      "railgun + lasers×2 + radiators×2",
-      hull("railgun", "laser,laser,radiator,radiator"),
+      'fortress4_laser',
+      'shield bow + shields×3 + laser',
+      hull('shields', 'shields,shields,shields,laser'),
     ],
     [
-      "rail_miss2",
-      "railgun + missiles×2 + radiator + shields",
-      hull("railgun", "missiles,missiles,radiator,shields"),
+      'compressor_shields4',
+      'compressor + shields×4',
+      hull('fuel_compressor', 'shields,shields,shields,shields'),
+    ],
+    ['laserboat', 'railgun + lasers×4', hull('railgun', 'laser,laser,laser,laser')],
+    [
+      'rail_la2_rad2',
+      'railgun + lasers×2 + radiators×2',
+      hull('railgun', 'laser,laser,radiator,radiator'),
     ],
     [
-      "missiles3",
-      "missiles×3 + radiator + shields",
-      hull("missiles", "missiles,missiles,radiator,shields"),
-    ],
-    ["missiles5", "missiles×5", hull("missiles", "missiles,missiles,missiles,missiles")],
-    [
-      "glass",
-      "railgun + missiles + lasers×2 + radiator",
-      hull("railgun", "missiles,laser,laser,radiator"),
+      'rail_miss2',
+      'railgun + missiles×2 + radiator + shields',
+      hull('railgun', 'missiles,missiles,radiator,shields'),
     ],
     [
-      "pdc",
-      "railgun + racks×2 + shields + radiator",
-      hull("railgun", "ballistic_rack,ballistic_rack,shields,radiator"),
+      'missiles3',
+      'missiles×3 + radiator + shields',
+      hull('missiles', 'missiles,missiles,radiator,shields'),
+    ],
+    ['missiles5', 'missiles×5', hull('missiles', 'missiles,missiles,missiles,missiles')],
+    [
+      'glass',
+      'railgun + missiles + lasers×2 + radiator',
+      hull('railgun', 'missiles,laser,laser,radiator'),
     ],
     [
-      "rack4",
-      "railgun + racks×4",
-      hull("railgun", "ballistic_rack,ballistic_rack,ballistic_rack,ballistic_rack"),
+      'pdc',
+      'railgun + racks×2 + shields + radiator',
+      hull('railgun', 'ballistic_rack,ballistic_rack,shields,radiator'),
     ],
     [
-      "legs_lasers",
-      "compressor + lasers×2 + shields + radiator",
-      hull("fuel_compressor", "laser,laser,shields,radiator"),
+      'rack4',
+      'railgun + racks×4',
+      hull('railgun', 'ballistic_rack,ballistic_rack,ballistic_rack,ballistic_rack'),
     ],
     [
-      "legs_turtle",
-      "compressor + shields×2 + radiators×2",
-      hull("fuel_compressor", "shields,shields,radiator,radiator"),
+      'legs_lasers',
+      'compressor + lasers×2 + shields + radiator',
+      hull('fuel_compressor', 'laser,laser,shields,radiator'),
     ],
     [
-      "legs_guns",
-      "compressor + missiles×2 + radiator + shields",
-      hull("fuel_compressor", "missiles,missiles,radiator,shields"),
+      'legs_turtle',
+      'compressor + shields×2 + radiators×2',
+      hull('fuel_compressor', 'shields,shields,radiator,radiator'),
     ],
     [
-      "legs_rack",
-      "compressor + racks×2 + shields + radiator",
-      hull("fuel_compressor", "ballistic_rack,ballistic_rack,shields,radiator"),
-    ],
-    ["hotrod", "railgun + radiators×4", hull("railgun", "radiator,radiator,radiator,radiator")],
-    [
-      "rail_sh2_rad",
-      "railgun + missiles + shields×2 + radiator",
-      hull("railgun", "missiles,shields,shields,radiator"),
+      'legs_guns',
+      'compressor + missiles×2 + radiator + shields',
+      hull('fuel_compressor', 'missiles,missiles,radiator,shields'),
     ],
     [
-      "plasma4",
-      "railgun + plasma×4",
-      hull("railgun", "plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon"),
+      'legs_rack',
+      'compressor + racks×2 + shields + radiator',
+      hull('fuel_compressor', 'ballistic_rack,ballistic_rack,shields,radiator'),
+    ],
+    ['hotrod', 'railgun + radiators×4', hull('railgun', 'radiator,radiator,radiator,radiator')],
+    [
+      'rail_sh2_rad',
+      'railgun + missiles + shields×2 + radiator',
+      hull('railgun', 'missiles,shields,shields,radiator'),
     ],
     [
-      "sensor_plasma4",
-      "sensor + plasma×4",
-      hull("sensor_array", "plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon"),
+      'plasma4',
+      'railgun + plasma×4',
+      hull('railgun', 'plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon'),
     ],
     [
-      "legs_plasma",
-      "compressor + plasma×2 + shields + radiator",
-      hull("fuel_compressor", "plasma_cannon,plasma_cannon,shields,radiator"),
+      'sensor_plasma4',
+      'sensor + plasma×4',
+      hull('sensor_array', 'plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon'),
     ],
     [
-      "disruptor_racks",
-      "disruptor + racks×2 + shields + radiator",
-      hull("disruptor", "ballistic_rack,ballistic_rack,shields,radiator"),
+      'legs_plasma',
+      'compressor + plasma×2 + shields + radiator',
+      hull('fuel_compressor', 'plasma_cannon,plasma_cannon,shields,radiator'),
     ],
     [
-      "disruptor_turtle",
-      "disruptor + shields×2 + radiators×2",
-      hull("disruptor", "shields,shields,radiator,radiator"),
+      'disruptor_racks',
+      'disruptor + racks×2 + shields + radiator',
+      hull('disruptor', 'ballistic_rack,ballistic_rack,shields,radiator'),
     ],
     [
-      "disruptor_plasma4",
-      "disruptor + plasma×4",
-      hull("disruptor", "plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon"),
+      'disruptor_turtle',
+      'disruptor + shields×2 + radiators×2',
+      hull('disruptor', 'shields,shields,radiator,radiator'),
+    ],
+    [
+      'disruptor_plasma4',
+      'disruptor + plasma×4',
+      hull('disruptor', 'plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon'),
     ],
   ] as Array<[string, string, ShipLoadout]>
 ).map(([name, label, loadout]) => ({
   id: `extreme:${name}`,
-  section: "extreme",
+  section: 'extreme',
   label,
   loadout,
-  bar: "any" as const,
-}));
+  bar: 'any' as const,
+}))
 
 const ROWS: RowSpec[] = [
   ...baselineRows,
@@ -411,34 +419,34 @@ const ROWS: RowSpec[] = [
   ...illogicalRows,
   ...offbookRows,
   ...extremeRows,
-];
+]
 
 const SECTION_TITLE: Record<Section, string> = {
-  baselines: "Baselines by primary (seat 1 keeps the card, picks its own loadout)",
-  logical: "Logical: each preset flown with the card its role is for",
-  illogical: "Illogical: loadouts that fight their card (a row at or above its bar is unpunished)",
-  offbook: "Off-book: builds no preset offers, each with the card it is built for",
-  extreme: "Extreme hulls, random legal hand",
-};
+  baselines: 'Baselines by primary (seat 1 keeps the card, picks its own loadout)',
+  logical: 'Logical: each preset flown with the card its role is for',
+  illogical: 'Illogical: loadouts that fight their card (a row at or above its bar is unpunished)',
+  offbook: 'Off-book: builds no preset offers, each with the card it is built for',
+  extreme: 'Extreme hulls, random legal hand',
+}
 
 interface Args {
-  games: number;
-  baseSeed: number;
-  workers: number;
-  only?: Set<string>;
-  output?: string;
-  noFail: boolean;
+  games: number
+  baseSeed: number
+  workers: number
+  only?: Set<string>
+  output?: string
+  noFail: boolean
   /** Experiment-only rule overrides, stamped on the page (see sim/ruleOverrides.ts). */
-  rules?: RuleOverrides;
+  rules?: RuleOverrides
   /** Experiment-only tile overrides, stamped on the page (see sim/tileOverrides.ts). */
-  tiles?: TileOverrides;
+  tiles?: TileOverrides
   /** Experiment-only bot parameter overrides, stamped on the page (see sim/botOverrides.ts). */
-  bot?: BotOverrides;
+  bot?: BotOverrides
 }
 
 function fail(message: string): never {
-  console.error(message);
-  process.exit(2);
+  console.error(message)
+  process.exit(2)
 }
 
 function parseArgs(argv: string[]): Args {
@@ -447,120 +455,117 @@ function parseArgs(argv: string[]): Args {
     baseSeed: 5000,
     workers: Math.max(1, cpus().length - 1),
     noFail: false,
-  };
+  }
   for (const raw of argv) {
-    if (!raw.startsWith("--")) fail(`Unknown argument ${raw}`);
-    const eq = raw.indexOf("=");
-    const key = eq === -1 ? raw.slice(2) : raw.slice(2, eq);
-    const value = eq === -1 ? "true" : raw.slice(eq + 1);
+    if (!raw.startsWith('--')) fail(`Unknown argument ${raw}`)
+    const eq = raw.indexOf('=')
+    const key = eq === -1 ? raw.slice(2) : raw.slice(2, eq)
+    const value = eq === -1 ? 'true' : raw.slice(eq + 1)
     const num = () => {
-      const n = Number(value);
-      if (!Number.isFinite(n)) fail(`--${key} must be a number`);
-      return n;
-    };
+      const n = Number(value)
+      if (!Number.isFinite(n)) fail(`--${key} must be a number`)
+      return n
+    }
     switch (key) {
-      case "games":
-        args.games = num();
-        break;
-      case "quick":
-        args.games = 40;
-        break;
-      case "baseSeed":
-        args.baseSeed = num();
-        break;
-      case "workers":
-        args.workers = num();
-        break;
-      case "only":
-        args.only = new Set(value.split(",").map((s) => s.trim()));
-        break;
-      case "output":
-        args.output = value;
-        break;
-      case "rules":
-        args.rules = parseRuleOverrides(value);
-        break;
-      case "tiles":
-        args.tiles = parseTileOverrides(value);
-        break;
-      case "bot":
-        args.bot = parseBotOverrides(value);
-        break;
-      case "no-fail":
-        args.noFail = true;
-        break;
+      case 'games':
+        args.games = num()
+        break
+      case 'quick':
+        args.games = 40
+        break
+      case 'baseSeed':
+        args.baseSeed = num()
+        break
+      case 'workers':
+        args.workers = num()
+        break
+      case 'only':
+        args.only = new Set(value.split(',').map(s => s.trim()))
+        break
+      case 'output':
+        args.output = value
+        break
+      case 'rules':
+        args.rules = parseRuleOverrides(value)
+        break
+      case 'tiles':
+        args.tiles = parseTileOverrides(value)
+        break
+      case 'bot':
+        args.bot = parseBotOverrides(value)
+        break
+      case 'no-fail':
+        args.noFail = true
+        break
       default:
-        fail(`Unknown flag --${key}`);
+        fail(`Unknown flag --${key}`)
     }
   }
-  return args;
+  return args
 }
 
-const pct = (x: number) => `${Math.round(100 * x)}%`;
-const delta = (x: number) => `${x >= 0 ? "+" : "-"}${Math.abs(Math.round(100 * x))}pp`;
+const pct = (x: number) => `${Math.round(100 * x)}%`
+const delta = (x: number) => `${x >= 0 ? '+' : '-'}${Math.abs(Math.round(100 * x))}pp`
 /** A bar that was not measured in this run reads as such, never as a number. */
-const NOT_MEASURED = "not measured";
+const NOT_MEASURED = 'not measured'
 const mean = (xs: number[]) =>
-  xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : 0;
+  xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : 0
 
 interface NaturalRow {
-  kind: "natural";
-  id: string;
-  bots: number;
-  finish: number;
-  rounds: number;
-  killsPerGame: number;
-  seatWins: number[];
+  kind: 'natural'
+  id: string
+  bots: number
+  finish: number
+  rounds: number
+  killsPerGame: number
+  seatWins: number[]
   /** Seat 1's outright wins, the `any` bar for the forced rows. */
-  seat1Real: number;
-  flags: string[];
+  seat1Real: number
+  flags: string[]
 }
 
 interface ForcedRow {
-  kind: "forced";
-  id: string;
-  section: Section;
-  label: string;
+  kind: 'forced'
+  id: string
+  section: Section
+  label: string
   /** The card forced on the seat, or "own hand" when none was. */
-  card: string;
+  card: string
   /** Null when the row that measures this bar did not run. */
-  bar: number | null;
-  barName: BarName;
+  bar: number | null
+  barName: BarName
   /** Games in which the seat really flew this hull and kept this card. */
-  stuck: number;
-  wins: number;
-  real: number;
-  othersEach: number;
-  kills: number;
-  deaths: number;
-  dealt: number;
-  taken: number;
-  finish: number;
-  rounds: number;
-  flags: string[];
+  stuck: number
+  wins: number
+  real: number
+  othersEach: number
+  kills: number
+  deaths: number
+  dealt: number
+  taken: number
+  finish: number
+  rounds: number
+  flags: string[]
   /** Flags a diluted row would have raised, kept out of the gate. */
-  suppressed: string[];
+  suppressed: string[]
 }
 
 function seat1(games: PerGameStats[]) {
-  return games.map((g) => g.perPlayer["bot-1"]).filter(Boolean);
+  return games.map(g => g.perPlayer['bot-1']).filter(Boolean)
 }
 
 function naturalRow(bots: number, batch: BatchResult): NaturalRow {
-  const a = batch.aggregate;
-  const g = a.gameCount;
-  const finish = (a.endReasons.victory ?? 0) / g;
-  const seatWins = Array.from(
-    { length: bots },
-    (_, i) => (a.winsByPlayer[`bot-${i + 1}`] ?? 0) / g
-  );
+  const a = batch.aggregate
+  const g = a.gameCount
+  const finish = (a.endReasons.victory ?? 0) / g
+  const seatWins = Array.from({ length: bots }, (_, i) => (a.winsByPlayer[`bot-${i + 1}`] ?? 0) / g)
   const seat1Real =
-    batch.perGame.filter((pg) => pg.winnerId === "bot-1" && pg.endReason === "victory").length / g;
-  const flags: string[] = [];
-  if (finish < SLOW_FINISH || a.rounds.median > SLOW_ROUNDS) flags.push("slow");
-  if (a.destructions.mean / bots > 1) flags.push("bloody");
+    batch.perGame.filter(pg => pg.winnerId === 'bot-1' && pg.endReason === 'victory').length / g
+  const flags: string[] = []
+  if (finish < SLOW_FINISH || a.rounds.median > SLOW_ROUNDS) flags.push('slow')
+  if (a.destructions.mean / bots > 1) flags.push('bloody')
   return {
-    kind: "natural",
+    kind: 'natural',
     id: `natural:${bots}p`,
     bots,
     finish,
@@ -569,118 +574,118 @@ function naturalRow(bots: number, batch: BatchResult): NaturalRow {
     seatWins,
     seat1Real,
     flags,
-  };
+  }
 }
 
 /** A forced hull is dropped when no dealt hand can fly it, so check the tiles. */
 function flewHull(p: PerPlayerStats, loadout: ShipLoadout): boolean {
   // Side slots are a set, not an order: the engine keeps whatever order the
   // submission used, and a row is the same loadout either way.
-  const sorted = (xs: Array<string | null>) => [...xs].sort().join(",");
-  const tiles = p.loadout.split(",");
+  const sorted = (xs: Array<string | null>) => [...xs].sort().join(',')
+  const tiles = p.loadout.split(',')
   return (
     tiles[0] === loadout.forwardSlots[0] && sorted(tiles.slice(1)) === sorted(loadout.sideSlots)
-  );
+  )
 }
 
 /** "Destroy + Survey/Tanker": the primary is everything before the separator. */
 function keptPrimary(p: PerPlayerStats, primary: MissionType): boolean {
-  return p.handShape.split(" + ")[0] === CARD_LABEL[primary];
+  return p.handShape.split(' + ')[0] === CARD_LABEL[primary]
 }
 
 function forcedRow(spec: RowSpec, batch: BatchResult, bar: number | null): ForcedRow {
-  const a = batch.aggregate;
-  const g = a.gameCount;
-  const b1 = seat1(batch.perGame);
-  const wins = (a.winsByPlayer["bot-1"] ?? 0) / g;
+  const a = batch.aggregate
+  const g = a.gameCount
+  const b1 = seat1(batch.perGame)
+  const wins = (a.winsByPlayer['bot-1'] ?? 0) / g
   const real =
-    batch.perGame.filter((pg) => pg.winnerId === "bot-1" && pg.endReason === "victory").length / g;
+    batch.perGame.filter(pg => pg.winnerId === 'bot-1' && pg.endReason === 'victory').length / g
   const others = Object.entries(a.winsByPlayer)
-    .filter(([k]) => k !== "bot-1")
-    .map(([, v]) => v / g);
-  const finish = (a.endReasons.victory ?? 0) / g;
-  const deaths = mean(b1.map((x) => x.deaths));
+    .filter(([k]) => k !== 'bot-1')
+    .map(([, v]) => v / g)
+  const finish = (a.endReasons.victory ?? 0) / g
+  const deaths = mean(b1.map(x => x.deaths))
   const stuck = b1.length
     ? b1.filter(
-        (p) =>
+        p =>
           (spec.loadout === undefined || flewHull(p, spec.loadout)) &&
           (spec.primary === undefined || keptPrimary(p, spec.primary))
       ).length / b1.length
-    : 0;
+    : 0
 
-  const flags: string[] = [];
+  const flags: string[] = []
   // Every verdict against the bar needs a bar: one this run did not measure
   // judges nothing.
   if (bar !== null) {
-    if (spec.section === "offbook" || spec.section === "extreme") {
-      if (real >= bar + OUTLIER_MARGIN) flags.push("outlier");
-      if (spec.section === "offbook" && real <= bar - OUTLIER_MARGIN) flags.push("dead");
+    if (spec.section === 'offbook' || spec.section === 'extreme') {
+      if (real >= bar + OUTLIER_MARGIN) flags.push('outlier')
+      if (spec.section === 'offbook' && real <= bar - OUTLIER_MARGIN) flags.push('dead')
     }
     // The reverse test: an illogical loadout is supposed to cost its pilot something.
-    if (spec.section === "illogical" && real >= bar) flags.push("unpunished");
-    if (spec.section === "logical" && real <= bar - OUTLIER_MARGIN) flags.push("weak");
+    if (spec.section === 'illogical' && real >= bar) flags.push('unpunished')
+    if (spec.section === 'logical' && real <= bar - OUTLIER_MARGIN) flags.push('weak')
   }
-  if (1 - finish >= STALL_SHARE) flags.push("stall");
-  if (deaths >= 1.5) flags.push("glass");
+  if (1 - finish >= STALL_SHARE) flags.push('stall')
+  if (deaths >= 1.5) flags.push('glass')
 
   // A row that did not fly what it says is not evidence for or against
   // anything: print its numbers, keep its verdict out of the gate.
-  const diluted = stuck < STUCK_FLOOR;
+  const diluted = stuck < STUCK_FLOOR
   return {
-    kind: "forced",
+    kind: 'forced',
     id: spec.id,
     section: spec.section,
     label: spec.label,
-    card: spec.primary ? CARD_LABEL[spec.primary] : "own hand",
+    card: spec.primary ? CARD_LABEL[spec.primary] : 'own hand',
     bar,
     barName: spec.bar,
     stuck,
     wins,
     real,
     othersEach: mean(others),
-    kills: mean(b1.map((x) => x.kills)),
+    kills: mean(b1.map(x => x.kills)),
     deaths,
-    dealt: mean(b1.map((x) => x.damageDealt)),
-    taken: mean(b1.map((x) => x.damageTaken)),
+    dealt: mean(b1.map(x => x.damageDealt)),
+    taken: mean(b1.map(x => x.damageTaken)),
     finish,
     rounds: a.rounds.median,
-    flags: diluted ? ["diluted"] : flags,
+    flags: diluted ? ['diluted'] : flags,
     suppressed: diluted ? flags : [],
-  };
+  }
 }
 
-const FAILING = new Set(["outlier", "stall", "slow", "unpunished"]);
+const FAILING = new Set(['outlier', 'stall', 'slow', 'unpunished'])
 
 function renderForced(rows: ForcedRow[]): string[] {
-  const lines: string[] = [];
+  const lines: string[] = []
   lines.push(
-    "| row | loadout | card | outright | bar | vs bar | stuck | wins | others (each) | kills/g | deaths/g | dealt/g | taken/g | decided before cap | rounds | flags |"
-  );
-  lines.push("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+    '| row | loadout | card | outright | bar | vs bar | stuck | wins | others (each) | kills/g | deaths/g | dealt/g | taken/g | decided before cap | rounds | flags |'
+  )
+  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
   for (const f of rows) {
     const note = f.suppressed.length
-      ? `diluted (${f.suppressed.join(", ")} suppressed)`
-      : f.flags.join(", ");
-    const bar = f.bar === null ? `${NOT_MEASURED} (${f.barName})` : `${pct(f.bar)} (${f.barName})`;
-    const vsBar = f.bar === null ? NOT_MEASURED : delta(f.real - f.bar);
+      ? `diluted (${f.suppressed.join(', ')} suppressed)`
+      : f.flags.join(', ')
+    const bar = f.bar === null ? `${NOT_MEASURED} (${f.barName})` : `${pct(f.bar)} (${f.barName})`
+    const vsBar = f.bar === null ? NOT_MEASURED : delta(f.real - f.bar)
     lines.push(
       `| \`${f.id}\` | ${f.label} | ${f.card} | ${pct(f.real)} | ${bar} | ${vsBar} | ${pct(f.stuck)} | ${pct(f.wins)} | ${pct(f.othersEach)} | ${f.kills} | ${f.deaths} | ${f.dealt} | ${f.taken} | ${pct(f.finish)} | ${f.rounds} | ${note} |`
-    );
+    )
   }
-  return lines;
+  return lines
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2))
   // In this process too, for anything read off the configs here; the workers
   // that play the games get the same overrides with every job.
-  applyTileOverrides(args.tiles);
-  applyBotOverrides(args.bot);
+  applyTileOverrides(args.tiles)
+  applyBotOverrides(args.bot)
   const want = (id: string) => {
-    if (!args.only) return true;
-    const [section, name] = id.split(":");
-    return args.only.has(id) || args.only.has(section) || args.only.has(name);
-  };
+    if (!args.only) return true
+    const [section, name] = id.split(':')
+    return args.only.has(id) || args.only.has(section) || args.only.has(name)
+  }
   const common = {
     games: args.games,
     maxTurns: 400,
@@ -690,25 +695,25 @@ async function main() {
     rules: args.rules,
     tiles: args.tiles,
     bots: args.bot,
-  };
-  const started = Date.now();
+  }
+  const started = Date.now()
   const log = (s: string) =>
-    console.error(`[balance ${Math.round((Date.now() - started) / 1000)}s] ${s}`);
+    console.error(`[balance ${Math.round((Date.now() - started) / 1000)}s] ${s}`)
 
-  const natural: NaturalRow[] = [];
+  const natural: NaturalRow[] = []
   for (const bots of [3, 4]) {
-    if (!want(`natural:${bots}p`)) continue;
-    log(`natural play, ${bots} players`);
-    natural.push(naturalRow(bots, await runBatch({ ...common, botCount: bots })));
+    if (!want(`natural:${bots}p`)) continue
+    log(`natural play, ${bots} players`)
+    natural.push(naturalRow(bots, await runBatch({ ...common, botCount: bots })))
   }
 
   // A bar is null until the row that measures it has run.
   const bars: Record<BarName, number | null> = {
-    any: natural.find((n) => n.bots === 3)?.seat1Real ?? null,
+    any: natural.find(n => n.bots === 3)?.seat1Real ?? null,
     destroy: null,
     deliver: null,
     intercept: null,
-  };
+  }
 
   const rowsBySection: Record<Section, ForcedRow[]> = {
     baselines: [],
@@ -716,105 +721,105 @@ async function main() {
     illogical: [],
     offbook: [],
     extreme: [],
-  };
+  }
   for (const spec of ROWS) {
-    if (!want(spec.id)) continue;
-    log(`${spec.id}: ${spec.label}${spec.primary ? ` + ${CARD_LABEL[spec.primary]}` : ""}`);
+    if (!want(spec.id)) continue
+    log(`${spec.id}: ${spec.label}${spec.primary ? ` + ${CARD_LABEL[spec.primary]}` : ''}`)
     const batch = await runBatch({
       ...common,
       botCount: 3,
-      ...(spec.loadout ? { seatLoadouts: { "bot-1": spec.loadout } } : {}),
-      ...(spec.primary ? { seatHands: { "bot-1": spec.primary } } : {}),
-    });
-    const row = forcedRow(spec, batch, bars[spec.bar]);
-    rowsBySection[spec.section].push(row);
+      ...(spec.loadout ? { seatLoadouts: { 'bot-1': spec.loadout } } : {}),
+      ...(spec.primary ? { seatHands: { 'bot-1': spec.primary } } : {}),
+    })
+    const row = forcedRow(spec, batch, bars[spec.bar])
+    rowsBySection[spec.section].push(row)
     // A baseline row *is* its bar: every row under it reads against this.
-    if (spec.section === "baselines") {
-      const name = spec.id.split(":")[1] as Exclude<BarName, "any">;
-      bars[name] = row.real;
+    if (spec.section === 'baselines') {
+      const name = spec.id.split(':')[1] as Exclude<BarName, 'any'>
+      bars[name] = row.real
     }
   }
 
-  const lines: string[] = [];
-  lines.push(`# Balance suite (${new Date().toISOString().slice(0, 10)})`);
+  const lines: string[] = []
+  lines.push(`# Balance suite (${new Date().toISOString().slice(0, 10)})`)
   // A run under `--rules=` is not the standing matrix: say so where the reader
   // looks first, or two pages get diffed as if they were the same suite.
   const stamps = [
-    ["Rule overrides", describeRuleOverrides(args.rules)],
-    ["Tile overrides", describeTileOverrides(args.tiles)],
-    ["Bot overrides", describeBotOverrides(args.bot)],
-  ].filter(([, text]) => text !== "");
+    ['Rule overrides', describeRuleOverrides(args.rules)],
+    ['Tile overrides', describeTileOverrides(args.tiles)],
+    ['Bot overrides', describeBotOverrides(args.bot)],
+  ].filter(([, text]) => text !== '')
   for (const [name, text] of stamps) {
-    lines.push("");
-    lines.push(`${name}: ${text}`);
+    lines.push('')
+    lines.push(`${name}: ${text}`)
   }
-  lines.push("");
+  lines.push('')
   lines.push(
     `${args.games} games per row, seeds ${args.baseSeed}+, turn cap 400, 3 players in every forced row, points to win ${args.rules?.missionsToWin ?? DEFAULT_POINTS_TO_WIN}.`
-  );
-  lines.push("");
-  const barText = (b: number | null) => (b === null ? NOT_MEASURED : pct(b));
+  )
+  lines.push('')
+  const barText = (b: number | null) => (b === null ? NOT_MEASURED : pct(b))
   lines.push(
     `Bars (seat 1's outright wins): any ${barText(bars.any)}, Destroy ${barText(bars.destroy)}, Deliver ${barText(bars.deliver)}, Intercept ${barText(bars.intercept)}.`
-  );
-  const unmeasured = (Object.keys(bars) as BarName[]).filter((b) => bars[b] === null);
+  )
+  const unmeasured = (Object.keys(bars) as BarName[]).filter(b => bars[b] === null)
   if (unmeasured.length) {
-    lines.push("");
+    lines.push('')
     lines.push(
-      `Not measured in this run: ${unmeasured.join(", ")}. Rows read against ${unmeasured.length > 1 ? "those bars" : "that bar"} print no bar and raise no flag that needs one.`
-    );
+      `Not measured in this run: ${unmeasured.join(', ')}. Rows read against ${unmeasured.length > 1 ? 'those bars' : 'that bar'} print no bar and raise no flag that needs one.`
+    )
   }
   if (natural.length) {
-    lines.push("");
-    lines.push("## Natural play (bots choose hands and hulls)");
-    lines.push("");
+    lines.push('')
+    lines.push('## Natural play (bots choose hands and hulls)')
+    lines.push('')
     lines.push(
-      "| players | decided before cap | rounds (median) | kills / game | wins by seat | flags |"
-    );
-    lines.push("|---|---|---|---|---|---|");
+      '| players | decided before cap | rounds (median) | kills / game | wins by seat | flags |'
+    )
+    lines.push('|---|---|---|---|---|---|')
     for (const n of natural)
       lines.push(
-        `| ${n.bots} | ${pct(n.finish)} | ${n.rounds} | ${n.killsPerGame} | ${n.seatWins.map(pct).join(" / ")} | ${n.flags.join(", ")} |`
-      );
+        `| ${n.bots} | ${pct(n.finish)} | ${n.rounds} | ${n.killsPerGame} | ${n.seatWins.map(pct).join(' / ')} | ${n.flags.join(', ')} |`
+      )
   }
-  for (const section of ["baselines", "logical", "illogical", "offbook", "extreme"] as Section[]) {
-    const rows = rowsBySection[section];
-    if (!rows.length) continue;
-    lines.push("");
-    lines.push(`## ${SECTION_TITLE[section]}`);
-    lines.push("");
-    lines.push(...renderForced(rows));
+  for (const section of ['baselines', 'logical', 'illogical', 'offbook', 'extreme'] as Section[]) {
+    const rows = rowsBySection[section]
+    if (!rows.length) continue
+    lines.push('')
+    lines.push(`## ${SECTION_TITLE[section]}`)
+    lines.push('')
+    lines.push(...renderForced(rows))
   }
 
-  const allForced = ([] as ForcedRow[]).concat(...Object.values(rowsBySection));
+  const allForced = ([] as ForcedRow[]).concat(...Object.values(rowsBySection))
   const flagged = [
-    ...natural.map((n) => ({ what: `${n.bots} players`, flags: n.flags })),
-    ...allForced.map((f) => ({ what: f.id, flags: f.flags })),
-  ];
+    ...natural.map(n => ({ what: `${n.bots} players`, flags: n.flags })),
+    ...allForced.map(f => ({ what: f.id, flags: f.flags })),
+  ]
   const listing = (keep: (flag: string) => boolean) =>
     flagged
       .map(({ what, flags }) => ({ what, flags: flags.filter(keep) }))
-      .filter((x) => x.flags.length)
-      .map((x) => `${x.what}: ${x.flags.join(", ")}`);
-  const failing = listing((f) => FAILING.has(f));
-  const info = listing((f) => !FAILING.has(f));
-  lines.push("");
+      .filter(x => x.flags.length)
+      .map(x => `${x.what}: ${x.flags.join(', ')}`)
+  const failing = listing(f => FAILING.has(f))
+  const info = listing(f => !FAILING.has(f))
+  lines.push('')
   if (failing.length || info.length) {
-    const parts: string[] = [];
-    if (failing.length) parts.push(`failing: ${failing.join("; ")}`);
-    if (info.length) parts.push(`informational: ${info.join("; ")}`);
-    lines.push(`**Flags:** ${parts.join(". ")}.`);
+    const parts: string[] = []
+    if (failing.length) parts.push(`failing: ${failing.join('; ')}`)
+    if (info.length) parts.push(`informational: ${info.join('; ')}`)
+    lines.push(`**Flags:** ${parts.join('. ')}.`)
   } else {
-    lines.push("**No flags: nothing is an outlier, a stall, a slow row or unpunished.**");
+    lines.push('**No flags: nothing is an outlier, a stall, a slow row or unpunished.**')
   }
 
-  const md = lines.join("\n");
-  console.log(md);
+  const md = lines.join('\n')
+  console.log(md)
   if (args.output) {
-    mkdirSync(args.output, { recursive: true });
-    writeFileSync(join(args.output, "balance.md"), md + "\n");
+    mkdirSync(args.output, { recursive: true })
+    writeFileSync(join(args.output, 'balance.md'), md + '\n')
     writeFileSync(
-      join(args.output, "balance.json"),
+      join(args.output, 'balance.json'),
       JSON.stringify(
         {
           natural,
@@ -829,12 +834,12 @@ async function main() {
         null,
         2
       )
-    );
+    )
   }
-  if (failing.length && !args.noFail) process.exit(1);
+  if (failing.length && !args.noFail) process.exit(1)
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(2);
-});
+main().catch(err => {
+  console.error(err)
+  process.exit(2)
+})

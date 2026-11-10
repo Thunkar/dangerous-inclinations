@@ -56,7 +56,7 @@
  * the plan it returns, which the bots fly, is the one it always was.
  */
 
-import type { BurnIntensity } from "../../models/game.ts";
+import type { BurnIntensity } from '../../models/game.ts'
 import type {
   OrbitalPosition,
   OrientedPosition,
@@ -64,26 +64,26 @@ import type {
   MovementStep,
   PlannerOptions,
   MovementActionType,
-} from "./types.ts";
-import { samePosition } from "../../game/geometry.ts";
-import { DEFAULT_PLANNER_OPTIONS, positionKeyInt } from "./types.ts";
-import { getSuccessors } from "./successors.ts";
-import type { PlannerTarget } from "./targets.ts";
+} from './types.ts'
+import { samePosition } from '../../game/geometry.ts'
+import { DEFAULT_PLANNER_OPTIONS, positionKeyInt } from './types.ts'
+import { getSuccessors } from './successors.ts'
+import type { PlannerTarget } from './targets.ts'
 
 /**
  * Forward search node. `parent` is the previous state in the executed path
  * (search direction = path direction here).
  */
 interface ForwardNode {
-  position: OrientedPosition;
-  turns: number;
+  position: OrientedPosition
+  turns: number
   /** Cumulative mass used (negative means net recovered via scoop). */
-  massCost: number;
+  massCost: number
   /** The action taken from `parent.position` to reach `position`. */
-  action: MovementActionType | null;
-  burnIntensity: BurnIntensity | null;
-  sectorAdjustment: number;
-  parent: ForwardNode | null;
+  action: MovementActionType | null
+  burnIntensity: BurnIntensity | null
+  sectorAdjustment: number
+  parent: ForwardNode | null
 }
 
 /**
@@ -100,12 +100,12 @@ export function planMovementToTarget(
   target: PlannerTarget,
   options: Partial<PlannerOptions> = {}
 ): MovementPlan | null {
-  const opts: PlannerOptions = { ...DEFAULT_PLANNER_OPTIONS, ...options };
-  const period = Math.max(1, target.period);
+  const opts: PlannerOptions = { ...DEFAULT_PLANNER_OPTIONS, ...options }
+  const period = Math.max(1, target.period)
 
   // Layer 0 seeds: origin with both facings (rotation is free before the
   // first movement).
-  const layerZero: ForwardNode[] = (["prograde", "retrograde"] as const).map((facing) => ({
+  const layerZero: ForwardNode[] = (['prograde', 'retrograde'] as const).map(facing => ({
     position: { ...origin, facing },
     turns: 0,
     massCost: 0,
@@ -113,68 +113,68 @@ export function planMovementToTarget(
     burnIntensity: null,
     sectorAdjustment: 0,
     parent: null,
-  }));
+  }))
 
-  const frontier = new Map<number, ForwardNode>();
+  const frontier = new Map<number, ForwardNode>()
   for (const node of layerZero) {
-    frontier.set(frontierKeyInt(node.position, node.massCost, 0), node);
+    frontier.set(frontierKeyInt(node.position, node.massCost, 0), node)
   }
 
-  const economical = opts.mode === "economical";
+  const economical = opts.mode === 'economical'
   /** Economical mode: the lowest mass seen per (position, facing, phase). */
-  const cheapest = new Map<number, number>();
+  const cheapest = new Map<number, number>()
   if (economical) {
-    for (const node of layerZero) cheapest.set(dominanceKeyInt(node.position, 0), node.massCost);
+    for (const node of layerZero) cheapest.set(dominanceKeyInt(node.position, 0), node.massCost)
   }
   /** Economical mode: the cheapest arrival so far. */
-  let best: ForwardNode | null = null;
+  let best: ForwardNode | null = null
 
-  let currentLayer: ForwardNode[] = layerZero;
-  const availableMass = opts.availableMass;
+  let currentLayer: ForwardNode[] = layerZero
+  const availableMass = opts.availableMass
   // Written so a full tank gives 0, not -0.
-  const minMassCost = availableMass - opts.maxFuelCapacity;
+  const minMassCost = availableMass - opts.maxFuelCapacity
   const successorOptions = {
     allowWellTransfers: opts.allowWellTransfers,
     hasFuelScoop: opts.hasFuelScoop,
     hasFuelCompressor: opts.hasFuelCompressor,
-  };
+  }
 
   for (let turn = 0; turn < opts.maxTurns; turn++) {
-    const nextLayer: ForwardNode[] = [];
-    const nextTurn = turn + 1;
-    const phase = nextTurn % period;
+    const nextLayer: ForwardNode[] = []
+    const nextTurn = turn + 1
+    const phase = nextTurn % period
 
     for (const node of currentLayer) {
       const successors = getSuccessors(
         node.position,
         availableMass - node.massCost,
         successorOptions
-      );
+      )
       for (const succ of successors) {
-        let newMassCost = node.massCost + succ.massCost;
+        let newMassCost = node.massCost + succ.massCost
         // The tank can never hold more than its capacity.
-        if (newMassCost < minMassCost) newMassCost = minMassCost;
-        if (newMassCost > availableMass) continue;
+        if (newMassCost < minMassCost) newMassCost = minMassCost
+        if (newMassCost > availableMass) continue
 
-        const key = frontierKeyInt(succ.position, newMassCost, phase);
-        const existing = frontier.get(key);
-        if (existing !== undefined && existing.turns <= nextTurn) continue;
+        const key = frontierKeyInt(succ.position, newMassCost, phase)
+        const existing = frontier.get(key)
+        if (existing !== undefined && existing.turns <= nextTurn) continue
 
         const matched = target.isMatch
           ? target.isMatch(succ.position, nextTurn)
-          : samePosition(succ.position, target.positionAt(nextTurn));
+          : samePosition(succ.position, target.positionAt(nextTurn))
         // Arriving light is not arriving: the search carries on for a path
         // that gets there with the fuel asked for.
-        const enough = availableMass - newMassCost >= (opts.arrivalMass ?? 0);
-        const arrived = matched && enough;
+        const enough = availableMass - newMassCost >= (opts.arrivalMass ?? 0)
+        const arrived = matched && enough
 
         // An arrival is not expanded, so it dominates nothing: only a state
         // the search carries on from may prune another.
         if (economical && !arrived) {
-          const state = dominanceKeyInt(succ.position, phase);
-          const seen = cheapest.get(state);
-          if (seen !== undefined && seen <= newMassCost) continue;
-          cheapest.set(state, newMassCost);
+          const state = dominanceKeyInt(succ.position, phase)
+          const seen = cheapest.get(state)
+          if (seen !== undefined && seen <= newMassCost) continue
+          cheapest.set(state, newMassCost)
         }
 
         const child: ForwardNode = {
@@ -185,25 +185,25 @@ export function planMovementToTarget(
           burnIntensity: succ.burnIntensity ?? null,
           sectorAdjustment: succ.sectorAdjustment,
           parent: node,
-        };
-        frontier.set(key, child);
+        }
+        frontier.set(key, child)
 
         if (arrived) {
-          if (!economical) return reconstructForwardPlan(child, origin, target, opts);
+          if (!economical) return reconstructForwardPlan(child, origin, target, opts)
           // Layers run in order of turns, so strictly cheaper is the whole
           // tie-break: fewer turns, then the first found.
-          if (!best || newMassCost < best.massCost) best = child;
-          continue;
+          if (!best || newMassCost < best.massCost) best = child
+          continue
         }
-        nextLayer.push(child);
+        nextLayer.push(child)
       }
     }
 
-    if (nextLayer.length === 0) break;
-    currentLayer = nextLayer;
+    if (nextLayer.length === 0) break
+    currentLayer = nextLayer
   }
 
-  return best ? reconstructForwardPlan(best, origin, target, opts) : null;
+  return best ? reconstructForwardPlan(best, origin, target, opts) : null
 }
 
 /**
@@ -211,13 +211,13 @@ export function planMovementToTarget(
  * phase. Mass can be negative (scoop recovery); shift it into 0..63.
  */
 function frontierKeyInt(position: OrientedPosition, mass: number, phase: number): number {
-  const massBucket = (Math.round(mass) + 32) & 0x3f;
-  return (positionKeyInt(position) * 64 + massBucket) * 32 + (phase & 0x1f);
+  const massBucket = (Math.round(mass) + 32) & 0x3f
+  return (positionKeyInt(position) * 64 + massBucket) * 32 + (phase & 0x1f)
 }
 
 /** (position, facing, phase): the state the economical mode compares fuel on. */
 function dominanceKeyInt(position: OrientedPosition, phase: number): number {
-  return positionKeyInt(position) * 32 + (phase & 0x1f);
+  return positionKeyInt(position) * 32 + (phase & 0x1f)
 }
 
 function reconstructForwardPlan(
@@ -226,20 +226,20 @@ function reconstructForwardPlan(
   target: PlannerTarget,
   options: PlannerOptions
 ): MovementPlan {
-  const chain: ForwardNode[] = [];
-  let cursor: ForwardNode | null = endNode;
+  const chain: ForwardNode[] = []
+  let cursor: ForwardNode | null = endNode
   while (cursor) {
-    chain.push(cursor);
-    cursor = cursor.parent;
+    chain.push(cursor)
+    cursor = cursor.parent
   }
-  chain.reverse();
+  chain.reverse()
 
-  const steps: MovementStep[] = [];
-  let crossesWells = false;
+  const steps: MovementStep[] = []
+  let crossesWells = false
   for (let i = 1; i < chain.length; i++) {
-    const prev = chain[i - 1];
-    const curr = chain[i];
-    if (curr.action === "well_transfer") crossesWells = true;
+    const prev = chain[i - 1]
+    const curr = chain[i]
+    if (curr.action === 'well_transfer') crossesWells = true
     steps.push({
       from: prev.position,
       to: { wellId: curr.position.wellId, ring: curr.position.ring, sector: curr.position.sector },
@@ -250,11 +250,11 @@ function reconstructForwardPlan(
       // from the ship's actual facing.
       requiresRotation: i === 1 && prev.position.facing !== origin.facing,
       massCost: curr.massCost - prev.massCost,
-    });
+    })
   }
 
-  const last = steps[steps.length - 1];
-  const destination: OrbitalPosition = last ? last.to : target.positionAt(endNode.turns);
+  const last = steps[steps.length - 1]
+  const destination: OrbitalPosition = last ? last.to : target.positionAt(endNode.turns)
   return {
     origin,
     destination,
@@ -263,5 +263,5 @@ function reconstructForwardPlan(
     totalTurns: endNode.turns,
     crossesWells,
     mode: options.mode,
-  };
+  }
 }

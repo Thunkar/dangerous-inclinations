@@ -7,21 +7,21 @@
  * bots, the seat CLI and the table's plan all ask, so the four agree. Nothing
  * is taken unless it is named.
  */
-import type { GameState, Player, Position, Station } from "../models/game.ts";
-import { isQuietTurn } from "../models/game.ts";
-import type { EventDraft } from "../models/events.ts";
-import type { Cargo, HoldItemKind, Mission, PiracyMission } from "../models/missions.ts";
-import { aboard, holdItemKind, withItemAboard } from "../models/missions.ts";
-import type { GameView } from "./view.ts";
-import { positionOf, samePosition } from "./geometry.ts";
-import { isMooredAt, isMooredMidTurn } from "./stations.ts";
-import { isDestroyed, isOnBoard } from "./ship.ts";
+import type { GameState, Player, Position, Station } from '../models/game.ts'
+import { isQuietTurn } from '../models/game.ts'
+import type { EventDraft } from '../models/events.ts'
+import type { Cargo, HoldItemKind, Mission, PiracyMission } from '../models/missions.ts'
+import { aboard, holdItemKind, withItemAboard } from '../models/missions.ts'
+import type { GameView } from './view.ts'
+import { positionOf, samePosition } from './geometry.ts'
+import { isMooredAt, isMooredMidTurn } from './stations.ts'
+import { isDestroyed, isOnBoard } from './ship.ts'
 
 /** One item a pirate could take, as a `seize` action names it. */
 export interface SeizableItem {
-  victimId: string;
-  cargoId: string;
-  kind: HoldItemKind;
+  victimId: string
+  cargoId: string
+  kind: HoldItemKind
 }
 
 /**
@@ -29,10 +29,10 @@ export interface SeizableItem {
  * it is just back from Home, and what it carries.
  */
 interface PiracySeat {
-  id: string;
-  position: Position | null;
-  recovering: boolean;
-  items: readonly { cargoId: string; kind: HoldItemKind }[];
+  id: string
+  position: Position | null
+  recovering: boolean
+  items: readonly { cargoId: string; kind: HoldItemKind }[]
 }
 
 /**
@@ -46,10 +46,8 @@ export function freePiracyCards(
 ): PiracyMission[] {
   return missions.filter(
     (m): m is PiracyMission =>
-      m.type === "piracy" &&
-      !m.isCompleted &&
-      !cargo.some((c) => c.id === m.cargoId && c.isPickedUp)
-  );
+      m.type === 'piracy' && !m.isCompleted && !cargo.some(c => c.id === m.cargoId && c.isPickedUp)
+  )
 }
 
 /**
@@ -67,17 +65,17 @@ function candidates(
   start: Position,
   position: Position
 ): SeizableItem[] {
-  if (isMooredMidTurn(stations, start, position)) return [];
-  const self = seats.findIndex((s) => s.id === pirateId);
-  const out: SeizableItem[] = [];
+  if (isMooredMidTurn(stations, start, position)) return []
+  const self = seats.findIndex(s => s.id === pirateId)
+  const out: SeizableItem[] = []
   for (let step = 1; step < seats.length; step++) {
-    const seat = seats[(Math.max(self, 0) + step) % seats.length];
-    if (seat.id === pirateId || !seat.position || seat.recovering) continue;
-    if (!samePosition(seat.position, position) || isMooredAt(stations, seat.position)) continue;
+    const seat = seats[(Math.max(self, 0) + step) % seats.length]
+    if (seat.id === pirateId || !seat.position || seat.recovering) continue
+    if (!samePosition(seat.position, position) || isMooredAt(stations, seat.position)) continue
     for (const item of seat.items)
-      out.push({ victimId: seat.id, cargoId: item.cargoId, kind: item.kind });
+      out.push({ victimId: seat.id, cargoId: item.cargoId, kind: item.kind })
   }
-  return out;
+  return out
 }
 
 /**
@@ -93,18 +91,18 @@ export function seizableItems(
   position: Position,
   start?: Position
 ): SeizableItem[] {
-  const me = view.me;
-  if (!me || me.id !== playerId) return [];
+  const me = view.me
+  if (!me || me.id !== playerId) return []
   // A quiet turn reaches nobody: no shot, no scan, no seizure.
-  if (isQuietTurn(view.turn, me)) return [];
-  if (freePiracyCards(me.missions, me.cargo).length === 0) return [];
-  const seats: PiracySeat[] = view.players.map((p) => ({
+  if (isQuietTurn(view.turn, me)) return []
+  if (freePiracyCards(me.missions, me.cargo).length === 0) return []
+  const seats: PiracySeat[] = view.players.map(p => ({
     id: p.id,
     position: p.ship && !p.ship.isDestroyed ? positionOf(p.ship) : null,
     recovering: p.recovering,
     items: p.hold,
-  }));
-  return candidates(seats, view.stations, playerId, start ?? positionOf(me.ship), position);
+  }))
+  return candidates(seats, view.stations, playerId, start ?? positionOf(me.ship), position)
 }
 
 /**
@@ -118,16 +116,16 @@ export function seizableItemsNow(
   pirateId: string,
   start: Position
 ): SeizableItem[] {
-  const pirate = state.players.find((p) => p.id === pirateId);
-  if (!pirate || isDestroyed(pirate.ship)) return [];
-  if (isQuietTurn(state.turn, pirate)) return [];
-  const seats: PiracySeat[] = state.players.map((p) => ({
+  const pirate = state.players.find(p => p.id === pirateId)
+  if (!pirate || isDestroyed(pirate.ship)) return []
+  if (isQuietTurn(state.turn, pirate)) return []
+  const seats: PiracySeat[] = state.players.map(p => ({
     id: p.id,
     position: isOnBoard(p) ? positionOf(p.ship) : null,
     recovering: p.recovering,
-    items: aboard(p.cargo).map((c) => ({ cargoId: c.id, kind: holdItemKind(c) })),
-  }));
-  return candidates(seats, state.stations, pirateId, start, positionOf(pirate.ship));
+    items: aboard(p.cargo).map(c => ({ cargoId: c.id, kind: holdItemKind(c) })),
+  }))
+  return candidates(seats, state.stations, pirateId, start, positionOf(pirate.ship))
 }
 
 /**
@@ -145,41 +143,41 @@ export function seizeItem(
   victimId: string,
   cargoId: string
 ): { state: GameState; event: EventDraft } {
-  const pirate = state.players.find((p) => p.id === pirateId)!;
+  const pirate = state.players.find(p => p.id === pirateId)!
   const taken = state.players
-    .find((p) => p.id === victimId)!
-    .cargo.find((c) => c.id === cargoId && c.isPickedUp)!;
-  const mission = freePiracyCards(pirate.missions, pirate.cargo)[0];
+    .find(p => p.id === victimId)!
+    .cargo.find(c => c.id === cargoId && c.isPickedUp)!
+  const mission = freePiracyCards(pirate.missions, pirate.cargo)[0]
   // The loot rides as the card's own item whatever was taken, loot to
   // everyone watching. Seized before and lost since, it is the same item
   // coming back aboard.
   const loot: Cargo = {
     id: mission.cargoId,
     missionId: mission.id,
-    kind: "crate",
-    deliveryPlanetId: "any",
+    kind: 'crate',
+    deliveryPlanetId: 'any',
     isPickedUp: true,
-  };
+  }
   const players = state.players.map((p): Player => {
-    if (p.id === pirateId) return { ...p, cargo: withItemAboard(p.cargo, loot) };
+    if (p.id === pirateId) return { ...p, cargo: withItemAboard(p.cargo, loot) }
     if (p.id === victimId)
       return {
         ...p,
         // The card the item was doing goes back to undone with it: a Deliver
         // reloads its crate, a Survey or an Intercept has no data aboard.
-        cargo: p.cargo.map((c) => (c.id === taken.id ? { ...c, isPickedUp: false } : c)),
-      };
-    return p;
-  });
+        cargo: p.cargo.map(c => (c.id === taken.id ? { ...c, isPickedUp: false } : c)),
+      }
+    return p
+  })
   return {
     state: { ...state, players },
     event: {
-      type: "cargo_seized",
+      type: 'cargo_seized',
       pirateId,
       victimId,
       kind: taken.kind,
       cargoId: taken.id,
       at: positionOf(pirate.ship),
     },
-  };
+  }
 }

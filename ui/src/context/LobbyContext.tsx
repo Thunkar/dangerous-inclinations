@@ -3,7 +3,15 @@
  * and the hand-off to a game. Once a lobby has a `gameId` the game tree
  * (GameProvider) takes over; this context only remembers which game it is.
  */
-import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from 'react'
 import type { ServerLobby, LobbySocketMessage } from '../api/types'
 import {
   getLobby,
@@ -44,7 +52,11 @@ const LobbyContext = createContext<LobbyContextType | undefined>(undefined)
 const RESTORE_ATTEMPTS = 8
 
 function isLobbyMessage(data: unknown): data is LobbySocketMessage {
-  return typeof data === 'object' && data !== null && typeof (data as { type?: unknown }).type === 'string'
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { type?: unknown }).type === 'string'
+  )
 }
 
 export function LobbyProvider({ children }: { children: ReactNode }) {
@@ -110,23 +122,28 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = client.onMessage(
       'lobby',
-      (data) => {
+      data => {
         if (!isLobbyMessage(data)) return
         switch (data.type) {
           case 'PLAYER_JOINED':
-            setLobbyState((prev) =>
-              prev && !prev.players.some((p) => p.playerId === data.payload.playerId)
+            setLobbyState(prev =>
+              prev && !prev.players.some(p => p.playerId === data.payload.playerId)
                 ? { ...prev, players: [...prev.players, data.payload] }
-                : prev,
+                : prev
             )
             break
           case 'PLAYER_LEFT':
-            setLobbyState((prev) =>
-              prev ? { ...prev, players: prev.players.filter((p) => p.playerId !== data.payload.playerId) } : prev,
+            setLobbyState(prev =>
+              prev
+                ? {
+                    ...prev,
+                    players: prev.players.filter(p => p.playerId !== data.payload.playerId),
+                  }
+                : prev
             )
             break
           case 'GAME_STARTING':
-            setLobbyState((prev) => (prev ? { ...prev, gameId: data.payload.gameId } : prev))
+            setLobbyState(prev => (prev ? { ...prev, gameId: data.payload.gameId } : prev))
             setGameId(data.payload.gameId)
             setPhase('game')
             break
@@ -134,7 +151,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
             break
         }
       },
-      lobbyId,
+      lobbyId
     )
 
     const setup = async () => {
@@ -193,7 +210,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : 'Failed to add bot')
       }
     },
-    [currentLobbyId],
+    [currentLobbyId]
   )
 
   const removeBotFromLobby = useCallback(
@@ -205,7 +222,7 @@ export function LobbyProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : 'Failed to remove bot')
       }
     },
-    [currentLobbyId],
+    [currentLobbyId]
   )
 
   const canStart = useCallback(() => {

@@ -1,76 +1,76 @@
 /**
  * Run many games (sequentially or on worker threads) and aggregate stats.
  */
-import { Worker } from "node:worker_threads";
-import { fileURLToPath } from "node:url";
-import type { GameRecording } from "../recording/types.ts";
+import { Worker } from 'node:worker_threads'
+import { fileURLToPath } from 'node:url'
+import type { GameRecording } from '../recording/types.ts'
 import {
   runGame,
   DEFAULT_BOT_COUNT,
   DEFAULT_MAX_TURNS,
   type GameRunResult,
   type InvalidTurn,
-} from "./runGame.ts";
-import { freshSeed } from "../utils/rng.ts";
-import type { TileOverrides } from "./tileOverrides.ts";
-import type { RuleOverrides } from "./ruleOverrides.ts";
-import type { BotOverrides } from "./botOverrides.ts";
-import type { LoadoutOverrides, SeatHands, SeatLoadouts } from "./loadoutOverrides.ts";
+} from './runGame.ts'
+import { freshSeed } from '../utils/rng.ts'
+import type { TileOverrides } from './tileOverrides.ts'
+import type { RuleOverrides } from './ruleOverrides.ts'
+import type { BotOverrides } from './botOverrides.ts'
+import type { LoadoutOverrides, SeatHands, SeatLoadouts } from './loadoutOverrides.ts'
 import {
   computePerGameStats,
   aggregateStats,
   type PerGameStats,
   type AggregateStats,
-} from "./stats.ts";
+} from './stats.ts'
 
 export interface BatchConfig {
-  games: number;
-  botCount?: number;
-  maxTurns?: number;
+  games: number
+  botCount?: number
+  maxTurns?: number
   /** Each game uses baseSeed + index. Omit for fresh seeds. */
-  baseSeed?: number;
+  baseSeed?: number
   /** Worker threads; 1 = run in-process. */
-  workers?: number;
+  workers?: number
   /** Keep recordings (memory heavy). Default false in batches. */
-  record?: boolean;
-  label?: string;
-  tiebreak?: boolean;
-  tiles?: TileOverrides;
-  rules?: RuleOverrides;
-  bots?: BotOverrides;
-  loadouts?: LoadoutOverrides;
-  seatLoadouts?: SeatLoadouts;
-  seatHands?: SeatHands;
-  onProgress?: (done: number, total: number, last: PerGameStats) => void;
+  record?: boolean
+  label?: string
+  tiebreak?: boolean
+  tiles?: TileOverrides
+  rules?: RuleOverrides
+  bots?: BotOverrides
+  loadouts?: LoadoutOverrides
+  seatLoadouts?: SeatLoadouts
+  seatHands?: SeatHands
+  onProgress?: (done: number, total: number, last: PerGameStats) => void
 }
 
 export interface BatchResult {
-  perGame: PerGameStats[];
-  aggregate: AggregateStats;
-  recordings: GameRecording[];
-  failures: Array<{ seed: number; failure: InvalidTurn }>;
+  perGame: PerGameStats[]
+  aggregate: AggregateStats
+  recordings: GameRecording[]
+  failures: Array<{ seed: number; failure: InvalidTurn }>
 }
 
 /** Message shapes for the worker protocol. */
 export interface WorkerJob {
-  seed: number;
-  botCount: number;
-  maxTurns: number;
-  record: boolean;
-  label?: string;
-  tiebreak?: boolean;
-  tiles?: TileOverrides;
-  rules?: RuleOverrides;
-  bots?: BotOverrides;
-  loadouts?: LoadoutOverrides;
-  seatLoadouts?: SeatLoadouts;
-  seatHands?: SeatHands;
+  seed: number
+  botCount: number
+  maxTurns: number
+  record: boolean
+  label?: string
+  tiebreak?: boolean
+  tiles?: TileOverrides
+  rules?: RuleOverrides
+  bots?: BotOverrides
+  loadouts?: LoadoutOverrides
+  seatLoadouts?: SeatLoadouts
+  seatHands?: SeatHands
 }
 export interface WorkerReply {
-  seed: number;
-  stats: PerGameStats;
-  recording?: GameRecording;
-  failure?: InvalidTurn;
+  seed: number
+  stats: PerGameStats
+  recording?: GameRecording
+  failure?: InvalidTurn
 }
 
 export function summarizeRun(run: GameRunResult): WorkerReply {
@@ -79,7 +79,7 @@ export function summarizeRun(run: GameRunResult): WorkerReply {
     stats: computePerGameStats(run),
     recording: run.recording,
     failure: run.failure,
-  };
+  }
 }
 
 export async function runBatch(config: BatchConfig): Promise<BatchResult> {
@@ -96,30 +96,30 @@ export async function runBatch(config: BatchConfig): Promise<BatchResult> {
     loadouts: config.loadouts,
     seatLoadouts: config.seatLoadouts,
     seatHands: config.seatHands,
-  }));
+  }))
 
   const replies =
     (config.workers ?? 1) <= 1
       ? runSequential(jobs, config)
-      : await runParallel(jobs, config.workers!, config);
+      : await runParallel(jobs, config.workers!, config)
 
-  const perGame = replies.map((r) => r.stats);
+  const perGame = replies.map(r => r.stats)
   return {
     perGame,
     aggregate: aggregateStats(perGame),
-    recordings: replies.flatMap((r) => (r.recording ? [r.recording] : [])),
-    failures: replies.flatMap((r) => (r.failure ? [{ seed: r.seed, failure: r.failure }] : [])),
-  };
+    recordings: replies.flatMap(r => (r.recording ? [r.recording] : [])),
+    failures: replies.flatMap(r => (r.failure ? [{ seed: r.seed, failure: r.failure }] : [])),
+  }
 }
 
 function runSequential(jobs: WorkerJob[], config: BatchConfig): WorkerReply[] {
-  const out: WorkerReply[] = [];
+  const out: WorkerReply[] = []
   for (const job of jobs) {
-    const reply = summarizeRun(runGame(job));
-    out.push(reply);
-    config.onProgress?.(out.length, jobs.length, reply.stats);
+    const reply = summarizeRun(runGame(job))
+    out.push(reply)
+    config.onProgress?.(out.length, jobs.length, reply.stats)
   }
-  return out;
+  return out
 }
 
 async function runParallel(
@@ -127,36 +127,36 @@ async function runParallel(
   workerCount: number,
   config: BatchConfig
 ): Promise<WorkerReply[]> {
-  const workerPath = fileURLToPath(new URL("./worker.ts", import.meta.url));
-  const results: WorkerReply[] = new Array(jobs.length);
-  let next = 0;
-  let done = 0;
+  const workerPath = fileURLToPath(new URL('./worker.ts', import.meta.url))
+  const results: WorkerReply[] = new Array(jobs.length)
+  let next = 0
+  let done = 0
 
   await Promise.all(
     Array.from({ length: Math.min(workerCount, jobs.length) }, () => {
       return new Promise<void>((resolve, reject) => {
         const worker = new Worker(workerPath, {
-          execArgv: ["--experimental-transform-types", "--no-warnings"],
-        });
+          execArgv: ['--experimental-transform-types', '--no-warnings'],
+        })
         const feed = () => {
           if (next >= jobs.length) {
-            worker.terminate().then(() => resolve(), reject);
-            return;
+            worker.terminate().then(() => resolve(), reject)
+            return
           }
-          const index = next++;
-          worker.once("message", (reply: WorkerReply) => {
-            results[index] = reply;
-            done++;
-            config.onProgress?.(done, jobs.length, reply.stats);
-            feed();
-          });
-          worker.postMessage(jobs[index]);
-        };
-        worker.on("error", reject);
-        feed();
-      });
+          const index = next++
+          worker.once('message', (reply: WorkerReply) => {
+            results[index] = reply
+            done++
+            config.onProgress?.(done, jobs.length, reply.stats)
+            feed()
+          })
+          worker.postMessage(jobs[index])
+        }
+        worker.on('error', reject)
+        feed()
+      })
     })
-  );
+  )
 
-  return results;
+  return results
 }

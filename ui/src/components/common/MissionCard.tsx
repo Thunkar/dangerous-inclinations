@@ -17,12 +17,7 @@ import type { Cargo, Mission, MissionRequirementStatus } from '@dangerous-inclin
 import { describeMission, describeMissionRule } from '@dangerous-inclinations/engine'
 import { FONT_MONO, FONT_SANS, TABLE } from '../../theme'
 import { BAND_ANGLE, FAMILY_INK, PRESS } from '../../design/press'
-import {
-  missionFamily,
-  missionName,
-  missionPoints,
-  missionProgress,
-} from '../../utils/missions'
+import { missionFamily, missionName, missionPoints, missionProgress } from '../../utils/missions'
 import { MISSION_CODE, MissionGlyph } from './MissionGlyph'
 import { SubsystemIcon } from './SubsystemIcon'
 

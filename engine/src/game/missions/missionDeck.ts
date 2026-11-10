@@ -35,8 +35,8 @@
  * kind are two jobs, and nothing a ship does completes both at once
  * (`missionChecks.ts`).
  */
-import type { Player } from "../../models/game.ts";
-import type { Cargo, SurveyMission, Mission } from "../../models/missions.ts";
+import type { Player } from '../../models/game.ts'
+import type { Cargo, SurveyMission, Mission } from '../../models/missions.ts'
 import {
   MISSIONS_PER_PLAYER,
   PRIMARIES_PER_PLAYER,
@@ -46,32 +46,32 @@ import {
   SECONDARY_KINDS_PRINTED,
   SECONDARY_OFFERS_PER_PLAYER,
   isPrimaryType,
-} from "../../models/missions.ts";
-import { MAX_PLAYERS } from "../../models/game.ts";
-import { PLANETS, TRANSFER_LANES } from "../../models/gravityWells.ts";
-import { wrapSector } from "../../models/rings.ts";
-import type { Rng } from "../../utils/rng.ts";
+} from '../../models/missions.ts'
+import { MAX_PLAYERS } from '../../models/game.ts'
+import { PLANETS, TRANSFER_LANES } from '../../models/gravityWells.ts'
+import { wrapSector } from '../../models/rings.ts'
+import type { Rng } from '../../utils/rng.ts'
 
 /** Copies of each distinct card in the printed primary deck. */
-export const COPIES_PER_CARD = 2;
+export const COPIES_PER_CARD = 2
 
 /**
  * A card as it is printed: a rival card counts seats rather than naming one,
  * and the deal turns that count into the player sitting there.
  */
 export type DeckCard =
-  | { type: "destroy_ship"; targetOffset: number }
-  | { type: "intercept_transmission"; targetOffset: number; deliveryPlanetId: string }
-  | { type: "deliver_cargo"; pickupPlanetId: string; deliveryPlanetId: string }
-  | { type: "survey" }
-  | { type: "piracy" }
-  | { type: "tanker" }
-  | { type: "escort" }
-  | { type: "salvage" };
+  | { type: 'destroy_ship'; targetOffset: number }
+  | { type: 'intercept_transmission'; targetOffset: number; deliveryPlanetId: string }
+  | { type: 'deliver_cargo'; pickupPlanetId: string; deliveryPlanetId: string }
+  | { type: 'survey' }
+  | { type: 'piracy' }
+  | { type: 'tanker' }
+  | { type: 'escort' }
+  | { type: 'salvage' }
 
 /** A card before it gets an id (distributive over the mission union). */
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
-export type MissionBlueprint = DistributiveOmit<Mission, "id">;
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+export type MissionBlueprint = DistributiveOmit<Mission, 'id'>
 
 /**
  * The printed primary pile, in a fixed order, minus the cards a table this
@@ -82,29 +82,29 @@ export type MissionBlueprint = DistributiveOmit<Mission, "id">;
  */
 export function buildPrimaryDeck(
   playerCount: number,
-  planetIds: readonly string[] = PLANETS.map((p) => p.id)
+  planetIds: readonly string[] = PLANETS.map(p => p.id)
 ): DeckCard[] {
-  const deck: DeckCard[] = [];
+  const deck: DeckCard[] = []
   const offsets = Array.from({ length: MAX_PLAYERS - 1 }, (_, i) => i + 1).filter(
-    (offset) => offset < playerCount
-  );
+    offset => offset < playerCount
+  )
 
   for (let copy = 0; copy < COPIES_PER_CARD; copy++) {
     for (const targetOffset of offsets) {
-      deck.push({ type: "destroy_ship", targetOffset });
+      deck.push({ type: 'destroy_ship', targetOffset })
       deck.push({
-        type: "intercept_transmission",
+        type: 'intercept_transmission',
         targetOffset,
         // The station is printed on the card, so a copy of the same offset is
         // still a different primary mission.
         deliveryPlanetId: planetIds[(targetOffset + copy) % planetIds.length],
-      });
+      })
     }
     for (const [pickupPlanetId, deliveryPlanetId] of circuitRoutes(planetIds)) {
-      deck.push({ type: "deliver_cargo", pickupPlanetId, deliveryPlanetId });
+      deck.push({ type: 'deliver_cargo', pickupPlanetId, deliveryPlanetId })
     }
   }
-  return deck;
+  return deck
 }
 
 /**
@@ -112,13 +112,13 @@ export function buildPrimaryDeck(
  * route, so it is the same pile at every table size.
  */
 export function buildSecondaryDeck(): DeckCard[] {
-  const deck: DeckCard[] = [];
+  const deck: DeckCard[] = []
   for (let copy = 0; copy < SECONDARY_COPIES_PER_KIND; copy++) {
     for (const type of SECONDARY_KINDS_PRINTED) {
-      deck.push({ type });
+      deck.push({ type })
     }
   }
-  return deck;
+  return deck
 }
 
 /**
@@ -128,43 +128,43 @@ export function buildSecondaryDeck(): DeckCard[] {
 export function cardForPlayer(
   card: DeckCard,
   holderIndex: number,
-  players: ReadonlyArray<Pick<Player, "id">>
+  players: ReadonlyArray<Pick<Player, 'id'>>
 ): MissionBlueprint {
-  const rival = (offset: number) => players[(holderIndex + offset) % players.length].id;
+  const rival = (offset: number) => players[(holderIndex + offset) % players.length].id
   switch (card.type) {
-    case "destroy_ship":
-      return { type: card.type, isCompleted: false, targetPlayerId: rival(card.targetOffset) };
-    case "intercept_transmission":
+    case 'destroy_ship':
+      return { type: card.type, isCompleted: false, targetPlayerId: rival(card.targetOffset) }
+    case 'intercept_transmission':
       return {
         type: card.type,
         isCompleted: false,
         targetPlayerId: rival(card.targetOffset),
         deliveryPlanetId: card.deliveryPlanetId,
-        dataCargoId: "",
-      };
-    case "deliver_cargo":
+        dataCargoId: '',
+      }
+    case 'deliver_cargo':
       return {
         type: card.type,
         isCompleted: false,
         pickupPlanetId: card.pickupPlanetId,
         deliveryPlanetId: card.deliveryPlanetId,
-        cargoId: "",
-      };
-    case "piracy":
-      return { type: card.type, isCompleted: false, cargoId: "" };
-    case "tanker":
-      return { type: card.type, isCompleted: false };
-    case "escort":
-      return { type: card.type, isCompleted: false, markedPlayerId: null };
-    case "salvage":
-      return { type: card.type, isCompleted: false, cargoId: "" };
-    case "survey": {
-      const survey: Omit<SurveyMission, "id"> = {
+        cargoId: '',
+      }
+    case 'piracy':
+      return { type: card.type, isCompleted: false, cargoId: '' }
+    case 'tanker':
+      return { type: card.type, isCompleted: false }
+    case 'escort':
+      return { type: card.type, isCompleted: false, markedPlayerId: null }
+    case 'salvage':
+      return { type: card.type, isCompleted: false, cargoId: '' }
+    case 'survey': {
+      const survey: Omit<SurveyMission, 'id'> = {
         type: card.type,
         isCompleted: false,
-        dataCargoId: "",
-      };
-      return survey;
+        dataCargoId: '',
+      }
+      return survey
     }
   }
 }
@@ -182,22 +182,22 @@ export function cardForPlayer(
  * three routes that ride it.
  */
 export function circuitRoutes(planetIds: readonly string[]): Array<[string, string]> {
-  const routes: Array<[string, string]> = [];
+  const routes: Array<[string, string]> = []
   for (const pickup of planetIds) {
     const inbound = TRANSFER_LANES.find(
-      (lane) => lane.planetId === pickup && lane.direction === "inbound"
-    );
-    if (!inbound) continue;
-    const next = wrapSector(inbound.blackHoleArc.startSector + inbound.blackHoleArc.length);
+      lane => lane.planetId === pickup && lane.direction === 'inbound'
+    )
+    if (!inbound) continue
+    const next = wrapSector(inbound.blackHoleArc.startSector + inbound.blackHoleArc.length)
     const outbound = TRANSFER_LANES.find(
-      (lane) =>
-        lane.direction === "outbound" &&
+      lane =>
+        lane.direction === 'outbound' &&
         lane.blackHoleArc.startSector === next &&
         planetIds.includes(lane.planetId)
-    );
-    if (outbound) routes.push([pickup, outbound.planetId]);
+    )
+    if (outbound) routes.push([pickup, outbound.planetId])
   }
-  return routes;
+  return routes
 }
 
 /**
@@ -208,20 +208,20 @@ export function circuitRoutes(planetIds: readonly string[]): Array<[string, stri
  */
 export function assignMissionId(card: MissionBlueprint, id: string, itemId: string): Mission {
   switch (card.type) {
-    case "deliver_cargo":
-      return { ...card, id, cargoId: itemId };
-    case "intercept_transmission":
-      return { ...card, id, dataCargoId: itemId };
-    case "survey":
-      return { ...card, id, dataCargoId: itemId };
-    case "piracy":
-      return { ...card, id, cargoId: itemId };
-    case "salvage":
-      return { ...card, id, cargoId: itemId };
-    case "tanker":
-    case "escort":
-    case "destroy_ship":
-      return { ...card, id };
+    case 'deliver_cargo':
+      return { ...card, id, cargoId: itemId }
+    case 'intercept_transmission':
+      return { ...card, id, dataCargoId: itemId }
+    case 'survey':
+      return { ...card, id, dataCargoId: itemId }
+    case 'piracy':
+      return { ...card, id, cargoId: itemId }
+    case 'salvage':
+      return { ...card, id, cargoId: itemId }
+    case 'tanker':
+    case 'escort':
+    case 'destroy_ship':
+      return { ...card, id }
   }
 }
 
@@ -242,40 +242,40 @@ export function assignMissionId(card: MissionBlueprint, id: string, itemId: stri
  * rival carrying two pieces of data does not show which is an Intercept's.
  */
 export function dealMissionOffers(
-  players: ReadonlyArray<Pick<Player, "id">>,
+  players: ReadonlyArray<Pick<Player, 'id'>>,
   rng: Rng,
-  planetIds: readonly string[] = PLANETS.map((p) => p.id)
+  planetIds: readonly string[] = PLANETS.map(p => p.id)
 ): Map<string, Mission[]> {
   const dealt = new Map<string, Array<{ card: MissionBlueprint; id: string }>>(
-    players.map((p) => [p.id, []])
-  );
-  let next = 0;
+    players.map(p => [p.id, []])
+  )
+  let next = 0
   const deal = (deck: DeckCard[], rounds: number) => {
-    const hands: DeckCard[][] = players.map(() => []);
-    let onTop = 0;
+    const hands: DeckCard[][] = players.map(() => [])
+    let onTop = 0
     for (let round = 0; round < rounds; round++) {
       players.forEach((_player, seat) => {
-        const card = deck[onTop++];
-        if (card) hands[seat].push(card);
-      });
+        const card = deck[onTop++]
+        if (card) hands[seat].push(card)
+      })
     }
     players.forEach((player, seat) => {
       for (const card of hands[seat])
-        dealt.get(player.id)!.push({ card: cardForPlayer(card, seat, players), id: `m${next++}` });
-    });
-  };
+        dealt.get(player.id)!.push({ card: cardForPlayer(card, seat, players), id: `m${next++}` })
+    })
+  }
 
-  deal(rng.shuffle(buildPrimaryDeck(players.length, planetIds)), PRIMARY_OFFERS_PER_PLAYER);
-  deal(rng.shuffle(buildSecondaryDeck()), SECONDARY_OFFERS_PER_PLAYER);
-  const tokens = rng.shuffle(Array.from({ length: next }, (_, i) => i));
-  let token = 0;
-  const offers = new Map<string, Mission[]>();
+  deal(rng.shuffle(buildPrimaryDeck(players.length, planetIds)), PRIMARY_OFFERS_PER_PLAYER)
+  deal(rng.shuffle(buildSecondaryDeck()), SECONDARY_OFFERS_PER_PLAYER)
+  const tokens = rng.shuffle(Array.from({ length: next }, (_, i) => i))
+  let token = 0
+  const offers = new Map<string, Mission[]>()
   for (const [playerId, cards] of dealt)
     offers.set(
       playerId,
       cards.map(({ card, id }) => assignMissionId(card, id, `item-${tokens[token++]}`))
-    );
-  return offers;
+    )
+  return offers
 }
 
 /**
@@ -286,24 +286,24 @@ export function selectMissionsFromOffers(
   offers: Mission[],
   selectedIds: string[]
 ): { missions: Mission[]; cargo: Cargo[]; error?: string } {
-  const fail = (error: string) => ({ missions: [], cargo: [], error });
+  const fail = (error: string) => ({ missions: [], cargo: [], error })
   if (selectedIds.length !== MISSIONS_PER_PLAYER) {
-    return fail(`Must select exactly ${MISSIONS_PER_PLAYER} missions (got ${selectedIds.length})`);
+    return fail(`Must select exactly ${MISSIONS_PER_PLAYER} missions (got ${selectedIds.length})`)
   }
-  const selected = new Set(selectedIds);
-  const missions = offers.filter((m) => selected.has(m.id));
+  const selected = new Set(selectedIds)
+  const missions = offers.filter(m => selected.has(m.id))
   if (missions.length !== MISSIONS_PER_PLAYER) {
-    return fail("One or more selected mission IDs not found in your offers");
+    return fail('One or more selected mission IDs not found in your offers')
   }
   // The two piles are dealt separately and kept separately: the shape of a
   // hand is the rule, not an outcome of the shuffle (RULES §Missions).
-  const primaries = missions.filter((m) => isPrimaryType(m.type)).length;
+  const primaries = missions.filter(m => isPrimaryType(m.type)).length
   if (primaries !== PRIMARIES_PER_PLAYER) {
     return fail(
       `A hand is ${PRIMARIES_PER_PLAYER} primary and ${SECONDARIES_PER_PLAYER} secondaries (got ${primaries} primary)`
-    );
+    )
   }
-  return { missions, cargo: cratesForMissions(missions) };
+  return { missions, cargo: cratesForMissions(missions) }
 }
 
 /**
@@ -315,19 +315,19 @@ export function selectMissionsFromOffers(
  * deal.
  */
 export function cratesForMissions(missions: Mission[]): Cargo[] {
-  return missions.flatMap((m) => {
-    if (m.type === "deliver_cargo") {
+  return missions.flatMap(m => {
+    if (m.type === 'deliver_cargo') {
       return [
         {
           id: m.cargoId,
           missionId: m.id,
-          kind: "crate" as const,
+          kind: 'crate' as const,
           pickupPlanetId: m.pickupPlanetId,
           deliveryPlanetId: m.deliveryPlanetId,
           isPickedUp: false,
         },
-      ];
+      ]
     }
-    return [];
-  });
+    return []
+  })
 }

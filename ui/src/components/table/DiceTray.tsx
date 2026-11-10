@@ -37,7 +37,7 @@ export function DiceTray() {
       <Typography variant="overline" sx={{ color: TABLE.ink, lineHeight: 1.4 }}>
         Dice
       </Typography>
-      {dice.slice(-4).map((die) => (
+      {dice.slice(-4).map(die => (
         <DieResult key={die.id} die={die} nameOf={nameOf} />
       ))}
     </Box>

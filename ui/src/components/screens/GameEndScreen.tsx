@@ -14,7 +14,7 @@ import { FONT_DISPLAY } from '../../design/press'
 
 export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
   const { view, nameOf } = useGame()
-  const winner = view.players.find((p) => p.id === view.winnerId)
+  const winner = view.players.find(p => p.id === view.winnerId)
   const standings = rankPlayers(view).ranked
 
   return (
@@ -33,14 +33,20 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
         {winner ? `${winner.name} wins` : 'The game is over'}
       </Typography>
       <Typography variant="body2" sx={{ color: TABLE.inkSoft }}>
-        {winner
-          ? `${winner.points} of ${view.pointsToWin} points.`
-          : 'No winner was declared.'}
+        {winner ? `${winner.points} of ${view.pointsToWin} points.` : 'No winner was declared.'}
       </Typography>
 
-      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1100 }}>
-        {standings.map((player) => {
-          const index = view.players.findIndex((p) => p.id === player.id)
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 1.5,
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          maxWidth: 1100,
+        }}
+      >
+        {standings.map(player => {
+          const index = view.players.findIndex(p => p.id === player.id)
           return (
             <Panel
               key={player.id}
@@ -62,12 +68,18 @@ export function GameEndScreen({ onLeave }: { onLeave?: () => void }) {
               }
             >
               <SectionLabel>
-                {player.points} / {view.pointsToWin} points · hull{' '}
-                {player.ship?.hitPoints ?? 0}/{player.ship?.maxHitPoints ?? 10}
+                {player.points} / {view.pointsToWin} points · hull {player.ship?.hitPoints ?? 0}/
+                {player.ship?.maxHitPoints ?? 10}
               </SectionLabel>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 0.5 }}>
-                {player.completedMissions.map((mission) => (
-                  <MissionCard key={mission.id} mission={mission} nameOf={nameOf} faceUpToTable compact />
+                {player.completedMissions.map(mission => (
+                  <MissionCard
+                    key={mission.id}
+                    mission={mission}
+                    nameOf={nameOf}
+                    faceUpToTable
+                    compact
+                  />
                 ))}
                 {player.completedMissions.length === 0 && (
                   <Typography variant="caption" sx={{ color: TABLE.inkSoft }}>

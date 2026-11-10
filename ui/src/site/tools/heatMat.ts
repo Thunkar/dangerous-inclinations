@@ -43,8 +43,7 @@ export const typeAt = (mat: Mat, slot: SlotId): SubsystemType =>
 /** The working shields with energy on them, in the slot order the engine walks them. */
 function upShields(mat: Mat): SlotId[] {
   return SLOTS.filter(
-    slot =>
-      typeAt(mat, slot) === 'shields' && !mat.broken.includes(slot) && ready(mat, slot) > 0
+    slot => typeAt(mat, slot) === 'shields' && !mat.broken.includes(slot) && ready(mat, slot) > 0
   )
 }
 

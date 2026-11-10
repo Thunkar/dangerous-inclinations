@@ -4,29 +4,29 @@
  * All functions are pure: they return a new ShipState and, where something
  * visible happened, the event drafts describing it.
  */
-import type { Facing, Position, ShipLoadout, ShipState } from "../models/game.ts";
+import type { Facing, Position, ShipLoadout, ShipState } from '../models/game.ts'
 import {
   BASE_CRITICAL_FACE,
   DEFAULT_DISSIPATION_CAPACITY,
   DEFAULT_LOADOUT,
   STARTING_HIT_POINTS,
-} from "../models/game.ts";
-import type { Subsystem, SubsystemId } from "../models/subsystems.ts";
+} from '../models/game.ts'
+import type { Subsystem, SubsystemId } from '../models/subsystems.ts'
 import {
   SUBSYSTEM_CONFIGS,
   getSubsystemConfig,
   getMissileStats,
   isPowered,
-} from "../models/subsystems.ts";
-import type { EventDraft, RevealReason } from "../models/events.ts";
-import { createSubsystemsFromLoadout, calculateShipStatsFromLoadout } from "./loadout.ts";
+} from '../models/subsystems.ts'
+import type { EventDraft, RevealReason } from '../models/events.ts'
+import { createSubsystemsFromLoadout, calculateShipStatsFromLoadout } from './loadout.ts'
 
 export function createInitialShipState(
   position: Position & { facing: Facing },
   loadout: ShipLoadout = DEFAULT_LOADOUT,
   overrides: Partial<ShipState> = {}
 ): ShipState {
-  const stats = calculateShipStatsFromLoadout(loadout);
+  const stats = calculateShipStatsFromLoadout(loadout)
   return {
     wellId: position.wellId,
     ring: position.ring,
@@ -39,11 +39,11 @@ export function createInitialShipState(
     heat: { currentHeat: 0 },
     loadout,
     ...overrides,
-  };
+  }
 }
 
-export function isDestroyed(ship: Pick<ShipState, "hitPoints">): boolean {
-  return ship.hitPoints <= 0;
+export function isDestroyed(ship: Pick<ShipState, 'hitPoints'>): boolean {
+  return ship.hitPoints <= 0
 }
 
 /**
@@ -51,14 +51,14 @@ export function isDestroyed(ship: Pick<ShipState, "hitPoints">): boolean {
  * whose ship is null before it deploys.
  */
 export function isOnBoard(player: {
-  hasDeployed: boolean;
-  ship: Pick<ShipState, "hitPoints"> | null;
+  hasDeployed: boolean
+  ship: Pick<ShipState, 'hitPoints'> | null
 }): boolean {
-  return player.hasDeployed && player.ship !== null && !isDestroyed(player.ship);
+  return player.hasDeployed && player.ship !== null && !isDestroyed(player.ship)
 }
 
 export function findSubsystem(ship: ShipState, id: SubsystemId): Subsystem | undefined {
-  return ship.subsystems.find((s) => s.id === id);
+  return ship.subsystems.find(s => s.id === id)
 }
 
 export function updateSubsystem(
@@ -68,19 +68,19 @@ export function updateSubsystem(
 ): ShipState {
   return {
     ...ship,
-    subsystems: ship.subsystems.map((s) =>
-      s.id === id ? { ...s, ...(typeof patch === "function" ? patch(s) : patch) } : s
+    subsystems: ship.subsystems.map(s =>
+      s.id === id ? { ...s, ...(typeof patch === 'function' ? patch(s) : patch) } : s
     ),
-  };
+  }
 }
 
 /** Heat the ship dissipates at every check: base plus working radiators. */
 export function getDissipationCapacity(
-  subsystems: ReadonlyArray<Pick<Subsystem, "type" | "isBroken">>
+  subsystems: ReadonlyArray<Pick<Subsystem, 'type' | 'isBroken'>>
 ): number {
-  const bonus = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0;
-  const count = subsystems.filter((s) => s.type === "radiator" && !s.isBroken).length;
-  return DEFAULT_DISSIPATION_CAPACITY + count * bonus;
+  const bonus = SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0
+  const count = subsystems.filter(s => s.type === 'radiator' && !s.isBroken).length
+  return DEFAULT_DISSIPATION_CAPACITY + count * bonus
 }
 
 /**
@@ -102,7 +102,7 @@ export function getDissipationCapacity(
 export function heatFromCubes(subsystems: ReadonlyArray<Subsystem>): number {
   // A tile is hot because it is carrying cubes, and a broken one dumped its
   // as heat when it broke.
-  return subsystems.filter((s) => !s.isBroken).reduce((sum, s) => sum + s.allocatedEnergy, 0);
+  return subsystems.filter(s => !s.isBroken).reduce((sum, s) => sum + s.allocatedEnergy, 0)
 }
 
 /**
@@ -111,14 +111,14 @@ export function heatFromCubes(subsystems: ReadonlyArray<Subsystem>): number {
  * 8). Pass no tiles for the bare figure.
  */
 export function lowestCriticalFace(
-  subsystems: ReadonlyArray<Pick<Subsystem, "type" | "allocatedEnergy" | "isBroken">>
+  subsystems: ReadonlyArray<Pick<Subsystem, 'type' | 'allocatedEnergy' | 'isBroken'>>
 ): number {
-  let face = BASE_CRITICAL_FACE;
+  let face = BASE_CRITICAL_FACE
   for (const s of subsystems) {
-    const widened = getSubsystemConfig(s.type).criticalFace;
-    if (widened !== undefined && isPowered(s) && !s.isBroken) face = Math.min(face, widened);
+    const widened = getSubsystemConfig(s.type).criticalFace
+    if (widened !== undefined && isPowered(s) && !s.isBroken) face = Math.min(face, widened)
   }
-  return face;
+  return face
 }
 
 /**
@@ -127,23 +127,23 @@ export function lowestCriticalFace(
  */
 export function workingCompressors(ship: ShipState): Subsystem[] {
   return ship.subsystems.filter(
-    (s) => !s.isBroken && getSubsystemConfig(s.type).passiveEffect?.cheapensJump === true
-  );
+    s => !s.isBroken && getSubsystemConfig(s.type).passiveEffect?.cheapensJump === true
+  )
 }
 
 /** True if a working system cheapens jump fuel (fuel compressor). */
 export function hasWorkingCompressor(ship: ShipState): boolean {
-  return workingCompressors(ship).length > 0;
+  return workingCompressors(ship).length > 0
 }
 
 export function addHeat(ship: ShipState, amount: number): ShipState {
-  if (amount <= 0) return ship;
-  return { ...ship, heat: { currentHeat: ship.heat.currentHeat + amount } };
+  if (amount <= 0) return ship
+  return { ...ship, heat: { currentHeat: ship.heat.currentHeat + amount } }
 }
 
 interface ShipChange {
-  ship: ShipState;
-  events: EventDraft[];
+  ship: ShipState
+  events: EventDraft[]
 }
 
 /** Flip a tile face-up if it isn't already. */
@@ -153,19 +153,19 @@ export function revealSubsystem(
   id: SubsystemId,
   reason: RevealReason
 ): ShipChange {
-  const sub = findSubsystem(ship, id);
-  if (!sub || sub.isRevealed) return { ship, events: [] };
+  const sub = findSubsystem(ship, id)
+  if (!sub || sub.isRevealed) return { ship, events: [] }
   return {
     ship: updateSubsystem(ship, id, { isRevealed: true }),
     events: [
-      { type: "subsystem_revealed", playerId, subsystemId: id, subsystemType: sub.type, reason },
+      { type: 'subsystem_revealed', playerId, subsystemId: id, subsystemType: sub.type, reason },
     ],
-  };
+  }
 }
 
 /** The cubes asked for: `requested`, or the subsystem's minimum when none is named. */
-export function requestedDraw(type: Subsystem["type"], requested?: number): number {
-  return requested ?? getSubsystemConfig(type).minEnergy;
+export function requestedDraw(type: Subsystem['type'], requested?: number): number {
+  return requested ?? getSubsystemConfig(type).minEnergy
 }
 
 /**
@@ -173,10 +173,10 @@ export function requestedDraw(type: Subsystem["type"], requested?: number): numb
  * one legal figure, which is why nobody places cubes: the engines take the
  * burn's, and the caller passes it.
  */
-export function drawFor(type: Subsystem["type"], requested?: number): number {
-  const config = getSubsystemConfig(type);
-  if (config.maxEnergy === 0) return 0;
-  return Math.min(config.maxEnergy, Math.max(config.minEnergy, requestedDraw(type, requested)));
+export function drawFor(type: Subsystem['type'], requested?: number): number {
+  const config = getSubsystemConfig(type)
+  if (config.maxEnergy === 0) return 0
+  return Math.min(config.maxEnergy, Math.max(config.minEnergy, requestedDraw(type, requested)))
 }
 
 /**
@@ -189,9 +189,9 @@ export function drawFor(type: Subsystem["type"], requested?: number): number {
  * holding its cubes (it was powered, or it fired), and it adds nothing.
  */
 function powerForUse(ship: ShipState, id: SubsystemId, draw: number): ShipState {
-  const sub = findSubsystem(ship, id);
-  if (!sub || sub.allocatedEnergy >= draw) return ship;
-  return updateSubsystem(ship, id, { allocatedEnergy: draw });
+  const sub = findSubsystem(ship, id)
+  if (!sub || sub.allocatedEnergy >= draw) return ship
+  return updateSubsystem(ship, id, { allocatedEnergy: draw })
 }
 
 /**
@@ -210,16 +210,16 @@ export function useSubsystem(
   ship: ShipState,
   playerId: string,
   id: SubsystemId,
-  reason: RevealReason = "fired",
+  reason: RevealReason = 'fired',
   draw?: number
 ): ShipChange & { heat: number } {
-  const sub = findSubsystem(ship, id);
-  if (!sub) return { ship, events: [], heat: 0 };
-  let next = powerForUse(ship, id, drawFor(sub.type, draw));
-  const heat = findSubsystem(next, id)!.allocatedEnergy - sub.allocatedEnergy;
-  next = updateSubsystem(next, id, { usedThisTurn: true });
-  const revealed = revealSubsystem(next, playerId, id, reason);
-  return { ship: revealed.ship, events: revealed.events, heat };
+  const sub = findSubsystem(ship, id)
+  if (!sub) return { ship, events: [], heat: 0 }
+  let next = powerForUse(ship, id, drawFor(sub.type, draw))
+  const heat = findSubsystem(next, id)!.allocatedEnergy - sub.allocatedEnergy
+  next = updateSubsystem(next, id, { usedThisTurn: true })
+  const revealed = revealSubsystem(next, playerId, id, reason)
+  return { ship: revealed.ship, events: revealed.events, heat }
 }
 
 /**
@@ -229,11 +229,11 @@ export function useSubsystem(
  * is whatever this turn's actions put on (RULES §Energy and Heat).
  */
 export function clearLoadout(ship: ShipState): ShipState {
-  if (!ship.subsystems.some(isPowered)) return ship;
+  if (!ship.subsystems.some(isPowered)) return ship
   return {
     ...ship,
-    subsystems: ship.subsystems.map((s) => (isPowered(s) ? { ...s, allocatedEnergy: 0 } : s)),
-  };
+    subsystems: ship.subsystems.map(s => (isPowered(s) ? { ...s, allocatedEnergy: 0 } : s)),
+  }
 }
 
 /**
@@ -245,88 +245,88 @@ export function breakSubsystem(
   playerId: string,
   id: SubsystemId
 ): ShipChange & { energyLost: number } {
-  const sub = findSubsystem(ship, id);
-  if (!sub || sub.isBroken) return { ship, events: [], energyLost: 0 };
-  const energyLost = sub.allocatedEnergy;
+  const sub = findSubsystem(ship, id)
+  if (!sub || sub.isBroken) return { ship, events: [], energyLost: 0 }
+  const energyLost = sub.allocatedEnergy
   let next: ShipState = updateSubsystem(ship, id, {
     allocatedEnergy: 0,
     isBroken: true,
     isRevealed: true,
-  });
-  next = addHeat(next, energyLost);
-  const events: EventDraft[] = [];
+  })
+  next = addHeat(next, energyLost)
+  const events: EventDraft[] = []
   if (!sub.isRevealed) {
     events.push({
-      type: "subsystem_revealed",
+      type: 'subsystem_revealed',
       playerId,
       subsystemId: id,
       subsystemType: sub.type,
-      reason: "broken",
-    });
+      reason: 'broken',
+    })
   }
   events.push({
-    type: "subsystem_broken",
+    type: 'subsystem_broken',
     playerId,
     subsystemId: id,
     subsystemType: sub.type,
     energyLost,
-  });
-  return { ship: next, events, energyLost };
+  })
+  return { ship: next, events, energyLost }
 }
 
 /** Repair every broken subsystem (docking). Returns the ids repaired. */
 export function repairAllSubsystems(ship: ShipState): { ship: ShipState; repaired: SubsystemId[] } {
-  const repaired = ship.subsystems.filter((s) => s.isBroken).map((s) => s.id);
-  if (repaired.length === 0) return { ship, repaired };
+  const repaired = ship.subsystems.filter(s => s.isBroken).map(s => s.id)
+  if (repaired.length === 0) return { ship, repaired }
   return {
     ship: {
       ...ship,
-      subsystems: ship.subsystems.map((s) => (s.isBroken ? { ...s, isBroken: false } : s)),
+      subsystems: ship.subsystems.map(s => (s.isBroken ? { ...s, isBroken: false } : s)),
     },
     repaired,
-  };
+  }
 }
 
 /** Refill missile ammunition (docking). */
 export function reloadMissiles(ship: ShipState): { ship: ShipState; reloaded: boolean } {
-  const max = getMissileStats().maxAmmo;
-  const needs = ship.subsystems.some((s) => s.type === "missiles" && (s.ammo ?? 0) < max);
-  if (!needs) return { ship, reloaded: false };
+  const max = getMissileStats().maxAmmo
+  const needs = ship.subsystems.some(s => s.type === 'missiles' && (s.ammo ?? 0) < max)
+  if (!needs) return { ship, reloaded: false }
   return {
     ship: {
       ...ship,
-      subsystems: ship.subsystems.map((s) => (s.type === "missiles" ? { ...s, ammo: max } : s)),
+      subsystems: ship.subsystems.map(s => (s.type === 'missiles' ? { ...s, ammo: max } : s)),
     },
     reloaded: true,
-  };
+  }
 }
 
 export function resetSubsystemUsage(ship: ShipState): ShipState {
   return {
     ...ship,
-    subsystems: ship.subsystems.map((s) =>
+    subsystems: ship.subsystems.map(s =>
       s.usedThisTurn || s.spentThisTurn > 0 ? { ...s, usedThisTurn: false, spentThisTurn: 0 } : s
     ),
-  };
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Port/starboard
 // ---------------------------------------------------------------------------
 
-export type ShipSide = "port" | "starboard";
-export type RingDirection = "outward" | "inward";
+export type ShipSide = 'port' | 'starboard'
+export type RingDirection = 'outward' | 'inward'
 
 /** Side slots 0-1 are port, 2-3 starboard. Null for fixed and forward systems. */
 export function getSubsystemSide(subsystem: Subsystem): ShipSide | null {
-  if (subsystem.slotGroup !== "side" || subsystem.slotIndex === undefined) return null;
-  return subsystem.slotIndex <= 1 ? "port" : "starboard";
+  if (subsystem.slotGroup !== 'side' || subsystem.slotIndex === undefined) return null
+  return subsystem.slotIndex <= 1 ? 'port' : 'starboard'
 }
 
 /** Prograde: port fires outward, starboard inward. Retrograde flips them. */
 export function getSideFiringDirection(side: ShipSide, facing: Facing): RingDirection {
-  if (facing === "prograde") return side === "port" ? "outward" : "inward";
-  return side === "port" ? "inward" : "outward";
+  if (facing === 'prograde') return side === 'port' ? 'outward' : 'inward'
+  return side === 'port' ? 'inward' : 'outward'
 }
 
 export function isRingDirectionValid(
@@ -334,5 +334,5 @@ export function isRingDirectionValid(
   targetRing: number,
   direction: RingDirection
 ): boolean {
-  return direction === "outward" ? targetRing > attackerRing : targetRing < attackerRing;
+  return direction === 'outward' ? targetRing > attackerRing : targetRing < attackerRing
 }

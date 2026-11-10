@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod'
 import {
   HOME_RINGS,
   SECTORS_PER_RING,
@@ -6,17 +6,17 @@ import {
   SUBSYSTEM_CONFIGS,
   type PlayerAction,
   type SubsystemType,
-} from "@dangerous-inclinations/engine";
+} from '@dangerous-inclinations/engine'
 
-const subsystemTypes = Object.keys(SUBSYSTEM_CONFIGS) as [SubsystemType, ...SubsystemType[]];
-const Slot = z.enum(subsystemTypes).nullable();
+const subsystemTypes = Object.keys(SUBSYSTEM_CONFIGS) as [SubsystemType, ...SubsystemType[]]
+const Slot = z.enum(subsystemTypes).nullable()
 
 const ShipLoadoutSchema = z
   .object({
     forwardSlots: z.tuple([Slot]),
     sideSlots: z.tuple([Slot, Slot, Slot, Slot]),
   })
-  .strict();
+  .strict()
 
 export const LoadoutSubmissionSchema = z
   .object({
@@ -28,12 +28,15 @@ export const LoadoutSubmissionSchema = z
     // one primary and two secondaries; this only bounds the payload.
     missionIds: z.array(z.string().min(1)).min(1).max(16),
   })
-  .strict();
+  .strict()
 
 export const DeploySchema = z
   .object({
     /** One of the Black Hole's deployment rings; the engine refuses anything else. */
-    ring: z.number().int().refine((r) => (HOME_RINGS as readonly number[]).includes(r)),
+    ring: z
+      .number()
+      .int()
+      .refine(r => (HOME_RINGS as readonly number[]).includes(r)),
     sector: z
       .number()
       .int()
@@ -41,7 +44,7 @@ export const DeploySchema = z
       .min(0)
       .max(SECTORS_PER_RING - 1),
   })
-  .strict();
+  .strict()
 
 export const ForkSchema = z
   .object({
@@ -50,7 +53,7 @@ export const ForkSchema = z
     /** The recorded seat to take over: your own, or a bot's. */
     impersonateOriginalPlayerId: z.string().min(1),
   })
-  .strict();
+  .strict()
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -66,56 +69,56 @@ export const ForkSchema = z
  * `deploy_ship` is deliberately absent: deployment goes through
  * `POST /api/games/:gameId/deploy`, not SUBMIT_TURN.
  */
-const id = z.string().min(1);
-const int = z.number().int().finite();
+const id = z.string().min(1)
+const int = z.number().int().finite()
 const base = {
   playerId: id,
   /** Tactical actions execute in sequence order; clients number them from 1. */
   sequence: z.number().int().finite().positive().optional(),
-};
+}
 
 const CoastActionSchema = z
   .object({
     ...base,
-    type: z.literal("coast"),
+    type: z.literal('coast'),
     data: z.object({ activateScoop: z.boolean() }).strict(),
   })
-  .strict();
+  .strict()
 
 const BurnActionSchema = z
   .object({
     ...base,
-    type: z.literal("burn"),
+    type: z.literal('burn'),
     data: z
       .object({
-        burnIntensity: z.enum(["soft", "medium", "hard"]),
+        burnIntensity: z.enum(['soft', 'medium', 'hard']),
         sectorAdjustment: int,
       })
       .strict(),
   })
-  .strict();
+  .strict()
 
 const RotateActionSchema = z
   .object({
     ...base,
-    type: z.literal("rotate"),
-    data: z.object({ targetFacing: z.enum(["prograde", "retrograde"]) }).strict(),
+    type: z.literal('rotate'),
+    data: z.object({ targetFacing: z.enum(['prograde', 'retrograde']) }).strict(),
   })
-  .strict();
+  .strict()
 
 /** Power a shield, a rack or a sensor; `amount` absent is the tile's minimum. */
 const PowerActionSchema = z
   .object({
     ...base,
-    type: z.literal("power"),
+    type: z.literal('power'),
     data: z.object({ subsystemId: id, amount: int.optional() }).strict(),
   })
-  .strict();
+  .strict()
 
 const FireWeaponActionSchema = z
   .object({
     ...base,
-    type: z.literal("fire_weapon"),
+    type: z.literal('fire_weapon'),
     data: z
       .object({
         subsystemId: id,
@@ -128,23 +131,23 @@ const FireWeaponActionSchema = z
       })
       .strict(),
   })
-  .strict();
+  .strict()
 
 const ScanActionSchema = z
   .object({
     ...base,
-    type: z.literal("scan"),
+    type: z.literal('scan'),
     data: z.object({ targetPlayerId: id, peekSlot: id }).strict(),
   })
-  .strict();
+  .strict()
 
 const WellTransferActionSchema = z
   .object({
     ...base,
-    type: z.literal("well_transfer"),
+    type: z.literal('well_transfer'),
     data: z.object({ destinationWellId: id, sectorAdjustment: int }).strict(),
   })
-  .strict();
+  .strict()
 
 /**
  * Name the tile a cold ship repairs at its heat check (RULES §Energy and Heat).
@@ -153,10 +156,10 @@ const WellTransferActionSchema = z
 const RepairActionSchema = z
   .object({
     ...base,
-    type: z.literal("repair"),
+    type: z.literal('repair'),
     data: z.object({ subsystemId: id }).strict(),
   })
-  .strict();
+  .strict()
 
 /**
  * Name what a station buys if the turn arrives at one (RULES §Stations): an
@@ -166,10 +169,10 @@ const RepairActionSchema = z
 const DockSaleActionSchema = z
   .object({
     ...base,
-    type: z.literal("dock_sale"),
+    type: z.literal('dock_sale'),
     data: z.object({ sale: id }).strict(),
   })
-  .strict();
+  .strict()
 
 /**
  * Put an Escort marker on this carrier (RULES §Missions, Escort). A tactical
@@ -178,10 +181,10 @@ const DockSaleActionSchema = z
 const EscortMarkActionSchema = z
   .object({
     ...base,
-    type: z.literal("escort_mark"),
+    type: z.literal('escort_mark'),
     data: z.object({ carrierId: id }).strict(),
   })
-  .strict();
+  .strict()
 
 /**
  * Take this item off this ship (RULES §Missions, Piracy). A tactical action
@@ -190,10 +193,10 @@ const EscortMarkActionSchema = z
 const SeizeActionSchema = z
   .object({
     ...base,
-    type: z.literal("seize"),
+    type: z.literal('seize'),
     data: z.object({ victimId: id, cargoId: z.string() }).strict(),
   })
-  .strict();
+  .strict()
 
 /**
  * Survey: take the data on Black Hole Ring 1 (RULES §Missions, Survey). A
@@ -202,10 +205,10 @@ const SeizeActionSchema = z
 const SurveyActionSchema = z
   .object({
     ...base,
-    type: z.literal("survey"),
+    type: z.literal('survey'),
     data: z.object({}).strict(),
   })
-  .strict();
+  .strict()
 
 /**
  * Salvage: take this wreck's black box, or with no `wreckId` the first wreck
@@ -215,12 +218,12 @@ const SurveyActionSchema = z
 const SalvageActionSchema = z
   .object({
     ...base,
-    type: z.literal("salvage"),
+    type: z.literal('salvage'),
     data: z.object({ wreckId: id.optional() }).strict(),
   })
-  .strict();
+  .strict()
 
-const PlayerActionSchema = z.discriminatedUnion("type", [
+const PlayerActionSchema = z.discriminatedUnion('type', [
   CoastActionSchema,
   BurnActionSchema,
   RotateActionSchema,
@@ -234,11 +237,11 @@ const PlayerActionSchema = z.discriminatedUnion("type", [
   SeizeActionSchema,
   SurveyActionSchema,
   SalvageActionSchema,
-]);
+])
 
 export const SubmitTurnSchema = z
   .object({
-    type: z.literal("SUBMIT_TURN"),
+    type: z.literal('SUBMIT_TURN'),
     payload: z
       .object({
         actions: z.array(PlayerActionSchema).max(64),
@@ -247,39 +250,39 @@ export const SubmitTurnSchema = z
       })
       .strict(),
   })
-  .strict();
+  .strict()
 
 /**
  * Compile-time proof the wire shapes and the engine's actions agree: every
  * wire shape is an engine action, and every engine action a turn may carry
  * (all but `deploy_ship`) has a wire shape.
  */
-type SubmittedAction = z.infer<typeof PlayerActionSchema>;
-const _actionsAreEngineActions: (a: SubmittedAction) => PlayerAction = (a) => a;
-void _actionsAreEngineActions;
+type SubmittedAction = z.infer<typeof PlayerActionSchema>
+const _actionsAreEngineActions: (a: SubmittedAction) => PlayerAction = a => a
+void _actionsAreEngineActions
 type UnsubmittableActionType = Exclude<
-  Exclude<PlayerAction["type"], "deploy_ship">,
-  SubmittedAction["type"]
->;
-const _everyEngineActionHasAShape: [UnsubmittableActionType] extends [never] ? true : never = true;
-void _everyEngineActionHasAShape;
+  Exclude<PlayerAction['type'], 'deploy_ship'>,
+  SubmittedAction['type']
+>
+const _everyEngineActionHasAShape: [UnsubmittableActionType] extends [never] ? true : never = true
+void _everyEngineActionHasAShape
 
 /** Table talk: a line of chat, or a player's reasoning (`think`). */
 export const ChatSchema = z
   .object({
     text: z.string().trim().min(1).max(2000),
-    kind: z.enum(["say", "think"]).default("say"),
+    kind: z.enum(['say', 'think']).default('say'),
   })
-  .strict();
+  .strict()
 
 /** Dry run of a turn's actions against the live state. */
 export const PreviewSchema = z
   .object({
     actions: z.array(PlayerActionSchema).max(64),
   })
-  .strict();
+  .strict()
 
 /** A rejected payload's issues, one "path: message" line each, as a turn error lists them. */
 export function issueLines(error: z.ZodError): string[] {
-  return error.errors.map((issue) => `${issue.path.join(".") || "payload"}: ${issue.message}`);
+  return error.errors.map(issue => `${issue.path.join('.') || 'payload'}: ${issue.message}`)
 }

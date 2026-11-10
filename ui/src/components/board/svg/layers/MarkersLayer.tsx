@@ -22,7 +22,7 @@ interface MarkersLayerProps {
 export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: MarkersLayerProps) {
   return (
     <g className="markers">
-      {homes.map((home) => {
+      {homes.map(home => {
         const p = positionPoint(home.position)
         return (
           <g key={`home-${home.playerId}`} opacity={0.8}>
@@ -48,15 +48,15 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
         )
       })}
 
-      {stations.map((station) => {
+      {stations.map(station => {
         const p = positionPoint(station.position)
         const color = wellColor(station.planetId)
         return (
           <g key={station.id}>
             <title>{`${getWellName(station.planetId)} Station · dock here to load, sell, repair and reload${
               station.soldBy.length > 0
-                ? ` · has bought from ${station.soldBy.map((s) => s.name).join(", ")}`
-                : ""
+                ? ` · has bought from ${station.soldBy.map(s => s.name).join(', ')}`
+                : ''
             }`}</title>
             <circle cx={p.x} cy={p.y} r={10} fill={BOARD.deep} stroke={color} strokeWidth={2.5} />
             <circle cx={p.x} cy={p.y} r={3.5} fill={color} />

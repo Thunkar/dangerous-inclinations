@@ -126,4 +126,3 @@ export const isOneSided = (type: RangeCardType) => reach(type).some(c => c.zone 
 /** The railgun's push: one ring against the facing, inward as the card draws it. */
 export const recoils = (type: RangeCardType) =>
   type !== 'sensor_array' && SUBSYSTEM_CONFIGS[type].weaponStats?.hasRecoil === true
-

@@ -8,23 +8,23 @@
 /** The `{name}` slots of a template string. */
 export type SlotNames<S extends string> = S extends `${string}{${infer Name}}${infer Rest}`
   ? Name | SlotNames<Rest>
-  : never;
+  : never
 
-export type SlotValue = string | number | null;
+export type SlotValue = string | number | null
 
 /** A value for every slot of `S`; a value whose slot the text dropped is allowed. */
 export type SlotValues<S extends string> = Record<SlotNames<S>, SlotValue> &
-  Record<string, SlotValue>;
+  Record<string, SlotValue>
 
-const SLOT = /\{(\w+)\}/g;
+const SLOT = /\{(\w+)\}/g
 
 /** The template with every slot replaced by its value, as one string. */
 export function fill<S extends string>(template: S, values: SlotValues<S>): string {
-  return template.replace(SLOT, (_, name: string) => String(values[name]));
+  return template.replace(SLOT, (_, name: string) => String(values[name]))
 }
 
 /** "2, 3 or 4": a list of values as a sentence says it. */
 export function orList(values: readonly SlotValue[]): string {
-  const words = values.map(String);
-  return words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} or ${words.at(-1)}`;
+  const words = values.map(String)
+  return words.length <= 1 ? words.join('') : `${words.slice(0, -1).join(', ')} or ${words.at(-1)}`
 }

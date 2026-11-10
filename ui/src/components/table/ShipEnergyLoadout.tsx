@@ -55,8 +55,7 @@ export function ShipEnergyLoadout({
   const me = optionalPlan?.me ?? view.me!
   const hull = hullOf(me)
 
-  const subsystem = (id: SubsystemId): Subsystem | undefined =>
-    subsystems.find(s => s.id === id)
+  const subsystem = (id: SubsystemId): Subsystem | undefined => subsystems.find(s => s.id === id)
 
   const tile = (id: SubsystemId) => {
     const sub = subsystem(id)
@@ -166,8 +165,8 @@ function TileTip({
         <>
           <Typography variant="caption" sx={{ display: 'block' }}>
             Power {sub.allocatedEnergy}/{config.maxEnergy} · powered, it works until your next turn:{' '}
-            {poweredEffect(sub.type)}. Every point of energy is heat at your check, and powering does
-            not turn it face-up.
+            {poweredEffect(sub.type)}. Every point of energy is heat at your check, and powering
+            does not turn it face-up.
           </Typography>
           <Typography variant="caption" sx={{ display: 'block', color: TABLE.inkFaint }}>
             Powered from the Systems step

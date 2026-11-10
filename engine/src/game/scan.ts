@@ -12,18 +12,18 @@
  * but a tile does one thing a turn: a sensor powered this turn cannot scan
  * (RULES §Energy and Heat).
  */
-import type { GameState, Player, Position, ScanAction, ShipState } from "../models/game.ts";
-import type { SubsystemId } from "../models/subsystems.ts";
-import type { EventDraft } from "../models/events.ts";
-import type { Cargo } from "../models/missions.ts";
+import type { GameState, Player, Position, ScanAction, ShipState } from '../models/game.ts'
+import type { SubsystemId } from '../models/subsystems.ts'
+import type { EventDraft } from '../models/events.ts'
+import type { Cargo } from '../models/missions.ts'
 import {
   SCAN_SECTOR_RANGE,
   dataAboard,
   isInterceptTransmissionMission,
   withItemAboard,
-} from "../models/missions.ts";
-import { inSpinalBox } from "./targeting.ts";
-import { findSubsystem, useSubsystem } from "./ship.ts";
+} from '../models/missions.ts'
+import { inSpinalBox } from './targeting.ts'
+import { findSubsystem, useSubsystem } from './ship.ts'
 
 /**
  * Whether a sensor aboard `scanner` reaches `target`: the railgun's box at
@@ -31,21 +31,19 @@ import { findSubsystem, useSubsystem } from "./ship.ts";
  * sectors, or its own sector).
  */
 export function inScanRange(
-  scanner: Pick<ShipState, "wellId" | "ring" | "sector" | "facing">,
+  scanner: Pick<ShipState, 'wellId' | 'ring' | 'sector' | 'facing'>,
   target: Position
 ): boolean {
-  return inSpinalBox(scanner, target, SCAN_SECTOR_RANGE);
+  return inSpinalBox(scanner, target, SCAN_SECTOR_RANGE)
 }
 
 interface ScanResult {
-  state: GameState;
-  events: EventDraft[];
+  state: GameState
+  events: EventDraft[]
 }
 
-export function findReadySensor(ship: GameState["players"][number]["ship"]) {
-  return ship.subsystems.find(
-    (s) => s.type === "sensor_array" && !s.isBroken && !s.usedThisTurn
-  );
+export function findReadySensor(ship: GameState['players'][number]['ship']) {
+  return ship.subsystems.find(s => s.type === 'sensor_array' && !s.isBroken && !s.usedThisTurn)
 }
 
 /**
@@ -58,55 +56,55 @@ export function choosePeekSlot(
   target: Player,
   requested: SubsystemId
 ): SubsystemId {
-  const known = new Set(scanner.intel[target.id] ?? []);
+  const known = new Set(scanner.intel[target.id] ?? [])
   const isKnown = (id: SubsystemId) => {
-    const s = findSubsystem(target.ship, id);
-    return !s || s.isRevealed || known.has(id);
-  };
-  if (!isKnown(requested)) return requested;
-  const next = target.ship.subsystems.find((s) => s.slotGroup !== undefined && !isKnown(s.id));
-  return next?.id ?? requested;
+    const s = findSubsystem(target.ship, id)
+    return !s || s.isRevealed || known.has(id)
+  }
+  if (!isKnown(requested)) return requested
+  const next = target.ship.subsystems.find(s => s.slotGroup !== undefined && !isKnown(s.id))
+  return next?.id ?? requested
 }
 
 export function processScan(state: GameState, action: ScanAction): ScanResult {
-  const scannerIndex = state.players.findIndex((p) => p.id === action.playerId);
-  const scanner = state.players[scannerIndex];
-  const target = state.players.find((p) => p.id === action.data.targetPlayerId)!;
-  const sensor = findReadySensor(scanner.ship)!;
-  const events: EventDraft[] = [];
-  const peekSlot = choosePeekSlot(scanner, target, action.data.peekSlot);
+  const scannerIndex = state.players.findIndex(p => p.id === action.playerId)
+  const scanner = state.players[scannerIndex]
+  const target = state.players.find(p => p.id === action.data.targetPlayerId)!
+  const sensor = findReadySensor(scanner.ship)!
+  const events: EventDraft[] = []
+  const peekSlot = choosePeekSlot(scanner, target, action.data.peekSlot)
 
-  const used = useSubsystem(scanner.ship, scanner.id, sensor.id, "scanned");
+  const used = useSubsystem(scanner.ship, scanner.id, sensor.id, 'scanned')
   events.push({
-    type: "scanned",
+    type: 'scanned',
     scannerId: scanner.id,
     sensorId: sensor.id,
     targetId: target.id,
     peekedSlot: peekSlot,
     heat: used.heat,
-  });
-  events.push(...used.events);
+  })
+  events.push(...used.events)
 
   // Peek at one slot. Knowledge is private to the scanner.
-  const peeked = findSubsystem(target.ship, peekSlot);
-  const known = scanner.intel[target.id] ?? [];
+  const peeked = findSubsystem(target.ship, peekSlot)
+  const known = scanner.intel[target.id] ?? []
   const intel = {
     ...scanner.intel,
     [target.id]: known.includes(peekSlot) ? known : [...known, peekSlot],
-  };
+  }
   if (peeked) {
     events.push({
-      type: "scan_result",
+      type: 'scan_result',
       scannerId: scanner.id,
       targetId: target.id,
       slot: peeked.id,
       subsystemType: peeked.type,
       privateTo: [scanner.id],
-    });
+    })
   }
 
   // Intercept missions on this target acquire their transmission.
-  let cargo = scanner.cargo;
+  let cargo = scanner.cargo
   for (const mission of scanner.missions) {
     if (
       isInterceptTransmissionMission(mission) &&
@@ -117,24 +115,24 @@ export function processScan(state: GameState, action: ScanAction): ScanResult {
       const data: Cargo = {
         id: mission.dataCargoId,
         missionId: mission.id,
-        kind: "data",
+        kind: 'data',
         deliveryPlanetId: mission.deliveryPlanetId,
         isPickedUp: true,
-      };
+      }
       // Data a pirate took is still in the hold, un-picked: scanning again
       // puts the same data back aboard rather than a second copy of it.
-      cargo = withItemAboard(cargo, data);
+      cargo = withItemAboard(cargo, data)
       events.push({
-        type: "data_acquired",
+        type: 'data_acquired',
         playerId: scanner.id,
-        kind: "scan",
+        kind: 'scan',
         missionId: mission.id,
         privateTo: [scanner.id],
-      });
+      })
     }
   }
 
-  const players = [...state.players];
-  players[scannerIndex] = { ...scanner, ship: used.ship, intel, cargo };
-  return { state: { ...state, players }, events };
+  const players = [...state.players]
+  players[scannerIndex] = { ...scanner, ship: used.ship, intel, cargo }
+  return { state: { ...state, players }, events }
 }

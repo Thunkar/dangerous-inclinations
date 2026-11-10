@@ -10,7 +10,7 @@
  * whole flow can run without Redis or sockets, and so the smoke test can make
  * a bot's AI fail (see scripts/smoke.ts).
  */
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto'
 import type {
   GameEvent,
   GameState,
@@ -21,7 +21,7 @@ import type {
   PlayerSpec,
   ShipAppearance,
   ShipLoadout,
-} from "@dangerous-inclinations/engine";
+} from '@dangerous-inclinations/engine'
 import {
   PRIMARIES_PER_PLAYER,
   SECONDARIES_PER_PLAYER,
@@ -45,11 +45,11 @@ import {
   submitLoadout as engineSubmitLoadout,
   transitionToActivePhase,
   viewFor,
-} from "@dangerous-inclinations/engine";
-import type { Kv } from "./kv.ts";
-import { createKeyedLock } from "./lock.ts";
-import type { RecordingService } from "./recordingService.ts";
-import { log as defaultLog, type ServiceLogger } from "./logger.ts";
+} from '@dangerous-inclinations/engine'
+import type { Kv } from './kv.ts'
+import { createKeyedLock } from './lock.ts'
+import type { RecordingService } from './recordingService.ts'
+import { log as defaultLog, type ServiceLogger } from './logger.ts'
 import type {
   ChatMessage,
   PreviewPayload,
@@ -57,14 +57,14 @@ import type {
   TurnFrames,
   TurnSummary,
   ViewPayload,
-} from "../protocol.ts";
+} from '../protocol.ts'
 
 // ---------------------------------------------------------------------------
 // Dependencies
 // ---------------------------------------------------------------------------
 
 export interface GameTransport {
-  broadcastViews(gameId: string, build: (playerId: string) => ServerGameMessage): void;
+  broadcastViews(gameId: string, build: (playerId: string) => ServerGameMessage): void
 }
 
 /** What a bot decides, from exactly the information a human has. */
@@ -72,49 +72,49 @@ export interface BotStrategy {
   chooseLoadout(
     offers: Mission[],
     context: { pick?: (n: number) => number }
-  ): { missionIds: string[]; loadout: ShipLoadout };
-  chooseDeployment(view: GameView, pick: (n: number) => number): DeploymentChoice;
-  decideActions(view: GameView): { actions: PlayerAction[] };
+  ): { missionIds: string[]; loadout: ShipLoadout }
+  chooseDeployment(view: GameView, pick: (n: number) => number): DeploymentChoice
+  decideActions(view: GameView): { actions: PlayerAction[] }
 }
 
 export const engineBots: BotStrategy = {
   chooseLoadout: (offers, context) => botChooseLoadout(offers, context),
   chooseDeployment: (view, pick) => botChooseDeployment(view, pick),
-  decideActions: (view) => botDecideActions(view),
-};
+  decideActions: view => botDecideActions(view),
+}
 
 interface GameServiceDeps {
-  kv: Kv;
-  recordings: RecordingService;
-  transport: GameTransport;
-  bots?: BotStrategy;
-  log?: ServiceLogger;
+  kv: Kv
+  recordings: RecordingService
+  transport: GameTransport
+  bots?: BotStrategy
+  log?: ServiceLogger
 }
 
 export type Result<T = object> =
   | ({ ok: true } & T)
-  | { ok: false; error?: string; errors?: string[] };
+  | { ok: false; error?: string; errors?: string[] }
 
 export interface LoadoutSubmission {
-  appearance?: ShipAppearance;
-  loadout: ShipLoadout;
-  missionIds: string[];
+  appearance?: ShipAppearance
+  loadout: ShipLoadout
+  missionIds: string[]
 }
 
 export interface ForkOptions {
   /** Recorded player the forking human takes over. */
-  impersonateOriginalPlayerId: string;
-  humanPlayerId: string;
-  humanPlayerName: string;
+  impersonateOriginalPlayerId: string
+  humanPlayerId: string
+  humanPlayerName: string
 }
 
 /**
  * Bot turns the engine rejected (or the AI failed to produce) in live games.
  * Each one is logged and replaced by an empty turn so the game continues.
  */
-let botInvalidTurns = 0;
+let botInvalidTurns = 0
 export function getBotInvalidTurnCount(): number {
-  return botInvalidTurns;
+  return botInvalidTurns
 }
 
 /**
@@ -123,16 +123,16 @@ export function getBotInvalidTurnCount(): number {
  * dealt hand has a legal pick for it.
  */
 const FALLBACK_LOADOUT: ShipLoadout = {
-  forwardSlots: ["sensor_array"],
-  sideSlots: ["laser", "laser", "shields", "radiator"],
-};
+  forwardSlots: ['sensor_array'],
+  sideSlots: ['laser', 'laser', 'shields', 'radiator'],
+}
 
 /** Every way to choose `k` of `items`, in order. */
 function combinations<T>(items: readonly T[], k: number): T[][] {
-  if (k === 0) return [[]];
+  if (k === 0) return [[]]
   return items.flatMap((item, i) =>
-    combinations(items.slice(i + 1), k - 1).map((rest) => [item, ...rest])
-  );
+    combinations(items.slice(i + 1), k - 1).map(rest => [item, ...rest])
+  )
 }
 
 /**
@@ -141,38 +141,40 @@ function combinations<T>(items: readonly T[], k: number): T[][] {
  * migrated, as a recording is.
  */
 interface StoredGame {
-  schemaVersion: number;
-  state: GameState;
+  schemaVersion: number
+  state: GameState
 }
 
 /** A live game saved under other rules: it cannot be loaded. */
 export class StaleGameError extends Error {}
 
 export function serializeGame(state: GameState): string {
-  const stored: StoredGame = { schemaVersion: RECORDING_SCHEMA_VERSION, state };
-  return JSON.stringify(stored);
+  const stored: StoredGame = { schemaVersion: RECORDING_SCHEMA_VERSION, state }
+  return JSON.stringify(stored)
 }
 
 function parseGame(data: string): GameState {
-  const stored = JSON.parse(data) as Partial<StoredGame>;
+  const stored = JSON.parse(data) as Partial<StoredGame>
   if (stored.schemaVersion !== RECORDING_SCHEMA_VERSION || !stored.state) {
     const version =
-      stored.schemaVersion === undefined ? "no schema version" : `schema v${String(stored.schemaVersion)}`;
+      stored.schemaVersion === undefined
+        ? 'no schema version'
+        : `schema v${String(stored.schemaVersion)}`
     throw new StaleGameError(
       `This game was saved under older rules (${version}, the rules are at v${RECORDING_SCHEMA_VERSION}) and cannot be played. Start a new game.`
-    );
+    )
   }
-  return stored.state;
+  return stored.state
 }
 
-const gameKey = (gameId: string) => `game:${gameId}`;
-const humansKey = (gameId: string) => `game-humans:${gameId}`;
-const chatKey = (gameId: string) => `game-chat:${gameId}`;
+const gameKey = (gameId: string) => `game:${gameId}`
+const humansKey = (gameId: string) => `game-humans:${gameId}`
+const chatKey = (gameId: string) => `game-chat:${gameId}`
 
 export function createGameService(deps: GameServiceDeps) {
-  const { kv, recordings, transport } = deps;
-  const bots = deps.bots ?? engineBots;
-  const log = deps.log ?? defaultLog;
+  const { kv, recordings, transport } = deps
+  const bots = deps.bots ?? engineBots
+  const log = deps.log ?? defaultLog
 
   // -------------------------------------------------------------------------
   // Persistence
@@ -180,21 +182,21 @@ export function createGameService(deps: GameServiceDeps) {
 
   /** Throws StaleGameError for a game saved under other rules. */
   async function loadState(gameId: string): Promise<GameState | null> {
-    const data = await kv.get(gameKey(gameId));
-    return data ? parseGame(data) : null;
+    const data = await kv.get(gameKey(gameId))
+    return data ? parseGame(data) : null
   }
 
   async function saveState(gameId: string, state: GameState): Promise<void> {
-    await kv.set(gameKey(gameId), serializeGame(state));
+    await kv.set(gameKey(gameId), serializeGame(state))
   }
 
   async function getHumanPlayerIds(gameId: string): Promise<Set<string>> {
-    const data = await kv.get(humansKey(gameId));
-    return new Set(data ? (JSON.parse(data) as string[]) : []);
+    const data = await kv.get(humansKey(gameId))
+    return new Set(data ? (JSON.parse(data) as string[]) : [])
   }
 
   async function setHumanPlayerIds(gameId: string, ids: Iterable<string>): Promise<void> {
-    await kv.set(humansKey(gameId), JSON.stringify([...ids]));
+    await kv.set(humansKey(gameId), JSON.stringify([...ids]))
   }
 
   /**
@@ -202,10 +204,10 @@ export function createGameService(deps: GameServiceDeps) {
    * so two submissions for the same game must not interleave, and neither may
    * a deletion, which would otherwise be undone by a turn already in flight.
    */
-  const withGameLock = createKeyedLock();
+  const withGameLock = createKeyedLock()
 
   async function gameExists(gameId: string): Promise<boolean> {
-    return kv.exists(gameKey(gameId));
+    return kv.exists(gameKey(gameId))
   }
 
   /**
@@ -219,26 +221,26 @@ export function createGameService(deps: GameServiceDeps) {
     state: GameState,
     humans: ReadonlySet<string>
   ): boolean {
-    if (humans.size > 0 || state.players.length === 0) return true;
+    if (humans.size > 0 || state.players.length === 0) return true
     log.error(
       `Game ${gameId} has ${state.players.length} players but no registered human seats; refusing to run bots`
-    );
-    return false;
+    )
+    return false
   }
 
-  const NO_HUMANS_ERROR = "This game has no registered human players; it cannot be played";
+  const NO_HUMANS_ERROR = 'This game has no registered human players; it cannot be played'
 
   /**
    * A finished game whose archive write failed keeps a pending flag; reads of
    * ended games are the retry tick (together with /api/health).
    */
   async function ensureFinalized(gameId: string, state: GameState): Promise<void> {
-    if (state.phase !== "ended") return;
+    if (state.phase !== 'ended') return
     try {
-      if (await recordings.isFinalized(gameId)) await recordings.retryPendingFinalizations();
-      else await recordings.finalize(gameId, state, "victory");
+      if (await recordings.isFinalized(gameId)) await recordings.retryPendingFinalizations()
+      else await recordings.finalize(gameId, state, 'victory')
     } catch (error) {
-      log.error(`Failed to finalize the recording of game ${gameId}: ${String(error)}`);
+      log.error(`Failed to finalize the recording of game ${gameId}: ${String(error)}`)
     }
   }
 
@@ -247,14 +249,14 @@ export function createGameService(deps: GameServiceDeps) {
   // -------------------------------------------------------------------------
 
   function viewPayload(state: GameState, playerId: string, events: GameEvent[]): ViewPayload {
-    return { view: viewFor(state, playerId), events: filterEventsFor(events, playerId) };
+    return { view: viewFor(state, playerId), events: filterEventsFor(events, playerId) }
   }
 
   function broadcastView(gameId: string, state: GameState, events: GameEvent[]): void {
-    transport.broadcastViews(gameId, (playerId) => ({
-      type: "GAME_VIEW",
+    transport.broadcastViews(gameId, playerId => ({
+      type: 'GAME_VIEW',
       payload: viewPayload(state, playerId, events),
-    }));
+    }))
   }
 
   /**
@@ -272,7 +274,7 @@ export function createGameService(deps: GameServiceDeps) {
     after: GameState,
     turn: { turnNumber: number; playerId: string; actions: PlayerAction[]; events: GameEvent[] }
   ): Promise<Result> {
-    let turnCount: number | null = null;
+    let turnCount: number | null = null
     try {
       turnCount = await recordings.append(gameId, {
         turnNumber: turn.turnNumber,
@@ -280,49 +282,47 @@ export function createGameService(deps: GameServiceDeps) {
         actions: turn.actions,
         resultingStateSnapshot: after,
         events: turn.events,
-      });
+      })
     } catch (error) {
-      log.error(`Failed to record turn ${turn.turnNumber} of game ${gameId}: ${String(error)}`);
-      return { ok: false, error: "Could not record the turn; the game was not advanced" };
+      log.error(`Failed to record turn ${turn.turnNumber} of game ${gameId}: ${String(error)}`)
+      return { ok: false, error: 'Could not record the turn; the game was not advanced' }
     }
     if (turnCount === null) {
       // No recording for this game (it was discarded, or expired): the turn
       // still stands, but the history will have a hole.
-      log.warn(`Game ${gameId} has no recording; turn ${turn.turnNumber} was not recorded`);
+      log.warn(`Game ${gameId} has no recording; turn ${turn.turnNumber} was not recorded`)
     }
 
     try {
-      await saveState(gameId, after);
+      await saveState(gameId, after)
     } catch (error) {
-      log.error(`Failed to save turn ${turn.turnNumber} of game ${gameId}: ${String(error)}`);
+      log.error(`Failed to save turn ${turn.turnNumber} of game ${gameId}: ${String(error)}`)
       if (turnCount !== null) {
         // Drop the turn we just recorded so the recording matches the state
         // that is still live.
         try {
-          await recordings.truncate(gameId, turnCount - 2);
+          await recordings.truncate(gameId, turnCount - 2)
         } catch (rollbackError) {
-          log.error(
-            `Failed to roll the recording of game ${gameId} back: ${String(rollbackError)}`
-          );
+          log.error(`Failed to roll the recording of game ${gameId} back: ${String(rollbackError)}`)
         }
       }
-      return { ok: false, error: "Could not save the turn; the game was not advanced" };
+      return { ok: false, error: 'Could not save the turn; the game was not advanced' }
     }
 
-    if (after.phase === "ended" && before.phase === "active") {
+    if (after.phase === 'ended' && before.phase === 'active') {
       // The turn itself is committed; a failed archive write is retried later.
-      await ensureFinalized(gameId, after);
+      await ensureFinalized(gameId, after)
     }
-    transport.broadcastViews(gameId, (recipient) => ({
-      type: "TURN_EXECUTED",
+    transport.broadcastViews(gameId, recipient => ({
+      type: 'TURN_EXECUTED',
       payload: {
         ...viewPayload(after, recipient, turn.events),
         playerId: turn.playerId,
         turnNumber: turn.turnNumber,
         ...(recipient === turn.playerId ? { actions: turn.actions } : {}),
       },
-    }));
-    return { ok: true };
+    }))
+    return { ok: true }
   }
 
   // -------------------------------------------------------------------------
@@ -330,7 +330,7 @@ export function createGameService(deps: GameServiceDeps) {
   // -------------------------------------------------------------------------
 
   function activePlayer(state: GameState): Player {
-    return state.players[state.activePlayerIndex];
+    return state.players[state.activePlayerIndex]
   }
 
   /**
@@ -339,56 +339,56 @@ export function createGameService(deps: GameServiceDeps) {
    * hull can fly.
    */
   function fallbackLoadout(offers: Mission[]): LoadoutSubmission {
-    const primaries = offers.filter((m) => isPrimaryType(m.type));
-    const secondaries = offers.filter((m) => !isPrimaryType(m.type));
+    const primaries = offers.filter(m => isPrimaryType(m.type))
+    const secondaries = offers.filter(m => !isPrimaryType(m.type))
     for (const primary of combinations(primaries, PRIMARIES_PER_PLAYER)) {
       for (const secondary of combinations(secondaries, SECONDARIES_PER_PLAYER)) {
-        const hand = [...primary, ...secondary];
+        const hand = [...primary, ...secondary]
         if (missionsMissingRequirements(hand, FALLBACK_LOADOUT).length === 0) {
-          return { loadout: FALLBACK_LOADOUT, missionIds: hand.map((m) => m.id) };
+          return { loadout: FALLBACK_LOADOUT, missionIds: hand.map(m => m.id) }
         }
       }
     }
-    throw new Error("No legal hand in these offers for the fallback hull");
+    throw new Error('No legal hand in these offers for the fallback hull')
   }
 
   /** Every bot that has not submitted picks missions and a loadout. */
   function runBotLoadouts(state: GameState, humans: ReadonlySet<string>): GameState {
     for (const player of state.players) {
-      if (state.phase !== "loadout") break;
-      if (humans.has(player.id) || player.hasSubmittedLoadout) continue;
+      if (state.phase !== 'loadout') break
+      if (humans.has(player.id) || player.hasSubmittedLoadout) continue
 
-      let submission: LoadoutSubmission;
+      let submission: LoadoutSubmission
       try {
         const choice = bots.chooseLoadout(player.missionOffers, {
           // The bots spread across the hands they could fly; seeded off the
           // game's own RNG so a recording replays the same table.
-          pick: (n) => pickIndex(state, Array.from({ length: n })),
-        });
-        submission = { loadout: choice.loadout, missionIds: choice.missionIds };
+          pick: n => pickIndex(state, Array.from({ length: n })),
+        })
+        submission = { loadout: choice.loadout, missionIds: choice.missionIds }
       } catch (error) {
         log.error(
           `Bot ${player.id} failed to choose a loadout, using the default: ${String(error)}`
-        );
-        submission = fallbackLoadout(player.missionOffers);
+        )
+        submission = fallbackLoadout(player.missionOffers)
       }
 
-      let result = engineSubmitLoadout(state, player.id, submission);
+      let result = engineSubmitLoadout(state, player.id, submission)
       if (result.error) {
-        log.error(`Bot ${player.id} loadout rejected (${result.error}), using the default`);
-        result = engineSubmitLoadout(state, player.id, fallbackLoadout(player.missionOffers));
+        log.error(`Bot ${player.id} loadout rejected (${result.error}), using the default`)
+        result = engineSubmitLoadout(state, player.id, fallbackLoadout(player.missionOffers))
         if (result.error)
-          throw new Error(`Default loadout rejected for bot ${player.id}: ${result.error}`);
+          throw new Error(`Default loadout rejected for bot ${player.id}: ${result.error}`)
       }
-      state = result.state;
+      state = result.state
     }
-    return state;
+    return state
   }
 
   function fallbackDeployment(state: GameState): DeploymentChoice {
-    const legal = legalDeploymentPositions(state);
-    if (legal.length > 0) return legal[0];
-    throw new Error("No legal deployment position on the home rings");
+    const legal = legalDeploymentPositions(state)
+    if (legal.length > 0) return legal[0]
+    throw new Error('No legal deployment position on the home rings')
   }
 
   /** Deploy bots, in turn order, until a human has to deploy or the game starts. */
@@ -397,48 +397,48 @@ export function createGameService(deps: GameServiceDeps) {
     humans: ReadonlySet<string>,
     events: GameEvent[]
   ): GameState {
-    while (state.phase === "deployment") {
-      const bot = activePlayer(state);
-      if (humans.has(bot.id)) break;
+    while (state.phase === 'deployment') {
+      const bot = activePlayer(state)
+      if (humans.has(bot.id)) break
 
       // The bot draws from the game's seeded RNG so live games replay from their seed.
-      const pick = (n: number) => pickIndex(state, Array.from({ length: n }));
-      let choice: DeploymentChoice;
+      const pick = (n: number) => pickIndex(state, Array.from({ length: n }))
+      let choice: DeploymentChoice
       try {
-        choice = bots.chooseDeployment(viewFor(state, bot.id), pick);
+        choice = bots.chooseDeployment(viewFor(state, bot.id), pick)
       } catch (error) {
-        log.error(`Bot ${bot.id} failed to choose a deployment: ${String(error)}`);
-        choice = fallbackDeployment(state);
+        log.error(`Bot ${bot.id} failed to choose a deployment: ${String(error)}`)
+        choice = fallbackDeployment(state)
       }
 
-      let result = deployShip(state, bot.id, choice.sector, choice.ring);
+      let result = deployShip(state, bot.id, choice.sector, choice.ring)
       if (!result.success) {
         log.error(
           `Bot ${bot.id} deployment rejected (${result.error}), placing it on the first legal position`
-        );
-        const fallback = fallbackDeployment(state);
-        result = deployShip(state, bot.id, fallback.sector, fallback.ring);
+        )
+        const fallback = fallbackDeployment(state)
+        result = deployShip(state, bot.id, fallback.sector, fallback.ring)
         if (!result.success)
-          throw new Error(`Fallback deployment rejected for bot ${bot.id}: ${result.error}`);
+          throw new Error(`Fallback deployment rejected for bot ${bot.id}: ${result.error}`)
       }
-      events.push(...stampEvents(result.events, state.turn));
-      state = transitionToActivePhase(result.state);
+      events.push(...stampEvents(result.events, state.turn))
+      state = transitionToActivePhase(result.state)
     }
-    return state;
+    return state
   }
 
   function decideBotActions(state: GameState, bot: Player): PlayerAction[] {
-    if (isDestroyed(bot.ship)) return []; // the engine handles the respawn turn
+    if (isDestroyed(bot.ship)) return [] // the engine handles the respawn turn
     try {
-      return bots.decideActions(viewFor(state, bot.id)).actions;
+      return bots.decideActions(viewFor(state, bot.id)).actions
     } catch (error) {
-      botInvalidTurns++;
-      console.error("[bot] AI threw while deciding; passing an empty turn", {
+      botInvalidTurns++
+      console.error('[bot] AI threw while deciding; passing an empty turn', {
         turn: state.turn,
         botId: bot.id,
         error: error instanceof Error ? (error.stack ?? error.message) : String(error),
-      });
-      return [];
+      })
+      return []
     }
   }
 
@@ -449,36 +449,36 @@ export function createGameService(deps: GameServiceDeps) {
     humans: ReadonlySet<string>
   ): Promise<GameState> {
     // Backstop: without a human seat every player would be played as a bot.
-    if (!humansAreRegistered(gameId, state, humans)) return state;
+    if (!humansAreRegistered(gameId, state, humans)) return state
 
-    while (state.phase === "active") {
-      const bot = activePlayer(state);
-      if (humans.has(bot.id)) break;
+    while (state.phase === 'active') {
+      const bot = activePlayer(state)
+      if (humans.has(bot.id)) break
       // The game may have been deleted between two turns of this loop.
       if (!(await gameExists(gameId))) {
-        log.warn(`Game ${gameId} no longer exists; stopping the bot loop`);
-        break;
+        log.warn(`Game ${gameId} no longer exists; stopping the bot loop`)
+        break
       }
-      const turnNumber = state.turn;
+      const turnNumber = state.turn
 
-      let actions = decideBotActions(state, bot);
-      let result = executeTurn(state, actions);
+      let actions = decideBotActions(state, bot)
+      let result = executeTurn(state, actions)
       if (result.errors && result.errors.length > 0) {
         // The simulator is strict about this; a live game with humans in it must go on.
-        botInvalidTurns++;
-        console.error("[bot] turn rejected by the engine; passing an empty turn", {
+        botInvalidTurns++
+        console.error('[bot] turn rejected by the engine; passing an empty turn', {
           gameId,
           turn: turnNumber,
           botId: bot.id,
           actions,
           errors: result.errors,
-        });
-        actions = [];
-        result = executeTurn(state, actions);
+        })
+        actions = []
+        result = executeTurn(state, actions)
         if (result.errors && result.errors.length > 0) {
           throw new Error(
-            `Empty turn rejected for bot ${bot.id} at T${turnNumber}: ${result.errors.join("; ")}`
-          );
+            `Empty turn rejected for bot ${bot.id} at T${turnNumber}: ${result.errors.join('; ')}`
+          )
         }
       }
 
@@ -487,14 +487,14 @@ export function createGameService(deps: GameServiceDeps) {
         playerId: bot.id,
         actions,
         events: result.events,
-      });
+      })
       if (!committed.ok) {
-        log.error(`Could not commit bot turn ${turnNumber} of game ${gameId}: ${committed.error}`);
-        break;
+        log.error(`Could not commit bot turn ${turnNumber} of game ${gameId}: ${committed.error}`)
+        break
       }
-      state = result.gameState;
+      state = result.gameState
     }
-    return state;
+    return state
   }
 
   /**
@@ -509,21 +509,21 @@ export function createGameService(deps: GameServiceDeps) {
     humans: ReadonlySet<string>,
     events: GameEvent[] = []
   ): Promise<GameState> {
-    if (state.phase === "loadout") state = runBotLoadouts(state, humans);
-    if (state.phase === "deployment") state = runBotDeployments(state, humans, events);
+    if (state.phase === 'loadout') state = runBotLoadouts(state, humans)
+    if (state.phase === 'deployment') state = runBotDeployments(state, humans, events)
 
     if (!(await gameExists(gameId))) {
-      log.warn(`Game ${gameId} was deleted during setup; nothing was saved`);
-      return state;
+      log.warn(`Game ${gameId} was deleted during setup; nothing was saved`)
+      return state
     }
-    await saveState(gameId, state);
-    if (state.phase === "active" && before.phase !== "active") {
-      await recordings.init(gameId, state, humans);
+    await saveState(gameId, state)
+    if (state.phase === 'active' && before.phase !== 'active') {
+      await recordings.init(gameId, state, humans)
     }
-    broadcastView(gameId, state, events);
+    broadcastView(gameId, state, events)
 
-    if (state.phase === "active") state = await runBotTurns(gameId, state, humans);
-    return state;
+    if (state.phase === 'active') state = await runBotTurns(gameId, state, humans)
+    return state
   }
 
   // -------------------------------------------------------------------------
@@ -537,18 +537,19 @@ export function createGameService(deps: GameServiceDeps) {
     newId: string,
     newName: string
   ): GameState {
-    const rename = (id: string) => (id === oldId ? newId : id);
+    const rename = (id: string) => (id === oldId ? newId : id)
     const renameMission = (m: Mission): Mission => {
-      if (missionTargetsPlayer(m) && m.targetPlayerId === oldId) return { ...m, targetPlayerId: newId };
-      if (m.type === "escort" && m.markedPlayerId === oldId) return { ...m, markedPlayerId: newId };
-      return m;
-    };
-    const renameIntel = (intel: Player["intel"]): Player["intel"] =>
-      Object.fromEntries(Object.entries(intel).map(([id, slots]) => [rename(id), slots]));
+      if (missionTargetsPlayer(m) && m.targetPlayerId === oldId)
+        return { ...m, targetPlayerId: newId }
+      if (m.type === 'escort' && m.markedPlayerId === oldId) return { ...m, markedPlayerId: newId }
+      return m
+    }
+    const renameIntel = (intel: Player['intel']): Player['intel'] =>
+      Object.fromEntries(Object.entries(intel).map(([id, slots]) => [rename(id), slots]))
 
     return {
       ...state,
-      players: state.players.map((p) => ({
+      players: state.players.map(p => ({
         ...p,
         id: rename(p.id),
         name: p.id === oldId ? newName : p.name,
@@ -556,13 +557,13 @@ export function createGameService(deps: GameServiceDeps) {
         missionOffers: p.missionOffers.map(renameMission),
         intel: renameIntel(p.intel),
       })),
-      missiles: state.missiles.map((m) => ({
+      missiles: state.missiles.map(m => ({
         ...m,
         ownerId: rename(m.ownerId),
         targetId: rename(m.targetId),
       })),
       winnerId: state.winnerId === undefined ? undefined : rename(state.winnerId),
-    };
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -582,27 +583,27 @@ export function createGameService(deps: GameServiceDeps) {
       playerId: string,
       actions: PlayerAction[]
     ): Promise<PreviewPayload> {
-      const state = await loadState(gameId);
-      if (!state) return { ok: false, error: "Game not found" };
-      if (state.phase !== "active")
-        return { ok: false, error: `Game is not active (phase "${state.phase}")` };
-      if (activePlayer(state).id !== playerId) return { ok: false, error: "Not your turn" };
-      const result = executeTurn(state, actions);
-      if (result.errors && result.errors.length > 0) return { ok: false, errors: result.errors };
-      return { ok: true, events: filterEventsFor(result.events, playerId) };
+      const state = await loadState(gameId)
+      if (!state) return { ok: false, error: 'Game not found' }
+      if (state.phase !== 'active')
+        return { ok: false, error: `Game is not active (phase "${state.phase}")` }
+      if (activePlayer(state).id !== playerId) return { ok: false, error: 'Not your turn' }
+      const result = executeTurn(state, actions)
+      if (result.errors && result.errors.length > 0) return { ok: false, errors: result.errors }
+      return { ok: true, events: filterEventsFor(result.events, playerId) }
     },
 
     /** Table talk: append a line and tell every seat at the table. */
     async postChat(
       gameId: string,
       playerId: string,
-      kind: ChatMessage["kind"],
+      kind: ChatMessage['kind'],
       text: string
     ): Promise<Result<{ message: ChatMessage }>> {
-      const state = await loadState(gameId);
-      if (!state) return { ok: false, error: "Game not found" };
-      const player = state.players.find((p) => p.id === playerId);
-      if (!player) return { ok: false, error: "Not a player in this game" };
+      const state = await loadState(gameId)
+      if (!state) return { ok: false, error: 'Game not found' }
+      const player = state.players.find(p => p.id === playerId)
+      if (!player) return { ok: false, error: 'Not a player in this game' }
       const message: ChatMessage = {
         id: randomUUID(),
         gameId,
@@ -612,16 +613,16 @@ export function createGameService(deps: GameServiceDeps) {
         text,
         turn: state.turn,
         at: new Date().toISOString(),
-      };
-      await kv.rpush(chatKey(gameId), JSON.stringify(message));
-      transport.broadcastViews(gameId, () => ({ type: "CHAT", payload: message }));
-      return { ok: true, message };
+      }
+      await kv.rpush(chatKey(gameId), JSON.stringify(message))
+      transport.broadcastViews(gameId, () => ({ type: 'CHAT', payload: message }))
+      return { ok: true, message }
     },
 
     /** Every line said at this table so far, oldest first. */
     async listChat(gameId: string): Promise<ChatMessage[]> {
-      const raw = await kv.lrange(chatKey(gameId));
-      return raw.map((line) => JSON.parse(line) as ChatMessage);
+      const raw = await kv.lrange(chatKey(gameId))
+      return raw.map(line => JSON.parse(line) as ChatMessage)
     },
 
     async createGame(
@@ -630,10 +631,10 @@ export function createGameService(deps: GameServiceDeps) {
       humanPlayerIds: Iterable<string>,
       seed?: number
     ): Promise<GameState> {
-      const state = engineCreateGame(players, seed);
-      await saveState(gameId, state);
-      await setHumanPlayerIds(gameId, humanPlayerIds);
-      return state;
+      const state = engineCreateGame(players, seed)
+      await saveState(gameId, state)
+      await setHumanPlayerIds(gameId, humanPlayerIds)
+      return state
     },
 
     getGame: loadState,
@@ -644,21 +645,21 @@ export function createGameService(deps: GameServiceDeps) {
      */
     /** Every game in the store, started or not, live or abandoned. */
     async listGameIds(): Promise<string[]> {
-      const prefix = gameKey("");
-      return (await kv.keys(prefix)).map((key) => key.slice(prefix.length));
+      const prefix = gameKey('')
+      return (await kv.keys(prefix)).map(key => key.slice(prefix.length))
     },
 
     deleteGame(gameId: string): Promise<void> {
       return withGameLock(gameId, async () => {
-        await kv.del(gameKey(gameId), humansKey(gameId), chatKey(gameId));
-        await recordings.discard(gameId);
-      });
+        await kv.del(gameKey(gameId), humansKey(gameId), chatKey(gameId))
+        await recordings.discard(gameId)
+      })
     },
 
     /** The player's current view, without the event history. */
     async getView(gameId: string, playerId: string): Promise<GameView | null> {
-      const state = await loadState(gameId);
-      return state ? viewFor(state, playerId) : null;
+      const state = await loadState(gameId)
+      return state ? viewFor(state, playerId) : null
     },
 
     /**
@@ -675,14 +676,14 @@ export function createGameService(deps: GameServiceDeps) {
       onSnapshot?: () => void
     ): Promise<ViewPayload | null> {
       return withGameLock(gameId, async () => {
-        const state = await loadState(gameId);
-        if (!state) return null;
-        const payload = viewPayload(state, playerId, await recordings.loadEvents(gameId));
-        onSnapshot?.();
+        const state = await loadState(gameId)
+        if (!state) return null
+        const payload = viewPayload(state, playerId, await recordings.loadEvents(gameId))
+        onSnapshot?.()
         // Reads of ended games are the retry tick for a failed archive write.
-        await ensureFinalized(gameId, state);
-        return payload;
-      });
+        await ensureFinalized(gameId, state)
+        return payload
+      })
     },
 
     /**
@@ -692,14 +693,14 @@ export function createGameService(deps: GameServiceDeps) {
      * caller's own visible events.
      */
     async listTurns(gameId: string, playerId: string): Promise<TurnSummary[] | null> {
-      const recording = await recordings.load(gameId);
-      if (!recording) return null;
+      const recording = await recordings.load(gameId)
+      if (!recording) return null
       return recording.turns.flatMap((turn, index) => {
-        const eventCount = filterEventsFor(turn.events, playerId).length;
+        const eventCount = filterEventsFor(turn.events, playerId).length
         return eventCount === 0
           ? []
-          : [{ index, turn: turn.turnNumber, actorId: turn.playerId, eventCount }];
-      });
+          : [{ index, turn: turn.turnNumber, actorId: turn.playerId, eventCount }]
+      })
     },
 
     /**
@@ -707,15 +708,16 @@ export function createGameService(deps: GameServiceDeps) {
      * it and after it, and the events of it they may see.
      */
     async turnFrames(gameId: string, playerId: string, index: number): Promise<TurnFrames | null> {
-      const recording = await recordings.load(gameId);
-      const turn = recording?.turns[index];
-      if (!recording || !turn) return null;
-      const before = index === 0 ? recording.initialState : recording.turns[index - 1].resultingStateSnapshot;
+      const recording = await recordings.load(gameId)
+      const turn = recording?.turns[index]
+      if (!recording || !turn) return null
+      const before =
+        index === 0 ? recording.initialState : recording.turns[index - 1].resultingStateSnapshot
       return {
         from: viewFor(before, playerId),
         to: viewFor(turn.resultingStateSnapshot, playerId),
         events: filterEventsFor(turn.events, playerId),
-      };
+      }
     },
 
     submitLoadout(
@@ -724,16 +726,16 @@ export function createGameService(deps: GameServiceDeps) {
       submission: LoadoutSubmission
     ): Promise<Result<{ view: GameView }>> {
       return withGameLock(gameId, async () => {
-        const state = await loadState(gameId);
-        if (!state) return { ok: false, error: "Game not found" };
-        const result = engineSubmitLoadout(state, playerId, submission);
-        if (result.error) return { ok: false, error: result.error };
-        const humans = await getHumanPlayerIds(gameId);
+        const state = await loadState(gameId)
+        if (!state) return { ok: false, error: 'Game not found' }
+        const result = engineSubmitLoadout(state, playerId, submission)
+        if (result.error) return { ok: false, error: result.error }
+        const humans = await getHumanPlayerIds(gameId)
         if (!humansAreRegistered(gameId, state, humans))
-          return { ok: false, error: NO_HUMANS_ERROR };
-        const next = await settleSetup(gameId, state, result.state, humans);
-        return { ok: true, view: viewFor(next, playerId) };
-      });
+          return { ok: false, error: NO_HUMANS_ERROR }
+        const next = await settleSetup(gameId, state, result.state, humans)
+        return { ok: true, view: viewFor(next, playerId) }
+      })
     },
 
     deploy(
@@ -743,24 +745,24 @@ export function createGameService(deps: GameServiceDeps) {
       ring: number
     ): Promise<Result<{ view: GameView }>> {
       return withGameLock(gameId, async () => {
-        const state = await loadState(gameId);
-        if (!state) return { ok: false, error: "Game not found" };
-        const result = deployShip(state, playerId, sector, ring);
-        if (!result.success) return { ok: false, error: result.error };
-        const humans = await getHumanPlayerIds(gameId);
+        const state = await loadState(gameId)
+        if (!state) return { ok: false, error: 'Game not found' }
+        const result = deployShip(state, playerId, sector, ring)
+        if (!result.success) return { ok: false, error: result.error }
+        const humans = await getHumanPlayerIds(gameId)
         if (!humansAreRegistered(gameId, state, humans))
-          return { ok: false, error: NO_HUMANS_ERROR };
+          return { ok: false, error: NO_HUMANS_ERROR }
         // Deployment events travel with the view; the recording only starts at the active state.
-        const events = stampEvents(result.events, state.turn);
+        const events = stampEvents(result.events, state.turn)
         const next = await settleSetup(
           gameId,
           state,
           transitionToActivePhase(result.state),
           humans,
           events
-        );
-        return { ok: true, view: viewFor(next, playerId) };
-      });
+        )
+        return { ok: true, view: viewFor(next, playerId) }
+      })
     },
 
     /**
@@ -774,26 +776,26 @@ export function createGameService(deps: GameServiceDeps) {
       expected: { turn: number; activePlayerId: string }
     ): Promise<Result> {
       return withGameLock(gameId, async () => {
-        const state = await loadState(gameId);
-        if (!state) return { ok: false, error: "Game not found" };
-        if (state.phase !== "active")
-          return { ok: false, error: `Game is not active (phase "${state.phase}")` };
-        const active = activePlayer(state);
-        if (active.id !== playerId) return { ok: false, error: "Not your turn" };
+        const state = await loadState(gameId)
+        if (!state) return { ok: false, error: 'Game not found' }
+        if (state.phase !== 'active')
+          return { ok: false, error: `Game is not active (phase "${state.phase}")` }
+        const active = activePlayer(state)
+        if (active.id !== playerId) return { ok: false, error: 'Not your turn' }
         if (expected.turn !== state.turn || expected.activePlayerId !== active.id) {
           return {
             ok: false,
             error: `Stale turn submission: the game is at turn ${state.turn}, ${active.name} to act`,
-          };
+          }
         }
 
-        const humans = await getHumanPlayerIds(gameId);
+        const humans = await getHumanPlayerIds(gameId)
         if (!humansAreRegistered(gameId, state, humans))
-          return { ok: false, error: NO_HUMANS_ERROR };
+          return { ok: false, error: NO_HUMANS_ERROR }
 
-        const turnNumber = state.turn;
-        const result = executeTurn(state, actions);
-        if (result.errors && result.errors.length > 0) return { ok: false, errors: result.errors };
+        const turnNumber = state.turn
+        const result = executeTurn(state, actions)
+        if (result.errors && result.errors.length > 0) return { ok: false, errors: result.errors }
 
         // Nothing is broadcast and the game does not advance unless both the
         // recording and the state were written.
@@ -802,23 +804,23 @@ export function createGameService(deps: GameServiceDeps) {
           playerId,
           actions,
           events: result.events,
-        });
-        if (!committed.ok) return committed;
+        })
+        if (!committed.ok) return committed
 
-        await runBotTurns(gameId, result.gameState, humans);
-        return { ok: true };
-      });
+        await runBotTurns(gameId, result.gameState, humans)
+        return { ok: true }
+      })
     },
 
     /** Continue bot turns if a game was left with a bot active (e.g. after a restart). */
     resumeBots(gameId: string): Promise<void> {
       return withGameLock(gameId, async () => {
-        const state = await loadState(gameId);
-        if (!state || state.phase !== "active") return;
-        const humans = await getHumanPlayerIds(gameId);
-        if (!humansAreRegistered(gameId, state, humans)) return;
-        await runBotTurns(gameId, state, humans);
-      });
+        const state = await loadState(gameId)
+        if (!state || state.phase !== 'active') return
+        const humans = await getHumanPlayerIds(gameId)
+        if (!humansAreRegistered(gameId, state, humans)) return
+        await runBotTurns(gameId, state, humans)
+      })
     },
 
     /**
@@ -835,77 +837,77 @@ export function createGameService(deps: GameServiceDeps) {
       turnIndex: number,
       options: ForkOptions
     ): Promise<Result<{ gameId: string; view: GameView }>> {
-      const recording = await recordings.loadArchived(recordingId);
+      const recording = await recordings.loadArchived(recordingId)
       if (!recording) {
-        return { ok: false, error: "Recording not found; only finished recordings can be forked" };
+        return { ok: false, error: 'Recording not found; only finished recordings can be forked' }
       }
       if (!recording.finalState) {
         return {
           ok: false,
-          error: "That recording is not finished; only finished recordings can be forked",
-        };
+          error: 'That recording is not finished; only finished recordings can be forked',
+        }
       }
-      const stale = staleRecordingReason(recording);
-      if (stale) return { ok: false, error: stale };
+      const stale = staleRecordingReason(recording)
+      if (stale) return { ok: false, error: stale }
       if (turnIndex < -1 || turnIndex >= recording.turns.length) {
         return {
           ok: false,
           error: `turnIndex ${turnIndex} out of range (-1..${recording.turns.length - 1})`,
-        };
+        }
       }
-      const seat = options.impersonateOriginalPlayerId;
+      const seat = options.impersonateOriginalPlayerId
 
       const snapshot =
         turnIndex === -1
           ? recording.initialState
-          : recording.turns[turnIndex].resultingStateSnapshot;
-      if (snapshot.phase !== "active" && snapshot.phase !== "ended") {
+          : recording.turns[turnIndex].resultingStateSnapshot
+      if (snapshot.phase !== 'active' && snapshot.phase !== 'ended') {
         return {
           ok: false,
           error: `Cannot fork from a "${snapshot.phase}" snapshot; pick a turn after deployment`,
-        };
+        }
       }
-      if (!snapshot.players.some((p) => p.id === seat)) {
-        return { ok: false, error: `Player "${seat}" not found in recording` };
+      if (!snapshot.players.some(p => p.id === seat)) {
+        return { ok: false, error: `Player "${seat}" not found in recording` }
       }
       // Taking a seat renames it to the caller: if the caller already sits in
       // another seat of the recording, the fork would hold two players with
       // the same id.
-      if (snapshot.players.some((p) => p.id === options.humanPlayerId && p.id !== seat)) {
+      if (snapshot.players.some(p => p.id === options.humanPlayerId && p.id !== seat)) {
         return {
           ok: false,
           error: `You already hold seat "${options.humanPlayerId}" in this recording; fork that seat instead`,
-        };
+        }
       }
       // Only a bot seat, or the caller's own seat, may be taken over: any other
       // human's seat would expose that player's missions, cargo and intel.
-      const seatKind = recording.metadata.playerKinds.find((k) => k.playerId === seat)?.kind;
-      if (seat !== options.humanPlayerId && seatKind !== "bot") {
+      const seatKind = recording.metadata.playerKinds.find(k => k.playerId === seat)?.kind
+      if (seat !== options.humanPlayerId && seatKind !== 'bot') {
         return {
           ok: false,
           error: `Seat "${seat}" was played by another human; you may only fork a bot seat or your own`,
-        };
+        }
       }
 
       const forked = renamePlayerEverywhere(
-        { ...snapshot, phase: "active", winnerId: undefined },
+        { ...snapshot, phase: 'active', winnerId: undefined },
         seat,
         options.humanPlayerId,
         options.humanPlayerName
-      );
-      const gameId = `fork-${Date.now()}-${randomUUID().slice(0, 8)}`;
-      const humans = [options.humanPlayerId];
-      await saveState(gameId, forked);
-      await setHumanPlayerIds(gameId, humans);
+      )
+      const gameId = `fork-${Date.now()}-${randomUUID().slice(0, 8)}`
+      const humans = [options.humanPlayerId]
+      await saveState(gameId, forked)
+      await setHumanPlayerIds(gameId, humans)
       await recordings.init(
         gameId,
         forked,
         new Set(humans),
         `fork from ${recording.recordingId} @ turn ${turnIndex}`
-      );
-      return { ok: true, gameId, view: viewFor(forked, options.humanPlayerId) };
+      )
+      return { ok: true, gameId, view: viewFor(forked, options.humanPlayerId) }
     },
-  };
+  }
 }
 
-export type GameService = ReturnType<typeof createGameService>;
+export type GameService = ReturnType<typeof createGameService>

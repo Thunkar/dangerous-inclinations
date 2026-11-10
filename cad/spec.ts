@@ -9,10 +9,10 @@
  * works is the one written here.
  */
 
-import { FOOT, PRINT_LENGTH, MM_PER_UNIT } from "../ui/src/ships/mountShape.ts";
+import { FOOT, PRINT_LENGTH, MM_PER_UNIT } from '../ui/src/ships/mountShape.ts'
 
 /** Game units to millimetres: the corvette prints 80 long. */
-export const PRINT = { corvetteLength: PRINT_LENGTH, mmPerUnit: MM_PER_UNIT };
+export const PRINT = { corvetteLength: PRINT_LENGTH, mmPerUnit: MM_PER_UNIT }
 
 /**
  * The mount. Each module stands on a foot whose mating face carries a
@@ -71,7 +71,7 @@ export const MOUNT = {
     shortest: 4,
     longest: 6,
   },
-};
+}
 
 /** The energy and heat cubes. */
 export const CUBE = {
@@ -81,13 +81,13 @@ export const CUBE = {
   pocketDepth: 3,
   /** Plastic between two pockets in a row; the cubes stand 5 mm proud, so fingers still get round them. */
   wall: 1.2,
-};
+}
 
 /**
  * The display ship stands on a square peg (square, so it keeps its heading)
  * in a blind socket from its keel. The socket takes the tenon's clearance.
  */
-export const STAND = { peg: 6, depth: 8, clearance: 0.1 };
+export const STAND = { peg: 6, depth: 8, clearance: 0.1 }
 
 /** A 0.4 mm nozzle's limits, for the checks every part should meet. */
 export const FDM = {
@@ -100,7 +100,7 @@ export const FDM = {
   join: 0.15,
   maxOverhangDegrees: 45,
   layer: 0.2,
-};
+}
 
 /**
  * The board: each gravity well as a kit of separate rings with walled,
@@ -121,7 +121,7 @@ export const BOARD = {
   /** The walls on every sector edge and along both rims: trapezoids, foot to crest. */
   wall: { height: 1.2, foot: 1.2, crest: 0.4 },
   /** Inlaid numbers: their depth, the "0"'s height, and the pocket's clearance round them. */
-  number: { depth: 0.6, height: 7.5, clearance: 0.1, font: "fonts/OpenSans-Bold.ttf" },
+  number: { depth: 0.6, height: 7.5, clearance: 0.1, font: 'fonts/OpenSans-Bold.ttf' },
   /** The arms under the rings: how many, how wide, how tall, how far under the hub. */
   arm: { count: 6, width: 6, height: 2, underHub: 15 },
   /** The hub's peg the planet or black hole sits on. */
@@ -131,13 +131,13 @@ export const BOARD = {
   bed: 235,
   /** The lane markers' band outside the outer ring, its groove, and how proud the markers stand. */
   lane: { band: 6, groove: 1.5, raise: 1.5 },
-};
+}
 
 /** The wells: the black hole's five rings and a planet's four, and how big each hub is (0: as big as ring 1 allows). */
 export const WELLS = {
   blackHole: { rings: 5, hubRadius: 0 },
   planet: { rings: 4, hubRadius: 30 },
-} as const;
+} as const
 
 /**
  * The bodies that sit on a well's hub, over its peg (`pieces/body.ts`;
@@ -182,7 +182,7 @@ export const ORBIT_BODY = {
     /** Rows of streaks, how many a row, the inner row's width, length round the disc (degrees) and infall, and the stagger. */
     streaks: { rows: 2, perRow: 3, width: 3, length: 110, infall: 2, stagger: 40 },
   },
-};
+}
 
 /**
  * The marks on the markers and item tokens (`pieces/markers/`): how deep
@@ -191,7 +191,7 @@ export const ORBIT_BODY = {
  * `coupons/marker-depth` prints 0.4, 0.6, 0.8 and 1.0 (one to four
  * notches); the designer's print read best at 0.6.
  */
-export const MARKER = { depth: 0.6 };
+export const MARKER = { depth: 0.6 }
 
 /**
  * A station's berths hold their ship tokens: a 4x2 magnet lies flat under
@@ -205,7 +205,7 @@ export const BERTH = {
   magnet: { diameter: 4, thickness: 2 },
   /** Plastic between the magnet and the clamp's floor, three layers (the designer's pick over two): the pull falls fast with distance. */
   seal: 0.6,
-};
+}
 
 /**
  * The hull and fuel dice (`pieces/dice/`): a pentagonal trapezohedron per
@@ -263,7 +263,12 @@ export const DICE = {
    * both peaks, its top corners `end` under each roof: shorter, it sank into
    * the first half's groove and barely reached the second's.
    */
-  seam: { land: 0.4, ring: 2.5, height: 1.4, groove: { width: 1.5, depth: 1, gap: 3, clearance: 0.15, end: 0.15, mouth: 0.15 } },
+  seam: {
+    land: 0.4,
+    ring: 2.5,
+    height: 1.4,
+    groove: { width: 1.5, depth: 1, gap: 3, clearance: 0.15, end: 0.15, mouth: 0.15 },
+  },
   /**
    * Numbers (BOARD.number's inlays): their pockets' least margin to their
    * kite's edges, and the groove engraved under 6 and 9 (MARKER.depth deep),
@@ -299,4 +304,4 @@ export const DICE = {
     /** What the icon's inlay is grown by all round: the fuel icon's thinnest stroke traces 0.42, under FDM.minFeature. */
     iconGrow: 0.1,
   },
-};
+}

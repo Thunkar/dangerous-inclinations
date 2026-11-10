@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
-import { resolveEndOfTurnHeat } from "../../game/heat.ts";
-import { getDissipationCapacity } from "../../game/ship.ts";
+import { describe, it, expect } from 'vitest'
+import { resolveEndOfTurnHeat } from '../../game/heat.ts'
+import { getDissipationCapacity } from '../../game/ship.ts'
 import {
   LOADOUTS,
   ALPHA,
@@ -22,9 +22,9 @@ import {
   withPower,
   withShip,
   withSub,
-} from "../testUtils.ts";
+} from '../testUtils.ts'
 
-describe("heat: end-of-turn resolution", () => {
+describe('heat: end-of-turn resolution', () => {
   // Heat is a track: only the part above MAX_HEAT is hull, and whatever is left
   // after dissipating (5 here) rides into the next turn.
   it.each([
@@ -34,20 +34,20 @@ describe("heat: end-of-turn resolution", () => {
     [10, 10, 5, false],
     [12, 8, 5, true],
   ])(
-    "heat %i at the check leaves the hull at %i and carries %i",
+    'heat %i at the check leaves the hull at %i and carries %i',
     (heat, hull, carried, damaged) => {
-      const state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: heat } });
-      const result = executeTurnAs(state, coast(1));
-      expect(getShip(result.gameState, "p1").hitPoints).toBe(hull);
-      expect(getShip(result.gameState, "p1").heat.currentHeat).toBe(carried);
-      expect(eventsOf(result.events, "heat_check")[0].damage > 0).toBe(damaged);
+      const state = withShip(makeTwoPlayerGame(), 'p1', { heat: { currentHeat: heat } })
+      const result = executeTurnAs(state, coast(1))
+      expect(getShip(result.gameState, 'p1').hitPoints).toBe(hull)
+      expect(getShip(result.gameState, 'p1').heat.currentHeat).toBe(carried)
+      expect(eventsOf(result.events, 'heat_check')[0].damage > 0).toBe(damaged)
     }
-  );
+  )
 
   it.each([
-    ["an empty track, a full shield", 0, 2, 2, 10, 0],
-    ["a carried track, a full shield", 3, 2, 2, 10, 0],
-    ["a carried track, a half shield", 5, 1, 1, 9, 1],
+    ['an empty track, a full shield', 0, 2, 2, 10, 0],
+    ['a carried track, a full shield', 3, 2, 2, 10, 0],
+    ['a carried track, a half shield', 5, 1, 1, 9, 1],
   ])(
     "absorbing on another player's turn goes onto the track and waits for the owner's check (%s)",
     (_label, carried, cubes, absorbed, hull, carriedAfter) => {
@@ -55,111 +55,111 @@ describe("heat: end-of-turn resolution", () => {
       let state = makeTwoPlayerGame(
         { ring: 3, sector: 0, loadout: LOADOUTS.rackTwoShields },
         { ring: 4, sector: 0 }
-      );
-      state = withShip(state, "p2", { heat: { currentHeat: carried } });
-      state = withPower(state, "p1", "side-0", 2);
-      state = withPower(state, "p2", "side-2", cubes);
-      const afterP1 = mustExecute(state, fire(1, "side-0", "p2"));
+      )
+      state = withShip(state, 'p2', { heat: { currentHeat: carried } })
+      state = withPower(state, 'p1', 'side-0', 2)
+      state = withPower(state, 'p2', 'side-2', cubes)
+      const afterP1 = mustExecute(state, fire(1, 'side-0', 'p2'))
       // The cubes that absorbed come off the shield and the points absorbed go
       // onto p2's track at once; only the active player's check runs, so
       // nothing of p2's is dissipated yet.
-      expect(getShip(afterP1, "p2").heat.currentHeat).toBe(carried + absorbed);
-      const p2Turn = executeTurnAs(afterP1, coast(1));
-      expect(p2Turn.errors).toBeUndefined();
+      expect(getShip(afterP1, 'p2').heat.currentHeat).toBe(carried + absorbed)
+      const p2Turn = executeTurnAs(afterP1, coast(1))
+      expect(p2Turn.errors).toBeUndefined()
       // A coast with nothing powered: p2's check sees the carried heat and the
       // points absorbed, and dissipates them.
-      expect(eventsOf(p2Turn.events, "heat_check")[0]).toMatchObject({
-        playerId: "p2",
+      expect(eventsOf(p2Turn.events, 'heat_check')[0]).toMatchObject({
+        playerId: 'p2',
         cubes: 0,
         heat: carried + absorbed,
         damage: 0,
-      });
-      expect(getShip(p2Turn.gameState, "p2").heat.currentHeat).toBe(carriedAfter);
-      expect(getShip(p2Turn.gameState, "p2").hitPoints).toBe(hull);
+      })
+      expect(getShip(p2Turn.gameState, 'p2').heat.currentHeat).toBe(carriedAfter)
+      expect(getShip(p2Turn.gameState, 'p2').hitPoints).toBe(hull)
     }
-  );
+  )
 
   it.each([
     // Five carried, two absorbed and five cubes of its own: twelve at the check.
-    ["after absorbing a rack round", true, 12, 2],
+    ['after absorbing a rack round', true, 12, 2],
     // The same turn without the shot is exactly at the top of the track.
-    ["with nothing absorbed", false, 10, 0],
+    ['with nothing absorbed', false, 10, 0],
   ])(
     "absorbed heat is paid at the owner's next check: a hot ship %s",
     (_label, shoot, heat, damage) => {
       let state = makeTwoPlayerGame(
         { ring: 3, sector: 0, loadout: LOADOUTS.rackTwoShields },
         { ring: 4, sector: 0 }
-      );
-      state = withShip(state, "p2", { heat: { currentHeat: 5 } });
-      state = withPower(state, "p2", "side-2", 2);
-      const afterP1 = mustExecute(state, shoot ? fire(1, "side-0", "p2") : coast(1));
-      expect(getShip(afterP1, "p2").hitPoints).toBe(10);
+      )
+      state = withShip(state, 'p2', { heat: { currentHeat: 5 } })
+      state = withPower(state, 'p2', 'side-2', 2)
+      const afterP1 = mustExecute(state, shoot ? fire(1, 'side-0', 'p2') : coast(1))
+      expect(getShip(afterP1, 'p2').hitPoints).toBe(10)
       // p2 puts its wall back up and scoops: five cubes of its own.
-      const p2Turn = executeTurnAs(afterP1, power(1, "side-2", 2), coast(2, true));
-      expect(p2Turn.errors).toBeUndefined();
-      expect(eventsOf(p2Turn.events, "heat_check")[0]).toMatchObject({
-        playerId: "p2",
+      const p2Turn = executeTurnAs(afterP1, power(1, 'side-2', 2), coast(2, true))
+      expect(p2Turn.errors).toBeUndefined()
+      expect(eventsOf(p2Turn.events, 'heat_check')[0]).toMatchObject({
+        playerId: 'p2',
         cubes: 5,
         heat,
         damage,
-      });
-      expect(getShip(p2Turn.gameState, "p2").hitPoints).toBe(10 - damage);
+      })
+      expect(getShip(p2Turn.gameState, 'p2').hitPoints).toBe(10 - damage)
     }
-  );
+  )
 
-  it("heat death destroys the ship with cause heat and no killer, dropping cargo", () => {
-    let state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: 12 }, hitPoints: 2 });
-    state = withPlayer(state, "p1", {
+  it('heat death destroys the ship with cause heat and no killer, dropping cargo', () => {
+    let state = withShip(makeTwoPlayerGame(), 'p1', { heat: { currentHeat: 12 }, hitPoints: 2 })
+    state = withPlayer(state, 'p1', {
       cargo: [crateCargo(ALPHA, BETA)],
-    });
-    const result = executeTurnAs(state, coast(1));
-    expect(getShip(result.gameState, "p1").hitPoints).toBe(0);
-    expect(eventsOf(result.events, "ship_destroyed")).toEqual([
-      expect.objectContaining({ victimId: "p1", cause: "heat" }),
-    ]);
-    expect(eventsOf(result.events, "ship_destroyed")[0]).not.toHaveProperty("killerId");
-    expect(eventsOf(result.events, "cargo_dropped")).toHaveLength(1);
-    expect(result.gameState.players[0].cargo[0].isPickedUp).toBe(false);
-  });
+    })
+    const result = executeTurnAs(state, coast(1))
+    expect(getShip(result.gameState, 'p1').hitPoints).toBe(0)
+    expect(eventsOf(result.events, 'ship_destroyed')).toEqual([
+      expect.objectContaining({ victimId: 'p1', cause: 'heat' }),
+    ])
+    expect(eventsOf(result.events, 'ship_destroyed')[0]).not.toHaveProperty('killerId')
+    expect(eventsOf(result.events, 'cargo_dropped')).toHaveLength(1)
+    expect(result.gameState.players[0].cargo[0].isPickedUp).toBe(false)
+  })
 
-  it("heat damage never takes the hull below zero", () => {
-    const state = withShip(makeTwoPlayerGame(), "p1", { heat: { currentHeat: 30 }, hitPoints: 3 });
-    const result = executeTurnAs(state, coast(1));
-    expect(getShip(result.gameState, "p1").hitPoints).toBe(0);
-  });
-});
+  it('heat damage never takes the hull below zero', () => {
+    const state = withShip(makeTwoPlayerGame(), 'p1', { heat: { currentHeat: 30 }, hitPoints: 3 })
+    const result = executeTurnAs(state, coast(1))
+    expect(getShip(result.gameState, 'p1').hitPoints).toBe(0)
+  })
+})
 
-describe("heat: a cold ship repairs one tile", () => {
+describe('heat: a cold ship repairs one tile', () => {
   /** Engines broken in the black hole: no burn, no jump, and every station is in a planet well. */
-  const stranded = () => withSub(makeTwoPlayerGame(), "p1", "engines", { isBroken: true });
+  const stranded = () => withSub(makeTwoPlayerGame(), 'p1', 'engines', { isBroken: true })
 
-  it("repairs the named tile when nothing made heat, and only that tile", () => {
-    const state = withSub(stranded(), "p1", "side-0", { isBroken: true });
-    const result = executeTurnAs(state, coast(1), repair("engines"));
-    expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "subsystem_repaired")).toEqual([
-      expect.objectContaining({ playerId: "p1", subsystemId: "engines", subsystemType: "engines" }),
-    ]);
-    expect(getSub(result.gameState, "p1", "engines").isBroken).toBe(false);
-    expect(getSub(result.gameState, "p1", "side-0").isBroken).toBe(true);
-  });
+  it('repairs the named tile when nothing made heat, and only that tile', () => {
+    const state = withSub(stranded(), 'p1', 'side-0', { isBroken: true })
+    const result = executeTurnAs(state, coast(1), repair('engines'))
+    expect(result.errors).toBeUndefined()
+    expect(eventsOf(result.events, 'subsystem_repaired')).toEqual([
+      expect.objectContaining({ playerId: 'p1', subsystemId: 'engines', subsystemType: 'engines' }),
+    ])
+    expect(getSub(result.gameState, 'p1', 'engines').isBroken).toBe(false)
+    expect(getSub(result.gameState, 'p1', 'side-0').isBroken).toBe(true)
+  })
 
-  it("does nothing if the turn made any heat at all", () => {
-    const state = withPower(stranded(), "p1", "scoop", 3);
-    const result = executeTurnAs(state, coast(1, true), repair("engines"));
-    expect(result.errors).toBeUndefined();
-    expect(eventsOf(result.events, "subsystem_repaired")).toEqual([]);
-    expect(getSub(result.gameState, "p1", "engines").isBroken).toBe(true);
-  });
+  it('does nothing if the turn made any heat at all', () => {
+    const state = withPower(stranded(), 'p1', 'scoop', 3)
+    const result = executeTurnAs(state, coast(1, true), repair('engines'))
+    expect(result.errors).toBeUndefined()
+    expect(eventsOf(result.events, 'subsystem_repaired')).toEqual([])
+    expect(getSub(result.gameState, 'p1', 'engines').isBroken).toBe(true)
+  })
 
-  it("does nothing while heat is carried in from an earlier turn", () => {
-    const state = withShip(stranded(), "p1", { heat: { currentHeat: 2 } });
+  it('does nothing while heat is carried in from an earlier turn', () => {
+    const state = withShip(stranded(), 'p1', { heat: { currentHeat: 2 } })
     expectRefusedUnless(
-      executeTurnAs(state, coast(1), repair("engines")),
-      executeTurnAs(stranded(), coast(1), repair("engines"))
-    );
-  });
+      executeTurnAs(state, coast(1), repair('engines')),
+      executeTurnAs(stranded(), coast(1), repair('engines'))
+    )
+  })
 
   it("does nothing after the ship's shields absorbed on another player's turn", () => {
     // p2 is cold with broken engines and a single cube on its shield. A rack
@@ -169,120 +169,126 @@ describe("heat: a cold ship repairs one tile", () => {
       let state = makeTwoPlayerGame(
         { ring: 3, sector: 0, loadout: LOADOUTS.rackTwoShields },
         { ring: 4, sector: 0 }
-      );
-      state = withSub(state, "p2", "engines", { isBroken: true });
-      return withPower(state, "p2", "side-2", 1);
-    };
-    const shot = mustExecute(base(), fire(1, "side-0", "p2"));
-    expect(getShip(shot, "p2").heat.currentHeat).toBe(1);
-    expect(getShip(shot, "p2").hitPoints).toBe(9);
-    const quiet = mustExecute(base(), coast(1));
-    expect(getShip(quiet, "p2").heat.currentHeat).toBe(0);
+      )
+      state = withSub(state, 'p2', 'engines', { isBroken: true })
+      return withPower(state, 'p2', 'side-2', 1)
+    }
+    const shot = mustExecute(base(), fire(1, 'side-0', 'p2'))
+    expect(getShip(shot, 'p2').heat.currentHeat).toBe(1)
+    expect(getShip(shot, 'p2').hitPoints).toBe(9)
+    const quiet = mustExecute(base(), coast(1))
+    expect(getShip(quiet, 'p2').heat.currentHeat).toBe(0)
     expectRefusedUnless(
-      executeTurnAs(shot, coast(1), repair("engines")),
-      executeTurnAs(quiet, coast(1), repair("engines"))
-    );
-    expect(getSub(mustExecute(quiet, coast(1), repair("engines")), "p2", "engines").isBroken).toBe(
+      executeTurnAs(shot, coast(1), repair('engines')),
+      executeTurnAs(quiet, coast(1), repair('engines'))
+    )
+    expect(getSub(mustExecute(quiet, coast(1), repair('engines')), 'p2', 'engines').isBroken).toBe(
       false
-    );
-  });
+    )
+  })
 
-  it("refuses a tile that is not broken, and more than one repair a turn", () => {
+  it('refuses a tile that is not broken, and more than one repair a turn', () => {
     expectRefusedUnless(
-      executeTurnAs(stranded(), coast(1), repair("scoop")),
-      executeTurnAs(stranded(), coast(1), repair("engines"))
-    );
-    const twoBroken = withSub(stranded(), "p1", "side-0", { isBroken: true });
+      executeTurnAs(stranded(), coast(1), repair('scoop')),
+      executeTurnAs(stranded(), coast(1), repair('engines'))
+    )
+    const twoBroken = withSub(stranded(), 'p1', 'side-0', { isBroken: true })
     expectRefusedUnless(
-      executeTurnAs(twoBroken, coast(1), repair("engines"), repair("side-0")),
-      executeTurnAs(twoBroken, coast(1), repair("engines"))
-    );
-  });
+      executeTurnAs(twoBroken, coast(1), repair('engines'), repair('side-0')),
+      executeTurnAs(twoBroken, coast(1), repair('engines'))
+    )
+  })
 
-  it("gets a stranded ship moving again: broken engines, one cold turn, then a burn", () => {
+  it('gets a stranded ship moving again: broken engines, one cold turn, then a burn', () => {
     // p1 runs cold, p2 takes its turn, and p1 can burn again.
-    const cold = mustExecute(stranded(), coast(1), repair("engines"));
-    expect(getSub(cold, "p1", "engines").isBroken).toBe(false);
-    const backToP1 = withPower(mustExecute(cold, coast(1)), "p1", "engines", 1);
-    const after = executeTurnAs(backToP1, burn(1, "soft"));
-    expect(after.errors).toBeUndefined();
-    expect(eventsOf(after.events, "burned")).toHaveLength(1);
-  });
+    const cold = mustExecute(stranded(), coast(1), repair('engines'))
+    expect(getSub(cold, 'p1', 'engines').isBroken).toBe(false)
+    const backToP1 = withPower(mustExecute(cold, coast(1)), 'p1', 'engines', 1)
+    const after = executeTurnAs(backToP1, burn(1, 'soft'))
+    expect(after.errors).toBeUndefined()
+    expect(eventsOf(after.events, 'burned')).toHaveLength(1)
+  })
 
-  it("refuels a dry ship whose scoop was shot out: one cold turn, then a coast that scoops", () => {
-    const dry = withSub(withShip(makeTwoPlayerGame(), "p1", { reactionMass: 0 }), "p1", "scoop", {
+  it('refuels a dry ship whose scoop was shot out: one cold turn, then a coast that scoops', () => {
+    const dry = withSub(withShip(makeTwoPlayerGame(), 'p1', { reactionMass: 0 }), 'p1', 'scoop', {
       isBroken: true,
-    });
+    })
 
     // p1 lights nothing, reaches 0 at the check and names the scoop.
-    const cold = executeTurnAs(dry, coast(1), repair("scoop"));
-    expect(cold.errors).toBeUndefined();
-    expect(eventsOf(cold.events, "heat_check")[0].heat).toBe(0);
-    expect(getSub(cold.gameState, "p1", "scoop").isBroken).toBe(false);
+    const cold = executeTurnAs(dry, coast(1), repair('scoop'))
+    expect(cold.errors).toBeUndefined()
+    expect(eventsOf(cold.events, 'heat_check')[0].heat).toBe(0)
+    expect(getSub(cold.gameState, 'p1', 'scoop').isBroken).toBe(false)
 
     // p2 takes its turn, and p1's next coast skims its ring's velocity in fuel.
     // Black hole ring 3 offers four.
-    const backToP1 = mustExecute(cold.gameState, coast(1));
-    const after = executeTurnAs(backToP1, coast(1, true));
-    expect(after.errors).toBeUndefined();
-    expect(getShip(after.gameState, "p1").reactionMass).toBe(4);
-  });
-});
+    const backToP1 = mustExecute(cold.gameState, coast(1))
+    const after = executeTurnAs(backToP1, coast(1, true))
+    expect(after.errors).toBeUndefined()
+    expect(getShip(after.gameState, 'p1').reactionMass).toBe(4)
+  })
+})
 
-describe("heat: radiators", () => {
+describe('heat: radiators', () => {
   it.each([
-    ["no radiator", LOADOUTS.gunship, 5],
-    ["one radiator", LOADOUTS.radiator, 7],
-    ["two radiators", LOADOUTS.twoRadiators, 9],
-  ])("%s gives dissipation %i", (_label, loadout, expected) => {
-    const state = makeTwoPlayerGame({ loadout });
-    expect(getDissipationCapacity(getShip(state, "p1").subsystems)).toBe(expected);
-  });
+    ['no radiator', LOADOUTS.gunship, 5],
+    ['one radiator', LOADOUTS.radiator, 7],
+    ['two radiators', LOADOUTS.twoRadiators, 9],
+  ])('%s gives dissipation %i', (_label, loadout, expected) => {
+    const state = makeTwoPlayerGame({ loadout })
+    expect(getDissipationCapacity(getShip(state, 'p1').subsystems)).toBe(expected)
+  })
 
   it.each([
     // A cool check reports only what it dissipated, the same with or without a
     // radiator, so the table cannot read a face-down one off the event.
-    ["a cool check, radiator aboard", LOADOUTS.radiator, 4, 4, 0],
-    ["a cool check, no radiator", LOADOUTS.gunship, 4, 4, 0],
-    ["a hot check dissipates what the hull can", LOADOUTS.radiator, 9, 7, 2],
-    ["a redline dissipates from the redline", LOADOUTS.gunship, 13, 5, 5],
-  ])("the heat check reports the heat dissipated: %s", (_label, loadout, track, dissipated, carried) => {
-    const ship = { ...getShip(makeTwoPlayerGame({ loadout }), "p1"), heat: { currentHeat: track } };
-    const check = resolveEndOfTurnHeat(ship, "p1").events.find((e) => e.type === "heat_check");
-    expect(check).toMatchObject({ dissipated, carried });
-    expect(check).not.toHaveProperty("dissipation");
-  });
+    ['a cool check, radiator aboard', LOADOUTS.radiator, 4, 4, 0],
+    ['a cool check, no radiator', LOADOUTS.gunship, 4, 4, 0],
+    ['a hot check dissipates what the hull can', LOADOUTS.radiator, 9, 7, 2],
+    ['a redline dissipates from the redline', LOADOUTS.gunship, 13, 5, 5],
+  ])(
+    'the heat check reports the heat dissipated: %s',
+    (_label, loadout, track, dissipated, carried) => {
+      const ship = {
+        ...getShip(makeTwoPlayerGame({ loadout }), 'p1'),
+        heat: { currentHeat: track },
+      }
+      const check = resolveEndOfTurnHeat(ship, 'p1').events.find(e => e.type === 'heat_check')
+      expect(check).toMatchObject({ dissipated, carried })
+      expect(check).not.toHaveProperty('dissipation')
+    }
+  )
 
-  it("a broken radiator does not dissipate", () => {
-    const state = withSub(makeTwoPlayerGame({ loadout: LOADOUTS.radiator }), "p1", "side-0", {
+  it('a broken radiator does not dissipate', () => {
+    const state = withSub(makeTwoPlayerGame({ loadout: LOADOUTS.radiator }), 'p1', 'side-0', {
       isBroken: true,
-    });
-    expect(getDissipationCapacity(getShip(state, "p1").subsystems)).toBe(5);
-    const hot = { ...getShip(state, "p1"), heat: { currentHeat: 12 } };
-    expect(resolveEndOfTurnHeat(hot, "p1").damage).toBe(2);
-  });
+    })
+    expect(getDissipationCapacity(getShip(state, 'p1').subsystems)).toBe(5)
+    const hot = { ...getShip(state, 'p1'), heat: { currentHeat: 12 } }
+    expect(resolveEndOfTurnHeat(hot, 'p1').damage).toBe(2)
+  })
 
   it.each([
-    ["is revealed when it dissipates heat past the base 5", 7, true],
-    ["stays face-down while heat is within the base 5", 5, false],
-  ])("a radiator %s", (_label, heat, revealed) => {
-    const state = withShip(makeTwoPlayerGame({ loadout: LOADOUTS.radiator }), "p1", {
+    ['is revealed when it dissipates heat past the base 5', 7, true],
+    ['stays face-down while heat is within the base 5', 5, false],
+  ])('a radiator %s', (_label, heat, revealed) => {
+    const state = withShip(makeTwoPlayerGame({ loadout: LOADOUTS.radiator }), 'p1', {
       heat: { currentHeat: heat },
-    });
-    const result = executeTurnAs(state, coast(1));
-    expect(getShip(result.gameState, "p1").hitPoints).toBe(10);
-    expect(eventsOf(result.events, "subsystem_revealed")).toEqual(
+    })
+    const result = executeTurnAs(state, coast(1))
+    expect(getShip(result.gameState, 'p1').hitPoints).toBe(10)
+    expect(eventsOf(result.events, 'subsystem_revealed')).toEqual(
       revealed
         ? [
             expect.objectContaining({
-              playerId: "p1",
-              subsystemId: "side-0",
-              subsystemType: "radiator",
-              reason: "dissipating",
+              playerId: 'p1',
+              subsystemId: 'side-0',
+              subsystemType: 'radiator',
+              reason: 'dissipating',
             }),
           ]
         : []
-    );
-    expect(getSub(result.gameState, "p1", "side-0").isRevealed).toBe(revealed);
-  });
-});
+    )
+    expect(getSub(result.gameState, 'p1', 'side-0').isRevealed).toBe(revealed)
+  })
+})

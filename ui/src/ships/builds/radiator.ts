@@ -33,7 +33,14 @@ export const radiator: ModuleBuild = (k, module) => {
   module.add(p)
   // The manifold: a faceted dark spine the panels hinge off, its copper
   // header laid along the top, a pale cap at each end with a red telltale.
-  k.add(p, armoredSection([[-0.82, 0.085, 0.21, 0.3], [0.82, 0.085, 0.21, 0.3]]), dark)
+  k.add(
+    p,
+    armoredSection([
+      [-0.82, 0.085, 0.21, 0.3],
+      [0.82, 0.085, 0.21, 0.3],
+    ]),
+    dark
+  )
   k.pipe(p, [-0.81, 0.41, 0], [0.81, 0.41, 0], 0.05, copper)
   for (const x of [-0.86, 0.86]) {
     k.plate(p, [0.1, 0.24, 0.46], [x, 0.34, 0], pale)

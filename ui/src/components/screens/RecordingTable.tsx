@@ -29,10 +29,7 @@ interface RecordingTableProps {
   headerExtras?: (state: { turnIndex: number }) => ReactNode
 }
 
-export function RecordingTable({
-  recording,
-  headerExtras,
-}: RecordingTableProps) {
+export function RecordingTable({ recording, headerExtras }: RecordingTableProps) {
   // -1 is before the first turn; the table opens watching as a spectator.
   const [turnIndex, setTurnIndex] = useState(-1)
   const [perspective, setPerspective] = useState<string>(SPECTATOR)

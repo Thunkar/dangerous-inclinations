@@ -9,7 +9,12 @@
  * their seat, so it is thrown for the caller to retry.
  */
 import { APIClientError, api } from './client'
-import type { CreatePlayerRequest, CreatePlayerResponse, Player, PlayerStatusResponse } from './types'
+import type {
+  CreatePlayerRequest,
+  CreatePlayerResponse,
+  Player,
+  PlayerStatusResponse,
+} from './types'
 
 function isNotFound(error: unknown): boolean {
   return error instanceof APIClientError && error.statusCode === 404

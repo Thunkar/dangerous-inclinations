@@ -16,30 +16,30 @@
 
 export interface RuleOverrides {
   /** Points that trigger the final round; passed to `createGame`, not a binding. */
-  missionsToWin?: number;
+  missionsToWin?: number
 }
 
-const KEYS = ["missionsToWin"] as const;
+const KEYS = ['missionsToWin'] as const
 
 export function parseRuleOverrides(text: string): RuleOverrides {
-  const out: RuleOverrides = {};
-  for (const pair of text.split(",")) {
-    if (!pair.trim()) continue;
-    const eq = pair.indexOf("=");
-    if (eq === -1) throw new Error(`Rule override "${pair}" needs rule=value`);
-    const key = pair.slice(0, eq).trim();
+  const out: RuleOverrides = {}
+  for (const pair of text.split(',')) {
+    if (!pair.trim()) continue
+    const eq = pair.indexOf('=')
+    if (eq === -1) throw new Error(`Rule override "${pair}" needs rule=value`)
+    const key = pair.slice(0, eq).trim()
     if (!(KEYS as readonly string[]).includes(key))
-      throw new Error(`Unknown rule "${key}". Known: ${KEYS.join(", ")}`);
-    const value = Number(pair.slice(eq + 1).trim());
-    if (!Number.isFinite(value)) throw new Error(`Rule override "${pair}" needs a number`);
-    out[key as (typeof KEYS)[number]] = value;
+      throw new Error(`Unknown rule "${key}". Known: ${KEYS.join(', ')}`)
+    const value = Number(pair.slice(eq + 1).trim())
+    if (!Number.isFinite(value)) throw new Error(`Rule override "${pair}" needs a number`)
+    out[key as (typeof KEYS)[number]] = value
   }
-  return out;
+  return out
 }
 
 /** The overrides in force, as the benchmark stamps them on its page. */
 export function describeRuleOverrides(overrides?: RuleOverrides): string {
   return Object.entries(overrides ?? {})
     .map(([key, value]) => `${key}=${value}`)
-    .join(", ");
+    .join(', ')
 }

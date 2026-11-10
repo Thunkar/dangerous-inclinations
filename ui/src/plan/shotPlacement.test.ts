@@ -5,12 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { viewFor } from '@dangerous-inclinations/engine'
-import {
-  LOADOUTS,
-  at,
-  makeGameState,
-  makePlayer,
-} from '../../../engine/src/test/testUtils.ts'
+import { LOADOUTS, at, makeGameState, makePlayer } from '../../../engine/src/test/testUtils.ts'
 import { reachesOnlyBeforeMove, shotIndex, type PlanStep } from './preview'
 
 /** The starboard laser: it bears inward facing prograde. */
@@ -18,10 +13,7 @@ const LASER = 'side-2'
 
 /** p1 on black hole ring 1 sector 22, prograde, a laser in side-2; p2 on ring 2 sector 23. */
 const table = () =>
-  makeGameState([
-    makePlayer('p1', at(1, 22), LOADOUTS.starboardLaser),
-    makePlayer('p2', at(2, 23)),
-  ])
+  makeGameState([makePlayer('p1', at(1, 22), LOADOUTS.starboardLaser), makePlayer('p2', at(2, 23))])
 
 const rotate: PlanStep = { id: 'rotate', kind: 'rotate' }
 const coast: PlanStep = { id: 'move', kind: 'move', move: { kind: 'coast', scoop: false } }
@@ -42,7 +34,11 @@ describe('where a new shot goes', () => {
   const loadout = me.ship.subsystems
 
   it.each<[string, PlanStep[], number]>([
-    ['rotated, it goes before the coast that would carry the ship out of range', [rotate, coast], 1],
+    [
+      'rotated, it goes before the coast that would carry the ship out of range',
+      [rotate, coast],
+      1,
+    ],
     ['facing the wrong way it reaches nobody either way, so it goes last', [coast], 1],
   ])('%s', (_label, steps, index) => {
     expect(shotIndex(view, me, steps, shot, loadout)).toBe(index)

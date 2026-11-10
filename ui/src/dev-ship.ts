@@ -55,7 +55,9 @@ if (fitted && fitted !== 'none')
     if (canInstallInSlot(fitted, mount.group)) config = setModule(config, mount.id, fitted)
 if (fitted === 'none') for (const mount of MOUNTS) config = setModule(config, mount.id, null)
 // `detail=board` builds the ship as the board does: merged, small pieces left off.
-const ship = createShip(config, false, { detail: params.get('detail') === 'board' ? 'board' : 'hero' })
+const ship = createShip(config, false, {
+  detail: params.get('detail') === 'board' ? 'board' : 'hero',
+})
 scene.add(ship.root)
 ship.root.updateMatrixWorld(true)
 
@@ -68,7 +70,8 @@ if (focus === 'drive') {
   hero.root.updateMatrixWorld(true)
   let group: import('three').Object3D | undefined
   hero.root.traverse(
-    o => (group ??= o.name.startsWith('drive_nozzle_') ? (o.parent?.parent ?? undefined) : undefined)
+    o =>
+      (group ??= o.name.startsWith('drive_nozzle_') ? (o.parent?.parent ?? undefined) : undefined)
   )
   if (group) drive = new Box3().setFromObject(group)
   hero.dispose()

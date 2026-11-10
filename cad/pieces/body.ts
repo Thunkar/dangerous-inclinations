@@ -22,33 +22,43 @@
 // as the disc. The disc goes on the hub, the inlays drop into their slots and
 // rest on the hub, and the horizon drops through the disc's hole onto the
 // peg; its belly, wider than the hole, holds the disc down.
-import { subtract, common, fuse, sketch, plane, extrude, loft, sphere, cylinder } from "fluidcad/core";
-import { Matrix4, Quaternion, Vector3 } from "three";
-import { BOARD, ORBIT_BODY } from "../spec.ts";
-import { prism, move, block, outline, type Point, type Solid } from "../lib/solids.ts";
-import { placeBuilt } from "../lib/kit.ts";
-import { lathe } from "./markers/common.ts";
-import { BOARD_WELLS } from "./well.ts";
+import {
+  subtract,
+  common,
+  fuse,
+  sketch,
+  plane,
+  extrude,
+  loft,
+  sphere,
+  cylinder,
+} from 'fluidcad/core'
+import { Matrix4, Quaternion, Vector3 } from 'three'
+import { BOARD, ORBIT_BODY } from '../spec.ts'
+import { prism, move, block, outline, type Point, type Solid } from '../lib/solids.ts'
+import { placeBuilt } from '../lib/kit.ts'
+import { lathe } from './markers/common.ts'
+import { BOARD_WELLS } from './well.ts'
 
-const rad = (d: number) => (d * Math.PI) / 180;
+const rad = (d: number) => (d * Math.PI) / 180
 /** Where every body stands: on the hub's top. */
-const BASE = BOARD.thickness;
-const C = BOARD.clearance;
-const PEG = BOARD.peg;
+const BASE = BOARD.thickness
+const C = BOARD.clearance
+const PEG = BOARD.peg
 
 // ---- Planet ---------------------------------------------------------------
 
-const P = ORBIT_BODY.planet;
-const MIN_GAP = 1;
-const BORE = PEG.diameter / 2 + P.clearance;
+const P = ORBIT_BODY.planet
+const MIN_GAP = 1
+const BORE = PEG.diameter / 2 + P.clearance
 
 interface Boundary {
-  height: number;
-  tilt: number;
-  lean: number;
-  reach: number;
-  waves: number;
-  phase: number;
+  height: number
+  tilt: number
+  lean: number
+  reach: number
+  waves: number
+  phase: number
 }
 
 /**
@@ -62,11 +72,12 @@ interface Boundary {
  * each a second, faster ripple. The seed reshuffles all of it.
  */
 function boundary(k: number): Boundary {
-  const r = P.radius;
-  const jitter = (salt: number) => Math.sin(k * 2.39996 + P.seed * 1.61803 + salt);
-  const lowest = r * Math.tan(rad(P.tilt * 1.05)) + P.amplitude + MIN_GAP;
-  const highest = 0.78 * r;
-  const height = P.bands === 2 ? (lowest + highest) / 2 : lowest + ((k - 1) * (highest - lowest)) / (P.bands - 2);
+  const r = P.radius
+  const jitter = (salt: number) => Math.sin(k * 2.39996 + P.seed * 1.61803 + salt)
+  const lowest = r * Math.tan(rad(P.tilt * 1.05)) + P.amplitude + MIN_GAP
+  const highest = 0.78 * r
+  const height =
+    P.bands === 2 ? (lowest + highest) / 2 : lowest + ((k - 1) * (highest - lowest)) / (P.bands - 2)
   return {
     height,
     tilt: P.tilt * (1 + 0.05 * jitter(0)),
@@ -74,12 +85,15 @@ function boundary(k: number): Boundary {
     reach: (P.amplitude * Math.sqrt(r * r - height * height)) / r,
     waves: P.waves + (k % 2),
     phase: k * 137.5 + P.seed * 59,
-  };
+  }
 }
 
 const wave = (b: Boundary, a: number) =>
-  b.reach * (0.7 * Math.sin(rad(b.waves * a + b.phase)) + 0.3 * Math.sin(rad((2 * b.waves + 1) * a + 2 * b.phase)));
-const zAt = (b: Boundary, rho: number, a: number) => b.height + rho * Math.tan(rad(b.tilt)) * Math.cos(rad(a - b.lean)) + wave(b, a);
+  b.reach *
+  (0.7 * Math.sin(rad(b.waves * a + b.phase)) +
+    0.3 * Math.sin(rad((2 * b.waves + 1) * a + 2 * b.phase)))
+const zAt = (b: Boundary, rho: number, a: number) =>
+  b.height + rho * Math.tan(rad(b.tilt)) * Math.cos(rad(a - b.lean)) + wave(b, a)
 
 /**
  * The bore's flat roof: as high as leaves `bore.roof` of dome over the
@@ -87,23 +101,36 @@ const zAt = (b: Boundary, rho: number, a: number) => b.height + rho * Math.tan(r
  * piece is 4 tall, and the key must reach into it.
  */
 function boreTop(): number {
-  const { width, depth } = P.bore.key;
-  return Math.sqrt(P.radius ** 2 - (BORE + depth) ** 2 - (width / 2) ** 2) - P.bore.roof;
+  const { width, depth } = P.bore.key
+  return Math.sqrt(P.radius ** 2 - (BORE + depth) ** 2 - (width / 2) ** 2) - P.bore.roof
 }
 
 /** The keyway, or the peg's key less `less` all round: a slot from the axis out past the bore along +x, from `base` to `top`. */
 function key(less: number, base: number, top: number): Solid {
-  const { width, depth } = P.bore.key;
-  const [w, out] = [width / 2 - less, BORE + depth - less];
-  return move(prism([[0, -w], [out, -w], [out, w], [0, w]], top - base), 0, 0, base);
+  const { width, depth } = P.bore.key
+  const [w, out] = [width / 2 - less, BORE + depth - less]
+  return move(
+    prism(
+      [
+        [0, -w],
+        [out, -w],
+        [out, w],
+        [0, w],
+      ],
+      top - base
+    ),
+    0,
+    0,
+    base
+  )
 }
 
 /** The dome, flat on the base, with the keyed bore up into it. */
 function dome(): Solid {
-  const r = P.radius;
-  let s = subtract(sphere(r), move(cylinder(r + 1, r + 1), 0, 0, -r - 1));
-  s = subtract(s, move(cylinder(BORE, boreTop() + 1), 0, 0, -1));
-  return subtract(s, key(0, -1, boreTop()));
+  const r = P.radius
+  let s = subtract(sphere(r), move(cylinder(r + 1, r + 1), 0, 0, -r - 1))
+  s = subtract(s, move(cylinder(BORE, boreTop() + 1), 0, 0, -1))
+  return subtract(s, key(0, -1, boreTop()))
 }
 
 /**
@@ -113,12 +140,21 @@ function dome(): Solid {
  * table, and the flange is what to pull it out by.
  */
 export function buildAssemblyPeg(): Solid {
-  const { seat, flange } = P.assemblyPeg;
-  const t = flange.thickness;
-  const top = t + boreTop() - seat;
-  const r = flange.diameter / 2;
-  const plate = lathe([[0, 0], [r, 0], [r, t - flange.chamfer], [r - flange.chamfer, t], [0, t]]);
-  return fuse(fuse(plate, move(cylinder(PEG.diameter / 2, top - t + 0.01), 0, 0, t - 0.01)), key(P.clearance, t - 0.01, top));
+  const { seat, flange } = P.assemblyPeg
+  const t = flange.thickness
+  const top = t + boreTop() - seat
+  const r = flange.diameter / 2
+  const plate = lathe([
+    [0, 0],
+    [r, 0],
+    [r, t - flange.chamfer],
+    [r - flange.chamfer, t],
+    [0, t],
+  ])
+  return fuse(
+    fuse(plate, move(cylinder(PEG.diameter / 2, top - t + 0.01), 0, 0, t - 0.01)),
+    key(P.clearance, t - 0.01, top)
+  )
 }
 
 /**
@@ -127,61 +163,66 @@ export function buildAssemblyPeg(): Solid {
  * square root of its chord). Returns the curve at t in [0, 1).
  */
 function closedSpline(points: number[][]): (t: number) => number[] {
-  const n = points.length;
+  const n = points.length
   const chord = points.map((p, i) => {
-    const q = points[(i + 1) % n];
-    return Math.sqrt(Math.hypot(...p.map((x, d) => q[d] - x)));
-  });
-  const total = chord.reduce((a, b) => a + b, 0);
-  const h = chord.map((c) => c / total);
-  const knots = [0];
-  for (let i = 0; i < n; i++) knots.push(knots[i] + h[i]);
+    const q = points[(i + 1) % n]
+    return Math.sqrt(Math.hypot(...p.map((x, d) => q[d] - x)))
+  })
+  const total = chord.reduce((a, b) => a + b, 0)
+  const h = chord.map(c => c / total)
+  const knots = [0]
+  for (let i = 0; i < n; i++) knots.push(knots[i] + h[i])
   // Second derivatives M of each coordinate: the periodic spline's cyclic tridiagonal system.
   const solve = (y: number[]) => {
-    const a = Array.from({ length: n }, (_, i) => h[(i - 1 + n) % n]);
-    const b = Array.from({ length: n }, (_, i) => 2 * (h[(i - 1 + n) % n] + h[i]));
-    const c = Array.from({ length: n }, (_, i) => h[i]);
+    const a = Array.from({ length: n }, (_, i) => h[(i - 1 + n) % n])
+    const b = Array.from({ length: n }, (_, i) => 2 * (h[(i - 1 + n) % n] + h[i]))
+    const c = Array.from({ length: n }, (_, i) => h[i])
     const r = Array.from(
       { length: n },
-      (_, i) => 6 * ((y[(i + 1) % n] - y[i]) / h[i] - (y[i] - y[(i - 1 + n) % n]) / h[(i - 1 + n) % n])
-    );
+      (_, i) =>
+        6 * ((y[(i + 1) % n] - y[i]) / h[i] - (y[i] - y[(i - 1 + n) % n]) / h[(i - 1 + n) % n])
+    )
     // Dense Gauss elimination: n is a hundred or so.
     const A = Array.from({ length: n }, (_, i) => {
-      const row = new Array(n + 1).fill(0);
-      row[(i - 1 + n) % n] += a[i];
-      row[i] += b[i];
-      row[(i + 1) % n] += c[i];
-      row[n] = r[i];
-      return row;
-    });
+      const row = new Array(n + 1).fill(0)
+      row[(i - 1 + n) % n] += a[i]
+      row[i] += b[i]
+      row[(i + 1) % n] += c[i]
+      row[n] = r[i]
+      return row
+    })
     for (let i = 0; i < n; i++) {
       for (let k = i + 1; k < n; k++) {
-        const f = A[k][i] / A[i][i];
-        if (f) for (let j = i; j <= n; j++) A[k][j] -= f * A[i][j];
+        const f = A[k][i] / A[i][i]
+        if (f) for (let j = i; j <= n; j++) A[k][j] -= f * A[i][j]
       }
     }
-    const M = new Array(n).fill(0);
+    const M = new Array(n).fill(0)
     for (let i = n - 1; i >= 0; i--) {
-      let v = A[i][n];
-      for (let j = i + 1; j < n; j++) v -= A[i][j] * M[j];
-      M[i] = v / A[i][i];
+      let v = A[i][n]
+      for (let j = i + 1; j < n; j++) v -= A[i][j] * M[j]
+      M[i] = v / A[i][i]
     }
-    return M;
-  };
-  const dims = points[0].length;
-  const Ms = Array.from({ length: dims }, (_, d) => solve(points.map((p) => p[d])));
+    return M
+  }
+  const dims = points[0].length
+  const Ms = Array.from({ length: dims }, (_, d) => solve(points.map(p => p[d])))
   return (t: number) => {
-    t = ((t % 1) + 1) % 1;
-    let i = 0;
-    while (i < n - 1 && knots[i + 1] <= t) i++;
-    const hi = h[i];
-    const u = (t - knots[i]) / hi;
+    t = ((t % 1) + 1) % 1
+    let i = 0
+    while (i < n - 1 && knots[i + 1] <= t) i++
+    const hi = h[i]
+    const u = (t - knots[i]) / hi
     return Array.from({ length: dims }, (_, d) => {
-      const [y0, y1] = [points[i][d], points[(i + 1) % n][d]];
-      const [m0, m1] = [Ms[d][i], Ms[d][(i + 1) % n]];
-      return (1 - u) * y0 + u * y1 + ((hi * hi) / 6) * (((1 - u) ** 3 - (1 - u)) * m0 + (u ** 3 - u) * m1);
-    });
-  };
+      const [y0, y1] = [points[i][d], points[(i + 1) % n][d]]
+      const [m0, m1] = [Ms[d][i], Ms[d][(i + 1) % n]]
+      return (
+        (1 - u) * y0 +
+        u * y1 +
+        ((hi * hi) / 6) * (((1 - u) ** 3 - (1 - u)) * m0 + (u ** 3 - u) * m1)
+      )
+    })
+  }
 }
 
 /**
@@ -190,14 +231,15 @@ function closedSpline(points: number[][]): (t: number) => number[] {
  * out to it along its normal, (x, 0, z) mapping to (x cos, x sin, z) there.
  */
 function uprightPolygon(points: number[][]) {
-  const [p, q] = [points[0], points[1]];
-  const along = Math.atan2(q[1] - p[1], q[0] - p[0]);
-  const [c, s] = [Math.cos(along), Math.sin(along)];
+  const [p, q] = [points[0], points[1]]
+  const along = Math.atan2(q[1] - p[1], q[0] - p[0])
+  const [c, s] = [Math.cos(along), Math.sin(along)]
   // The xz plane's normal is -y; turned, (sin, -cos): the line lies that far out along it.
-  const out = p[0] * s - p[1] * c;
-  return sketch(plane("xz", { offset: out, rotateZ: (along * 180) / Math.PI, rotationAxes: "world" }), () =>
-    outline(points.map(([x, y, z]) => [x * c + y * s, z] as Point))
-  );
+  const out = p[0] * s - p[1] * c
+  return sketch(
+    plane('xz', { offset: out, rotateZ: (along * 180) / Math.PI, rotationAxes: 'world' }),
+    () => outline(points.map(([x, y, z]) => [x * c + y * s, z] as Point))
+  )
 }
 
 /**
@@ -212,68 +254,72 @@ function uprightPolygon(points: number[][]) {
  * toward.
  */
 function below(k: number): Solid {
-  const b = boundary(k);
-  const r = P.radius;
-  const samples = 8 * (2 * b.waves + 1);
-  const near = BORE / 2;
-  const far = r / Math.cos(rad(b.tilt)) + 2;
-  const floor = -r - 2;
+  const b = boundary(k)
+  const r = P.radius
+  const samples = 8 * (2 * b.waves + 1)
+  const near = BORE / 2
+  const far = r / Math.cos(rad(b.tilt)) + 2
+  const floor = -r - 2
   const curve = (rho: number) =>
     closedSpline(
       Array.from({ length: samples }, (_, m) => {
-        const a = (m * 360) / samples;
-        return [rho * Math.cos(rad(a)), rho * Math.sin(rad(a)), b.height + wave(b, a)];
+        const a = (m * 360) / samples
+        return [rho * Math.cos(rad(a)), rho * Math.sin(rad(a)), b.height + wave(b, a)]
       })
-    );
-  const [inner, outer] = [curve(near), curve(far)];
-  const rulings = 2 * samples;
+    )
+  const [inner, outer] = [curve(near), curve(far)]
+  const rulings = 2 * samples
   // Under each joining line, a quad from its inner end to its outer one, down to the floor.
   const quad = (i: number) => {
-    const [p, q] = [inner(i / rulings), outer(i / rulings)];
+    const [p, q] = [inner(i / rulings), outer(i / rulings)]
     return [
       [p[0], p[1], floor],
       [q[0], q[1], floor],
       [q[0], q[1], q[2]],
       [p[0], p[1], p[2]],
-    ];
-  };
+    ]
+  }
   const half = (from: number, to: number) => {
-    const profiles = [];
-    for (let i = from; i <= to; i++) profiles.push(uprightPolygon(quad(i)));
-    return loft(...profiles).new();
-  };
-  const solid = fuse(half(0, rulings / 2), half(rulings / 2, rulings));
-  const axis = new Vector3(Math.sin(rad(b.lean)), -Math.cos(rad(b.lean)), 0);
+    const profiles = []
+    for (let i = from; i <= to; i++) profiles.push(uprightPolygon(quad(i)))
+    return loft(...profiles).new()
+  }
+  const solid = fuse(half(0, rulings / 2), half(rulings / 2, rulings))
+  const axis = new Vector3(Math.sin(rad(b.lean)), -Math.cos(rad(b.lean)), 0)
   const tilt = new Matrix4()
     .makeTranslation(0, 0, b.height)
     .multiply(new Matrix4().makeRotationAxis(axis, rad(b.tilt)))
-    .multiply(new Matrix4().makeTranslation(0, 0, -b.height));
-  return placeBuilt(solid, tilt);
+    .multiply(new Matrix4().makeTranslation(0, 0, -b.height))
+  return placeBuilt(solid, tilt)
 }
 
 /** Band n (1 at the base), its base on z = 0. */
 function band(n: number): Solid {
-  let s = dome();
-  if (n < P.bands) s = common(s, below(n));
-  if (n > 1) s = subtract(s, below(n - 1));
-  return s;
+  let s = dome()
+  if (n < P.bands) s = common(s, below(n))
+  if (n > 1) s = subtract(s, below(n - 1))
+  return s
 }
 
 /** The planet's tilted axis: square to every boundary's mean plane. */
-const AXIS = new Vector3(-Math.sin(rad(P.tilt)) * Math.cos(rad(P.seed * 73)), -Math.sin(rad(P.tilt)) * Math.sin(rad(P.seed * 73)), Math.cos(rad(P.tilt)));
+const AXIS = new Vector3(
+  -Math.sin(rad(P.tilt)) * Math.cos(rad(P.seed * 73)),
+  -Math.sin(rad(P.tilt)) * Math.sin(rad(P.seed * 73)),
+  Math.cos(rad(P.tilt))
+)
 
 /** Boundary k's extent along the axis, over the dome. */
 function extent(k: number): [number, number] {
-  const b = boundary(k);
-  let [lo, hi] = [Infinity, -Infinity];
+  const b = boundary(k)
+  let [lo, hi] = [Infinity, -Infinity]
   for (let rho = 0; rho <= P.radius; rho += 0.25)
     for (let a = 0; a < 360; a += 1) {
-      const z = zAt(b, rho, a);
-      if (rho * rho + z * z > P.radius ** 2) continue;
-      const u = rho * Math.cos(rad(a)) * AXIS.x + rho * Math.sin(rad(a)) * AXIS.y + z * AXIS.z;
-      [lo, hi] = [Math.min(lo, u), Math.max(hi, u)];
+      const z = zAt(b, rho, a)
+      if (rho * rho + z * z > P.radius ** 2) continue
+      const u = rho * Math.cos(rad(a)) * AXIS.x + rho * Math.sin(rad(a)) * AXIS.y + z * AXIS.z
+      ;[lo, hi] = [Math.min(lo, u), Math.max(hi, u)]
     }
-  return [lo, hi];
+  return [lo, hi]
 }
 
 /**
@@ -282,56 +328,58 @@ function extent(k: number): [number, number] {
  * lower boundary, so the lower piece, printed turned over, hangs least.
  */
 export function cutAt(n: number): number {
-  const [, low] = extent(n - 1);
-  return n === P.bands ? low + P.sliver : (low + extent(n)[0]) / 2;
+  const [, low] = extent(n - 1)
+  return n === P.bands ? low + P.sliver : (low + extent(n)[0]) / 2
 }
 
 /** A band's print: band 1 whole, on its flat base; a band with a wavy underside in a lower and an upper piece. */
-export type BandPrint = "whole" | "lower" | "upper";
+export type BandPrint = 'whole' | 'lower' | 'upper'
 
 /** The prints band n takes. */
-export const bandPrints = (n: number): BandPrint[] => (n === 1 ? ["whole"] : ["lower", "upper"]);
+export const bandPrints = (n: number): BandPrint[] => (n === 1 ? ['whole'] : ['lower', 'upper'])
 
 /** From the planet's frame (base on z = 0) to a piece's print pose: its cut on the bed, the lower piece turned over. */
 function printPose(n: number, piece: BandPrint): Matrix4 {
-  if (piece === "whole") return new Matrix4();
-  const square = new Matrix4().makeRotationFromQuaternion(new Quaternion().setFromUnitVectors(AXIS, new Vector3(0, 0, 1)));
-  const m = new Matrix4().makeTranslation(0, 0, -cutAt(n)).multiply(square);
-  return piece === "upper" ? m : new Matrix4().makeRotationX(Math.PI).multiply(m);
+  if (piece === 'whole') return new Matrix4()
+  const square = new Matrix4().makeRotationFromQuaternion(
+    new Quaternion().setFromUnitVectors(AXIS, new Vector3(0, 0, 1))
+  )
+  const m = new Matrix4().makeTranslation(0, 0, -cutAt(n)).multiply(square)
+  return piece === 'upper' ? m : new Matrix4().makeRotationX(Math.PI).multiply(m)
 }
 
 /** Band n's piece as it prints. */
 export function buildBandPrint(n: number, piece: BandPrint): Solid {
-  const s = placeBuilt(band(n), printPose(n, piece));
-  if (piece === "whole") return s;
-  const B = P.radius + 5;
-  return subtract(s, block([-B, -B, -2 * B], [B, B, 0]));
+  const s = placeBuilt(band(n), printPose(n, piece))
+  if (piece === 'whole') return s
+  const B = P.radius + 5
+  return subtract(s, block([-B, -B, -2 * B], [B, B, 0]))
 }
 
 /** Where a band's print stands on the hub (the inverse of how it was laid down): for the table's render. */
 export function bandPrintFrame(n: number, piece: BandPrint): Matrix4 {
-  return new Matrix4().makeTranslation(0, 0, BASE).multiply(printPose(n, piece).invert());
+  return new Matrix4().makeTranslation(0, 0, BASE).multiply(printPose(n, piece).invert())
 }
 
 // ---- Black hole -----------------------------------------------------------
 
-const H = ORBIT_BODY.blackHole;
-const S = H.streaks;
+const H = ORBIT_BODY.blackHole
+const S = H.streaks
 /**
  * The disc's hole is the horizon's width (plus the clearance) at the disc's
  * top: the sphere is narrower than that everywhere below, so it drops
  * through, and wider above, so it overhangs the disc.
  */
-const HOLE = Math.sqrt((H.radius + C) ** 2 - (H.centre - H.disc.thickness) ** 2);
+const HOLE = Math.sqrt((H.radius + C) ** 2 - (H.centre - H.disc.thickness) ** 2)
 
 /** The horizon: a sphere cut flat on the hub, with the peg's hole. */
 export function buildHorizon(): Solid {
-  const r = H.radius;
-  let s = move(sphere(r), 0, 0, H.centre);
+  const r = H.radius
+  let s = move(sphere(r), 0, 0, H.centre)
   // Everything below the hub's top goes.
-  s = subtract(s, move(cylinder(r + 1, r + 1 - H.centre), 0, 0, H.centre - r - 1));
-  s = subtract(s, move(cylinder(PEG.diameter / 2 + C, PEG.height + C + 1), 0, 0, -1));
-  return move(s, 0, 0, BASE);
+  s = subtract(s, move(cylinder(r + 1, r + 1 - H.centre), 0, 0, H.centre - r - 1))
+  s = subtract(s, move(cylinder(PEG.diameter / 2 + C, PEG.height + C + 1), 0, 0, -1))
+  return move(s, 0, 0, BASE)
 }
 
 /**
@@ -342,86 +390,104 @@ export function buildHorizon(): Solid {
  * narrower and shorter, and turned by the stagger so the rows do not line up.
  */
 function streakAt(row: number, j: number, u: number) {
-  const margin = 2.5;
-  const inner = HOLE + margin;
-  const band = (H.disc.outer - margin - inner) / S.rows;
-  const width = S.width * (1 - 0.15 * row);
-  const length = S.length * (1 - 0.1 * row);
+  const margin = 2.5
+  const inner = HOLE + margin
+  const band = (H.disc.outer - margin - inner) / S.rows
+  const width = S.width * (1 - 0.15 * row)
+  const length = S.length * (1 - 0.1 * row)
   // Clockwise, the board's drift.
   return {
     rho: inner + band * (row + 0.5) + S.infall * (0.5 - u),
     angle: (j * 360) / S.perRow + row * S.stagger - length * u,
     half: (width / 2) * Math.max(0, Math.sin(Math.PI * (1 - u) ** 0.6)) ** 0.6,
-  };
+  }
 }
 
 /** A streak's outline from uFrom to uTo, its half width less `shrink`; an end closed to nothing is a single point. */
-function streakOutline(row: number, j: number, uFrom: number, uTo: number, shrink: number): Point[] {
-  const samples = 60;
-  const outside: Point[] = [];
-  const inside: Point[] = [];
+function streakOutline(
+  row: number,
+  j: number,
+  uFrom: number,
+  uTo: number,
+  shrink: number
+): Point[] {
+  const samples = 60
+  const outside: Point[] = []
+  const inside: Point[] = []
   for (let i = 0; i <= samples; i++) {
-    const p = streakAt(row, j, uFrom + ((uTo - uFrom) * i) / samples);
-    const half = Math.max(p.half - shrink, 0);
-    const [c, s] = [Math.cos(rad(p.angle)), Math.sin(rad(p.angle))];
-    outside.push([(p.rho + half) * c, (p.rho + half) * s]);
-    inside.push([(p.rho - half) * c, (p.rho - half) * s]);
+    const p = streakAt(row, j, uFrom + ((uTo - uFrom) * i) / samples)
+    const half = Math.max(p.half - shrink, 0)
+    const [c, s] = [Math.cos(rad(p.angle)), Math.sin(rad(p.angle))]
+    outside.push([(p.rho + half) * c, (p.rho + half) * s])
+    inside.push([(p.rho - half) * c, (p.rho - half) * s])
   }
-  const pointed = shrink === 0;
-  const out = [...outside];
-  for (let i = pointed ? samples - 1 : samples; i >= (pointed ? 1 : 0); i--) out.push(inside[i]);
-  return out;
+  const pointed = shrink === 0
+  const out = [...outside]
+  for (let i = pointed ? samples - 1 : samples; i >= (pointed ? 1 : 0); i--) out.push(inside[i])
+  return out
 }
 
 const streaks = () =>
-  Array.from({ length: S.rows }, (_, row) => Array.from({ length: S.perRow }, (_, j) => [row, j] as const)).flat();
+  Array.from({ length: S.rows }, (_, row) =>
+    Array.from({ length: S.perRow }, (_, j) => [row, j] as const)
+  ).flat()
 
 /** The accretion disc: flat, as wide as the hub, the streaks' slots cut through it. */
 export function buildDisc(): Solid {
-  const t = H.disc.thickness;
-  let disc = subtract(cylinder(H.disc.outer, t), move(cylinder(HOLE, t + 2), 0, 0, -1));
-  for (const [row, j] of streaks()) disc = subtract(disc, move(prism(streakOutline(row, j, 0, 1, 0), t + 2), 0, 0, -1));
-  return move(disc, 0, 0, BASE);
+  const t = H.disc.thickness
+  let disc = subtract(cylinder(H.disc.outer, t), move(cylinder(HOLE, t + 2), 0, 0, -1))
+  for (const [row, j] of streaks())
+    disc = subtract(disc, move(prism(streakOutline(row, j, 0, 1, 0), t + 2), 0, 0, -1))
+  return move(disc, 0, 0, BASE)
 }
 
 /** The streaks' inlays: each slot a clearance smaller all round, its points stopped where it would get thinner than 0.6 mm. */
 export function buildInlays(): void {
   for (const [row, j] of streaks()) {
-    let uLow = 0;
-    while (uLow < 0.5 && streakAt(row, 0, uLow).half - C < 0.3) uLow += 0.005;
-    let uHigh = 1;
-    while (uHigh > 0.5 && streakAt(row, 0, uHigh).half - C < 0.3) uHigh -= 0.005;
-    sketch(plane("xy", { offset: BASE }), () => outline(streakOutline(row, j, uLow, uHigh, C)));
-    extrude(H.disc.thickness).new();
+    let uLow = 0
+    while (uLow < 0.5 && streakAt(row, 0, uLow).half - C < 0.3) uLow += 0.005
+    let uHigh = 1
+    while (uHigh > 0.5 && streakAt(row, 0, uHigh).half - C < 0.3) uHigh -= 0.005
+    sketch(plane('xy', { offset: BASE }), () => outline(streakOutline(row, j, uLow, uHigh, C)))
+    extrude(H.disc.thickness).new()
   }
 }
 
 /** Every body piece, each once, with how many to print in its name (a planet's once for each planet). */
-export const BODIES: { dir: "blackHole" | "planet"; file: string; name: string; call: string }[] = [
+export const BODIES: { dir: 'blackHole' | 'planet'; file: string; name: string; call: string }[] = [
   ...Array.from({ length: P.bands }, (_, k) =>
-    bandPrints(k + 1).map((piece) => ({
-      dir: "planet" as const,
-      file: `band-${k + 1}${piece === "whole" ? "" : `-${piece}`}`,
-      name: `Band ${k + 1}${piece === "whole" ? "" : `, ${piece} piece`} (print ${BOARD_WELLS.planet})`,
+    bandPrints(k + 1).map(piece => ({
+      dir: 'planet' as const,
+      file: `band-${k + 1}${piece === 'whole' ? '' : `-${piece}`}`,
+      name: `Band ${k + 1}${piece === 'whole' ? '' : `, ${piece} piece`} (print ${BOARD_WELLS.planet})`,
       call: `buildBody("band", ${k + 1}, "${piece}")`,
     }))
   ).flat(),
   {
-    dir: "planet",
-    file: "assembly-peg",
+    dir: 'planet',
+    file: 'assembly-peg',
     name: `Assembly peg (print ${BOARD_WELLS.planet}: lines a planet's pieces up while they are glued, then comes out)`,
     call: `buildBody("peg")`,
   },
-  { dir: "blackHole", file: "horizon", name: "Horizon", call: `buildBody("horizon")` },
-  { dir: "blackHole", file: "accretion-disc", name: "Accretion disc", call: `buildBody("disc")` },
-  { dir: "blackHole", file: "streak-inlay", name: `Streak inlays (all ${S.rows * S.perRow})`, call: `buildBody("inlays")` },
-];
+  { dir: 'blackHole', file: 'horizon', name: 'Horizon', call: `buildBody("horizon")` },
+  { dir: 'blackHole', file: 'accretion-disc', name: 'Accretion disc', call: `buildBody("disc")` },
+  {
+    dir: 'blackHole',
+    file: 'streak-inlay',
+    name: `Streak inlays (all ${S.rows * S.perRow})`,
+    call: `buildBody("inlays")`,
+  },
+]
 
 /** The piece by name, for the part files. */
-export function buildBody(piece: "band" | "peg" | "horizon" | "disc" | "inlays", n = 0, print: BandPrint = "whole"): Solid | void {
-  if (piece === "band") return buildBandPrint(n, print);
-  if (piece === "peg") return buildAssemblyPeg();
-  if (piece === "horizon") return buildHorizon();
-  if (piece === "disc") return buildDisc();
-  return buildInlays();
+export function buildBody(
+  piece: 'band' | 'peg' | 'horizon' | 'disc' | 'inlays',
+  n = 0,
+  print: BandPrint = 'whole'
+): Solid | void {
+  if (piece === 'band') return buildBandPrint(n, print)
+  if (piece === 'peg') return buildAssemblyPeg()
+  if (piece === 'horizon') return buildHorizon()
+  if (piece === 'disc') return buildDisc()
+  return buildInlays()
 }

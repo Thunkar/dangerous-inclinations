@@ -8,25 +8,25 @@
  * scan before a railgun shot, and for a peek after both); this reads the
  * facing each phase has.
  */
-import type { Facing, Position } from "../../models/game.ts";
-import { isQuietTurn } from "../../models/game.ts";
-import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
-import { getSubsystemConfig } from "../../models/subsystems.ts";
-import { inScanRange } from "../../game/scan.ts";
-import { canBeTargeted } from "../../game/targeting.ts";
-import type { BotParameters, Opponent, TacticalSituation } from "../types.ts";
-import type { FiringPhase } from "./combat.ts";
-import { interceptTargetIds } from "./missions.ts";
+import type { Facing, Position } from '../../models/game.ts'
+import { isQuietTurn } from '../../models/game.ts'
+import type { Subsystem, SubsystemId } from '../../models/subsystems.ts'
+import { getSubsystemConfig } from '../../models/subsystems.ts'
+import { inScanRange } from '../../game/scan.ts'
+import { canBeTargeted } from '../../game/targeting.ts'
+import type { BotParameters, Opponent, TacticalSituation } from '../types.ts'
+import type { FiringPhase } from './combat.ts'
+import { interceptTargetIds } from './missions.ts'
 
 export interface ScanIntent {
-  sensor: Subsystem;
-  targetId: string;
-  peekSlot: SubsystemId;
-  phase: FiringPhase;
+  sensor: Subsystem
+  targetId: string
+  peekSlot: SubsystemId
+  phase: FiringPhase
   /** The sensor's cubes, and so the scan's heat. */
-  heat: number;
+  heat: number
   /** The scan acquires an Intercept transmission. */
-  forMission: boolean;
+  forMission: boolean
 }
 
 /**
@@ -44,10 +44,10 @@ export function choosePeekSlot(target: Opponent): SubsystemId {
   const ranked = [...target.unknownSlots].sort(
     (a, b) =>
       a.slot.allocatedEnergy - b.slot.allocatedEnergy ||
-      Number(b.slot.group === "forward") - Number(a.slot.group === "forward") ||
+      Number(b.slot.group === 'forward') - Number(a.slot.group === 'forward') ||
       (b.suspected?.damage ?? 0) - (a.suspected?.damage ?? 0)
-  );
-  return ranked[0]?.slot.id ?? target.player.slots[0]?.id ?? "forward-0";
+  )
+  return ranked[0]?.slot.id ?? target.player.slots[0]?.id ?? 'forward-0'
 }
 
 /**
@@ -63,27 +63,27 @@ export function scanOption(
   // A quiet turn reaches nobody, a scan included: the engine would refuse it.
   // The opening round is one (RULES §A Turn) and so is the bot's own turn back
   // from Home (RULES §Destruction and Respawn).
-  if (isQuietTurn(situation.view.turn, situation.me)) return null;
-  const sensor = situation.status.sensors.find((s) => !s.isBroken && !s.usedThisTurn);
-  if (!sensor) return null;
-  const heat = getSubsystemConfig("sensor_array").minEnergy;
+  if (isQuietTurn(situation.view.turn, situation.me)) return null
+  const sensor = situation.status.sensors.find(s => !s.isBroken && !s.usedThisTurn)
+  if (!sensor) return null
+  const heat = getSubsystemConfig('sensor_array').minEnergy
 
-  const interceptTargets = interceptTargetIds(situation.me);
+  const interceptTargets = interceptTargetIds(situation.me)
 
-  let best: ScanIntent | null = null;
+  let best: ScanIntent | null = null
   for (const opponent of situation.opponents) {
-    if (!opponent.sameWell) continue;
+    if (!opponent.sameWell) continue
     // Untouchable until their returning turn is over (RULES §Destruction and
     // Respawn), and safe at a berth (RULES §Stations): the engine refuses both.
-    if (!canBeTargeted(opponent.player, situation.view.stations)) continue;
+    if (!canBeTargeted(opponent.player, situation.view.stations)) continue
     const phase: FiringPhase | null = inScanRange(post, opponent.position)
-      ? "post"
+      ? 'post'
       : inScanRange(pre, opponent.position)
-        ? "pre"
-        : null;
-    if (!phase) continue;
-    const forMission = interceptTargets.has(opponent.player.id);
-    if (!forMission && (!parameters.scanUnknowns || opponent.unknownSlots.length === 0)) continue;
+        ? 'pre'
+        : null
+    if (!phase) continue
+    const forMission = interceptTargets.has(opponent.player.id)
+    if (!forMission && (!parameters.scanUnknowns || opponent.unknownSlots.length === 0)) continue
     const intent: ScanIntent = {
       sensor,
       targetId: opponent.player.id,
@@ -91,8 +91,8 @@ export function scanOption(
       phase,
       heat,
       forMission,
-    };
-    if (!best || (intent.forMission && !best.forMission)) best = intent;
+    }
+    if (!best || (intent.forMission && !best.forMission)) best = intent
   }
-  return best;
+  return best
 }

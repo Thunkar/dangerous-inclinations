@@ -3,47 +3,47 @@
  * the current ship can actually perform, checked against the engine's
  * `legalMoves`. Anything that fails becomes a coast.
  */
-import type { BurnIntensity, Facing, ShipState } from "../../models/game.ts";
+import type { BurnIntensity, Facing, ShipState } from '../../models/game.ts'
 import {
   BURN_COSTS,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
   calculateJumpMassCost,
-} from "../../models/rings.ts";
-import { findJump, phasedJumpDestination } from "../../models/gravityWells.ts";
-import { positionOf } from "../../game/geometry.ts";
-import { legalMoves, phasingAllowed } from "../../game/movement.ts";
-import type { MovementPreview } from "../../game/movement.ts";
-import type { MovementPlan } from "../movementPlanner/index.ts";
-import { getFirstAction } from "../movementPlanner/index.ts";
-import type { BotStatus } from "../types.ts";
+} from '../../models/rings.ts'
+import { findJump, phasedJumpDestination } from '../../models/gravityWells.ts'
+import { positionOf } from '../../game/geometry.ts'
+import { legalMoves, phasingAllowed } from '../../game/movement.ts'
+import type { MovementPreview } from '../../game/movement.ts'
+import type { MovementPlan } from '../movementPlanner/index.ts'
+import { getFirstAction } from '../movementPlanner/index.ts'
+import type { BotStatus } from '../types.ts'
 
 export interface MovementChoice {
-  kind: "coast" | "burn" | "jump";
+  kind: 'coast' | 'burn' | 'jump'
   /** Engine's projection input. */
-  preview: MovementPreview;
+  preview: MovementPreview
   /** Facing the ship must have when the movement executes; null = any. */
-  requiredFacing: Facing | null;
+  requiredFacing: Facing | null
   /** Energy the engines need (0 for a coast). */
-  engineEnergy: number;
+  engineEnergy: number
   /** Reaction mass the movement spends. */
-  massCost: number;
+  massCost: number
   /** The plan counted on scooping during this coast. */
-  wantsScoop: boolean;
-  burnIntensity?: BurnIntensity;
-  sectorAdjustment?: number;
-  destinationWellId?: string;
+  wantsScoop: boolean
+  burnIntensity?: BurnIntensity
+  sectorAdjustment?: number
+  destinationWellId?: string
 }
 
 export function coastChoice(wantsScoop: boolean): MovementChoice {
   return {
-    kind: "coast",
-    preview: { kind: "coast" },
+    kind: 'coast',
+    preview: { kind: 'coast' },
     requiredFacing: null,
     engineEnergy: 0,
     massCost: 0,
     wantsScoop,
-  };
+  }
 }
 
 /**
@@ -57,18 +57,18 @@ export function coastChoice(wantsScoop: boolean): MovementChoice {
  * visit.
  */
 export function castOffChoice(ship: ShipState): MovementChoice | null {
-  const burn = legalMoves(ship).burns.find((b) => b.intensity === "soft");
-  if (!burn) return null;
+  const burn = legalMoves(ship).burns.find(b => b.intensity === 'soft')
+  if (!burn) return null
   return {
-    kind: "burn",
-    preview: { kind: "burn", burnIntensity: "soft", sectorAdjustment: 0 },
+    kind: 'burn',
+    preview: { kind: 'burn', burnIntensity: 'soft', sectorAdjustment: 0 },
     requiredFacing: burn.facing,
     engineEnergy: burn.engineEnergy,
     massCost: burn.fuel,
     wantsScoop: false,
-    burnIntensity: "soft",
+    burnIntensity: 'soft',
     sectorAdjustment: 0,
-  };
+  }
 }
 
 /** Whether the engine takes this burn from `ship` now, rotating to `facing` first if need be. */
@@ -79,15 +79,15 @@ function burnIsLegal(
   adjustment: number
 ): boolean {
   return legalMoves(ship).burns.some(
-    (b) => b.intensity === intensity && b.facing === facing && phasingAllowed(b, adjustment)
-  );
+    b => b.intensity === intensity && b.facing === facing && phasingAllowed(b, adjustment)
+  )
 }
 
 /** Whether the engine takes this jump from `ship` now. */
 function jumpIsLegal(ship: ShipState, destinationWellId: string, adjustment = 0): boolean {
   return legalMoves(ship).jumps.some(
-    (j) => j.destinationWellId === destinationWellId && phasingAllowed(j, adjustment)
-  );
+    j => j.destinationWellId === destinationWellId && phasingAllowed(j, adjustment)
+  )
 }
 
 /**
@@ -99,43 +99,43 @@ export function movementFromPlan(
   status: BotStatus,
   plan: MovementPlan
 ): MovementChoice | null {
-  const first = getFirstAction(plan);
-  if (!first) return null;
+  const first = getFirstAction(plan)
+  if (!first) return null
 
-  if (first.actionType === "coast") {
-    return coastChoice(first.massCost < 0 && !status.scoop.isBroken);
+  if (first.actionType === 'coast') {
+    return coastChoice(first.massCost < 0 && !status.scoop.isBroken)
   }
 
-  if (first.actionType === "burn") {
-    const intensity = first.burnIntensity ?? "soft";
-    const adjustment = first.sectorAdjustment;
-    const facing = first.targetFacing ?? ship.facing;
-    if (!burnIsLegal(ship, intensity, facing, adjustment)) return null;
+  if (first.actionType === 'burn') {
+    const intensity = first.burnIntensity ?? 'soft'
+    const adjustment = first.sectorAdjustment
+    const facing = first.targetFacing ?? ship.facing
+    if (!burnIsLegal(ship, intensity, facing, adjustment)) return null
     return {
-      kind: "burn",
-      preview: { kind: "burn", burnIntensity: intensity, sectorAdjustment: adjustment },
+      kind: 'burn',
+      preview: { kind: 'burn', burnIntensity: intensity, sectorAdjustment: adjustment },
       requiredFacing: facing,
       engineEnergy: BURN_COSTS[intensity].energy,
       massCost: calculateBurnMassCost(BURN_COSTS[intensity].mass, adjustment),
       wantsScoop: false,
       burnIntensity: intensity,
       sectorAdjustment: adjustment,
-    };
+    }
   }
 
-  const destination = first.destinationWellId!;
-  const adjustment = first.sectorAdjustment;
-  if (!jumpIsLegal(ship, destination, adjustment)) return null;
-  const jump = findJump(positionOf(ship), destination)!;
+  const destination = first.destinationWellId!
+  const adjustment = first.sectorAdjustment
+  if (!jumpIsLegal(ship, destination, adjustment)) return null
+  const jump = findJump(positionOf(ship), destination)!
   return {
-    kind: "jump",
-    preview: { kind: "jump", jumpDestination: phasedJumpDestination(jump, adjustment) },
+    kind: 'jump',
+    preview: { kind: 'jump', jumpDestination: phasedJumpDestination(jump, adjustment) },
     // A jump is a burn out of the well.
-    requiredFacing: "prograde",
+    requiredFacing: 'prograde',
     engineEnergy: WELL_TRANSFER_COSTS.energy,
     massCost: calculateJumpMassCost(adjustment, status.hasCompressor),
     wantsScoop: false,
     sectorAdjustment: adjustment,
     destinationWellId: destination,
-  };
+  }
 }

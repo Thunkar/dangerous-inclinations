@@ -1,7 +1,7 @@
 /** Cosmetic match data. Never read by movement, combat, or gameplay RNG. */
-import { z } from "zod";
+import { z } from 'zod'
 
-const paint = z.string().regex(/^#[0-9a-f]{6}$/i);
+const paint = z.string().regex(/^#[0-9a-f]{6}$/i)
 
 /**
  * The livery: a pattern sprayed over the hull paint, the way a model is masked
@@ -9,8 +9,8 @@ const paint = z.string().regex(/^#[0-9a-f]{6}$/i);
  * like the ship's token, so a stripe says whose ship it is at a glance. There
  * is no plain hull: every shape carries the seat's colour somewhere it shows.
  */
-export const LIVERIES = ["band", "split", "chevron", "stern", "spine"] as const;
-export type Livery = (typeof LIVERIES)[number];
+export const LIVERIES = ['band', 'split', 'chevron', 'stern', 'spine'] as const
+export type Livery = (typeof LIVERIES)[number]
 
 /**
  * The hull: the shape built around the same five mounts and the same drive.
@@ -20,8 +20,8 @@ export type Livery = (typeof LIVERIES)[number];
  * mounts. Every hull carries the same slots, so the choice is cosmetic and
  * nothing else.
  */
-export const HULLS = ["corvette", "shrike", "mantis"] as const;
-export type Hull = (typeof HULLS)[number];
+export const HULLS = ['corvette', 'shrike', 'mantis'] as const
+export type Hull = (typeof HULLS)[number]
 
 export const ShipAppearanceSchema = z
   .object({
@@ -30,15 +30,15 @@ export const ShipAppearanceSchema = z
     secondaryPaint: paint,
     livery: z.enum(LIVERIES),
   })
-  .strict();
+  .strict()
 
-export type ShipAppearance = z.infer<typeof ShipAppearanceSchema>;
+export type ShipAppearance = z.infer<typeof ShipAppearanceSchema>
 export const DEFAULT_SHIP_APPEARANCE: Readonly<ShipAppearance> = Object.freeze({
-  hull: "corvette",
-  paint: "#d6cfbd",
-  secondaryPaint: "#6b6a66",
-  livery: "band",
-});
+  hull: 'corvette',
+  paint: '#d6cfbd',
+  secondaryPaint: '#6b6a66',
+  livery: 'band',
+})
 
 /**
  * A player who has not painted a ship flies the reference corvette. Nothing is
@@ -47,7 +47,7 @@ export const DEFAULT_SHIP_APPEARANCE: Readonly<ShipAppearance> = Object.freeze({
  * must not throw.
  */
 export function resolveShipAppearance(value: unknown): ShipAppearance {
-  if (value === undefined || value === null) return { ...DEFAULT_SHIP_APPEARANCE };
-  const result = ShipAppearanceSchema.safeParse(value);
-  return result.success ? result.data : { ...DEFAULT_SHIP_APPEARANCE };
+  if (value === undefined || value === null) return { ...DEFAULT_SHIP_APPEARANCE }
+  const result = ShipAppearanceSchema.safeParse(value)
+  return result.success ? result.data : { ...DEFAULT_SHIP_APPEARANCE }
 }

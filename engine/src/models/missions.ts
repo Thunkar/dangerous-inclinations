@@ -9,8 +9,8 @@
  * Completed missions are face-up: everyone can see them.
  */
 
-import type { SubsystemType } from "./subsystems.ts";
-import { DAMAGING_WEAPON_TYPES } from "./subsystems.ts";
+import type { SubsystemType } from './subsystems.ts'
+import { DAMAGING_WEAPON_TYPES } from './subsystems.ts'
 
 /**
  * Three points win by default, and a hand is one primary and two secondaries:
@@ -44,31 +44,31 @@ import { DAMAGING_WEAPON_TYPES } from "./subsystems.ts";
  * Every seat gets the same frame (one primary somebody set you, two things you
  * do yourself) and picks inside it: the gap to the second-best hand halves.
  */
-export const DEFAULT_POINTS_TO_WIN = 3;
+export const DEFAULT_POINTS_TO_WIN = 3
 
 /** Dealt from the primary deck, and kept from that deal. */
-export const PRIMARY_OFFERS_PER_PLAYER = 3;
-export const PRIMARIES_PER_PLAYER = 1;
+export const PRIMARY_OFFERS_PER_PLAYER = 3
+export const PRIMARIES_PER_PLAYER = 1
 /** Dealt from the shuffled secondary pile, a card at a time round the table. */
-export const SECONDARY_OFFERS_PER_PLAYER = 3;
+export const SECONDARY_OFFERS_PER_PLAYER = 3
 /**
  * Copies of each secondary kind in the printed pile. A full table is dealt
  * three a seat (eighteen), and five kinds of four is twenty.
  */
-export const SECONDARY_COPIES_PER_KIND = 4;
-export const SECONDARIES_PER_PLAYER = 2;
+export const SECONDARY_COPIES_PER_KIND = 4
+export const SECONDARIES_PER_PLAYER = 2
 
-export const MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER;
-export const MISSION_OFFERS_PER_PLAYER = PRIMARY_OFFERS_PER_PLAYER + SECONDARY_OFFERS_PER_PLAYER;
+export const MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER
+export const MISSION_OFFERS_PER_PLAYER = PRIMARY_OFFERS_PER_PLAYER + SECONDARY_OFFERS_PER_PLAYER
 
 /** Black hole ring a ship must end its turn on to complete a Survey. */
-export const SURVEY_RING = 1;
+export const SURVEY_RING = 1
 
 /**
  * Fuel a Tanker hands in, in one go, on arrival at a station: the station's one
  * sale to that player. A hull that jumps in with a full tank arrives with it.
  */
-export const TANKER_FUEL = 5;
+export const TANKER_FUEL = 5
 
 /**
  * What a completed card scores: two for a primary (Destroy for the hunter,
@@ -85,10 +85,10 @@ export const MISSION_POINTS: Readonly<Record<MissionType, number>> = {
   tanker: 1,
   escort: 1,
   salvage: 1,
-};
+}
 
 export function missionPoints(type: MissionType): number {
-  return MISSION_POINTS[type];
+  return MISSION_POINTS[type]
 }
 
 /**
@@ -100,55 +100,55 @@ export function missionPoints(type: MissionType): number {
  * A `dock_sale` action names the sale: the item's cargo id, {@link SELL_FUEL}
  * for the Tanker's pump, or {@link SELL_NOTHING}.
  */
-export const SELL_FUEL = "fuel";
-export const SELL_NOTHING = "none";
+export const SELL_FUEL = 'fuel'
+export const SELL_NOTHING = 'none'
 /** What a `dock_sale` action names to load the crates waiting at the station instead of selling. */
-export const LOAD_CRATES = "load";
+export const LOAD_CRATES = 'load'
 
 /** Scan range for the scan action (same ring, ±sectors). */
-export const SCAN_SECTOR_RANGE = 3;
+export const SCAN_SECTOR_RANGE = 3
 
 export type MissionType =
-  | "destroy_ship"
-  | "deliver_cargo"
-  | "intercept_transmission"
-  | "survey"
-  | "piracy"
-  | "tanker"
-  | "escort"
-  | "salvage";
+  | 'destroy_ship'
+  | 'deliver_cargo'
+  | 'intercept_transmission'
+  | 'survey'
+  | 'piracy'
+  | 'tanker'
+  | 'escort'
+  | 'salvage'
 
 /** The secondary kinds, in the order the printed pile lists them. */
 export const SECONDARY_KINDS_PRINTED: readonly SecondaryKind[] = [
-  "survey",
-  "piracy",
-  "tanker",
-  "escort",
-  "salvage",
-];
-export type SecondaryKind = "survey" | "piracy" | "tanker" | "escort" | "salvage";
+  'survey',
+  'piracy',
+  'tanker',
+  'escort',
+  'salvage',
+]
+export type SecondaryKind = 'survey' | 'piracy' | 'tanker' | 'escort' | 'salvage'
 
 /**
  * What a card is printed as: its title strip and its colour. The three
  * primaries are three ways of playing (the kill, the cargo run, the stolen
  * transmission), so each is its own family; the secondaries share one.
  */
-export type MissionFamily = "combat" | "trade" | "intel" | "secondary";
+export type MissionFamily = 'combat' | 'trade' | 'intel' | 'secondary'
 
 export const MISSION_FAMILY: Record<MissionType, MissionFamily> = {
-  destroy_ship: "combat",
-  deliver_cargo: "trade",
-  intercept_transmission: "intel",
-  survey: "secondary",
-  piracy: "secondary",
-  tanker: "secondary",
-  escort: "secondary",
-  salvage: "secondary",
-};
+  destroy_ship: 'combat',
+  deliver_cargo: 'trade',
+  intercept_transmission: 'intel',
+  survey: 'secondary',
+  piracy: 'secondary',
+  tanker: 'secondary',
+  escort: 'secondary',
+  salvage: 'secondary',
+}
 
 /** A card that scores two: the primary mission somebody else set you. */
 export function isPrimaryType(type: MissionType): boolean {
-  return MISSION_FAMILY[type] !== "secondary";
+  return MISSION_FAMILY[type] !== 'secondary'
 }
 
 /**
@@ -162,12 +162,12 @@ export function isPrimaryType(type: MissionType): boolean {
  * `describeMissionRequirement`, game/describe.ts).
  */
 export interface MissionRequirement {
-  label: string;
-  anyOf: readonly SubsystemType[];
+  label: string
+  anyOf: readonly SubsystemType[]
 }
 
-const SENSOR_ARRAY: MissionRequirement = { label: "sensor array", anyOf: ["sensor_array"] };
-const WEAPON: MissionRequirement = { label: "weapon", anyOf: DAMAGING_WEAPON_TYPES };
+const SENSOR_ARRAY: MissionRequirement = { label: 'sensor array', anyOf: ['sensor_array'] }
+const WEAPON: MissionRequirement = { label: 'weapon', anyOf: DAMAGING_WEAPON_TYPES }
 
 /**
  * What each card needs aboard to be completable at all.
@@ -195,31 +195,31 @@ export const MISSION_REQUIREMENTS: Readonly<Record<MissionType, readonly Mission
   // made the one card any hand could use as filler a card only the sensor loadouts
   // could keep, and left half the table with no filler at all.
   survey: [],
-};
+}
 
 /** What a card needs aboard; empty for cards any hull can fly. */
 export function missionRequirements(type: MissionType): readonly MissionRequirement[] {
-  return MISSION_REQUIREMENTS[type];
+  return MISSION_REQUIREMENTS[type]
 }
 
 interface BaseMission {
-  id: string;
-  type: MissionType;
-  isCompleted: boolean;
+  id: string
+  type: MissionType
+  isCompleted: boolean
 }
 
 /** Reduce the target's hull to 0. */
 export interface DestroyShipMission extends BaseMission {
-  type: "destroy_ship";
-  targetPlayerId: string;
+  type: 'destroy_ship'
+  targetPlayerId: string
 }
 
 /** Dock at the pickup station, then dock at the delivery station with the crate. */
 export interface DeliverCargoMission extends BaseMission {
-  type: "deliver_cargo";
-  pickupPlanetId: string;
-  deliveryPlanetId: string;
-  cargoId: string;
+  type: 'deliver_cargo'
+  pickupPlanetId: string
+  deliveryPlanetId: string
+  cargoId: string
 }
 
 /**
@@ -231,12 +231,12 @@ export interface DeliverCargoMission extends BaseMission {
  * 17 Sept 2026). Every two-point card names what it wants now.
  */
 export interface InterceptTransmissionMission extends BaseMission {
-  type: "intercept_transmission";
-  targetPlayerId: string;
+  type: 'intercept_transmission'
+  targetPlayerId: string
   /** Planet whose station the transmission is filed at. */
-  deliveryPlanetId: string;
+  deliveryPlanetId: string
   /** Id the transmission takes aboard; whether it is aboard is {@link dataAboard}. */
-  dataCargoId: string;
+  dataCargoId: string
 }
 
 /**
@@ -248,9 +248,9 @@ export interface InterceptTransmissionMission extends BaseMission {
  * of the win, so the primary is the card that has to come in.
  */
 export interface SurveyMission extends BaseMission {
-  type: "survey";
+  type: 'survey'
   /** Id the readings take aboard; whether they are aboard is {@link dataAboard}. */
-  dataCargoId: string;
+  dataCargoId: string
 }
 
 /**
@@ -270,9 +270,9 @@ export interface SurveyMission extends BaseMission {
  * is loot another pirate can take.
  */
 export interface PiracyMission extends BaseMission {
-  type: "piracy";
+  type: 'piracy'
   /** Id the loot takes aboard the pirate. */
-  cargoId: string;
+  cargoId: string
 }
 
 /**
@@ -284,7 +284,7 @@ export interface PiracyMission extends BaseMission {
  * hold for the station, not for space, and with every burn for everything.
  */
 export interface TankerMission extends BaseMission {
-  type: "tanker";
+  type: 'tanker'
 }
 
 /**
@@ -298,9 +298,9 @@ export interface TankerMission extends BaseMission {
  * different ship.
  */
 export interface EscortMission extends BaseMission {
-  type: "escort";
+  type: 'escort'
   /** The ship carrying this card's marker, or null while the marker is in hand. */
-  markedPlayerId: string | null;
+  markedPlayerId: string | null
 }
 
 /**
@@ -310,9 +310,9 @@ export interface EscortMission extends BaseMission {
  * filed at "any" station.
  */
 export interface SalvageMission extends BaseMission {
-  type: "salvage";
+  type: 'salvage'
   /** Id the wreck's black box takes aboard. */
-  cargoId: string;
+  cargoId: string
 }
 
 export type Mission =
@@ -323,9 +323,9 @@ export type Mission =
   | PiracyMission
   | TankerMission
   | EscortMission
-  | SalvageMission;
+  | SalvageMission
 
-export type CargoKind = "crate" | "data";
+export type CargoKind = 'crate' | 'data'
 
 /**
  * Something a ship carries.
@@ -342,20 +342,20 @@ export type CargoKind = "crate" | "data";
  * which is an Intercept's.
  */
 export interface Cargo {
-  id: string;
-  kind: CargoKind;
+  id: string
+  kind: CargoKind
   /** Mission this item belongs to. Private: never in a rival's view. */
-  missionId: string;
+  missionId: string
   /** Planet whose station it is collected at; absent for a seized crate. */
-  pickupPlanetId?: string;
+  pickupPlanetId?: string
   /** Planet id, or "any". */
-  deliveryPlanetId: string;
-  isPickedUp: boolean;
+  deliveryPlanetId: string
+  isPickedUp: boolean
 }
 
 /** The items in the hold, as opposed to those waiting on a dock or lost. */
 export function aboard(cargo: readonly Cargo[]): Cargo[] {
-  return cargo.filter((c) => c.isPickedUp);
+  return cargo.filter(c => c.isPickedUp)
 }
 
 /**
@@ -364,9 +364,9 @@ export function aboard(cargo: readonly Cargo[]): Cargo[] {
  * is added.
  */
 export function withItemAboard(cargo: readonly Cargo[], item: Cargo): Cargo[] {
-  return cargo.some((c) => c.id === item.id)
-    ? cargo.map((c) => (c.id === item.id ? item : c))
-    : [...cargo, item];
+  return cargo.some(c => c.id === item.id)
+    ? cargo.map(c => (c.id === item.id ? item : c))
+    : [...cargo, item]
 }
 
 /**
@@ -378,29 +378,29 @@ export function dataAboard(
   player: { readonly cargo: readonly Cargo[] },
   mission: InterceptTransmissionMission | SurveyMission
 ): boolean {
-  return player.cargo.some((c) => c.id === mission.dataCargoId && c.isPickedUp);
+  return player.cargo.some(c => c.id === mission.dataCargoId && c.isPickedUp)
 }
 
 /**
  * What an item aboard is to the table: a Deliver crate, loot (a seized item,
  * which rides as a crate with no pickup station), or data.
  */
-export type HoldItemKind = "crate" | "loot" | "data";
+export type HoldItemKind = 'crate' | 'loot' | 'data'
 
 export function holdItemKind(item: Cargo): HoldItemKind {
-  if (item.kind === "data") return "data";
-  return item.pickupPlanetId === undefined ? "loot" : "crate";
+  if (item.kind === 'data') return 'data'
+  return item.pickupPlanetId === undefined ? 'loot' : 'crate'
 }
 
 /** What a sale hands in: an item from the hold, or a Tanker's fuel. */
-export type SaleKind = HoldItemKind | "fuel";
+export type SaleKind = HoldItemKind | 'fuel'
 
 export function missionTargetsPlayer(
   mission: Mission
 ): mission is DestroyShipMission | InterceptTransmissionMission {
-  return mission.type === "destroy_ship" || mission.type === "intercept_transmission";
+  return mission.type === 'destroy_ship' || mission.type === 'intercept_transmission'
 }
 
 export function isInterceptTransmissionMission(m: Mission): m is InterceptTransmissionMission {
-  return m.type === "intercept_transmission";
+  return m.type === 'intercept_transmission'
 }

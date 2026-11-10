@@ -9,8 +9,7 @@
  */
 import { chromium } from 'playwright'
 
-const [path = '/', out = 'shot.png', wait = '6000'] =
-  process.argv.slice(2)
+const [path = '/', out = 'shot.png', wait = '6000'] = process.argv.slice(2)
 const base = process.env.UI_URL ?? 'http://localhost:5173'
 const playerId = process.env.PLAYER_ID
 

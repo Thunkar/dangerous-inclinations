@@ -129,7 +129,9 @@ export function sectionLoft(sections: { x: number; ring: [number, number][] }[])
         6,
     0
   )
-  const vertices = tris.flatMap(([a, b, c]) => (volume < 0 ? [...a, ...c, ...b] : [...a, ...b, ...c]))
+  const vertices = tris.flatMap(([a, b, c]) =>
+    volume < 0 ? [...a, ...c, ...b] : [...a, ...b, ...c]
+  )
   return describe(geometryOf(vertices), {
     kind: 'sections',
     sections: sections.map(({ x, ring }) => ({ x, ring: ring.map(([y, z]) => [y, z]) })),

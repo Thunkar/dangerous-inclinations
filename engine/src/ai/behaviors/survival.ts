@@ -13,35 +13,35 @@
  * Nothing caps what a ship lights at once, so a bot that ignored the heat
  * would light its whole loadout and cook itself in two turns.
  */
-import type { Player, PowerAction } from "../../models/game.ts";
-import type { Subsystem, SubsystemId } from "../../models/subsystems.ts";
-import { getSubsystemConfig, isPowerableType } from "../../models/subsystems.ts";
+import type { Player, PowerAction } from '../../models/game.ts'
+import type { Subsystem, SubsystemId } from '../../models/subsystems.ts'
+import { getSubsystemConfig, isPowerableType } from '../../models/subsystems.ts'
 
 /** Cubes a plan wants on each subsystem id: the turn's draws, or what it powers. */
-export type EnergyTargets = Map<SubsystemId, number>;
+export type EnergyTargets = Map<SubsystemId, number>
 
 /** What a plan wants powered, and the heat it has left to buy it with. */
 export interface DefensiveWants {
-  shields: Subsystem[];
-  racks: Subsystem[];
-  sensors: Subsystem[];
+  shields: Subsystem[]
+  racks: Subsystem[]
+  sensors: Subsystem[]
   /**
    * Cubes this turn's own actions already put on each subsystem. A rack that fires
    * or a sensor that scans is up anyway: its cubes stay on the subsystem, so it
    * costs nothing more and needs no power action (it could not take one).
    */
-  derived: EnergyTargets;
+  derived: EnergyTargets
   /** Somebody can reach us: a wall is worth its heat. */
-  wantShields: boolean;
+  wantShields: boolean
   /**
    * Racks worth holding up: one per four missiles that could arrive, since a
    * rack answers four a turn and the fifth gets through.
    */
-  wantRacks: number;
+  wantRacks: number
   /** We mean to shoot, so the wider critical range is worth its heat. */
-  wantSensor: boolean;
+  wantSensor: boolean
   /** Heat the powered subsystems may still add at the check without redlining. */
-  heatRoom: number;
+  heatRoom: number
 }
 
 /**
@@ -58,46 +58,49 @@ export interface DefensiveWants {
  * sensor, which is two heat for a wider critical on every gun aboard; then the
  * wall, which takes whatever is left in whole points.
  */
-export function assignDefensiveEnergy(targets: EnergyTargets, wants: DefensiveWants): EnergyTargets {
-  let room = wants.heatRoom;
+export function assignDefensiveEnergy(
+  targets: EnergyTargets,
+  wants: DefensiveWants
+): EnergyTargets {
+  let room = wants.heatRoom
   const take = (sub: Subsystem | undefined, amount: number) => {
-    if (!sub || sub.isBroken || targets.has(sub.id)) return;
+    if (!sub || sub.isBroken || targets.has(sub.id)) return
     // The subsystem holds its cubes once: a rack that is firing this turn is up for
     // free, and a wall going from nothing to two costs both.
-    const extra = Math.max(0, amount - (wants.derived.get(sub.id) ?? 0));
-    if (room < extra) return;
-    targets.set(sub.id, amount);
-    room -= extra;
-  };
+    const extra = Math.max(0, amount - (wants.derived.get(sub.id) ?? 0))
+    if (room < extra) return
+    targets.set(sub.id, amount)
+    room -= extra
+  }
 
   for (let i = 0; i < wants.wantRacks; i++) {
-    const before = targets.size;
+    const before = targets.size
     take(
-      wants.racks.find((r) => !r.isBroken && !targets.has(r.id)),
-      getSubsystemConfig("ballistic_rack").minEnergy
-    );
+      wants.racks.find(r => !r.isBroken && !targets.has(r.id)),
+      getSubsystemConfig('ballistic_rack').minEnergy
+    )
     // Out of racks, or out of heat: either way the rest of the salvo lands.
-    if (targets.size === before) break;
+    if (targets.size === before) break
   }
   if (wants.wantSensor) {
     take(
-      wants.sensors.find((s) => !s.isBroken && !targets.has(s.id)),
-      getSubsystemConfig("sensor_array").minEnergy
-    );
+      wants.sensors.find(s => !s.isBroken && !targets.has(s.id)),
+      getSubsystemConfig('sensor_array').minEnergy
+    )
   }
   if (wants.wantShields) {
-    const config = getSubsystemConfig("shields");
-    const shieldMax = config.maxEnergy;
+    const config = getSubsystemConfig('shields')
+    const shieldMax = config.maxEnergy
     for (const shield of wants.shields) {
-      if (shield.isBroken || targets.has(shield.id)) continue;
-      const already = wants.derived.get(shield.id) ?? 0;
-      const amount = Math.floor(Math.min(shieldMax, room + already));
-      if (amount < config.minEnergy) continue;
-      targets.set(shield.id, amount);
-      room -= Math.max(0, amount - already);
+      if (shield.isBroken || targets.has(shield.id)) continue
+      const already = wants.derived.get(shield.id) ?? 0
+      const amount = Math.floor(Math.min(shieldMax, room + already))
+      if (amount < config.minEnergy) continue
+      targets.set(shield.id, amount)
+      room -= Math.max(0, amount - already)
     }
   }
-  return targets;
+  return targets
 }
 
 /**
@@ -112,18 +115,18 @@ export function assignDefensiveEnergy(targets: EnergyTargets, wants: DefensiveWa
  * thing a turn, so powering it first would make the shot or the scan illegal.
  */
 export function powerActions(me: Player, targets: EnergyTargets): PowerAction[] {
-  const actions: PowerAction[] = [];
+  const actions: PowerAction[] = []
   for (const sub of me.ship.subsystems) {
-    if (!isPowerableType(sub.type) || sub.isBroken) continue;
-    const config = getSubsystemConfig(sub.type);
-    const amount = Math.floor(Math.min(config.maxEnergy, targets.get(sub.id) ?? 0));
-    if (amount < config.minEnergy) continue;
+    if (!isPowerableType(sub.type) || sub.isBroken) continue
+    const config = getSubsystemConfig(sub.type)
+    const amount = Math.floor(Math.min(config.maxEnergy, targets.get(sub.id) ?? 0))
+    if (amount < config.minEnergy) continue
     actions.push({
-      type: "power",
+      type: 'power',
       playerId: me.id,
       sequence: 1 + actions.length,
       data: { subsystemId: sub.id, amount },
-    });
+    })
   }
-  return actions;
+  return actions
 }

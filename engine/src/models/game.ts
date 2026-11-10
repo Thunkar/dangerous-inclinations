@@ -1,42 +1,37 @@
-import type { ShipAppearance } from "./appearance.ts";
-import type {
-  Subsystem,
-  SubsystemId,
-  SubsystemType,
-  HeatState,
-} from "./subsystems.ts";
-import type { Mission, Cargo } from "./missions.ts";
+import type { ShipAppearance } from './appearance.ts'
+import type { Subsystem, SubsystemId, SubsystemType, HeatState } from './subsystems.ts'
+import type { Mission, Cargo } from './missions.ts'
 
 /**
  * Ship loadout: one forward slot and four side slots.
  * Fixed systems (engines, thrusters, scoop) are always present.
  */
 export interface ShipLoadout {
-  forwardSlots: [SubsystemType | null];
+  forwardSlots: [SubsystemType | null]
   sideSlots: [
     SubsystemType | null,
     SubsystemType | null,
     SubsystemType | null,
     SubsystemType | null,
-  ];
+  ]
 }
 
 export interface LoadoutValidation {
-  valid: boolean;
-  errors: string[];
+  valid: boolean
+  errors: string[]
 }
 
 export const DEFAULT_LOADOUT: ShipLoadout = {
-  forwardSlots: ["railgun"],
-  sideSlots: ["laser", "laser", "shields", "missiles"],
-};
+  forwardSlots: ['railgun'],
+  sideSlots: ['laser', 'laser', 'shields', 'missiles'],
+}
 
 /**
  * Three seats. Two players is not offered until it has rules of its own: on
  * the balance seeds seat 1 won 55-59% of two-seat games, and the rival cards
  * count seats a table of two cannot fill.
  */
-export const MIN_PLAYERS = 3;
+export const MIN_PLAYERS = 3
 /**
  * Six seats. The board holds them comfortably (everyone deploys on the black
  * hole's three home rings, 24 sectors each), but the table changes shape as
@@ -44,15 +39,15 @@ export const MIN_PLAYERS = 3;
  * every deck, so a six-player game is a fight and a three-player game is a
  * trade route.
  */
-export const MAX_PLAYERS = 6;
+export const MAX_PLAYERS = 6
 
 /** The lowest d10 face that is a critical: a 10, unless a powered sensor widens it. */
-export const BASE_CRITICAL_FACE = 10;
+export const BASE_CRITICAL_FACE = 10
 
-export const MAX_REACTION_MASS = 10;
-export const STARTING_REACTION_MASS = 10;
-export const DEFAULT_DISSIPATION_CAPACITY = 5;
-export const STARTING_HIT_POINTS = 10;
+export const MAX_REACTION_MASS = 10
+export const STARTING_REACTION_MASS = 10
+export const DEFAULT_DISSIPATION_CAPACITY = 5
+export const STARTING_HIT_POINTS = 10
 
 /**
  * The top of the heat track, and the reason there is a track at all.
@@ -72,7 +67,7 @@ export const STARTING_HIT_POINTS = 10;
  * is now a buffer to spend, so running hot is a state you choose to enter and
  * have to climb out of. Ten to match the hull track: one cube, one track.
  */
-export const MAX_HEAT = 10;
+export const MAX_HEAT = 10
 
 /**
  * Rounds at the start of the game in which nothing reaches another ship.
@@ -89,18 +84,18 @@ export const MAX_HEAT = 10;
  * for one round costs nothing that cannot be got back and gives every seat one
  * turn to choose where it is standing.
  */
-export const OPENING_ROUNDS = 1;
+export const OPENING_ROUNDS = 1
 
 /**
  * The round a game starts play on. Deployment hands the board over at this
  * number (`game/deployment.ts`), so it is the first round anyone acts in,
  * not zero, which is the value a game carries while it is still being set up.
  */
-export const FIRST_TURN = 1;
+export const FIRST_TURN = 1
 
 /** Whether `state.turn` is still inside the opening round: no firing, no scanning. */
 export function isOpeningRound(turn: number): boolean {
-  return turn < FIRST_TURN + OPENING_ROUNDS;
+  return turn < FIRST_TURN + OPENING_ROUNDS
 }
 
 /**
@@ -110,47 +105,47 @@ export function isOpeningRound(turn: number): boolean {
  * which is a first round of its own (RULES §Destruction and Respawn).
  */
 export function isQuietTurn(turn: number, me: { recovering: boolean }): boolean {
-  return isOpeningRound(turn) || me.recovering;
+  return isOpeningRound(turn) || me.recovering
 }
 
-export type Facing = "prograde" | "retrograde";
+export type Facing = 'prograde' | 'retrograde'
 
 /** The facing a rotation turns a ship to. */
 export function oppositeFacing(facing: Facing): Facing {
-  return facing === "prograde" ? "retrograde" : "prograde";
+  return facing === 'prograde' ? 'retrograde' : 'prograde'
 }
-export type BurnIntensity = "soft" | "medium" | "hard";
+export type BurnIntensity = 'soft' | 'medium' | 'hard'
 
-export type GravityWellId = string; // 'blackhole' | 'planet-alpha' | ...
-export type GravityWellType = "blackhole" | "planet";
+export type GravityWellId = string // 'blackhole' | 'planet-alpha' | ...
+export type GravityWellType = 'blackhole' | 'planet'
 
 export interface Position {
-  wellId: GravityWellId;
-  ring: number;
-  sector: number;
+  wellId: GravityWellId
+  ring: number
+  sector: number
 }
 
 export interface RingConfig {
-  ring: number;
-  velocity: number; // sectors per turn
-  sectors: number;
+  ring: number
+  velocity: number // sectors per turn
+  sectors: number
 }
 
 export interface GravityWell {
-  id: GravityWellId;
-  name: string;
-  type: GravityWellType;
-  rings: RingConfig[];
+  id: GravityWellId
+  name: string
+  type: GravityWellType
+  rings: RingConfig[]
 }
 
 /**
  * A contiguous run of sectors on one ring that belongs to a transfer lane.
  */
 export interface TransferArc {
-  wellId: GravityWellId;
-  ring: number;
-  startSector: number;
-  length: number;
+  wellId: GravityWellId
+  ring: number
+  startSector: number
+  length: number
 }
 
 /**
@@ -158,96 +153,96 @@ export interface TransferArc {
  * arc on a planet's outer ring. Jumping keeps the ship's offset inside the arc.
  */
 export interface TransferLane {
-  id: string;
-  planetId: GravityWellId;
+  id: string
+  planetId: GravityWellId
   /**
    * Lanes are one-way: an outbound lane is jumped from its black hole arc to
    * its planet arc, an inbound lane from its planet arc back to the black hole.
    */
-  direction: "outbound" | "inbound";
-  blackHoleArc: TransferArc;
-  planetArc: TransferArc;
+  direction: 'outbound' | 'inbound'
+  blackHoleArc: TransferArc
+  planetArc: TransferArc
 }
 
 /**
  * Missile in flight. Missiles are public tokens on the board.
  */
 export interface Missile {
-  id: string;
-  ownerId: string;
-  targetId: string;
-  wellId: GravityWellId;
-  ring: number;
-  sector: number;
+  id: string
+  ownerId: string
+  targetId: string
+  wellId: GravityWellId
+  ring: number
+  sector: number
   /**
    * Times this missile has moved: its launch flight, then once at the end of
    * each of its owner's turns. Expires at maxMoves.
    */
-  movesMade: number;
+  movesMade: number
   /**
    * Flown already, on its launch flight, this very turn: the end-of-turn
    * move skips it and clears the mark, so no missile carries it between turns.
    */
-  launchedThisTurn?: true;
+  launchedThisTurn?: true
   /** Slot the warhead breaks on a critical hit. */
-  criticalTarget: SubsystemId;
+  criticalTarget: SubsystemId
 }
 
 export interface ShipState {
-  wellId: GravityWellId;
-  ring: number;
-  sector: number;
-  facing: Facing;
+  wellId: GravityWellId
+  ring: number
+  sector: number
+  facing: Facing
   /**
    * Fuel aboard. Public (RULES §Hidden Information): the cubes sit on the loadout
    * where anyone can count them. A tank was private and a spent pile public
    * for a day, which fooled nobody: every ship starts with the same ten and
    * every burn is announced, so the arithmetic was there for the doing.
    */
-  reactionMass: number;
-  hitPoints: number;
-  maxHitPoints: number;
-  subsystems: Subsystem[];
-  heat: HeatState;
-  loadout: ShipLoadout;
+  reactionMass: number
+  hitPoints: number
+  maxHitPoints: number
+  subsystems: Subsystem[]
+  heat: HeatState
+  loadout: ShipLoadout
 }
 
 interface BaseAction {
-  playerId: string;
+  playerId: string
   /** Tactical actions (power/rotate/move/fire/scan/jump/seize/survey/salvage/escort_mark) execute in sequence order. */
-  sequence?: number;
+  sequence?: number
 }
 
 export interface CoastAction extends BaseAction {
-  type: "coast";
-  data: { activateScoop: boolean };
+  type: 'coast'
+  data: { activateScoop: boolean }
 }
 
 export interface BurnAction extends BaseAction {
-  type: "burn";
-  data: { burnIntensity: BurnIntensity; sectorAdjustment: number };
+  type: 'burn'
+  data: { burnIntensity: BurnIntensity; sectorAdjustment: number }
 }
 
 export interface RotateAction extends BaseAction {
-  type: "rotate";
-  data: { targetFacing: Facing };
+  type: 'rotate'
+  data: { targetFacing: Facing }
 }
 
 /** Power one of the tiles that work on other players' turns (POWERABLE_TYPES). `amount` is shields' 1 or 2; absent means the tile's minimum. */
 export interface PowerAction extends BaseAction {
-  type: "power";
-  data: { subsystemId: SubsystemId; amount?: number };
+  type: 'power'
+  data: { subsystemId: SubsystemId; amount?: number }
 }
 
 export interface FireWeaponAction extends BaseAction {
-  type: "fire_weapon";
+  type: 'fire_weapon'
   data: {
-    subsystemId: SubsystemId; // which weapon fires
-    targetPlayerId: string;
+    subsystemId: SubsystemId // which weapon fires
+    targetPlayerId: string
     /** Slot to break if the shot is a critical hit. */
-    criticalTarget: SubsystemId;
+    criticalTarget: SubsystemId
     /** Railgun only: engines cancel the recoil (1 mass, engine heat). */
-    compensateRecoil?: boolean;
+    compensateRecoil?: boolean
     /**
      * Missiles only: how many of the tile's remaining rounds this launch puts
      * in the air, all at the same ship and the same critical slot. Absent is
@@ -255,29 +250,29 @@ export interface FireWeaponAction extends BaseAction {
      * cubes in heat once whatever its size: the magazine is what limits
      * missiles, not the heat.
      */
-    count?: number;
-  };
+    count?: number
+  }
 }
 
 export interface ScanAction extends BaseAction {
-  type: "scan";
+  type: 'scan'
   data: {
-    targetPlayerId: string;
+    targetPlayerId: string
     /** Face-down slot of the target to look at. */
-    peekSlot: SubsystemId;
-  };
+    peekSlot: SubsystemId
+  }
 }
 
 export interface WellTransferAction extends BaseAction {
-  type: "well_transfer";
+  type: 'well_transfer'
   data: {
-    destinationWellId: GravityWellId;
+    destinationWellId: GravityWellId
     /**
      * Phasing, as on a burn: sectors to shift the arrival for 1 fuel each,
      * bounded by the arrival arc. 0 lands on the matching sector.
      */
-    sectorAdjustment: number;
-  };
+    sectorAdjustment: number
+  }
 }
 
 /**
@@ -287,8 +282,8 @@ export interface WellTransferAction extends BaseAction {
  * only if nothing on the loadout made heat.
  */
 export interface RepairAction extends BaseAction {
-  type: "repair";
-  data: { subsystemId: SubsystemId };
+  type: 'repair'
+  data: { subsystemId: SubsystemId }
 }
 
 /**
@@ -298,13 +293,13 @@ export interface RepairAction extends BaseAction {
  * refused: the visit makes the default instead (`salesOnArrival`).
  */
 export interface DockSaleAction extends BaseAction {
-  type: "dock_sale";
+  type: 'dock_sale'
   /**
    * The item sold, by its cargo id; `SELL_FUEL` for a Tanker's pump;
    * `LOAD_CRATES` to load the crates waiting instead of selling; or
    * `SELL_NOTHING` to do nothing and keep the station for later.
    */
-  data: { sale: string };
+  data: { sale: string }
 }
 
 /**
@@ -318,8 +313,8 @@ export interface DockSaleAction extends BaseAction {
  * different ship. Not a use of any subsystem: it puts no energy anywhere.
  */
 export interface EscortMarkAction extends BaseAction {
-  type: "escort_mark";
-  data: { carrierId: string };
+  type: 'escort_mark'
+  data: { carrierId: string }
 }
 
 /**
@@ -329,8 +324,8 @@ export interface EscortMarkAction extends BaseAction {
  * no subsystem used.
  */
 export interface SurveyAction extends BaseAction {
-  type: "survey";
-  data: Record<string, never>;
+  type: 'survey'
+  data: Record<string, never>
 }
 
 /**
@@ -342,8 +337,8 @@ export interface SurveyAction extends BaseAction {
  * turn leaves one there), and is skipped if there is none.
  */
 export interface SalvageAction extends BaseAction {
-  type: "salvage";
-  data: { wreckId?: string };
+  type: 'salvage'
+  data: { wreckId?: string }
 }
 
 /**
@@ -356,8 +351,8 @@ export interface SalvageAction extends BaseAction {
  * energy anywhere.
  */
 export interface SeizeAction extends BaseAction {
-  type: "seize";
-  data: { victimId: string; cargoId: string };
+  type: 'seize'
+  data: { victimId: string; cargoId: string }
 }
 
 export type TacticalAction =
@@ -371,45 +366,42 @@ export type TacticalAction =
   | SeizeAction
   | SurveyAction
   | SalvageAction
-  | EscortMarkAction;
+  | EscortMarkAction
 
-export type PlayerAction = TacticalAction | RepairAction | DockSaleAction;
+export type PlayerAction = TacticalAction | RepairAction | DockSaleAction
 
-const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
-  "rotate",
-  "coast",
-  "burn",
-  "well_transfer",
-  "fire_weapon",
-  "scan",
-  "power",
-  "seize",
-  "survey",
-  "salvage",
-  "escort_mark",
-]);
+const TACTICAL_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set([
+  'rotate',
+  'coast',
+  'burn',
+  'well_transfer',
+  'fire_weapon',
+  'scan',
+  'power',
+  'seize',
+  'survey',
+  'salvage',
+  'escort_mark',
+])
 
 /** The three moves; a turn takes at most one. */
-export const MOVE_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
-  "coast",
-  "burn",
-  "well_transfer",
-]);
+export const MOVE_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set([
+  'coast',
+  'burn',
+  'well_transfer',
+])
 
 /** Standing orders: named with the turn and settled at its end, so they carry no sequence. */
-const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
-  "repair",
-  "dock_sale",
-]);
+const STANDING_ORDER_TYPES: ReadonlySet<PlayerAction['type']> = new Set(['repair', 'dock_sale'])
 
 /** Every action a turn may submit. */
-export const PLAYER_ACTION_TYPES: ReadonlySet<PlayerAction["type"]> = new Set([
+export const PLAYER_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set([
   ...TACTICAL_ACTION_TYPES,
   ...STANDING_ORDER_TYPES,
-]);
+])
 
 export function isTacticalAction(action: PlayerAction): action is TacticalAction {
-  return TACTICAL_ACTION_TYPES.has(action.type);
+  return TACTICAL_ACTION_TYPES.has(action.type)
 }
 
 export interface Player {
@@ -417,19 +409,19 @@ export interface Player {
    * Set by a loadout submission that paints the ship. Bots and seat agents
    * submit none, and a ship nobody painted flies the reference corvette.
    */
-  appearance?: ShipAppearance;
-  id: string;
-  name: string;
-  ship: ShipState;
+  appearance?: ShipAppearance
+  id: string
+  name: string
+  ship: ShipState
   /** Offered during loadout; the player keeps MISSIONS_PER_PLAYER of them. */
-  missionOffers: Mission[];
-  missions: Mission[];
-  points: number;
-  cargo: Cargo[];
-  hasDeployed: boolean;
-  hasSubmittedLoadout: boolean;
+  missionOffers: Mission[]
+  missions: Mission[]
+  points: number
+  cargo: Cargo[]
+  hasDeployed: boolean
+  hasSubmittedLoadout: boolean
   /** Where the ship deployed; destroyed ships return here. */
-  home: Position | null;
+  home: Position | null
   /**
    * Back from the dead and untouchable: set when the ship is placed at Home
    * on its respawn turn, cleared at the end of the turn its owner plays next.
@@ -438,26 +430,26 @@ export interface Player {
    * deploying again, so it is a first round of its own (RULES §Destruction
    * and Respawn).
    */
-  recovering: boolean;
+  recovering: boolean
   /**
    * Planets whose station this player has sold at: each buys one item from
    * them, once, and nothing more after it. Public: a marker on the station.
    */
-  soldAt: string[];
+  soldAt: string[]
   /**
    * Face-down slots of other players this player has seen through scans.
    * Private knowledge; the table only sees face-up tiles.
    */
-  intel: Record<string, SubsystemId[]>;
+  intel: Record<string, SubsystemId[]>
 }
 
-export type GamePhase = "loadout" | "deployment" | "active" | "ended";
+export type GamePhase = 'loadout' | 'deployment' | 'active' | 'ended'
 
 export interface Station {
-  id: string;
-  planetId: GravityWellId;
-  ring: number;
-  sector: number;
+  id: string
+  planetId: GravityWellId
+  ring: number
+  sector: number
 }
 
 /**
@@ -466,10 +458,10 @@ export interface Station {
  * stations by its ring's speed.
  */
 export interface Wreck {
-  id: string;
-  wellId: GravityWellId;
-  ring: number;
-  sector: number;
+  id: string
+  wellId: GravityWellId
+  ring: number
+  sector: number
 }
 
 /**
@@ -478,28 +470,28 @@ export interface Wreck {
  * callers (server, sim, recording) keep the history.
  */
 export interface GameState {
-  turn: number;
-  activePlayerIndex: number;
-  players: Player[];
-  missiles: Missile[];
-  stations: Station[];
-  wrecks: Wreck[];
-  phase: GamePhase;
-  winnerId?: string;
+  turn: number
+  activePlayerIndex: number
+  players: Player[]
+  missiles: Missile[]
+  stations: Station[]
+  wrecks: Wreck[]
+  phase: GamePhase
+  winnerId?: string
   /**
    * Someone has reached {@link GameState.pointsToWin}: the round is played out
    * so every seat gets the same number of turns, then the standings decide.
    */
-  finalRound?: boolean;
+  finalRound?: boolean
   /**
    * Points that trigger the final round: three at a table. Fixed for the game;
    * the simulator may set another number to measure it.
    */
-  pointsToWin: number;
+  pointsToWin: number
   // Determinism
-  rngSeed: number;
-  rngState: number;
-  nextEntityId: number;
+  rngSeed: number
+  rngState: number
+  nextEntityId: number
   /** Test-only override for d10 rolls. */
-  forcedRollValue?: number;
+  forcedRollValue?: number
 }

@@ -4,15 +4,15 @@
  *
  *   node --experimental-transform-types --import ./scripts/engine-source-loader.mjs scripts/smoke.ts
  */
-import { registerHooks } from "node:module";
+import { registerHooks } from 'node:module'
 
-const ENGINE_INDEX = new URL("../../engine/src/index.ts", import.meta.url).href;
+const ENGINE_INDEX = new URL('../../engine/src/index.ts', import.meta.url).href
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === "@dangerous-inclinations/engine") {
-      return { url: ENGINE_INDEX, shortCircuit: true };
+    if (specifier === '@dangerous-inclinations/engine') {
+      return { url: ENGINE_INDEX, shortCircuit: true }
     }
-    return nextResolve(specifier, context);
+    return nextResolve(specifier, context)
   },
-});
+})

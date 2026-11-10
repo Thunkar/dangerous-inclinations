@@ -54,22 +54,24 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
   const myPlayerId = getStoredPlayerId()
 
   const seats = useMemo(() => {
-    const kinds = new Map(recording.metadata.playerKinds.map((k) => [k.playerId, k.kind]))
-    return snapshot.players
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        // A recording from before the points target was written into the
-        // snapshot was played to the default.
-        pointsToWin: snapshot.pointsToWin ?? DEFAULT_POINTS_TO_WIN,
-        isBot: kinds.get(p.id) !== 'human',
-        isMine: p.id === myPlayerId,
-        hull: p.ship.hitPoints,
-        maxHull: p.ship.maxHitPoints,
-        pointsScored: p.points,
-      }))
-      // Another human's seat would expose their hand; the server refuses it too.
-      .filter((p) => p.isBot || p.isMine)
+    const kinds = new Map(recording.metadata.playerKinds.map(k => [k.playerId, k.kind]))
+    return (
+      snapshot.players
+        .map(p => ({
+          id: p.id,
+          name: p.name,
+          // A recording from before the points target was written into the
+          // snapshot was played to the default.
+          pointsToWin: snapshot.pointsToWin ?? DEFAULT_POINTS_TO_WIN,
+          isBot: kinds.get(p.id) !== 'human',
+          isMine: p.id === myPlayerId,
+          hull: p.ship.hitPoints,
+          maxHull: p.ship.maxHitPoints,
+          pointsScored: p.points,
+        }))
+        // Another human's seat would expose their hand; the server refuses it too.
+        .filter(p => p.isBot || p.isMine)
+    )
   }, [snapshot, recording.metadata.playerKinds, myPlayerId])
 
   // Only a turn that was actually played can be continued: before deployment
@@ -129,14 +131,17 @@ export function ForkFromReplay({ recording, turnIndex }: ForkFromReplayProps) {
         <DialogTitle>Play on from {turnLabel}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            A new game starts from {turnLabel}, with the board, the cards and the damage exactly as they
-            are here. Take one of the ships; the rest play on as bots.
+            A new game starts from {turnLabel}, with the board, the cards and the damage exactly as
+            they are here. Take one of the ships; the rest play on as bots.
           </Typography>
 
           <FormControl component="fieldset" sx={{ width: '100%' }}>
-            <RadioGroup value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)}>
+            <RadioGroup
+              value={selectedPlayerId}
+              onChange={e => setSelectedPlayerId(e.target.value)}
+            >
               <Stack spacing={0.5}>
-                {seats.map((seat) => (
+                {seats.map(seat => (
                   <FormControlLabel
                     key={seat.id}
                     value={seat.id}

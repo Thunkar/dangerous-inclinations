@@ -72,7 +72,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             setError(
               err instanceof Error
                 ? `Could not reach the server (${err.message}). Your seat is still saved.`
-                : 'Could not reach the server. Your seat is still saved.',
+                : 'Could not reach the server. Your seat is still saved.'
             )
             setCanRetry(true)
             return
@@ -104,7 +104,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [attempt])
 
-  const retry = useCallback(() => setAttempt((n) => n + 1), [])
+  const retry = useCallback(() => setAttempt(n => n + 1), [])
 
   const setPlayerName = useCallback(
     async (name: string) => {
@@ -116,7 +116,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // Local state is already updated; the server keeps the old name until the next sync.
       }
     },
-    [playerId],
+    [playerId]
   )
 
   const clearNewPlayerFlag = useCallback(() => setIsNewPlayer(false), [])

@@ -42,15 +42,24 @@ export function RecordingsBrowser({
   useEffect(() => {
     let cancelled = false
     listRecordings()
-      .then((r) => !cancelled && setItems(r))
-      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)))
+      .then(r => !cancelled && setItems(r))
+      .catch(e => !cancelled && setError(e instanceof Error ? e.message : String(e)))
     return () => {
       cancelled = true
     }
   }, [])
 
   return (
-    <Box sx={{ minHeight: '100vh', p: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        p: 3,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 2,
+      }}
+    >
       <Typography variant="h4" sx={{ color: TABLE.ink, mt: 2 }}>
         Watch a finished game
       </Typography>
@@ -78,7 +87,7 @@ export function RecordingsBrowser({
         )}
         {items && items.length > 0 && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 1 }}>
-            {items.map((recording) => (
+            {items.map(recording => (
               <Box
                 key={recording.recordingId}
                 onClick={() => onOpen(recording.recordingId)}

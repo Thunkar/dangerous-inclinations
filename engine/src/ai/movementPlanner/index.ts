@@ -26,9 +26,9 @@ export {
   planAlternativesToTarget,
   isReachable,
   getReachablePositions,
-} from "./planner.ts";
-export { planMovementToTarget } from "./forward.ts";
-export type { PlannerTarget } from "./targets.ts";
+} from './planner.ts'
+export { planMovementToTarget } from './forward.ts'
+export type { PlannerTarget } from './targets.ts'
 export {
   staticTarget,
   orbitingTarget,
@@ -36,11 +36,11 @@ export {
   anySectorOnRing,
   orbitSectorAt,
   driftPeriod,
-} from "./targets.ts";
-export { getPredecessors } from "./predecessors.ts";
-export type { PredecessorOptions } from "./predecessors.ts";
-export { getSuccessors } from "./successors.ts";
-export type { SuccessorInfo, SuccessorOptions } from "./successors.ts";
+} from './targets.ts'
+export { getPredecessors } from './predecessors.ts'
+export type { PredecessorOptions } from './predecessors.ts'
+export { getSuccessors } from './successors.ts'
+export type { SuccessorInfo, SuccessorOptions } from './successors.ts'
 export type {
   OrbitalPosition,
   OrientedPosition,
@@ -51,31 +51,31 @@ export type {
   PlannerMode,
   MovementActionType,
   PredecessorInfo,
-} from "./types.ts";
-export { positionKey, DEFAULT_PLANNER_OPTIONS } from "./types.ts";
+} from './types.ts'
+export { positionKey, DEFAULT_PLANNER_OPTIONS } from './types.ts'
 
 // ============================================================================
 // Convenience functions for bot integration
 // ============================================================================
 
-import type { ShipState, BurnIntensity, Facing, Station } from "../../models/game.ts";
-import { hasWorkingCompressor } from "../../game/ship.ts";
-import { MAX_REACTION_MASS } from "../../models/game.ts";
-import { ringVelocity } from "../../game/geometry.ts";
-import { planMovement } from "./planner.ts";
-import { planMovementToTarget } from "./forward.ts";
-import { orbitingTarget, staticTarget } from "./targets.ts";
-import type { PlannerTarget } from "./targets.ts";
+import type { ShipState, BurnIntensity, Facing, Station } from '../../models/game.ts'
+import { hasWorkingCompressor } from '../../game/ship.ts'
+import { MAX_REACTION_MASS } from '../../models/game.ts'
+import { ringVelocity } from '../../game/geometry.ts'
+import { planMovement } from './planner.ts'
+import { planMovementToTarget } from './forward.ts'
+import { orbitingTarget, staticTarget } from './targets.ts'
+import type { PlannerTarget } from './targets.ts'
 import type {
   OrbitalPosition,
   OrientedPosition,
   MovementPlan,
   PlannerMode,
   PlannerOptions,
-} from "./types.ts";
+} from './types.ts'
 
 function shipOrigin(ship: ShipState): OrientedPosition {
-  return { wellId: ship.wellId, ring: ship.ring, sector: ship.sector, facing: ship.facing };
+  return { wellId: ship.wellId, ring: ship.ring, sector: ship.sector, facing: ship.facing }
 }
 
 /**
@@ -89,16 +89,16 @@ function shipOrigin(ship: ShipState): OrientedPosition {
  * coasts in where it would otherwise burn.
  */
 function shipPlannerOptions(ship: ShipState, maxTurns: number, reserveMass = 0): PlannerOptions {
-  const scoop = ship.subsystems.find((s) => s.type === "scoop");
+  const scoop = ship.subsystems.find(s => s.type === 'scoop')
   return {
-    mode: "fastest",
+    mode: 'fastest',
     maxTurns,
     availableMass: ship.reactionMass - reserveMass,
     allowWellTransfers: true,
     hasFuelScoop: scoop !== undefined && !scoop.isBroken,
     maxFuelCapacity: MAX_REACTION_MASS - reserveMass,
     hasFuelCompressor: hasWorkingCompressor(ship),
-  };
+  }
 }
 
 /**
@@ -115,14 +115,14 @@ function shipPlannerOptions(ship: ShipState, maxTurns: number, reserveMass = 0):
 export function planFromShip(
   ship: ShipState,
   target: OrbitalPosition,
-  mode: PlannerMode = "fastest",
+  mode: PlannerMode = 'fastest',
   maxTurns: number = 20
 ): MovementPlan | null {
-  const options = shipPlannerOptions(ship, maxTurns);
-  const origin = shipOrigin(ship);
-  const plan = planMovement(origin, target, { ...options, mode });
-  if (plan || !options.hasFuelScoop) return plan;
-  return planMovementToTarget(origin, staticTarget(target), options);
+  const options = shipPlannerOptions(ship, maxTurns)
+  const origin = shipOrigin(ship)
+  const plan = planMovement(origin, target, { ...options, mode })
+  if (plan || !options.hasFuelScoop) return plan
+  return planMovementToTarget(origin, staticTarget(target), options)
 }
 
 /**
@@ -140,7 +140,7 @@ export function planShipToTarget(
     shipOrigin(ship),
     target,
     shipPlannerOptions(ship, maxTurns, reserveMass)
-  );
+  )
 }
 
 /**
@@ -152,35 +152,35 @@ export function planShipToTarget(
  * of a jump inside its arrival arc.
  */
 export function getFirstAction(plan: MovementPlan): {
-  actionType: "coast" | "burn" | "well_transfer";
-  burnIntensity?: BurnIntensity;
-  sectorAdjustment: number;
-  targetFacing?: Facing;
-  destinationWellId?: string;
+  actionType: 'coast' | 'burn' | 'well_transfer'
+  burnIntensity?: BurnIntensity
+  sectorAdjustment: number
+  targetFacing?: Facing
+  destinationWellId?: string
   /** Mass the planner expects this step to spend (negative = scoop recovery). */
-  massCost: number;
+  massCost: number
 } | null {
-  const step = plan.steps[0];
-  if (!step) return null;
+  const step = plan.steps[0]
+  if (!step) return null
 
-  if (step.actionType === "burn_prograde" || step.actionType === "burn_retrograde") {
+  if (step.actionType === 'burn_prograde' || step.actionType === 'burn_retrograde') {
     return {
-      actionType: "burn",
+      actionType: 'burn',
       burnIntensity: step.burnIntensity,
       sectorAdjustment: step.sectorAdjustment,
-      targetFacing: step.actionType === "burn_prograde" ? "prograde" : "retrograde",
+      targetFacing: step.actionType === 'burn_prograde' ? 'prograde' : 'retrograde',
       massCost: step.massCost,
-    };
+    }
   }
-  if (step.actionType === "well_transfer") {
+  if (step.actionType === 'well_transfer') {
     return {
-      actionType: "well_transfer",
+      actionType: 'well_transfer',
       sectorAdjustment: step.sectorAdjustment,
       destinationWellId: step.to.wellId,
       massCost: step.massCost,
-    };
+    }
   }
-  return { actionType: "coast", sectorAdjustment: 0, massCost: step.massCost };
+  return { actionType: 'coast', sectorAdjustment: 0, massCost: step.massCost }
 }
 
 /**
@@ -188,19 +188,19 @@ export function getFirstAction(plan: MovementPlan): {
  * takes, and the plan itself.
  */
 export interface StationMeetPlan {
-  meetPosition: OrbitalPosition;
-  totalTurns: number;
-  plan: MovementPlan;
+  meetPosition: OrbitalPosition
+  totalTurns: number
+  plan: MovementPlan
 }
 
 /** Planner target for a station (advances once per round by its ring velocity). */
 export function stationTarget(
-  station: Pick<Station, "planetId" | "ring" | "sector">
+  station: Pick<Station, 'planetId' | 'ring' | 'sector'>
 ): PlannerTarget {
   return orbitingTarget(
     { wellId: station.planetId, ring: station.ring, sector: station.sector },
     ringVelocity(station.planetId, station.ring)
-  );
+  )
 }
 
 /**
@@ -209,11 +209,11 @@ export function stationTarget(
  */
 export function planStationMeetUp(
   ship: ShipState,
-  station: Pick<Station, "planetId" | "ring" | "sector">,
+  station: Pick<Station, 'planetId' | 'ring' | 'sector'>,
   maxTurns: number = 12,
   reserveMass = 0
 ): StationMeetPlan | null {
-  const plan = planShipToTarget(ship, stationTarget(station), maxTurns, reserveMass);
-  if (!plan) return null;
-  return { meetPosition: plan.destination, totalTurns: plan.totalTurns, plan };
+  const plan = planShipToTarget(ship, stationTarget(station), maxTurns, reserveMass)
+  if (!plan) return null
+  return { meetPosition: plan.destination, totalTurns: plan.totalTurns, plan }
 }

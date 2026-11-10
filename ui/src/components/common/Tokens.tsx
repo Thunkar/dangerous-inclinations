@@ -24,15 +24,10 @@ interface EnergyCubesProps {
   threshold?: number
 }
 
-export function EnergyCubes({
-  count,
-  capacity,
-  size = 9,
-  title,
-  threshold,
-}: EnergyCubesProps) {
+export function EnergyCubes({ count, capacity, size = 9, title, threshold }: EnergyCubesProps) {
   if (capacity <= 0) return null
-  const tick = threshold !== undefined && threshold > 0 && threshold < capacity ? threshold : undefined
+  const tick =
+    threshold !== undefined && threshold > 0 && threshold < capacity ? threshold : undefined
   const row = (
     <Box sx={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
       {Array.from({ length: capacity }, (_, i) => {
@@ -114,7 +109,9 @@ export function PipTrack({
           {label}
         </Typography>
       )}
-      <Box sx={{ display: 'flex', gap: '2px', alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
+      <Box
+        sx={{ display: 'flex', gap: '2px', alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}
+      >
         {Array.from({ length: max }, (_, i) => {
           const on = i < lit
           const ghost = !on && i < ghostTo
@@ -171,7 +168,15 @@ const CARGO_COLORS = {
   data: TABLE.teal,
 } as const
 
-export function CargoTokens({ crates, data, size = 11 }: { crates: number; data: number; size?: number }) {
+export function CargoTokens({
+  crates,
+  data,
+  size = 11,
+}: {
+  crates: number
+  data: number
+  size?: number
+}) {
   const groups: Array<[keyof typeof CARGO_COLORS, number]> = [
     ['crate', crates],
     ['data', data],
@@ -208,7 +213,7 @@ export function CargoTokens({ crates, data, size = 11 }: { crates: number; data:
               )}
             </Box>
           </Tooltip>
-        ),
+        )
       )}
     </Box>
   )

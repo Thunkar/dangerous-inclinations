@@ -2,24 +2,24 @@
  * Recording round-trip: re-executing a recording's actions from its initial
  * state must reproduce every snapshot exactly.
  */
-import { describe, it, expect } from "vitest";
-import { executeTurn } from "../game/turns.ts";
-import { cloneState, reconstructStateAtTurn, replayRecording } from "../recording/replay.ts";
+import { describe, it, expect } from 'vitest'
+import { executeTurn } from '../game/turns.ts'
+import { cloneState, reconstructStateAtTurn, replayRecording } from '../recording/replay.ts'
 import {
   RECORDING_SCHEMA_VERSION,
   staleRecordingReason,
   type GameRecording,
-} from "../recording/types.ts";
-import { canonicalJson, playScripted, scriptedGameStart } from "./testUtils.ts";
+} from '../recording/types.ts'
+import { canonicalJson, playScripted, scriptedGameStart } from './testUtils.ts'
 
 function record(seed: number, turnCount: number): GameRecording {
-  const initialState = scriptedGameStart(seed);
-  const turns = playScripted(initialState, turnCount);
-  const finalState = turns[turns.length - 1].state;
+  const initialState = scriptedGameStart(seed)
+  const turns = playScripted(initialState, turnCount)
+  const finalState = turns[turns.length - 1].state
   return {
     schemaVersion: RECORDING_SCHEMA_VERSION,
     recordingId: `rec-${seed}`,
-    createdAt: "2026-09-14T00:00:00.000Z",
+    createdAt: '2026-09-14T00:00:00.000Z',
     seed,
     initialState,
     turns: turns.map((t, i) => ({
@@ -31,89 +31,89 @@ function record(seed: number, turnCount: number): GameRecording {
     })),
     finalState,
     metadata: {
-      source: "sim",
+      source: 'sim',
       playerKinds: [
-        { playerId: "p1", kind: "bot" },
-        { playerId: "p2", kind: "bot" },
+        { playerId: 'p1', kind: 'bot' },
+        { playerId: 'p2', kind: 'bot' },
       ],
       turnCount: turns.length,
       winnerId: finalState.winnerId,
-      endReason: finalState.phase === "ended" ? "victory" : "max_turns",
+      endReason: finalState.phase === 'ended' ? 'victory' : 'max_turns',
     },
-  };
+  }
 }
 
-describe("recording: replay", () => {
-  const recording = record(0xfeedface, 24);
+describe('recording: replay', () => {
+  const recording = record(0xfeedface, 24)
 
   it("re-executing each turn's actions on the previous snapshot reproduces the next snapshot", () => {
-    let state = cloneState(recording.initialState);
+    let state = cloneState(recording.initialState)
     for (const turn of recording.turns) {
-      const result = executeTurn(state, turn.actions);
-      expect(result.errors, `turn ${turn.turnNumber} (${turn.playerId})`).toBeUndefined();
-      expect(canonicalJson(result.gameState)).toBe(canonicalJson(turn.resultingStateSnapshot));
-      expect(result.events).toEqual(turn.events);
-      state = result.gameState;
+      const result = executeTurn(state, turn.actions)
+      expect(result.errors, `turn ${turn.turnNumber} (${turn.playerId})`).toBeUndefined()
+      expect(canonicalJson(result.gameState)).toBe(canonicalJson(turn.resultingStateSnapshot))
+      expect(result.events).toEqual(turn.events)
+      state = result.gameState
     }
-  });
+  })
 
-  it("reconstructStateAtTurn returns clones of the right snapshots", () => {
-    const initial = reconstructStateAtTurn(recording, -1);
-    expect(canonicalJson(initial)).toBe(canonicalJson(recording.initialState));
-    expect(initial).not.toBe(recording.initialState);
+  it('reconstructStateAtTurn returns clones of the right snapshots', () => {
+    const initial = reconstructStateAtTurn(recording, -1)
+    expect(canonicalJson(initial)).toBe(canonicalJson(recording.initialState))
+    expect(initial).not.toBe(recording.initialState)
     expect(canonicalJson(reconstructStateAtTurn(recording, 5))).toBe(
       canonicalJson(recording.turns[5].resultingStateSnapshot)
-    );
+    )
     expect(canonicalJson(reconstructStateAtTurn(recording, 999))).toBe(
       canonicalJson(recording.finalState)
-    );
-  });
+    )
+  })
 
-  it("falls back to re-execution when a snapshot is missing", () => {
+  it('falls back to re-execution when a snapshot is missing', () => {
     const stripped: GameRecording = {
       ...recording,
-      turns: recording.turns.map((t) => ({ ...t, resultingStateSnapshot: undefined as never })),
-    };
+      turns: recording.turns.map(t => ({ ...t, resultingStateSnapshot: undefined as never })),
+    }
     expect(canonicalJson(reconstructStateAtTurn(stripped, 7))).toBe(
       canonicalJson(recording.turns[7].resultingStateSnapshot)
-    );
-  });
+    )
+  })
 
   it.each([
-    ["an older schema", RECORDING_SCHEMA_VERSION - 1],
-    ["a newer schema", RECORDING_SCHEMA_VERSION + 1],
-    ["no schema version", undefined],
-  ])("refuses a recording with %s instead of migrating it", (_label, schemaVersion) => {
-    const stale = { ...recording, schemaVersion } as unknown as GameRecording;
-    expect(staleRecordingReason(stale)).not.toBeNull();
-    expect(() => reconstructStateAtTurn(stale, -1)).toThrow();
-    expect(() => reconstructStateAtTurn(stale, 5)).toThrow();
-    expect(() => replayRecording(stale)).toThrow();
-  });
+    ['an older schema', RECORDING_SCHEMA_VERSION - 1],
+    ['a newer schema', RECORDING_SCHEMA_VERSION + 1],
+    ['no schema version', undefined],
+  ])('refuses a recording with %s instead of migrating it', (_label, schemaVersion) => {
+    const stale = { ...recording, schemaVersion } as unknown as GameRecording
+    expect(staleRecordingReason(stale)).not.toBeNull()
+    expect(() => reconstructStateAtTurn(stale, -1)).toThrow()
+    expect(() => reconstructStateAtTurn(stale, 5)).toThrow()
+    expect(() => replayRecording(stale)).toThrow()
+  })
 
-  it("throws when a recorded turn no longer validates", () => {
+  it('throws when a recorded turn no longer validates', () => {
     const corrupted: GameRecording = {
       ...recording,
       turns: recording.turns.map((t, i) =>
         i === 3 ? { ...t, actions: [...t.actions, { ...t.actions[0], sequence: 1 }] } : t
       ),
-    };
-    expect(() => replayRecording(corrupted)).toThrow();
+    }
+    expect(() => replayRecording(corrupted)).toThrow()
     // It is the corrupted turn that fails: the three before it still replay.
     const upTo = (n: number): GameRecording => ({
       ...corrupted,
       turns: corrupted.turns.slice(0, n),
-    });
-    expect(() => replayRecording(upTo(3))).not.toThrow();
-    expect(() => replayRecording(upTo(4))).toThrow();
-  });
-});
+    })
+    expect(() => replayRecording(upTo(3))).not.toThrow()
+    expect(() => replayRecording(upTo(4))).toThrow()
+  })
+})
 
-describe("recording: serialisation", () => {
-  const recording = record(42, 12);
+describe('recording: serialisation', () => {
+  const recording = record(42, 12)
 
-  it("a recording read back from JSON replays to its final state", () => {
-    const parsed = JSON.parse(JSON.stringify(recording)) as GameRecording;
-    expect(canonicalJson(replayRecording(parsed))).toBe(canonicalJson(recording.finalState));
-  });
-});
+  it('a recording read back from JSON replays to its final state', () => {
+    const parsed = JSON.parse(JSON.stringify(recording)) as GameRecording
+    expect(canonicalJson(replayRecording(parsed))).toBe(canonicalJson(recording.finalState))
+  })
+})

@@ -13,12 +13,12 @@
  * the order `seizableItems` lists them, which is seat order from the next
  * seat after the pirate.
  */
-import type { Player, Position } from "../../models/game.ts";
-import type { HoldItemKind } from "../../models/missions.ts";
-import type { GameView } from "../../game/view.ts";
-import { freePiracyCards, seizableItems, type SeizableItem } from "../../game/piracy.ts";
+import type { Player, Position } from '../../models/game.ts'
+import type { HoldItemKind } from '../../models/missions.ts'
+import type { GameView } from '../../game/view.ts'
+import { freePiracyCards, seizableItems, type SeizableItem } from '../../game/piracy.ts'
 
-const RANK: Readonly<Record<HoldItemKind, number>> = { crate: 0, loot: 1, data: 2 };
+const RANK: Readonly<Record<HoldItemKind, number>> = { crate: 0, loot: 1, data: 2 }
 
 /**
  * The items this seat seizes with its ship at `at`, one per Piracy card still
@@ -30,13 +30,13 @@ export function seizeChoices(
   at: Position,
   taken: readonly SeizableItem[] = []
 ): SeizableItem[] {
-  const room = freePiracyCards(me.missions, me.cargo).length - taken.length;
-  if (room <= 0) return [];
+  const room = freePiracyCards(me.missions, me.cargo).length - taken.length
+  if (room <= 0) return []
   const items = seizableItems(view, me.id, at).filter(
-    (i) => !taken.some((t) => t.victimId === i.victimId && t.cargoId === i.cargoId)
-  );
+    i => !taken.some(t => t.victimId === i.victimId && t.cargoId === i.cargoId)
+  )
   // A stable sort: equal kinds keep the seat order they were listed in.
-  return [...items].sort((a, b) => RANK[a.kind] - RANK[b.kind]).slice(0, room);
+  return [...items].sort((a, b) => RANK[a.kind] - RANK[b.kind]).slice(0, room)
 }
 
 /**
@@ -52,6 +52,6 @@ export function turnSeizures(
   start: Position,
   landing: Position
 ): { before: SeizableItem[]; after: SeizableItem[] } {
-  const before = seizeChoices(view, me, start);
-  return { before, after: seizeChoices(view, me, landing, before) };
+  const before = seizeChoices(view, me, start)
+  return { before, after: seizeChoices(view, me, landing, before) }
 }

@@ -17,16 +17,16 @@
  * counter-play. The turn back is a real turn; it is only a silent one, because
  * immunity and a free opening shot in the same turn read wrong at the table.
  */
-import type { GameState, Player, Position, ShipState } from "../models/game.ts";
-import type { EventDraft } from "../models/events.ts";
-import { aboard } from "../models/missions.ts";
-import { SECTORS_PER_RING } from "../models/rings.ts";
-import { wrapSector, samePosition, positionOf } from "./geometry.ts";
-import { applyOrbitalMovement } from "./movement.ts";
-import { createInitialShipState, isDestroyed, isOnBoard } from "./ship.ts";
+import type { GameState, Player, Position, ShipState } from '../models/game.ts'
+import type { EventDraft } from '../models/events.ts'
+import { aboard } from '../models/missions.ts'
+import { SECTORS_PER_RING } from '../models/rings.ts'
+import { wrapSector, samePosition, positionOf } from './geometry.ts'
+import { applyOrbitalMovement } from './movement.ts'
+import { createInitialShipState, isDestroyed, isOnBoard } from './ship.ts'
 
 export function needsRespawn(player: Player): boolean {
-  return player.hasDeployed && isDestroyed(player.ship);
+  return player.hasDeployed && isDestroyed(player.ship)
 }
 
 /**
@@ -38,69 +38,69 @@ export function needsRespawn(player: Player): boolean {
  * go with the rest, since nothing can bring them back but doing the job again.
  */
 export function dropCargo(player: Player): { player: Player; events: EventDraft[] } {
-  const held = aboard(player.cargo);
-  const crates = held.filter((c) => c.kind === "crate").length;
-  const data = held.filter((c) => c.kind === "data").length;
+  const held = aboard(player.cargo)
+  const crates = held.filter(c => c.kind === 'crate').length
+  const data = held.filter(c => c.kind === 'data').length
   // A Deliver crate is the only item with a dock of its own to go back to.
   const cargo = player.cargo
-    .filter((c) => c.pickupPlanetId !== undefined)
-    .map((c) => (c.isPickedUp ? { ...c, isPickedUp: false } : c));
+    .filter(c => c.pickupPlanetId !== undefined)
+    .map(c => (c.isPickedUp ? { ...c, isPickedUp: false } : c))
   const unchanged =
-    cargo.length === player.cargo.length && cargo.every((c, i) => c === player.cargo[i]);
-  if (unchanged) return { player, events: [] };
+    cargo.length === player.cargo.length && cargo.every((c, i) => c === player.cargo[i])
+  if (unchanged) return { player, events: [] }
   const events: EventDraft[] =
-    crates + data > 0 ? [{ type: "cargo_dropped", playerId: player.id, crates, data }] : [];
-  return { player: { ...player, cargo }, events };
+    crates + data > 0 ? [{ type: 'cargo_dropped', playerId: player.id, crates, data }] : []
+  return { player: { ...player, cargo }, events }
 }
 
 /** Home sector if free, otherwise the nearest free sector on the Home marker's ring. */
 export function findRespawnPosition(state: GameState, home: Position, selfId: string): Position {
   const occupied = (pos: Position) =>
-    state.players.some((p) => p.id !== selfId && isOnBoard(p) && samePosition(p.ship, pos));
+    state.players.some(p => p.id !== selfId && isOnBoard(p) && samePosition(p.ship, pos))
   for (let offset = 0; offset <= SECTORS_PER_RING / 2; offset++) {
     for (const sign of offset === 0 ? [1] : [1, -1]) {
-      const candidate = { ...home, sector: wrapSector(home.sector + sign * offset) };
-      if (!occupied(candidate)) return candidate;
+      const candidate = { ...home, sector: wrapSector(home.sector + sign * offset) }
+      if (!occupied(candidate)) return candidate
     }
   }
-  return home;
+  return home
 }
 
 function createRespawnedShip(previous: ShipState, position: Position): ShipState {
-  const fresh = createInitialShipState({ ...position, facing: "prograde" }, previous.loadout, {
+  const fresh = createInitialShipState({ ...position, facing: 'prograde' }, previous.loadout, {
     hitPoints: previous.maxHitPoints,
     maxHitPoints: previous.maxHitPoints,
-  });
-  const revealed = new Set(previous.subsystems.filter((s) => s.isRevealed).map((s) => s.id));
+  })
+  const revealed = new Set(previous.subsystems.filter(s => s.isRevealed).map(s => s.id))
   return {
     ...fresh,
-    subsystems: fresh.subsystems.map((s) => (revealed.has(s.id) ? { ...s, isRevealed: true } : s)),
-  };
+    subsystems: fresh.subsystems.map(s => (revealed.has(s.id) ? { ...s, isRevealed: true } : s)),
+  }
 }
 
 export function respawnPlayer(
   state: GameState,
   playerIndex: number
 ): { state: GameState; events: EventDraft[] } {
-  const player = state.players[playerIndex];
-  if (!player.home) return { state, events: [] };
-  const placed = findRespawnPosition(state, player.home, player.id);
+  const player = state.players[playerIndex]
+  if (!player.home) return { state, events: [] }
+  const placed = findRespawnPosition(state, player.home, player.id)
   // The ship is in orbit the moment it is placed, so the respawn turn ends
   // with the ring carrying it exactly as a coast would. Home is on one of the
   // black hole's deployment rings and stations orbit a planet, so there is no
   // berth to hold and nothing for `advanceStations` to carry.
-  const ship = applyOrbitalMovement(createRespawnedShip(player.ship, placed));
-  const position = positionOf(ship);
-  const players = [...state.players];
-  players[playerIndex] = { ...player, ship, recovering: true };
+  const ship = applyOrbitalMovement(createRespawnedShip(player.ship, placed))
+  const position = positionOf(ship)
+  const players = [...state.players]
+  players[playerIndex] = { ...player, ship, recovering: true }
   return {
     state: { ...state, players },
     events: [
-      { type: "respawned", playerId: player.id, position },
+      { type: 'respawned', playerId: player.id, position },
       // The board moves the token on a `coasted` like any other drift; the
       // flag says the helm was empty, so the log does not claim a coast.
       {
-        type: "coasted",
+        type: 'coasted',
         playerId: player.id,
         to: position,
         scooped: false,
@@ -108,5 +108,5 @@ export function respawnPlayer(
         recovering: true,
       },
     ],
-  };
+  }
 }

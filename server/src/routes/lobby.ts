@@ -1,5 +1,5 @@
-import type { FastifyInstance } from "fastify";
-import { CreateLobbySchema, JoinLobbySchema } from "../schemas/lobby.ts";
+import type { FastifyInstance } from 'fastify'
+import { CreateLobbySchema, JoinLobbySchema } from '../schemas/lobby.ts'
 import {
   createLobby,
   getLobby,
@@ -10,186 +10,176 @@ import {
   addBot,
   removeBot,
   publicLobby,
-} from "../services/lobbyService.ts";
-import { requirePlayer } from "./caller.ts";
+} from '../services/lobbyService.ts'
+import { requirePlayer } from './caller.ts'
 
 export async function lobbyRoutes(fastify: FastifyInstance) {
   // Create lobby
-  fastify.post<{ Headers: { "x-player-id": string } }>(
-    "/api/lobbies",
-    async (request, reply) => {
-      const player = await requirePlayer(request.headers["x-player-id"], reply);
-      if (!player) return;
-      const { playerId } = player;
+  fastify.post<{ Headers: { 'x-player-id': string } }>('/api/lobbies', async (request, reply) => {
+    const player = await requirePlayer(request.headers['x-player-id'], reply)
+    if (!player) return
+    const { playerId } = player
 
-      const result = CreateLobbySchema.safeParse(request.body);
+    const result = CreateLobbySchema.safeParse(request.body)
 
-      if (!result.success) {
-        return reply.code(400).send({
-          error: "Invalid request",
-          details: result.error.errors,
-        });
-      }
+    if (!result.success) {
+      return reply.code(400).send({
+        error: 'Invalid request',
+        details: result.error.errors,
+      })
+    }
 
-      const lobby = await createLobby(result.data, playerId);
-      return reply.send(publicLobby(lobby));
-    },
-  );
+    const lobby = await createLobby(result.data, playerId)
+    return reply.send(publicLobby(lobby))
+  })
 
   // List lobbies. No passwords and no player ids (an id is a credential); the
   // caller only learns which tables it is seated at, so it can go back to one.
-  fastify.get<{ Headers: { "x-player-id"?: string } }>("/api/lobbies", async (request, reply) => {
-    const lobbies = await listLobbies();
-    const caller = request.headers["x-player-id"];
+  fastify.get<{ Headers: { 'x-player-id'?: string } }>('/api/lobbies', async (request, reply) => {
+    const lobbies = await listLobbies()
+    const caller = request.headers['x-player-id']
 
-    const sanitized = lobbies.map((l) => ({
+    const sanitized = lobbies.map(l => ({
       lobbyId: l.lobbyId,
       lobbyName: l.lobbyName,
       hasPassword: !!l.password,
       maxPlayers: l.maxPlayers,
       currentPlayers: l.players.length,
       gameStarted: !!l.gameId,
-      seated: !!caller && l.players.some((p) => p.playerId === caller),
+      seated: !!caller && l.players.some(p => p.playerId === caller),
       createdAt: l.createdAt,
-    }));
+    }))
 
-    return reply.send(sanitized);
-  });
+    return reply.send(sanitized)
+  })
 
   // Get lobby details
-  fastify.get<{ Params: { lobbyId: string } }>(
-    "/api/lobbies/:lobbyId",
-    async (request, reply) => {
-      const { lobbyId } = request.params;
-      const lobby = await getLobby(lobbyId);
+  fastify.get<{ Params: { lobbyId: string } }>('/api/lobbies/:lobbyId', async (request, reply) => {
+    const { lobbyId } = request.params
+    const lobby = await getLobby(lobbyId)
 
-      if (!lobby) {
-        return reply.code(404).send({ error: "Lobby not found" });
-      }
+    if (!lobby) {
+      return reply.code(404).send({ error: 'Lobby not found' })
+    }
 
-      return reply.send(publicLobby(lobby));
-    },
-  );
+    return reply.send(publicLobby(lobby))
+  })
 
   // Join lobby
-  fastify.post<{ Headers: { "x-player-id": string } }>(
-    "/api/lobbies/join",
+  fastify.post<{ Headers: { 'x-player-id': string } }>(
+    '/api/lobbies/join',
     async (request, reply) => {
-      const player = await requirePlayer(request.headers["x-player-id"], reply);
-      if (!player) return;
-      const { playerId } = player;
+      const player = await requirePlayer(request.headers['x-player-id'], reply)
+      if (!player) return
+      const { playerId } = player
 
-      const result = JoinLobbySchema.safeParse(request.body);
+      const result = JoinLobbySchema.safeParse(request.body)
 
       if (!result.success) {
         return reply.code(400).send({
-          error: "Invalid request",
+          error: 'Invalid request',
           details: result.error.errors,
-        });
+        })
       }
 
-      const joinResult = await joinLobby(
-        result.data.lobbyId,
-        playerId,
-        result.data.password,
-      );
+      const joinResult = await joinLobby(result.data.lobbyId, playerId, result.data.password)
 
       if (!joinResult.success) {
-        return reply.code(400).send({ error: joinResult.error });
+        return reply.code(400).send({ error: joinResult.error })
       }
 
-      return reply.send(publicLobby(joinResult.lobby!));
-    },
-  );
+      return reply.send(publicLobby(joinResult.lobby!))
+    }
+  )
 
   // Leave lobby
   fastify.post<{
-    Headers: { "x-player-id": string };
-    Params: { lobbyId: string };
-  }>("/api/lobbies/:lobbyId/leave", async (request, reply) => {
-    const playerId = request.headers["x-player-id"];
-    const { lobbyId } = request.params;
+    Headers: { 'x-player-id': string }
+    Params: { lobbyId: string }
+  }>('/api/lobbies/:lobbyId/leave', async (request, reply) => {
+    const playerId = request.headers['x-player-id']
+    const { lobbyId } = request.params
 
-    fastify.log.info(`[Leave Lobby] Request - lobbyId: ${lobbyId}, playerId: ${playerId}`);
+    fastify.log.info(`[Leave Lobby] Request - lobbyId: ${lobbyId}, playerId: ${playerId}`)
 
     if (!playerId) {
-      fastify.log.warn(`[Leave Lobby] No player ID in headers`);
-      return reply.code(401).send({ error: "Player ID required" });
+      fastify.log.warn(`[Leave Lobby] No player ID in headers`)
+      return reply.code(401).send({ error: 'Player ID required' })
     }
 
-    const success = await leaveLobby(lobbyId, playerId);
+    const success = await leaveLobby(lobbyId, playerId)
 
     if (!success) {
-      fastify.log.warn(`[Leave Lobby] Failed - lobby not found or error`);
-      return reply.code(404).send({ error: "Lobby not found" });
+      fastify.log.warn(`[Leave Lobby] Failed - lobby not found or error`)
+      return reply.code(404).send({ error: 'Lobby not found' })
     }
 
-    fastify.log.info(`[Leave Lobby] Success`);
-    return reply.send({ success: true });
-  });
+    fastify.log.info(`[Leave Lobby] Success`)
+    return reply.send({ success: true })
+  })
 
   // Start game (host only)
   fastify.post<{
-    Headers: { "x-player-id": string };
-    Params: { lobbyId: string };
-  }>("/api/lobbies/:lobbyId/start", async (request, reply) => {
-    const playerId = request.headers["x-player-id"];
-    const { lobbyId } = request.params;
+    Headers: { 'x-player-id': string }
+    Params: { lobbyId: string }
+  }>('/api/lobbies/:lobbyId/start', async (request, reply) => {
+    const playerId = request.headers['x-player-id']
+    const { lobbyId } = request.params
 
     if (!playerId) {
-      return reply.code(401).send({ error: "Player ID required" });
+      return reply.code(401).send({ error: 'Player ID required' })
     }
 
-    const gameId = await startGame(lobbyId, playerId);
+    const gameId = await startGame(lobbyId, playerId)
 
     if (!gameId) {
-      return reply.code(400).send({ error: "Cannot start game" });
+      return reply.code(400).send({ error: 'Cannot start game' })
     }
 
-    return reply.send({ gameId });
-  });
+    return reply.send({ gameId })
+  })
 
   // Add bot (host only)
   fastify.post<{
-    Headers: { "x-player-id": string };
-    Params: { lobbyId: string };
-    Body: { botName?: string };
-  }>("/api/lobbies/:lobbyId/bot", async (request, reply) => {
-    const playerId = request.headers["x-player-id"];
-    const { lobbyId } = request.params;
-    const { botName } = request.body || {};
+    Headers: { 'x-player-id': string }
+    Params: { lobbyId: string }
+    Body: { botName?: string }
+  }>('/api/lobbies/:lobbyId/bot', async (request, reply) => {
+    const playerId = request.headers['x-player-id']
+    const { lobbyId } = request.params
+    const { botName } = request.body || {}
 
     if (!playerId) {
-      return reply.code(401).send({ error: "Player ID required" });
+      return reply.code(401).send({ error: 'Player ID required' })
     }
 
-    const result = await addBot(lobbyId, playerId, botName);
+    const result = await addBot(lobbyId, playerId, botName)
 
     if (!result.success) {
-      return reply.code(400).send({ error: result.error });
+      return reply.code(400).send({ error: result.error })
     }
 
-    return reply.send(publicLobby(result.lobby!));
-  });
+    return reply.send(publicLobby(result.lobby!))
+  })
 
   // Remove bot (host only)
   fastify.delete<{
-    Headers: { "x-player-id": string };
-    Params: { lobbyId: string; botId: string };
-  }>("/api/lobbies/:lobbyId/bot/:botId", async (request, reply) => {
-    const playerId = request.headers["x-player-id"];
-    const { lobbyId, botId } = request.params;
+    Headers: { 'x-player-id': string }
+    Params: { lobbyId: string; botId: string }
+  }>('/api/lobbies/:lobbyId/bot/:botId', async (request, reply) => {
+    const playerId = request.headers['x-player-id']
+    const { lobbyId, botId } = request.params
 
     if (!playerId) {
-      return reply.code(401).send({ error: "Player ID required" });
+      return reply.code(401).send({ error: 'Player ID required' })
     }
 
-    const result = await removeBot(lobbyId, playerId, botId);
+    const result = await removeBot(lobbyId, playerId, botId)
 
     if (!result.success) {
-      return reply.code(400).send({ error: result.error });
+      return reply.code(400).send({ error: result.error })
     }
 
-    return reply.send({ success: true });
-  });
+    return reply.send({ success: true })
+  })
 }

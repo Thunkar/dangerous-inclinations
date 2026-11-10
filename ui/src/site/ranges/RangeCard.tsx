@@ -11,7 +11,12 @@
  * Every shaded sector is the engine's (`reach.ts`); the words are in
  * `text/rangeCards.ts`.
  */
-import { BURN_COSTS, SUBSYSTEM_CONFIGS, fill, interceptsPerRack } from '@dangerous-inclinations/engine'
+import {
+  BURN_COSTS,
+  SUBSYSTEM_CONFIGS,
+  fill,
+  interceptsPerRack,
+} from '@dangerous-inclinations/engine'
 import { SUBSYSTEM_PATHS } from '../../art/subsystemArt'
 import { PRESS } from '../../design/press'
 import { RANGE_CARDS as T } from '../../text/rangeCards'
@@ -41,7 +46,8 @@ export const cardInk = (type: RangeCardType) => (type === 'sensor_array' ? PRESS
 const radius = (ring: number) => R0 + (ring - 1) * BAND
 /** Ahead runs up the card; the ship's sector straddles the line left of the hole. */
 const angleOf = (ahead: number) => ((180 + ahead * STEP) * Math.PI) / 180
-const point = (r: number, a: number) => `${(CX + r * Math.cos(a)).toFixed(3)} ${(CY + r * Math.sin(a)).toFixed(3)}`
+const point = (r: number, a: number) =>
+  `${(CX + r * Math.cos(a)).toFixed(3)} ${(CY + r * Math.sin(a)).toFixed(3)}`
 
 /** One sector of one ring; facing prograde, a ring to port is a ring further out. */
 function wedge(port: number, ahead: number): string {
@@ -88,11 +94,21 @@ function Fan({ type }: { type: RangeCardType }) {
       focusable="false"
     >
       {all.map(({ port, ahead }) => (
-        <path key={`${port},${ahead}`} d={wedge(port, ahead)} fill="none" stroke={PRESS.inkFaint} strokeWidth={0.2} />
+        <path
+          key={`${port},${ahead}`}
+          d={wedge(port, ahead)}
+          fill="none"
+          stroke={PRESS.inkFaint}
+          strokeWidth={0.2}
+        />
       ))}
       {cells.map(c => {
         const fillColour =
-          c.zone === 'starboard' ? PRESS.ink : c.wellwide && c.steps === undefined ? PRESS.paperDeep : ink
+          c.zone === 'starboard'
+            ? PRESS.ink
+            : c.wellwide && c.steps === undefined
+              ? PRESS.paperDeep
+              : ink
         return (
           <path
             key={`${c.port},${c.ahead}`}
@@ -107,7 +123,7 @@ function Fan({ type }: { type: RangeCardType }) {
         .filter(c => c.steps !== undefined)
         .map(c => {
           const { x, y, r } = centre(c.port, c.ahead)
-          const size = Math.min(BAND * 0.55, r * (STEP * Math.PI / 180) * 0.62)
+          const size = Math.min(BAND * 0.55, r * ((STEP * Math.PI) / 180) * 0.62)
           return (
             <text
               key={`n${c.port},${c.ahead}`}
@@ -132,7 +148,9 @@ function Fan({ type }: { type: RangeCardType }) {
       {recoils(type) && (
         <g stroke={PRESS.ink} strokeWidth={0.55} fill="none">
           <line x1={ship.x + 1.9} y1={ship.y} x2={ship.x + BAND - 0.6} y2={ship.y} />
-          <path d={`M${ship.x + BAND - 1.8} ${ship.y - 1} L${ship.x + BAND - 0.5} ${ship.y} L${ship.x + BAND - 1.8} ${ship.y + 1}`} />
+          <path
+            d={`M${ship.x + BAND - 1.8} ${ship.y - 1} L${ship.x + BAND - 0.5} ${ship.y} L${ship.x + BAND - 1.8} ${ship.y + 1}`}
+          />
         </g>
       )}
       <circle cx={CX} cy={CY} r={HOLE} fill={PRESS.ink} />
@@ -161,7 +179,13 @@ export function RangeCard({ type }: { type: RangeCardType }) {
   return (
     <div className="di-lo-card di-rg-card" role="group" aria-label={name}>
       <div className="di-lo-stripe di-rg-stripe" style={{ background: ink }}>
-        <svg viewBox="0 0 64 64" fill={PRESS.paper} className="di-rg-mark" aria-hidden="true" focusable="false">
+        <svg
+          viewBox="0 0 64 64"
+          fill={PRESS.paper}
+          className="di-rg-mark"
+          aria-hidden="true"
+          focusable="false"
+        >
           <path fillRule="evenodd" d={SUBSYSTEM_PATHS[type]} />
         </svg>
         <div className="di-lo-name" style={{ fontSize: `${nameSize}mm` }}>
@@ -188,7 +212,6 @@ export function RangeCard({ type }: { type: RangeCardType }) {
           <b>{config.minEnergy}</b>
         </div>
       </div>
-
 
       <div className="di-rg-keys">
         {isOneSided(type) && <Key colour={ink} label={T.portMounts} />}

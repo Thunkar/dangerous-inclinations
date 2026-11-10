@@ -19,7 +19,10 @@ const LABEL: Record<SlotRegionPosition, string> = {
   starboard: 'STBD',
 }
 
-function railBox(position: SlotRegionPosition, { width, height, band }: SlotRegionProps['metrics']) {
+function railBox(
+  position: SlotRegionPosition,
+  { width, height, band }: SlotRegionProps['metrics']
+) {
   const inset = band + GAP
   const vertical = { top: inset, height: height - inset * 2, width: band }
   const horizontal = { left: inset, width: width - inset * 2, height: band }

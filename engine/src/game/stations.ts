@@ -4,29 +4,29 @@
  * stays docked: a moored ship rides its station round instead of drifting on
  * its own (RULES §Stations, Moored).
  */
-import type { GameState, GravityWell, Position, Station } from "../models/game.ts";
-import type { EventDraft } from "../models/events.ts";
-import { PLANETS, STATION_RING } from "../models/gravityWells.ts";
-import { driftPosition, positionOf, samePosition } from "./geometry.ts";
-import { isOnBoard } from "./ship.ts";
+import type { GameState, GravityWell, Position, Station } from '../models/game.ts'
+import type { EventDraft } from '../models/events.ts'
+import { PLANETS, STATION_RING } from '../models/gravityWells.ts'
+import { driftPosition, positionOf, samePosition } from './geometry.ts'
+import { isOnBoard } from './ship.ts'
 
-export const STATION_INITIAL_SECTOR = 0;
+export const STATION_INITIAL_SECTOR = 0
 
 export function createInitialStations(planets: GravityWell[] = PLANETS): Station[] {
-  return planets.map((planet) => ({
+  return planets.map(planet => ({
     id: `station-${planet.id}`,
     planetId: planet.id,
     ring: STATION_RING,
     sector: STATION_INITIAL_SECTOR,
-  }));
+  }))
 }
 
 function updateStationPositions(stations: Station[]): Station[] {
-  return stations.map((station) => ({
+  return stations.map(station => ({
     ...station,
     sector: driftPosition({ wellId: station.planetId, ring: station.ring, sector: station.sector })
       .sector,
-  }));
+  }))
 }
 
 /**
@@ -35,28 +35,27 @@ function updateStationPositions(stations: Station[]): Station[] {
  * stations step together, so this is the one clock they all read.
  */
 export function stationSectors(): number[] {
-  const sectors: number[] = [];
-  let sector = STATION_INITIAL_SECTOR;
+  const sectors: number[] = []
+  let sector = STATION_INITIAL_SECTOR
   while (!sectors.includes(sector)) {
-    sectors.push(sector);
-    sector = driftPosition({ wellId: PLANETS[0].id, ring: STATION_RING, sector }).sector;
+    sectors.push(sector)
+    sector = driftPosition({ wellId: PLANETS[0].id, ring: STATION_RING, sector }).sector
   }
-  return sectors;
+  return sectors
 }
 
 export function getStationForPlanet(stations: Station[], planetId: string): Station | undefined {
-  return stations.find((s) => s.planetId === planetId);
+  return stations.find(s => s.planetId === planetId)
 }
 
 export function getStationAt(stations: Station[], position: Position): Station | undefined {
   return stations.find(
-    (s) =>
-      s.planetId === position.wellId && s.ring === position.ring && s.sector === position.sector
-  );
+    s => s.planetId === position.wellId && s.ring === position.ring && s.sector === position.sector
+  )
 }
 
 export function stationPosition(station: Station): Position {
-  return { wellId: station.planetId, ring: station.ring, sector: station.sector };
+  return { wellId: station.planetId, ring: station.ring, sector: station.sector }
 }
 
 /**
@@ -65,7 +64,7 @@ export function stationPosition(station: Station): Position {
  * separate "docked" flag that could go stale.
  */
 export function isMooredAt(stations: Station[], position: Position): boolean {
-  return getStationAt(stations, position) !== undefined;
+  return getStationAt(stations, position) !== undefined
 }
 
 /**
@@ -79,7 +78,7 @@ export function isMooredAt(stations: Station[], position: Position): boolean {
  * is moored exactly when {@link isMooredAt} says so.
  */
 export function isMooredMidTurn(stations: Station[], start: Position, at: Position): boolean {
-  return isMooredAt(stations, positionOf(start)) && samePosition(positionOf(start), positionOf(at));
+  return isMooredAt(stations, positionOf(start)) && samePosition(positionOf(start), positionOf(at))
 }
 
 /**
@@ -88,19 +87,19 @@ export function isMooredMidTurn(stations: Station[], start: Position, at: Positi
  * in the same step, each by its own ring's speed (RULES §Missions, Salvage).
  */
 export function advanceStations(state: GameState): { state: GameState; events: EventDraft[] } {
-  const stations = updateStationPositions(state.stations);
-  const riders: string[] = [];
-  const players = state.players.map((player) => {
-    if (!isOnBoard(player)) return player;
-    const station = getStationAt(state.stations, positionOf(player.ship));
-    if (!station) return player;
-    const moved = stations.find((s) => s.id === station.id)!;
-    riders.push(player.id);
-    return { ...player, ship: { ...player.ship, sector: moved.sector } };
-  });
-  const wrecks = state.wrecks.map((wreck) => ({ ...wreck, ...driftPosition(wreck) }));
+  const stations = updateStationPositions(state.stations)
+  const riders: string[] = []
+  const players = state.players.map(player => {
+    if (!isOnBoard(player)) return player
+    const station = getStationAt(state.stations, positionOf(player.ship))
+    if (!station) return player
+    const moved = stations.find(s => s.id === station.id)!
+    riders.push(player.id)
+    return { ...player, ship: { ...player.ship, sector: moved.sector } }
+  })
+  const wrecks = state.wrecks.map(wreck => ({ ...wreck, ...driftPosition(wreck) }))
   return {
     state: { ...state, stations, players, wrecks },
-    events: [{ type: "stations_moved", riders, wrecks }],
-  };
+    events: [{ type: 'stations_moved', riders, wrecks }],
+  }
 }

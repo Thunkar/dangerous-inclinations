@@ -1,5 +1,5 @@
-import type { GameState, PlayerAction } from "../models/game.ts";
-import type { GameEvent } from "../models/events.ts";
+import type { GameState, PlayerAction } from '../models/game.ts'
+import type { GameEvent } from '../models/events.ts'
 
 /**
  * Bumped whenever the recording schema changes incompatibly.
@@ -53,7 +53,7 @@ import type { GameEvent } from "../models/events.ts";
  *     reveal reason is `dissipating`; `missile_intercepted` names `rackId` and its `heat`;
  *     `scanned` names `sensorId`.
  */
-export const RECORDING_SCHEMA_VERSION = 23;
+export const RECORDING_SCHEMA_VERSION = 23
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made
@@ -61,10 +61,12 @@ export const RECORDING_SCHEMA_VERSION = 23;
  * what the engine meant when it was written.
  */
 export function staleRecordingReason(recording: { schemaVersion?: unknown }): string | null {
-  if (recording.schemaVersion === RECORDING_SCHEMA_VERSION) return null;
+  if (recording.schemaVersion === RECORDING_SCHEMA_VERSION) return null
   const version =
-    recording.schemaVersion === undefined ? "no schema version" : `schema v${String(recording.schemaVersion)}`;
-  return `This recording predates the current rules (${version}, the rules are at v${RECORDING_SCHEMA_VERSION}) and cannot be replayed`;
+    recording.schemaVersion === undefined
+      ? 'no schema version'
+      : `schema v${String(recording.schemaVersion)}`
+  return `This recording predates the current rules (${version}, the rules are at v${RECORDING_SCHEMA_VERSION}) and cannot be replayed`
 }
 
 /**
@@ -73,20 +75,20 @@ export function staleRecordingReason(recording: { schemaVersion?: unknown }): st
  * previous snapshot.
  */
 export interface RecordedTurn {
-  turnNumber: number;
-  playerId: string;
-  actions: PlayerAction[];
-  resultingStateSnapshot: GameState;
-  events: GameEvent[];
+  turnNumber: number
+  playerId: string
+  actions: PlayerAction[]
+  resultingStateSnapshot: GameState
+  events: GameEvent[]
 }
 
 export interface RecordingMetadata {
-  source: "sim" | "live";
-  playerKinds: Array<{ playerId: string; kind: "human" | "bot" }>;
-  label?: string;
-  turnCount: number;
-  winnerId?: string;
-  endReason: "victory" | "max_turns" | "invalid_turn" | "tiebreak";
+  source: 'sim' | 'live'
+  playerKinds: Array<{ playerId: string; kind: 'human' | 'bot' }>
+  label?: string
+  turnCount: number
+  winnerId?: string
+  endReason: 'victory' | 'max_turns' | 'invalid_turn' | 'tiebreak'
 }
 
 /**
@@ -94,12 +96,12 @@ export interface RecordingMetadata {
  * Recordings hold full authoritative state and are private until a game ends.
  */
 export interface GameRecording {
-  schemaVersion: typeof RECORDING_SCHEMA_VERSION;
-  recordingId: string;
-  createdAt: string;
-  seed: number;
-  initialState: GameState;
-  turns: RecordedTurn[];
-  finalState?: GameState;
-  metadata: RecordingMetadata;
+  schemaVersion: typeof RECORDING_SCHEMA_VERSION
+  recordingId: string
+  createdAt: string
+  seed: number
+  initialState: GameState
+  turns: RecordedTurn[]
+  finalState?: GameState
+  metadata: RecordingMetadata
 }

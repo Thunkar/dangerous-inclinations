@@ -5,14 +5,14 @@
  * the bots, the seat CLI and the table's plan all ask, so the four agree.
  * Moored or not; the black box is data, filed at any station.
  */
-import type { GameState, Player, Position, Wreck } from "../models/game.ts";
-import type { EventDraft } from "../models/events.ts";
-import type { Cargo, Mission, SalvageMission } from "../models/missions.ts";
-import { withItemAboard } from "../models/missions.ts";
-import { positionOf, samePosition } from "./geometry.ts";
+import type { GameState, Player, Position, Wreck } from '../models/game.ts'
+import type { EventDraft } from '../models/events.ts'
+import type { Cargo, Mission, SalvageMission } from '../models/missions.ts'
+import { withItemAboard } from '../models/missions.ts'
+import { positionOf, samePosition } from './geometry.ts'
 
 /** The hand and hold the question needs: a seat's own (only it knows its cards). */
-type Hand = { readonly missions: readonly Mission[]; readonly cargo: readonly Cargo[] };
+type Hand = { readonly missions: readonly Mission[]; readonly cargo: readonly Cargo[] }
 
 /**
  * The card a wreck's black box goes to: the first undone Salvage in hand
@@ -21,10 +21,10 @@ type Hand = { readonly missions: readonly Mission[]; readonly cargo: readonly Ca
 export function salvageToTake(hand: Hand): SalvageMission | undefined {
   return hand.missions.find(
     (m): m is SalvageMission =>
-      m.type === "salvage" &&
+      m.type === 'salvage' &&
       !m.isCompleted &&
-      !hand.cargo.some((c) => c.id === m.cargoId && c.isPickedUp)
-  );
+      !hand.cargo.some(c => c.id === m.cargoId && c.isPickedUp)
+  )
 }
 
 /**
@@ -36,8 +36,8 @@ export function salvageableWrecks(
   wrecks: readonly Wreck[],
   position: Position
 ): Wreck[] {
-  if (!salvageToTake(hand)) return [];
-  return wrecks.filter((w) => samePosition(w, position));
+  if (!salvageToTake(hand)) return []
+  return wrecks.filter(w => samePosition(w, position))
 }
 
 /**
@@ -51,9 +51,9 @@ export function wreckToSalvage(
   playerId: string,
   wreckId: string | undefined
 ): Wreck | undefined {
-  if (wreckId !== undefined) return state.wrecks.find((w) => w.id === wreckId);
-  const player = state.players.find((p) => p.id === playerId)!;
-  return state.wrecks.find((w) => samePosition(w, positionOf(player.ship)));
+  if (wreckId !== undefined) return state.wrecks.find(w => w.id === wreckId)
+  const player = state.players.find(p => p.id === playerId)!
+  return state.wrecks.find(w => samePosition(w, positionOf(player.ship)))
 }
 
 /**
@@ -66,26 +66,26 @@ export function salvageWreck(
   playerId: string,
   wreckId: string
 ): { state: GameState; event: EventDraft } {
-  const player = state.players.find((p) => p.id === playerId)!;
-  const mission = salvageToTake(player)!;
+  const player = state.players.find(p => p.id === playerId)!
+  const mission = salvageToTake(player)!
   const blackBox: Cargo = {
     id: mission.cargoId,
     missionId: mission.id,
-    kind: "data",
-    deliveryPlanetId: "any",
+    kind: 'data',
+    deliveryPlanetId: 'any',
     isPickedUp: true,
-  };
+  }
   const players = state.players.map(
     (p): Player => (p.id === playerId ? { ...p, cargo: withItemAboard(p.cargo, blackBox) } : p)
-  );
+  )
   return {
-    state: { ...state, players, wrecks: state.wrecks.filter((w) => w.id !== wreckId) },
+    state: { ...state, players, wrecks: state.wrecks.filter(w => w.id !== wreckId) },
     event: {
-      type: "wreck_salvaged",
+      type: 'wreck_salvaged',
       playerId,
       wreckId,
       cargoId: blackBox.id,
       at: positionOf(player.ship),
     },
-  };
+  }
 }

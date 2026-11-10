@@ -149,7 +149,12 @@ export function Panel({
                 variant="overline"
                 sx={
                   slab
-                    ? { color: TABLE.onAccent, lineHeight: 1.5, fontWeight: 700, fontSize: '0.95rem' }
+                    ? {
+                        color: TABLE.onAccent,
+                        lineHeight: 1.5,
+                        fontWeight: 700,
+                        fontSize: '0.95rem',
+                      }
                     : { color: TABLE.ink, lineHeight: 1.5 }
                 }
                 noWrap
@@ -216,7 +221,11 @@ export function FoldHeader({
         {label}
       </Typography>
       {summary !== undefined && (
-        <Typography variant="overline" sx={{ color: TABLE.inkFaint, lineHeight: 1.5, ml: 0.5 }} noWrap>
+        <Typography
+          variant="overline"
+          sx={{ color: TABLE.inkFaint, lineHeight: 1.5, ml: 0.5 }}
+          noWrap
+        >
           {summary}
         </Typography>
       )}

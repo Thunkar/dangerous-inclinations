@@ -10,7 +10,7 @@ services:
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     environment:
       REDIS_HOST: redis
-      REDIS_PORT: "6379"
+      REDIS_PORT: '6379'
     volumes:
       - recordings:/data/recordings
     depends_on:
@@ -31,7 +31,7 @@ services:
     image: ${IMAGE_PREFIX}/dangerous-inclinations-web:${TAG:-latest}
     restart: unless-stopped
     ports:
-      - "${PORT:-8088}:80"
+      - '${PORT:-8088}:80'
     depends_on:
       - server
 

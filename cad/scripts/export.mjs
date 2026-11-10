@@ -6,67 +6,75 @@
 // piece a file; the `.view.part.js` files lay several out for the viewer and
 // are skipped. Out holds printables only: pictures go to shots/.
 // Each file gets a server of its own (server.mjs), so an open viewer is safe.
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
-import { withServer } from "./server.mjs";
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
+import { withServer } from './server.mjs'
 
-const named = process.argv.slice(2);
-const walk = (dir) =>
-  readdirSync(dir).flatMap((f) => {
-    const p = join(dir, f);
-    if (statSync(p).isDirectory()) return walk(p);
-    return f.endsWith(".part.js") && !f.endsWith(".view.part.js") ? [p] : [];
-  });
+const named = process.argv.slice(2)
+const walk = dir =>
+  readdirSync(dir).flatMap(f => {
+    const p = join(dir, f)
+    if (statSync(p).isDirectory()) return walk(p)
+    return f.endsWith('.part.js') && !f.endsWith('.view.part.js') ? [p] : []
+  })
 if (!named.length) {
-  execFileSync("node", ["scripts/pieces.mjs"], { stdio: "inherit" });
-  execFileSync("node", ["--experimental-strip-types", "--no-warnings", "--import", "./scripts/ts-hooks.mjs", "scripts/board.ts"], {
-    stdio: "inherit",
-  });
+  execFileSync('node', ['scripts/pieces.mjs'], { stdio: 'inherit' })
+  execFileSync(
+    'node',
+    [
+      '--experimental-strip-types',
+      '--no-warnings',
+      '--import',
+      './scripts/ts-hooks.mjs',
+      'scripts/board.ts',
+    ],
+    {
+      stdio: 'inherit',
+    }
+  )
 }
-const files = named.length
-  ? named
-  : ["coupons", "parts"].filter((d) => existsSync(d)).flatMap(walk);
+const files = named.length ? named : ['coupons', 'parts'].filter(d => existsSync(d)).flatMap(walk)
 for (const file of files) {
   const out = join(
-    "out",
-    relative(".", file)
-      .replace(/^parts\//, "")
-      .replace(/\.part\.js$/, "")
-  );
-  mkdirSync(dirname(out), { recursive: true });
-  const failed = [];
+    'out',
+    relative('.', file)
+      .replace(/^parts\//, '')
+      .replace(/\.part\.js$/, '')
+  )
+  mkdirSync(dirname(out), { recursive: true })
+  const failed = []
   await withServer(file, async (port, served) => {
     for (const [format, extra] of [
-      ["step", []],
-      ["stl", ["--resolution", "fine"]],
+      ['step', []],
+      ['stl', ['--resolution', 'fine']],
     ]) {
       // FluidCAD's STEP writer fails on some solids its STL writer takes (the
       // hollow die: "b.Position is not a function"); the STL is what prints.
       try {
         execFileSync(
-          "npx",
+          'npx',
           [
-            "fluidcad",
-            "export",
+            'fluidcad',
+            'export',
             format,
-            "-e",
+            '-e',
             served,
-            "-p",
+            '-p',
             port,
-            "-o",
+            '-o',
             `${out}.${format}`,
-            "--timeout",
-            "600",
+            '--timeout',
+            '600',
             ...extra,
           ],
-          { stdio: ["ignore", "ignore", "inherit"] }
-        );
+          { stdio: ['ignore', 'ignore', 'inherit'] }
+        )
       } catch (e) {
-        if (format === "stl") throw e;
-        failed.push(format);
+        if (format === 'stl') throw e
+        failed.push(format)
       }
     }
-  });
-  console.log(failed.length ? `${out}.stl (STEP export failed)` : `${out}.step, ${out}.stl`);
+  })
+  console.log(failed.length ? `${out}.stl (STEP export failed)` : `${out}.step, ${out}.stl`)
 }

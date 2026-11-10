@@ -15,7 +15,10 @@ interface AbandonGameButtonProps {
   size?: 'small' | 'medium' | 'large'
 }
 
-export function AbandonGameButton({ variant = 'outlined', size = 'small' }: AbandonGameButtonProps) {
+export function AbandonGameButton({
+  variant = 'outlined',
+  size = 'small',
+}: AbandonGameButtonProps) {
   const { returnToLobby } = useLobby()
   const [confirmOpen, setConfirmOpen] = useState(false)
 

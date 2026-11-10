@@ -170,7 +170,11 @@ export const theme = createTheme({
     },
     MuiSlider: {
       styleOverrides: {
-        thumb: { borderRadius: 0, boxShadow: 'none', '&:hover, &.Mui-focusVisible': { boxShadow: 'none' } },
+        thumb: {
+          borderRadius: 0,
+          boxShadow: 'none',
+          '&:hover, &.Mui-focusVisible': { boxShadow: 'none' },
+        },
         rail: { borderRadius: 0 },
         track: { borderRadius: 0 },
       },

@@ -11,15 +11,15 @@
  * as one of the three subsystems that work on other players' turns (see
  * {@link suspectedWeapon}).
  */
-import type { Player, Position, Station } from "../models/game.ts";
-import type { Subsystem, SubsystemType } from "../models/subsystems.ts";
-import { getSubsystemConfig, isWeaponType, SHIELD_POINTS_PER_ENERGY } from "../models/subsystems.ts";
-import type { GameView, PlayerView, SlotView } from "../game/view.ts";
-import { positionOf, sectorDistance } from "../game/geometry.ts";
-import { getDissipationCapacity, hasWorkingCompressor } from "../game/ship.ts";
-import { MAX_HEAT, MAX_REACTION_MASS } from "../models/game.ts";
-import { canEngage } from "../game/targeting.ts";
-import { isMooredAt } from "../game/stations.ts";
+import type { Player, Position, Station } from '../models/game.ts'
+import type { Subsystem, SubsystemType } from '../models/subsystems.ts'
+import { getSubsystemConfig, isWeaponType, SHIELD_POINTS_PER_ENERGY } from '../models/subsystems.ts'
+import type { GameView, PlayerView, SlotView } from '../game/view.ts'
+import { positionOf, sectorDistance } from '../game/geometry.ts'
+import { getDissipationCapacity, hasWorkingCompressor } from '../game/ship.ts'
+import { MAX_HEAT, MAX_REACTION_MASS } from '../models/game.ts'
+import { canEngage } from '../game/targeting.ts'
+import { isMooredAt } from '../game/stations.ts'
 import type {
   BotParameters,
   BotStatus,
@@ -28,17 +28,17 @@ import type {
   SuspectedSlot,
   SuspectedWeapon,
   TacticalSituation,
-} from "./types.ts";
-import { assessDanger } from "./behaviors/danger.ts";
-import { computeGoals, selectCurrentGoal, attachPlanToGoal } from "./behaviors/missions.ts";
-import { DISRUPTOR_WORTH, isDisruptor, potentialDamage } from "./behaviors/combat.ts";
+} from './types.ts'
+import { assessDanger } from './behaviors/danger.ts'
+import { computeGoals, selectCurrentGoal, attachPlanToGoal } from './behaviors/missions.ts'
+import { DISRUPTOR_WORTH, isDisruptor, potentialDamage } from './behaviors/combat.ts'
 
 /** Known in-range damage that counts as a full (1.0) threat. */
-const FULL_THREAT_DAMAGE = 6;
+const FULL_THREAT_DAMAGE = 6
 /** The cube count fits a weapon and a harmless subsystem equally well. */
-const POSSIBLE = 0.5;
+const POSSIBLE = 0.5
 /** Weight of a face-down side slot that might be shields, when estimating absorption. */
-export const SUSPECTED_SHIELD_WEIGHT = 0.5;
+export const SUSPECTED_SHIELD_WEIGHT = 0.5
 
 /**
  * What a slot can be, read through the cubes sitting on it.
@@ -65,22 +65,22 @@ export const SUSPECTED_SHIELD_WEIGHT = 0.5;
  * choice all read them from here.
  */
 export function suspectedWeapon(
-  slot: Pick<SlotView, "group" | "allocatedEnergy">
+  slot: Pick<SlotView, 'group' | 'allocatedEnergy'>
 ): SuspectedWeapon | null {
   const weapon = (type: SubsystemType, confidence: number): SuspectedWeapon => ({
     type,
     damage: getSubsystemConfig(type).weaponStats?.damage ?? 0,
     confidence,
-  });
-  if (slot.allocatedEnergy === 0) return null;
+  })
+  if (slot.allocatedEnergy === 0) return null
   // The powerable subsystems that fit the bow are the sensor array and shields,
   // and neither is a weapon. A sensor makes their criticals land on an 8,
   // which is danger of a different kind and priced by `assessDanger`, not here.
-  if (slot.group === "forward") return null;
+  if (slot.group === 'forward') return null
   // Two cubes on a side slot is a full wall or a rack; one can only be a wall.
-  return slot.allocatedEnergy === getSubsystemConfig("ballistic_rack").minEnergy
-    ? weapon("ballistic_rack", POSSIBLE)
-    : null;
+  return slot.allocatedEnergy === getSubsystemConfig('ballistic_rack').minEnergy
+    ? weapon('ballistic_rack', POSSIBLE)
+    : null
 }
 
 /**
@@ -95,23 +95,23 @@ export function suspectedWeapon(
  * treats it as a fact.
  */
 export function shieldAbsorption(slots: ReadonlyArray<SlotView>): number {
-  const maxCubes = getSubsystemConfig("shields").maxEnergy;
-  let absorbed = 0;
+  const maxCubes = getSubsystemConfig('shields').maxEnergy
+  let absorbed = 0
   for (const slot of slots) {
-    if (slot.type === "shields") {
+    if (slot.type === 'shields') {
       if (slot.isBroken !== true)
-        absorbed += Math.min(slot.allocatedEnergy, maxCubes) * SHIELD_POINTS_PER_ENERGY;
-      continue;
+        absorbed += Math.min(slot.allocatedEnergy, maxCubes) * SHIELD_POINTS_PER_ENERGY
+      continue
     }
-    if (slot.type !== null) continue;
-    const cubes = suspectedShieldCubes(slot);
-    if (cubes === 0) continue;
+    if (slot.type !== null) continue
+    const cubes = suspectedShieldCubes(slot)
+    if (cubes === 0) continue
     // A count the rack cannot hold is a shield; one the rack can is a guess.
-    const rack = getSubsystemConfig("ballistic_rack");
-    const certain = cubes < rack.minEnergy || cubes > rack.maxEnergy;
-    absorbed += cubes * SHIELD_POINTS_PER_ENERGY * (certain ? 1 : SUSPECTED_SHIELD_WEIGHT);
+    const rack = getSubsystemConfig('ballistic_rack')
+    const certain = cubes < rack.minEnergy || cubes > rack.maxEnergy
+    absorbed += cubes * SHIELD_POINTS_PER_ENERGY * (certain ? 1 : SUSPECTED_SHIELD_WEIGHT)
   }
-  return absorbed;
+  return absorbed
 }
 
 /**
@@ -121,10 +121,10 @@ export function shieldAbsorption(slots: ReadonlyArray<SlotView>): number {
  * powerable side subsystem, holds two); two may be either, which
  * {@link suspectedWeapon} reads as a possible rack.
  */
-export function suspectedShieldCubes(slot: Pick<SlotView, "group" | "allocatedEnergy">): number {
-  if (slot.group !== "side") return 0;
-  const cubes = slot.allocatedEnergy;
-  return cubes >= 1 && cubes <= getSubsystemConfig("shields").maxEnergy ? cubes : 0;
+export function suspectedShieldCubes(slot: Pick<SlotView, 'group' | 'allocatedEnergy'>): number {
+  if (slot.group !== 'side') return 0
+  const cubes = slot.allocatedEnergy
+  return cubes >= 1 && cubes <= getSubsystemConfig('shields').maxEnergy ? cubes : 0
 }
 
 /**
@@ -142,13 +142,13 @@ function slotAsSubsystem(slot: SlotView, type: SubsystemType = slot.type!): Subs
     isRevealed: true,
     slotGroup: slot.group,
     slotIndex: slot.index,
-  };
+  }
 }
 
 function analyzeStatus(me: Player, stations: Station[] = []): BotStatus {
-  const ship = me.ship;
-  const find = (id: string) => ship.subsystems.find((s) => s.id === id)!;
-  const dissipation = getDissipationCapacity(ship.subsystems);
+  const ship = me.ship
+  const find = (id: string) => ship.subsystems.find(s => s.id === id)!
+  const dissipation = getDissipationCapacity(ship.subsystems)
   return {
     hull: ship.hitPoints,
     maxHull: ship.maxHitPoints,
@@ -160,16 +160,16 @@ function analyzeStatus(me: Player, stations: Station[] = []): BotStatus {
     position: positionOf(ship),
     facing: ship.facing,
     moored: isMooredAt(stations, positionOf(ship)),
-    engines: find("engines"),
-    rotation: find("rotation"),
-    scoop: find("scoop"),
-    weapons: ship.subsystems.filter((s) => isWeaponType(s.type)),
-    sensors: ship.subsystems.filter((s) => s.type === "sensor_array"),
-    shields: ship.subsystems.filter((s) => s.type === "shields"),
-    racks: ship.subsystems.filter((s) => s.type === "ballistic_rack"),
-    brokenSubsystems: ship.subsystems.filter((s) => s.isBroken),
+    engines: find('engines'),
+    rotation: find('rotation'),
+    scoop: find('scoop'),
+    weapons: ship.subsystems.filter(s => isWeaponType(s.type)),
+    sensors: ship.subsystems.filter(s => s.type === 'sensor_array'),
+    shields: ship.subsystems.filter(s => s.type === 'shields'),
+    racks: ship.subsystems.filter(s => s.type === 'ballistic_rack'),
+    brokenSubsystems: ship.subsystems.filter(s => s.isBroken),
     hasCompressor: hasWorkingCompressor(ship),
-  };
+  }
 }
 
 function analyzeOpponent(
@@ -178,44 +178,41 @@ function analyzeOpponent(
   stations: Station[],
   pointsToWin: number
 ): Opponent {
-  const ship = player.ship!;
-  const position = positionOf(ship);
-  const sameWell = position.wellId === myPosition.wellId;
-  const ringDistance = sameWell ? Math.abs(position.ring - myPosition.ring) : Infinity;
-  const sectorDist = sameWell ? sectorDistance(position.sector, myPosition.sector) : Infinity;
+  const ship = player.ship!
+  const position = positionOf(ship)
+  const sameWell = position.wellId === myPosition.wellId
+  const ringDistance = sameWell ? Math.abs(position.ring - myPosition.ring) : Infinity
+  const sectorDist = sameWell ? sectorDistance(position.sector, myPosition.sector) : Infinity
 
-  const attacker = { ...position, facing: ship.facing };
-  const knownWeapons: KnownWeapon[] = [];
-  const unknownSlots: SuspectedSlot[] = [];
-  let threatInRange = 0;
+  const attacker = { ...position, facing: ship.facing }
+  const knownWeapons: KnownWeapon[] = []
+  const unknownSlots: SuspectedSlot[] = []
+  let threatInRange = 0
   for (const slot of player.slots) {
     if (slot.type === null) {
       // Face-down: the cubes are the only evidence.
-      const suspected = sameWell ? suspectedWeapon(slot) : null;
+      const suspected = sameWell ? suspectedWeapon(slot) : null
       // canEngage, not the bare range rule: a missile may be launched at
       // anyone in the well, so a launcher only threatens me from somewhere its
       // missile could actually run me down.
       const inRange =
-        suspected !== null &&
-        canEngage(slotAsSubsystem(slot, suspected.type), attacker, myPosition);
-      unknownSlots.push({ slot, suspected, inRange });
-      if (inRange && suspected) threatInRange += suspected.damage * suspected.confidence;
-      continue;
+        suspected !== null && canEngage(slotAsSubsystem(slot, suspected.type), attacker, myPosition)
+      unknownSlots.push({ slot, suspected, inRange })
+      if (inRange && suspected) threatInRange += suspected.damage * suspected.confidence
+      continue
     }
-    if (!isWeaponType(slot.type)) continue;
+    if (!isWeaponType(slot.type)) continue
     // Face-up: we know what it is, and an unbroken one will find its own
     // cubes the moment its owner decides to fire it. Whether it is lit now
     // says nothing about next turn, so it is not part of the range question.
-    const weapon = slotAsSubsystem(slot);
-    const inRange = !weapon.isBroken && sameWell && canEngage(weapon, attacker, myPosition);
-    knownWeapons.push({ slotId: slot.id, type: slot.type, isBroken: weapon.isBroken, inRange });
+    const weapon = slotAsSubsystem(slot)
+    const inRange = !weapon.isBroken && sameWell && canEngage(weapon, attacker, myPosition)
+    knownWeapons.push({ slotId: slot.id, type: slot.type, isBroken: weapon.isBroken, inRange })
     // A face-up launcher shows what is left, and the whole magazine can come
     // at us in one launch, so the threat is the magazine. A disruptor takes no
     // hull but breaks a slot on every hit: it is priced as a small gun.
     if (inRange)
-      threatInRange += isDisruptor(weapon)
-        ? DISRUPTOR_WORTH
-        : potentialDamage(slot.type, slot.ammo);
+      threatInRange += isDisruptor(weapon) ? DISRUPTOR_WORTH : potentialDamage(slot.type, slot.ammo)
   }
 
   return {
@@ -234,45 +231,43 @@ function analyzeOpponent(
     shieldAbsorption: shieldAbsorption(player.slots),
     threat: Math.min(1, threatInRange / FULL_THREAT_DAMAGE),
     danger: assessDanger(player, position, stations, pointsToWin),
-  };
+  }
 }
 
 export function analyzeSituation(view: GameView, parameters: BotParameters): TacticalSituation {
-  const me = view.me;
-  if (!me) throw new Error("Cannot analyze a spectator view");
-  const status = analyzeStatus(me, view.stations);
+  const me = view.me
+  if (!me) throw new Error('Cannot analyze a spectator view')
+  const status = analyzeStatus(me, view.stations)
 
   const opponents = view.players
-    .filter((p) => !p.isMe && p.hasDeployed && p.ship && !p.ship.isDestroyed)
-    .map((p) => analyzeOpponent(p, status.position, view.stations, view.pointsToWin));
+    .filter(p => !p.isMe && p.hasDeployed && p.ship && !p.ship.isDestroyed)
+    .map(p => analyzeOpponent(p, status.position, view.stations, view.pointsToWin))
 
   // The bot reads its own position in the race with exactly the formula it
   // uses on everyone else, so "am I ahead of them?" is one comparison.
-  const mine = view.players.find((p) => p.isMe);
+  const mine = view.players.find(p => p.isMe)
   const myDanger = assessDanger(
     mine ?? { cargoAboard: { crates: 0, data: 0 }, points: 0, completedMissions: [] },
     status.position,
     view.stations,
     view.pointsToWin
-  );
+  )
 
   const threats = opponents
-    .filter((o) => o.sameWell && o.threat > 0)
+    .filter(o => o.sameWell && o.threat > 0)
     .sort(
       (a, b) =>
         b.threat - a.threat ||
         a.ringDistance + a.sectorDistance - (b.ringDistance + b.sectorDistance)
-    );
+    )
 
   const incomingMissiles = view.missiles.filter(
-    (m) => m.targetId === me.id && m.wellId === status.position.wellId
-  ).length;
+    m => m.targetId === me.id && m.wellId === status.position.wellId
+  ).length
 
-  const goals = computeGoals(view, me, status, opponents, myDanger, parameters);
-  const chosen = selectCurrentGoal(goals);
-  const currentGoal = chosen
-    ? attachPlanToGoal(chosen, me, view, opponents, status)
-    : null;
+  const goals = computeGoals(view, me, status, opponents, myDanger, parameters)
+  const chosen = selectCurrentGoal(goals)
+  const currentGoal = chosen ? attachPlanToGoal(chosen, me, view, opponents, status) : null
 
   return {
     view,
@@ -285,5 +280,5 @@ export function analyzeSituation(view: GameView, parameters: BotParameters): Tac
     incomingMissiles,
     goals,
     currentGoal,
-  };
+  }
 }

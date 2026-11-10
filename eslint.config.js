@@ -8,20 +8,20 @@
 //
 // Prettier owns formatting; eslint-config-prettier disables conflicting rules.
 
-import js from "@eslint/js";
-import tseslint from "typescript-eslint";
-import reactHooks from "eslint-plugin-react-hooks";
-import prettier from "eslint-config-prettier";
-import globals from "globals";
+import js from '@eslint/js'
+import tseslint from 'typescript-eslint'
+import reactHooks from 'eslint-plugin-react-hooks'
+import prettier from 'eslint-config-prettier'
+import globals from 'globals'
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/node_modules/**", "**/coverage/**", "**/.turbo/**", ".claude/**"] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/.turbo/**', '.claude/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: "module",
+      sourceType: 'module',
       globals: {
         ...globals.node,
         ...globals.browser,
@@ -29,45 +29,45 @@ export default tseslint.config(
     },
     rules: {
       // Type-only import discipline, required for verbatimModuleSyntax + native Node TS.
-      "@typescript-eslint/consistent-type-imports": [
-        "error",
-        { prefer: "type-imports", fixStyle: "separate-type-imports" },
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'separate-type-imports' },
       ],
-      "@typescript-eslint/no-import-type-side-effects": "error",
-      "@typescript-eslint/no-unused-vars": [
-        "error",
+      '@typescript-eslint/no-import-type-side-effects': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
         {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
           ignoreRestSiblings: true,
         },
       ],
-      "no-unused-vars": "off",
+      'no-unused-vars': 'off',
       // `any` is real tech debt but pre-existing in UI/server code: warn, do not block.
-      "@typescript-eslint/no-explicit-any": "warn",
+      '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
   // UI: React + browser globals + react-hooks plugin.
   // The hooks rules surface real issues but most are pre-existing, so start as
   // warnings so fresh violations stand out without blocking CI.
   {
-    files: ["ui/**/*.{ts,tsx}"],
-    plugins: { "react-hooks": reactHooks },
+    files: ['ui/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
     languageOptions: { globals: { ...globals.browser } },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-hooks/rules-of-hooks": "warn",
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/refs": "warn",
-      "react-hooks/immutability": "warn",
-      "react-hooks/preserve-manual-memoization": "warn",
-      "react-hooks/purity": "warn",
-      "react-hooks/error-boundaries": "warn",
-      "react-hooks/exhaustive-deps": "warn",
-      "react-hooks/static-components": "warn",
-      "no-case-declarations": "warn",
+      'react-hooks/rules-of-hooks': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/error-boundaries': 'warn',
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/static-components': 'warn',
+      'no-case-declarations': 'warn',
     },
   },
   prettier
-);
+)

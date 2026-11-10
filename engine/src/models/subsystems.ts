@@ -42,32 +42,32 @@
  */
 
 export type SubsystemType =
-  | "engines"
-  | "rotation"
-  | "scoop"
-  | "laser"
-  | "railgun"
-  | "missiles"
-  | "shields"
-  | "radiator"
-  | "fuel_compressor"
-  | "sensor_array"
-  | "ballistic_rack"
-  | "plasma_cannon"
-  | "disruptor";
+  | 'engines'
+  | 'rotation'
+  | 'scoop'
+  | 'laser'
+  | 'railgun'
+  | 'missiles'
+  | 'shields'
+  | 'radiator'
+  | 'fuel_compressor'
+  | 'sensor_array'
+  | 'ballistic_rack'
+  | 'plasma_cannon'
+  | 'disruptor'
 
 export type WeaponType =
-  | "laser"
-  | "railgun"
-  | "missiles"
-  | "ballistic_rack"
-  | "plasma_cannon"
-  | "disruptor";
+  | 'laser'
+  | 'railgun'
+  | 'missiles'
+  | 'ballistic_rack'
+  | 'plasma_cannon'
+  | 'disruptor'
 
 /** Stable identifier: "engines" | "rotation" | "scoop" | "forward-0" | "side-0".."side-3". */
-export type SubsystemId = string;
+export type SubsystemId = string
 
-export type SlotGroup = "forward" | "side";
+export type SlotGroup = 'forward' | 'side'
 
 /**
  * Slot types for the loadout system
@@ -75,22 +75,22 @@ export type SlotGroup = "forward" | "side";
  * - forward / side: restricted to that slot group
  * - either: forward or side
  */
-type SlotType = "fixed" | SlotGroup | "either";
+type SlotType = 'fixed' | SlotGroup | 'either'
 
-export const FIXED_SUBSYSTEM_TYPES: readonly SubsystemType[] = ["engines", "rotation", "scoop"];
+export const FIXED_SUBSYSTEM_TYPES: readonly SubsystemType[] = ['engines', 'rotation', 'scoop']
 
-export const FORWARD_SLOT_COUNT = 1;
-export const SIDE_SLOT_COUNT = 4;
+export const FORWARD_SLOT_COUNT = 1
+export const SIDE_SLOT_COUNT = 4
 
 export function slotSubsystemId(group: SlotGroup, index: number): SubsystemId {
-  return `${group}-${index}`;
+  return `${group}-${index}`
 }
 
 /** All slot ids on a ship, forward first, in a fixed order. */
 export const SLOT_IDS: readonly SubsystemId[] = [
-  ...Array.from({ length: FORWARD_SLOT_COUNT }, (_, i) => slotSubsystemId("forward", i)),
-  ...Array.from({ length: SIDE_SLOT_COUNT }, (_, i) => slotSubsystemId("side", i)),
-];
+  ...Array.from({ length: FORWARD_SLOT_COUNT }, (_, i) => slotSubsystemId('forward', i)),
+  ...Array.from({ length: SIDE_SLOT_COUNT }, (_, i) => slotSubsystemId('side', i)),
+]
 
 /**
  * The tiles a `power` action may put energy on.
@@ -104,14 +104,14 @@ export const SLOT_IDS: readonly SubsystemId[] = [
  * that scans are up anyway, since the action left its cubes on the tile.
  */
 export const POWERABLE_TYPES: readonly SubsystemType[] = [
-  "shields",
-  "ballistic_rack",
-  "sensor_array",
-];
+  'shields',
+  'ballistic_rack',
+  'sensor_array',
+]
 
 /** True for a tile a `power` action may put energy on. */
 export function isPowerableType(type: SubsystemType): boolean {
-  return POWERABLE_TYPES.includes(type);
+  return POWERABLE_TYPES.includes(type)
 }
 
 /**
@@ -128,7 +128,7 @@ export function isPowerableType(type: SubsystemType): boolean {
  * unable to reach a hull: 66% of the shots a bot declined at a Destroy target
  * were declined as absorbed whole. The heat is what prices the wall now.
  */
-export const SHIELD_POINTS_PER_ENERGY = 1;
+export const SHIELD_POINTS_PER_ENERGY = 1
 
 /**
  * The cubes a shield still has to absorb with this player-turn: its energy,
@@ -137,59 +137,61 @@ export const SHIELD_POINTS_PER_ENERGY = 1;
  * natural play within noise at three to five seats, kills 11.5 -> 10.9 a game
  * at six, so a wall is whole for every attacker at a crowded table.
  */
-export function shieldCubesReady(shield: Pick<Subsystem, "allocatedEnergy" | "spentThisTurn">): number {
-  return Math.max(0, shield.allocatedEnergy - shield.spentThisTurn);
+export function shieldCubesReady(
+  shield: Pick<Subsystem, 'allocatedEnergy' | 'spentThisTurn'>
+): number {
+  return Math.max(0, shield.allocatedEnergy - shield.spentThisTurn)
 }
 
 export interface WeaponStats {
-  damage: number;
-  ringRange?: number; // How many rings away can be targeted (±ringRange); a turret has no box
-  sectorRange?: number; // ±sectors covered (spinal: sectors ahead); a turret has no box
-  arc: "spinal" | "broadside" | "turret";
-  hasRecoil?: boolean; // Railgun: pushes the ship one ring unless compensated
-  sideRestricted?: boolean; // Broadside weapons on a side only fire toward that side
-  canTargetSameRing?: boolean; // Broadside weapons that also cover the same ring
-  ignoresShields?: boolean; // Laser: shields are electromagnetic and deflect only physical projectiles
+  damage: number
+  ringRange?: number // How many rings away can be targeted (±ringRange); a turret has no box
+  sectorRange?: number // ±sectors covered (spinal: sectors ahead); a turret has no box
+  arc: 'spinal' | 'broadside' | 'turret'
+  hasRecoil?: boolean // Railgun: pushes the ship one ring unless compensated
+  sideRestricted?: boolean // Broadside weapons on a side only fire toward that side
+  canTargetSameRing?: boolean // Broadside weapons that also cover the same ring
+  ignoresShields?: boolean // Laser: shields are electromagnetic and deflect only physical projectiles
   /**
    * Points of this weapon's damage a shield cube absorbs. Omitted means
    * SHIELD_POINTS_PER_ENERGY; a screen soaks plasma at two a cube.
    */
-  shieldPointsPerEnergy?: number;
+  shieldPointsPerEnergy?: number
   /**
    * Disruptor: deals no damage and never criticals; a hit breaks the named
    * slot unless any powered shield is up, which blocks the shot whole.
    */
-  disrupts?: boolean;
-  maxAmmo?: number; // Ammunition-based weapons
-  stepsPerMove?: number; // Guided projectiles: steps (a ring or a sector) per move; missiles burn no fuel
-  maxMoves?: number; // Guided projectiles: moves before expiry
+  disrupts?: boolean
+  maxAmmo?: number // Ammunition-based weapons
+  stepsPerMove?: number // Guided projectiles: steps (a ring or a sector) per move; missiles burn no fuel
+  maxMoves?: number // Guided projectiles: moves before expiry
 }
 
 /** Passive bonuses that need no energy: the tile works while it is aboard and unbroken. */
 export interface PassiveEffect {
-  dissipationBonus?: number;
+  dissipationBonus?: number
   /** A jump costs COMPRESSED_JUMP_MASS fuel instead of the lane's full price. */
-  cheapensJump?: boolean;
+  cheapensJump?: boolean
 }
 
 export interface SubsystemConfig {
-  id: SubsystemType;
-  name: string;
-  minEnergy: number; // Minimum energy to function (0 for passive)
-  maxEnergy: number;
-  slotType: SlotType;
-  isPassive?: boolean;
-  passiveEffect?: PassiveEffect;
+  id: SubsystemType
+  name: string
+  minEnergy: number // Minimum energy to function (0 for passive)
+  maxEnergy: number
+  slotType: SlotType
+  isPassive?: boolean
+  passiveEffect?: PassiveEffect
   /** Sensor array: while it has energy on it, its owner's shots crit on this d10 face or higher. */
-  criticalFace?: number;
-  weaponStats?: WeaponStats;
+  criticalFace?: number
+  weaponStats?: WeaponStats
 }
 
 export interface Subsystem {
-  id: SubsystemId;
-  type: SubsystemType;
-  allocatedEnergy: number;
-  usedThisTurn: boolean;
+  id: SubsystemId
+  type: SubsystemType
+  allocatedEnergy: number
+  usedThisTurn: boolean
   /**
    * What a defence has used of itself this player-turn, cleared when play
    * passes, so it is whole again for the next attacker. A ballistic rack
@@ -198,83 +200,83 @@ export interface Subsystem {
    * they have spent absorbing, which stay on the tile (and are heat at their
    * owner's check) but stop nothing more this turn. 0 on every other tile.
    */
-  spentThisTurn: number;
-  isBroken: boolean;
+  spentThisTurn: number
+  isBroken: boolean
   /** Face-up for everyone at the table. Fixed systems start revealed. */
-  isRevealed: boolean;
-  ammo?: number;
-  slotGroup?: SlotGroup;
-  slotIndex?: number;
+  isRevealed: boolean
+  ammo?: number
+  slotGroup?: SlotGroup
+  slotIndex?: number
 }
 
 export interface HeatState {
-  currentHeat: number;
+  currentHeat: number
 }
 
 export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
   engines: {
-    id: "engines",
-    name: "Engines",
+    id: 'engines',
+    name: 'Engines',
     minEnergy: 1,
     maxEnergy: 3,
-    slotType: "fixed",
+    slotType: 'fixed',
   },
   rotation: {
-    id: "rotation",
-    name: "Maneuvering Thrusters",
+    id: 'rotation',
+    name: 'Maneuvering Thrusters',
     minEnergy: 1,
     maxEnergy: 1,
-    slotType: "fixed",
+    slotType: 'fixed',
   },
   scoop: {
-    id: "scoop",
-    name: "Fuel Scoop",
+    id: 'scoop',
+    name: 'Fuel Scoop',
     minEnergy: 3,
     maxEnergy: 3,
-    slotType: "fixed",
+    slotType: 'fixed',
   },
 
   railgun: {
-    id: "railgun",
-    name: "Railgun",
+    id: 'railgun',
+    name: 'Railgun',
     minEnergy: 4,
     maxEnergy: 4,
-    slotType: "forward",
+    slotType: 'forward',
     weaponStats: {
       damage: 4,
       ringRange: 0,
       sectorRange: 5,
-      arc: "spinal",
+      arc: 'spinal',
       hasRecoil: true,
     },
   },
   sensor_array: {
-    id: "sensor_array",
-    name: "Sensor Array",
+    id: 'sensor_array',
+    name: 'Sensor Array',
     minEnergy: 2,
     maxEnergy: 2,
-    slotType: "forward",
+    slotType: 'forward',
     criticalFace: 8,
   },
 
   laser: {
-    id: "laser",
-    name: "Broadside Laser",
+    id: 'laser',
+    name: 'Broadside Laser',
     minEnergy: 2,
     maxEnergy: 2,
-    slotType: "side",
+    slotType: 'side',
     weaponStats: {
       damage: 2,
       ringRange: 2,
       sectorRange: 1,
-      arc: "broadside",
+      arc: 'broadside',
       sideRestricted: true,
       ignoresShields: true,
     },
   },
   shields: {
-    id: "shields",
-    name: "Shields",
+    id: 'shields',
+    name: 'Shields',
     /**
      * One cube or two, a point each. A cube is heat at every check the
      * subsystem is up, and every point it absorbs is heat again, so a wall
@@ -293,38 +295,38 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
      * the best bow and never a bad one, which is the profile of an option
      * worth having rather than a lever.
      */
-    slotType: "either",
+    slotType: 'either',
   },
   radiator: {
-    id: "radiator",
-    name: "Radiator",
+    id: 'radiator',
+    name: 'Radiator',
     minEnergy: 0,
     maxEnergy: 0,
-    slotType: "side",
+    slotType: 'side',
     isPassive: true,
     passiveEffect: { dissipationBonus: 2 },
   },
   fuel_compressor: {
-    id: "fuel_compressor",
-    name: "Fuel Compressor",
+    id: 'fuel_compressor',
+    name: 'Fuel Compressor',
     minEnergy: 0,
     maxEnergy: 0,
-    slotType: "forward",
+    slotType: 'forward',
     isPassive: true,
     passiveEffect: { cheapensJump: true },
   },
 
   missiles: {
-    id: "missiles",
-    name: "Missiles",
+    id: 'missiles',
+    name: 'Missiles',
     minEnergy: 2,
     maxEnergy: 2,
-    slotType: "either",
+    slotType: 'either',
     weaponStats: {
       damage: 2,
       // No ringRange or sectorRange: a guided missile is launched at anyone in
       // the well and its own flight (stepsPerMove x maxMoves) is its range.
-      arc: "turret",
+      arc: 'turret',
       maxAmmo: 4,
       stepsPerMove: 3,
       maxMoves: 3,
@@ -332,8 +334,8 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
   },
 
   ballistic_rack: {
-    id: "ballistic_rack",
-    name: "Ballistic Rack",
+    id: 'ballistic_rack',
+    name: 'Ballistic Rack',
     minEnergy: 2,
     maxEnergy: 2,
     /**
@@ -341,20 +343,20 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
      * hull with three cheap guns and a wall that nothing in the game preys on
      * (see the settled list in CLAUDE.md). The bow's expense is load-bearing.
      */
-    slotType: "side",
+    slotType: 'side',
     weaponStats: {
       damage: 2,
       ringRange: 1,
       sectorRange: 1,
-      arc: "broadside",
+      arc: 'broadside',
       sideRestricted: false,
       canTargetSameRing: true,
     },
   },
 
   plasma_cannon: {
-    id: "plasma_cannon",
-    name: "Plasma Cannon",
+    id: 'plasma_cannon',
+    name: 'Plasma Cannon',
     /**
      * Four damage for three energy, at two points a cube against shields: a
      * full wall stops it whole (and takes four heat) and a half wall lets half
@@ -367,14 +369,14 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
      */
     minEnergy: 3,
     maxEnergy: 3,
-    slotType: "side",
+    slotType: 'side',
     weaponStats: {
       damage: 4,
       // The laser's box pulled in to the neighbouring rings: hard-hitting and
       // cheap, so it has to get close and cannot shoot along its own ring.
       ringRange: 1,
       sectorRange: 1,
-      arc: "broadside",
+      arc: 'broadside',
       sideRestricted: true,
       // A screen soaks plasma at two points a cube, so a wall stops it
       // cheaply in cubes and pays for it in heat.
@@ -383,8 +385,8 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
   },
 
   disruptor: {
-    id: "disruptor",
-    name: "Disruptor",
+    id: 'disruptor',
+    name: 'Disruptor',
     /**
      * An EMP burst in the ballistic rack's box: within 1 ring and 1 sector,
      * its own ring too, either side, facing irrelevant. Measured 1 Oct 2026,
@@ -397,28 +399,27 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
      */
     minEnergy: 3,
     maxEnergy: 3,
-    slotType: "either",
+    slotType: 'either',
     weaponStats: {
       // No damage and no recoil: a hit breaks the slot the attacker names,
       // and any powered shield stops it.
       damage: 0,
       ringRange: 1,
       sectorRange: 1,
-      arc: "broadside",
+      arc: 'broadside',
       canTargetSameRing: true,
       sideRestricted: false,
       disrupts: true,
     },
   },
-};
-
+}
 
 export function getSubsystemConfig(type: SubsystemType): SubsystemConfig {
-  return SUBSYSTEM_CONFIGS[type];
+  return SUBSYSTEM_CONFIGS[type]
 }
 
 export function isWeaponType(type: SubsystemType): type is WeaponType {
-  return SUBSYSTEM_CONFIGS[type].weaponStats !== undefined;
+  return SUBSYSTEM_CONFIGS[type].weaponStats !== undefined
 }
 
 /**
@@ -428,7 +429,7 @@ export function isWeaponType(type: SubsystemType): type is WeaponType {
  */
 export const WEAPON_SUBSYSTEM_TYPES: readonly WeaponType[] = (
   Object.keys(SUBSYSTEM_CONFIGS) as SubsystemType[]
-).filter(isWeaponType);
+).filter(isWeaponType)
 
 /**
  * The weapons that take hull: every weapon but the disruptor. A Destroy card
@@ -436,20 +437,20 @@ export const WEAPON_SUBSYSTEM_TYPES: readonly WeaponType[] = (
  * can never finish a ship.
  */
 export const DAMAGING_WEAPON_TYPES: readonly WeaponType[] = WEAPON_SUBSYSTEM_TYPES.filter(
-  (t) => SUBSYSTEM_CONFIGS[t].weaponStats!.damage > 0
-);
+  t => SUBSYSTEM_CONFIGS[t].weaponStats!.damage > 0
+)
 
 /** Points of this weapon's damage a shield cube absorbs. */
 export function shieldPointsPerEnergyOf(stats: WeaponStats | undefined): number {
-  return stats?.shieldPointsPerEnergy ?? SHIELD_POINTS_PER_ENERGY;
+  return stats?.shieldPointsPerEnergy ?? SHIELD_POINTS_PER_ENERGY
 }
 
 /**
  * Whether a tile has energy on it: an action put it there this turn, or on its
  * owner's last turn, and it works until its owner's next turn clears it.
  */
-export function isPowered(subsystem: Pick<Subsystem, "allocatedEnergy">): boolean {
-  return subsystem.allocatedEnergy > 0;
+export function isPowered(subsystem: Pick<Subsystem, 'allocatedEnergy'>): boolean {
+  return subsystem.allocatedEnergy > 0
 }
 
 /**
@@ -466,17 +467,17 @@ export function isPowered(subsystem: Pick<Subsystem, "allocatedEnergy">): boolea
  * magazine so an experiment that changes one changes both.
  */
 export function interceptsPerRack(): number {
-  return SUBSYSTEM_CONFIGS.missiles.weaponStats!.maxAmmo!;
+  return SUBSYSTEM_CONFIGS.missiles.weaponStats!.maxAmmo!
 }
 
 export function getMissileStats(): Required<
-  Pick<WeaponStats, "damage" | "maxAmmo" | "stepsPerMove" | "maxMoves">
+  Pick<WeaponStats, 'damage' | 'maxAmmo' | 'stepsPerMove' | 'maxMoves'>
 > {
-  const stats = SUBSYSTEM_CONFIGS.missiles.weaponStats!;
+  const stats = SUBSYSTEM_CONFIGS.missiles.weaponStats!
   return {
     damage: stats.damage,
     maxAmmo: stats.maxAmmo!,
     stepsPerMove: stats.stepsPerMove!,
     maxMoves: stats.maxMoves!,
-  };
+  }
 }

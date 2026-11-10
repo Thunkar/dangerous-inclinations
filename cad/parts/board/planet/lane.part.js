@@ -1,4 +1,4 @@
-import { part } from "fluidcad/core";
-import { buildLane } from "../../../pieces/well.ts";
+import { part } from 'fluidcad/core'
+import { buildLane } from '../../../pieces/well.ts'
 
-export const piece = part("Lane marker (print 6)", () => buildLane("planet", 0));
+export const piece = part('Lane marker (print 6)', () => buildLane('planet', 0))

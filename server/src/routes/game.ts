@@ -1,7 +1,7 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { gameService } from "../services/live.ts";
-import { requirePlayer } from "./caller.ts";
-import { findLobbyByGameId } from "../services/lobbyService.ts";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { gameService } from '../services/live.ts'
+import { requirePlayer } from './caller.ts'
+import { findLobbyByGameId } from '../services/lobbyService.ts'
 import {
   ChatSchema,
   DeploySchema,
@@ -9,12 +9,12 @@ import {
   LoadoutSubmissionSchema,
   PreviewSchema,
   issueLines,
-} from "../schemas/game.ts";
-import type { PlayerAction } from "@dangerous-inclinations/engine";
+} from '../schemas/game.ts'
+import type { PlayerAction } from '@dangerous-inclinations/engine'
 
 interface GameRequest {
-  Headers: { "x-player-id"?: string };
-  Params: { gameId: string };
+  Headers: { 'x-player-id'?: string }
+  Params: { gameId: string }
 }
 
 /**
@@ -26,151 +26,151 @@ async function requireMember(
   request: FastifyRequest<GameRequest>,
   reply: FastifyReply
 ): Promise<{ playerId: string; gameId: string } | null> {
-  const playerId = request.headers["x-player-id"];
-  const { gameId } = request.params;
+  const playerId = request.headers['x-player-id']
+  const { gameId } = request.params
   if (!playerId) {
-    await reply.code(401).send({ error: "Player ID required" });
-    return null;
+    await reply.code(401).send({ error: 'Player ID required' })
+    return null
   }
-  const state = await gameService.getGame(gameId);
+  const state = await gameService.getGame(gameId)
   if (!state) {
-    await reply.code(404).send({ error: "Game not found" });
-    return null;
+    await reply.code(404).send({ error: 'Game not found' })
+    return null
   }
-  if (!state.players.some((p) => p.id === playerId)) {
-    await reply.code(403).send({ error: "Not a player in this game" });
-    return null;
+  if (!state.players.some(p => p.id === playerId)) {
+    await reply.code(403).send({ error: 'Not a player in this game' })
+    return null
   }
-  return { playerId, gameId };
+  return { playerId, gameId }
 }
 
 export async function gameRoutes(fastify: FastifyInstance) {
   // The caller's view, the full (filtered) event history, and who plays each
   // seat (public, from the lobby: a person, a bot, or an agent and its model).
-  fastify.get<GameRequest>("/api/games/:gameId", async (request, reply) => {
-    const member = await requireMember(request, reply);
-    if (!member) return;
-    const payload = await gameService.getViewWithHistory(member.gameId, member.playerId);
-    if (!payload) return reply.code(404).send({ error: "Game not found" });
-    const lobby = await findLobbyByGameId(member.gameId);
+  fastify.get<GameRequest>('/api/games/:gameId', async (request, reply) => {
+    const member = await requireMember(request, reply)
+    if (!member) return
+    const payload = await gameService.getViewWithHistory(member.gameId, member.playerId)
+    if (!payload) return reply.code(404).send({ error: 'Game not found' })
+    const lobby = await findLobbyByGameId(member.gameId)
     const seats = (lobby?.players ?? []).map(({ playerId, playerName, isBot, agent }) => ({
       playerId,
       playerName,
       isBot,
       ...(agent ? { agent } : {}),
-    }));
-    return reply.send({ ...payload, seats });
-  });
+    }))
+    return reply.send({ ...payload, seats })
+  })
 
   // The timeline: every turn so far the caller saw something of, without views.
-  fastify.get<GameRequest>("/api/games/:gameId/turns", async (request, reply) => {
-    const member = await requireMember(request, reply);
-    if (!member) return;
-    const turns = await gameService.listTurns(member.gameId, member.playerId);
-    if (!turns) return reply.code(404).send({ error: "Game not found" });
-    return reply.send({ turns });
-  });
+  fastify.get<GameRequest>('/api/games/:gameId/turns', async (request, reply) => {
+    const member = await requireMember(request, reply)
+    if (!member) return
+    const turns = await gameService.listTurns(member.gameId, member.playerId)
+    if (!turns) return reply.code(404).send({ error: 'Game not found' })
+    return reply.send({ turns })
+  })
 
   // One turn's frames, as the caller saw it, to replay over the board.
   fastify.get<GameRequest & { Params: { index: string } }>(
-    "/api/games/:gameId/turns/:index",
+    '/api/games/:gameId/turns/:index',
     async (request, reply) => {
-      const member = await requireMember(request, reply);
-      if (!member) return;
-      const index = Number(request.params.index);
+      const member = await requireMember(request, reply)
+      if (!member) return
+      const index = Number(request.params.index)
       if (!Number.isInteger(index) || index < 0)
-        return reply.code(400).send({ error: "Invalid turn index" });
-      const frames = await gameService.turnFrames(member.gameId, member.playerId, index);
-      if (!frames) return reply.code(404).send({ error: "Turn not found" });
-      return reply.send(frames);
+        return reply.code(400).send({ error: 'Invalid turn index' })
+      const frames = await gameService.turnFrames(member.gameId, member.playerId, index)
+      if (!frames) return reply.code(404).send({ error: 'Turn not found' })
+      return reply.send(frames)
     }
-  );
+  )
 
   // Dry run of a turn: validation and the events it would produce, nothing committed.
-  fastify.post<GameRequest>("/api/games/:gameId/preview", async (request, reply) => {
-    const member = await requireMember(request, reply);
-    if (!member) return;
-    const parsed = PreviewSchema.safeParse(request.body);
+  fastify.post<GameRequest>('/api/games/:gameId/preview', async (request, reply) => {
+    const member = await requireMember(request, reply)
+    if (!member) return
+    const parsed = PreviewSchema.safeParse(request.body)
     if (!parsed.success) {
       return reply.code(400).send({
         ok: false,
-        error: "Invalid preview request",
+        error: 'Invalid preview request',
         errors: issueLines(parsed.error),
-      });
+      })
     }
     const result = await gameService.previewTurn(
       member.gameId,
       member.playerId,
       parsed.data.actions as PlayerAction[]
-    );
-    return reply.send(result);
-  });
+    )
+    return reply.send(result)
+  })
 
   // Table talk: everything said at this table, oldest first.
-  fastify.get<GameRequest>("/api/games/:gameId/chat", async (request, reply) => {
-    const member = await requireMember(request, reply);
-    if (!member) return;
-    return reply.send({ messages: await gameService.listChat(member.gameId) });
-  });
+  fastify.get<GameRequest>('/api/games/:gameId/chat', async (request, reply) => {
+    const member = await requireMember(request, reply)
+    if (!member) return
+    return reply.send({ messages: await gameService.listChat(member.gameId) })
+  })
 
   // Table talk: say something (or think out loud) to the table.
-  fastify.post<GameRequest>("/api/games/:gameId/chat", async (request, reply) => {
-    const member = await requireMember(request, reply);
-    if (!member) return;
-    const parsed = ChatSchema.safeParse(request.body);
-    if (!parsed.success) return reply.code(400).send({ error: "Invalid chat message" });
+  fastify.post<GameRequest>('/api/games/:gameId/chat', async (request, reply) => {
+    const member = await requireMember(request, reply)
+    if (!member) return
+    const parsed = ChatSchema.safeParse(request.body)
+    if (!parsed.success) return reply.code(400).send({ error: 'Invalid chat message' })
     const result = await gameService.postChat(
       member.gameId,
       member.playerId,
       parsed.data.kind,
       parsed.data.text
-    );
-    if (!result.ok) return reply.code(400).send({ error: result.error });
-    return reply.send({ message: result.message });
-  });
+    )
+    if (!result.ok) return reply.code(400).send({ error: result.error })
+    return reply.send({ message: result.message })
+  })
 
   // Loadout phase: the ship loadout and the hand kept from the offers
   // (MISSIONS_PER_PLAYER of MISSION_OFFERS_PER_PLAYER; the engine checks it).
-  fastify.post<GameRequest>("/api/games/:gameId/loadout", async (request, reply) => {
-    const member = await requireMember(request, reply);
-    if (!member) return;
-    const body = LoadoutSubmissionSchema.safeParse(request.body);
+  fastify.post<GameRequest>('/api/games/:gameId/loadout', async (request, reply) => {
+    const member = await requireMember(request, reply)
+    if (!member) return
+    const body = LoadoutSubmissionSchema.safeParse(request.body)
     if (!body.success)
-      return reply.code(400).send({ error: "Invalid request", details: body.error.errors });
+      return reply.code(400).send({ error: 'Invalid request', details: body.error.errors })
 
-    const result = await gameService.submitLoadout(member.gameId, member.playerId, body.data);
-    if (!result.ok) return reply.code(400).send({ error: result.error });
-    return reply.send({ view: result.view });
-  });
+    const result = await gameService.submitLoadout(member.gameId, member.playerId, body.data)
+    if (!result.ok) return reply.code(400).send({ error: result.error })
+    return reply.send({ view: result.view })
+  })
 
   // Deployment phase: place the ship (and Home) on Black Hole Ring 2, 3 or 4.
-  fastify.post<GameRequest>("/api/games/:gameId/deploy", async (request, reply) => {
-    const member = await requireMember(request, reply);
-    if (!member) return;
-    const body = DeploySchema.safeParse(request.body);
+  fastify.post<GameRequest>('/api/games/:gameId/deploy', async (request, reply) => {
+    const member = await requireMember(request, reply)
+    if (!member) return
+    const body = DeploySchema.safeParse(request.body)
     if (!body.success)
-      return reply.code(400).send({ error: "Invalid request", details: body.error.errors });
+      return reply.code(400).send({ error: 'Invalid request', details: body.error.errors })
 
     const result = await gameService.deploy(
       member.gameId,
       member.playerId,
       body.data.sector,
       body.data.ring
-    );
-    if (!result.ok) return reply.code(400).send({ error: result.error });
-    return reply.send({ view: result.view });
-  });
+    )
+    if (!result.ok) return reply.code(400).send({ error: result.error })
+    return reply.send({ view: result.view })
+  })
 
   // Dev tool: fork a recording into a new live game with the caller in one of the seats.
-  fastify.post<{ Headers: { "x-player-id"?: string } }>(
-    "/api/games/fork",
+  fastify.post<{ Headers: { 'x-player-id'?: string } }>(
+    '/api/games/fork',
     async (request, reply) => {
-      const player = await requirePlayer(request.headers["x-player-id"], reply);
-      if (!player) return;
-      const { playerId } = player;
-      const body = ForkSchema.safeParse(request.body);
+      const player = await requirePlayer(request.headers['x-player-id'], reply)
+      if (!player) return
+      const { playerId } = player
+      const body = ForkSchema.safeParse(request.body)
       if (!body.success)
-        return reply.code(400).send({ error: "Invalid request", details: body.error.errors });
+        return reply.code(400).send({ error: 'Invalid request', details: body.error.errors })
 
       const result = await gameService.forkGameFromRecording(
         body.data.recordingId,
@@ -180,9 +180,9 @@ export async function gameRoutes(fastify: FastifyInstance) {
           humanPlayerId: playerId,
           humanPlayerName: player.playerName,
         }
-      );
-      if (!result.ok) return reply.code(400).send({ error: result.error });
-      return reply.send({ gameId: result.gameId, view: result.view });
+      )
+      if (!result.ok) return reply.code(400).send({ error: result.error })
+      return reply.send({ gameId: result.gameId, view: result.view })
     }
-  );
+  )
 }

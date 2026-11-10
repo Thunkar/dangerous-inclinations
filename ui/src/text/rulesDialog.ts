@@ -81,10 +81,7 @@ export const RULES_DIALOG = {
       'Wrecks',
       'left where a ship dies, drift with the stations. Salvage takes the black box (data)',
     ],
-    [
-      'Survey',
-      'an action: while on Black Hole Ring 1, take the data. File it at any station',
-    ],
+    ['Survey', 'an action: while on Black Hole Ring 1, take the data. File it at any station'],
     [
       'Piracy',
       'an action: while you share a sector with an undocked ship carrying cargo, and are not moored, take one item of your choice. Seize before you fire at it. Sell it at any station. Their card goes back to undone',
@@ -99,7 +96,7 @@ export const RULES_DIALOG = {
     ],
     [
       'Salvage',
-      'an action: while on a wreck\'s sector (moored or not), take its black box, one wreck a turn. A ship destroyed earlier in your turn has already left its wreck. It is data, filed at any station',
+      "an action: while on a wreck's sector (moored or not), take its black box, one wreck a turn. A ship destroyed earlier in your turn has already left its wreck. It is data, filed at any station",
     ],
     [
       'Deployment',

@@ -201,9 +201,7 @@ export function OpponentCard({
         </Box>
       }
       action={
-        <Tooltip
-          title={`${player.points} of ${view.pointsToWin} points`}
-        >
+        <Tooltip title={`${player.points} of ${view.pointsToWin} points`}>
           <Box sx={{ display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
             {Array.from({ length: view.pointsToWin }, (_, i) => (
               <Box
@@ -263,9 +261,7 @@ export function OpponentCard({
         {/* Home is on the board with a marker of its own and never moves, so
             printing it on the card was a line that told nobody anything. */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
-          <Tooltip
-            title="Cargo aboard. The hold has no limit. Destinations are private."
-          >
+          <Tooltip title="Cargo aboard. The hold has no limit. Destinations are private.">
             <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
               <CargoTokens
                 crates={player.cargoAboard.crates}

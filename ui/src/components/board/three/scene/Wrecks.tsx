@@ -158,11 +158,7 @@ function WreckMesh({ wreck }: { wreck: WreckToken }) {
       {SHARDS.map(({ at, turn }, i) => (
         <mesh key={i} geometry={GEO.shard} material={MAT.shard} position={at} rotation={turn} />
       ))}
-      {hovered && (
-        <BoardTooltip position={[0, 30, 0]}>
-          {wreckLabel(wreck.position)}
-        </BoardTooltip>
-      )}
+      {hovered && <BoardTooltip position={[0, 30, 0]}>{wreckLabel(wreck.position)}</BoardTooltip>}
     </group>
   )
 }

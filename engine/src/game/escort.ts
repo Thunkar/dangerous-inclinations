@@ -9,14 +9,14 @@
  * referee, the bots, the seat CLI and the table's plan all ask, so the four
  * agree.
  */
-import type { GameState, Player, Position, Station } from "../models/game.ts";
-import type { EventDraft } from "../models/events.ts";
-import type { EscortMission, Mission } from "../models/missions.ts";
-import { aboard } from "../models/missions.ts";
-import type { GameView } from "./view.ts";
-import { positionOf } from "./geometry.ts";
-import { isMooredAt, isMooredMidTurn } from "./stations.ts";
-import { isDestroyed, isOnBoard } from "./ship.ts";
+import type { GameState, Player, Position, Station } from '../models/game.ts'
+import type { EventDraft } from '../models/events.ts'
+import type { EscortMission, Mission } from '../models/missions.ts'
+import { aboard } from '../models/missions.ts'
+import type { GameView } from './view.ts'
+import { positionOf } from './geometry.ts'
+import { isMooredAt, isMooredMidTurn } from './stations.ts'
+import { isDestroyed, isOnBoard } from './ship.ts'
 
 /**
  * A seat as the question needs it: where it is (null off the board), whether
@@ -24,18 +24,18 @@ import { isDestroyed, isOnBoard } from "./ship.ts";
  * someone's Escort marker is already on it.
  */
 interface EscortSeat {
-  id: string;
-  position: Position | null;
-  recovering: boolean;
-  carrying: boolean;
-  escorted: boolean;
+  id: string
+  position: Position | null
+  recovering: boolean
+  carrying: boolean
+  escorted: boolean
 }
 
 /** Undone Escorts whose marker is still in hand, in hand order. */
 export function unplacedEscorts(missions: readonly Mission[]): EscortMission[] {
   return missions.filter(
-    (m): m is EscortMission => m.type === "escort" && !m.isCompleted && m.markedPlayerId === null
-  );
+    (m): m is EscortMission => m.type === 'escort' && !m.isCompleted && m.markedPlayerId === null
+  )
 }
 
 /**
@@ -44,17 +44,17 @@ export function unplacedEscorts(missions: readonly Mission[]): EscortMission[] {
  * not. Asked at the moment of the sale, by the payment and by a carrier that
  * dies later the same turn, so the two cannot disagree.
  */
-export function escortPresent(escort: Pick<Player, "ship">, planetId: string): boolean {
-  return !isDestroyed(escort.ship) && escort.ship.wellId === planetId;
+export function escortPresent(escort: Pick<Player, 'ship'>, planetId: string): boolean {
+  return !isDestroyed(escort.ship) && escort.ship.wellId === planetId
 }
 
 /** The ships this player's undone Escort markers sit on. */
 export function markedBy(player: { missions: readonly Mission[] }): Set<string> {
   return new Set(
-    player.missions.flatMap((m) =>
-      m.type === "escort" && !m.isCompleted && m.markedPlayerId !== null ? [m.markedPlayerId] : []
+    player.missions.flatMap(m =>
+      m.type === 'escort' && !m.isCompleted && m.markedPlayerId !== null ? [m.markedPlayerId] : []
     )
-  );
+  )
 }
 
 /**
@@ -74,21 +74,21 @@ function candidates(
   start: Position,
   position: Position
 ): string[] {
-  if (unplacedEscorts(missions).length === 0) return [];
+  if (unplacedEscorts(missions).length === 0) return []
   // A berth marks nobody.
-  if (isMooredMidTurn(stations, start, position)) return [];
-  const taken = markedBy({ missions });
-  const self = seats.findIndex((s) => s.id === escortId);
-  const out: string[] = [];
+  if (isMooredMidTurn(stations, start, position)) return []
+  const taken = markedBy({ missions })
+  const self = seats.findIndex(s => s.id === escortId)
+  const out: string[] = []
   for (let step = 1; step < seats.length; step++) {
-    const seat = seats[(Math.max(self, 0) + step) % seats.length];
-    if (seat.id === escortId || taken.has(seat.id) || seat.escorted) continue;
-    if (!seat.position || !seat.carrying || seat.recovering) continue;
-    if (seat.position.wellId !== position.wellId || seat.position.ring !== position.ring) continue;
-    if (isMooredAt(stations, seat.position)) continue;
-    out.push(seat.id);
+    const seat = seats[(Math.max(self, 0) + step) % seats.length]
+    if (seat.id === escortId || taken.has(seat.id) || seat.escorted) continue
+    if (!seat.position || !seat.carrying || seat.recovering) continue
+    if (seat.position.wellId !== position.wellId || seat.position.ring !== position.ring) continue
+    if (isMooredAt(stations, seat.position)) continue
+    out.push(seat.id)
   }
-  return out;
+  return out
 }
 
 /**
@@ -103,15 +103,15 @@ export function escortCandidates(
   position: Position,
   start?: Position
 ): string[] {
-  const me = view.me;
-  if (!me || me.id !== playerId) return [];
-  const seats: EscortSeat[] = view.players.map((p) => ({
+  const me = view.me
+  if (!me || me.id !== playerId) return []
+  const seats: EscortSeat[] = view.players.map(p => ({
     id: p.id,
     position: p.ship && !p.ship.isDestroyed ? positionOf(p.ship) : null,
     recovering: p.recovering,
     carrying: p.cargoCount > 0,
     escorted: p.escortedBy.length > 0,
-  }));
+  }))
   return candidates(
     seats,
     view.stations,
@@ -119,7 +119,7 @@ export function escortCandidates(
     me.missions,
     start ?? positionOf(me.ship),
     position
-  );
+  )
 }
 
 /**
@@ -128,15 +128,15 @@ export function escortCandidates(
  * no longer one). A destroyed escort places nothing.
  */
 export function escortCandidatesNow(state: GameState, escortId: string, start: Position): string[] {
-  const escort = state.players.find((p) => p.id === escortId);
-  if (!escort || isDestroyed(escort.ship)) return [];
-  const seats: EscortSeat[] = state.players.map((p) => ({
+  const escort = state.players.find(p => p.id === escortId)
+  if (!escort || isDestroyed(escort.ship)) return []
+  const seats: EscortSeat[] = state.players.map(p => ({
     id: p.id,
     position: isOnBoard(p) ? positionOf(p.ship) : null,
     recovering: p.recovering,
     carrying: aboard(p.cargo).length > 0,
-    escorted: state.players.some((other) => markedBy(other).has(p.id)),
-  }));
+    escorted: state.players.some(other => markedBy(other).has(p.id)),
+  }))
   return candidates(
     seats,
     state.stations,
@@ -144,7 +144,7 @@ export function escortCandidatesNow(state: GameState, escortId: string, start: P
     escort.missions,
     start,
     positionOf(escort.ship)
-  );
+  )
 }
 
 /**
@@ -156,21 +156,21 @@ export function markCarrier(
   escortId: string,
   carrierId: string
 ): { state: GameState; event: EventDraft } {
-  const escort = state.players.find((p) => p.id === escortId)!;
-  const mission = unplacedEscorts(escort.missions)[0];
+  const escort = state.players.find(p => p.id === escortId)!
+  const mission = unplacedEscorts(escort.missions)[0]
   const players = state.players.map(
     (p): Player =>
       p.id === escortId
         ? {
             ...p,
-            missions: p.missions.map((m) =>
+            missions: p.missions.map(m =>
               m.id === mission.id ? { ...mission, markedPlayerId: carrierId } : m
             ),
           }
         : p
-  );
+  )
   return {
     state: { ...state, players },
-    event: { type: "escort_marked", escortId, carrierId, missionId: mission.id },
-  };
+    event: { type: 'escort_marked', escortId, carrierId, missionId: mission.id },
+  }
 }
