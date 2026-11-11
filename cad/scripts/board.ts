@@ -1,8 +1,9 @@
 // Write one part file per printable piece of the board (parts/board/<well>/),
 // so each exports to a file of its own. Run by `export`; by hand, `yarn board`.
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { boardParts } from '../pieces/well.ts'
 import { BODIES } from '../pieces/body.ts'
+import { writeFormatted } from './format.ts'
 
 const parts = [...boardParts(), ...BODIES]
 for (const dir of new Set(parts.map(p => p.dir))) {
@@ -12,9 +13,9 @@ for (const dir of new Set(parts.map(p => p.dir))) {
 for (const p of parts) {
   const fn = p.call.slice(0, p.call.indexOf('('))
   const from = fn === 'buildBody' ? 'body' : 'well'
-  writeFileSync(
+  await writeFormatted(
     `parts/board/${p.dir}/${p.file}.part.js`,
-    `import { part } from "fluidcad/core";\nimport { ${fn} } from "../../../pieces/${from}.ts";\n\nexport const piece = part(${JSON.stringify(p.name)}, () => ${p.call});\n`
+    `import { part } from 'fluidcad/core'\nimport { ${fn} } from '../../../pieces/${from}.ts'\n\nexport const piece = part(${JSON.stringify(p.name)}, () => ${p.call})\n`
   )
 }
 for (const dir of new Set(parts.map(p => p.dir)))
