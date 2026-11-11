@@ -31,7 +31,7 @@ import { color, remove, translate, subtract, fuse, sketch, plane, extrude } from
 import { BOARD, MARKER } from '../spec.ts'
 import { COLOUR, PLAYER_COLOURS } from '../colours.ts'
 import { outlines, box, flatten, drawPolygons, grow, area } from '../lib/glyphs.ts'
-import { section, move, turn, prism, type Point, type Solid } from '../lib/solids.ts'
+import { section, move, turn, prism, type Point, type Solid, type Vec } from '../lib/solids.ts'
 import { slab, TOKEN } from './token.ts'
 import { chamferedSlab, regular, clippedRect } from './markers/common.ts'
 import { cutGlyph, placed, type Element } from './markers/glyphs.ts'
@@ -413,49 +413,101 @@ export function slots(
   })
 }
 
+/**
+ * The solids a view copies into place, each built once and coloured once a
+ * colour. FluidCAD's kernel has a 4 GB heap and keeps every feature's shapes
+ * in it: six caddies each building their own tray and tokens (about 2,500
+ * features apiece) filled it and stalled the build. A copy shares its
+ * source's mesh, but a coloured solid is meshed afresh, so colouring each of
+ * 141 copies cost as much again. `done` removes the originals.
+ */
+interface Shelf {
+  get: (key: string, build: () => Solid) => Solid
+  done: () => void
+}
+
+function shelf(): Shelf {
+  const built = new Map<string, Solid>()
+  return {
+    get(key, build) {
+      let s = built.get(key)
+      if (!s) built.set(key, (s = build()))
+      return s
+    },
+    done: () => built.forEach(s => remove(s)),
+  }
+}
+
+/** A copy of a shelf's solid at (x, y, z), in a colour. */
+function place(from: Shelf, key: string, build: () => Solid, colour: string, at: Vec): void {
+  const base = from.get(key, build)
+  const painted = from.get(`${key}@${colour}`, () => color(colour, translate(0, 0, 0, true, base)))
+  translate(...at, true, painted)
+}
+
 /** Fill a bin with `count` copies of its token, layer by layer from the back, at (ox, oy). */
-function fill(p: Placed, top: number, count: number, colour: string, [ox, oy]: Point): void {
-  const base = tokenOf(p.bin, p.bin.planet)
+function fill(
+  p: Placed,
+  top: number,
+  count: number,
+  colour: string,
+  [ox, oy]: Point,
+  from: Shelf
+): void {
+  const { kind, n, planet } = p.bin
+  const key = `${kind}:${n ?? ''}:${planet ?? ''}`
   for (const [x, y, z] of slots(p, top, count))
-    color(colour, translate(ox + x, oy + y, z, true, base))
-  remove(base)
+    place(from, key, () => tokenOf(p.bin, planet), colour, [ox + x, oy + y, z])
 }
 
 /** Fill a laid-out tray's bins at (ox, oy), each from its own top; `player` colours a caddy's tokens. */
-function fillAll(placedBins: { bin: Placed; top: number }[], at: Point, player?: number): void {
+function fillAll(
+  placedBins: { bin: Placed; top: number }[],
+  at: Point,
+  from: Shelf,
+  player?: number
+): void {
   for (const { bin: p, top } of placedBins) {
     const k = p.bin.kind
     const colour = (player !== undefined && PLAYER_COLOURS[player]) || TRAY_COLOUR
     if (k === 'salvo' || k === 'escort')
-      fill(p, top, k === 'salvo' ? COUNTS.salvo : COUNTS.escort, colour, at)
-    else if (k === 'chip' && p.bin.planet) fill(p, top, COUNTS.chip, COLOUR[p.bin.planet], at)
-    else fill(p, top, COUNTS[k], KIND_COLOURS[k] ?? TRAY_COLOUR, at)
+      fill(p, top, k === 'salvo' ? COUNTS.salvo : COUNTS.escort, colour, at, from)
+    else if (k === 'chip' && p.bin.planet) fill(p, top, COUNTS.chip, COLOUR[p.bin.planet], at, from)
+    else fill(p, top, COUNTS[k], KIND_COLOURS[k] ?? TRAY_COLOUR, at, from)
   }
 }
 
 /** The pool tray filled, at (ox, oy). */
-export function showPool([ox, oy]: Point = [0, 0]): void {
-  color(TRAY_COLOUR, move(buildPoolTray(), ox, oy, 0))
+export function showPool([ox, oy]: Point = [0, 0], from?: Shelf): void {
+  const own = from ?? shelf()
+  place(own, 'pool', buildPoolTray, TRAY_COLOUR, [ox, oy, 0])
   fillAll(
     columns(POOL).map(c => ({ bin: c.bin, top: c.height })),
-    [ox, oy]
+    [ox, oy],
+    own
   )
+  if (!from) own.done()
 }
 
 /** A caddy filled with a player's tokens, in their colour, at (ox, oy). */
-export function showCaddy(player: number, [ox, oy]: Point = [0, 0]): void {
+export function showCaddy(player: number, [ox, oy]: Point = [0, 0], from?: Shelf): void {
+  const own = from ?? shelf()
   const { bins, height } = lay(CADDY)
-  color(PLAYER_COLOURS[player], move(buildCaddy(), ox, oy, 0))
+  place(own, 'caddy', buildCaddy, PLAYER_COLOURS[player], [ox, oy, 0])
   fillAll(
     bins.map(bin => ({ bin, top: height })),
     [ox, oy],
+    own,
     player
   )
+  if (!from) own.done()
 }
 
-/** The pool tray filled, and the six caddies in a row in front of it. */
+/** The pool tray filled, and the six caddies in a row in front of it, every solid built once. */
 export function showPoolAndCaddies([ox, oy]: Point = [0, 0]): void {
-  showPool([ox, oy])
+  const from = shelf()
+  showPool([ox, oy], from)
   const [cw, cd] = lay(CADDY).size
-  for (let i = 0; i < COUNTS.players; i++) showCaddy(i, [ox + i * (cw + 4), oy - cd - 6])
+  for (let i = 0; i < COUNTS.players; i++) showCaddy(i, [ox + i * (cw + 4), oy - cd - 6], from)
+  from.done()
 }

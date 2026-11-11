@@ -517,7 +517,14 @@ everything in chunks that each carry a copy of the core. Build with planes where
 B-spline surface even between identical sections, and booleans on B-splines
 are what make a build slow (the corvette took over ten minutes with every
 loft segment a loft, 21 seconds with the constant ones built as prisms in
-`lib/kit.ts`). `scripts/timing.mjs` says where a build's time goes, and a
+`lib/kit.ts`). The kernel is 32-bit WebAssembly, so its heap stops at 4 GB,
+and FluidCAD keeps every feature's shapes in it: a scene of about 12,000
+features fills it, and the server then crashes or spins without end (the
+holder view did at five caddies, each building its own tray and tokens).
+A view that shows a piece many times builds it once and copies it, and
+colours it once a colour before copying: a copy shares its source's mesh,
+but a coloured solid is meshed afresh (`shelf` in `pieces/holder.ts`).
+`scripts/timing.mjs` says where a build's time goes, and a
 viewer left open rebuilds its part on every edit to `ui/src/ships/`. Check a part with
 `scripts/errors.mjs` (feature errors, which the export CLI does not print),
 `--list-shapes`, `scripts/islands.mjs` (separate bodies), `scripts/slice.mjs`, `scripts/overhang.mjs`,
