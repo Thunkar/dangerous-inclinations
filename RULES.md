@@ -95,7 +95,7 @@ Otherwise:
 
 Once a round, after the last player's turn:
 
-7. **Stations.** Move every station 4 sectors, carrying any ship moored to it, and move every wreck by its ring's drift.
+7. **Stations.** Move every station 4 sectors, carrying any ship moored to it, and move every wreck by its ring's drift. A moored ship with energy on its scoop gains fuel equal to the station ring's velocity, unless it docked this round.
 
 **The first round reaches nobody: no weapon fires, nobody scans and nobody seizes.** Everyone deploys around the same hole, in a sector picked while the board was still empty, so the opening round is for getting off the line rather than for shooting (or reading the loadout of, or robbing) whoever you were placed next to. Everything else is allowed. From the second round on, all three are live. Coming back from Home is deploying again, so a returning ship's first turn is quiet the same way (see Destruction and Respawn).
 
@@ -138,7 +138,7 @@ Once a round, after the last player's turn:
 
 ### Coast
 
-Drift only, or hold your berth if you are moored at a station (see Stations). You may run the scoop with it: gain fuel equal to your ring's velocity (heat 3); a berth is as good a place to skim from as any.
+Drift only, or hold your berth if you are moored at a station (see Stations). You may run the scoop with it: gain fuel equal to your ring's velocity (heat 3). At a berth the ship moves with the station, so the fuel comes when the stations move, if the scoop still has its energy and is unbroken. The scoop pays once: a ship that docked this round gets nothing from the ride.
 
 ### Burn
 
@@ -335,4 +335,4 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 5. Heat check: every energy cube on your loadout is 1 heat; at 0 heat repair one subsystem; over 10 is hull damage; dissipate and carry the rest.
 6. Just arrived at a station, and survived the check? Repair, full hull, reload, and one thing: load your crates, or sell one item if it has not bought from you before. Moored until you burn away.
 7. Missions: flip completed missions. Pass.
-8. Once a round, after the last player: every station moves 4 sectors, with whoever is moored; every wreck drifts with its ring.
+8. Once a round, after the last player: every station moves 4 sectors, with whoever is moored (a lit scoop takes its fuel now, unless its ship docked this round); every wreck drifts with its ring.

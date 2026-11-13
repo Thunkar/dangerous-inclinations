@@ -354,7 +354,7 @@ export function describeViewForAgent(
     out.push('', 'LEGAL THIS TURN:')
     out.push(
       o.moored
-        ? `  Moored at a station: a coast holds this berth (no drift) and the station carries you at the end of the round; burn to cast off. You docked on arrival: holding the berth repairs nothing more${o.scoopGain ? `, though the scoop would still gain ${o.scoopGain} fuel for ${cubes('scoop')} cubes` : ''}.`
+        ? `  Moored at a station: a coast holds this berth (no drift) and the station carries you at the end of the round; burn to cast off. You docked on arrival: holding the berth repairs nothing more${o.scoopGain ? `, though the scoop, for ${cubes('scoop')} cubes now, would gain ${o.scoopGain} fuel when the station moves` : ''}.`
         : `  Drift: coast moves you ${o.velocity} sectors forward${o.scoopGain ? ` (scoop would gain ${o.scoopGain} fuel for ${cubes('scoop')} cubes)` : ''}.`
     )
     out.push(

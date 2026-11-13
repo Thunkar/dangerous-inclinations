@@ -37,6 +37,7 @@ export function createPlayer(spec: PlayerSpec): Player {
     home: null,
     recovering: false,
     soldAt: [],
+    dockedThisRound: false,
     intel: {},
   }
 }

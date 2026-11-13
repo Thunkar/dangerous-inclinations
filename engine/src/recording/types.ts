@@ -52,8 +52,11 @@ import type { GameEvent } from '../models/events.ts'
  *     (what the check took off the track) for `dissipation`; the radiator's
  *     reveal reason is `dissipating`; `missile_intercepted` names `rackId` and its `heat`;
  *     `scanned` names `sensorId`.
+ * v24: a moored ship's scoop pays when the stations move, not on its coast;
+ *     `fuel_scooped` follows `stations_moved`, and not for a ship that docked
+ *     that round (`Player.dockedThisRound`).
  */
-export const RECORDING_SCHEMA_VERSION = 23
+export const RECORDING_SCHEMA_VERSION = 24
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

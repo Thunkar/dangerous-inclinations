@@ -522,6 +522,12 @@ export interface Player {
    */
   soldAt: string[]
   /**
+   * Docked this round: set by the dock, cleared when the stations move. The
+   * ride pays no scoop fuel to a ship that docked this round, so a coast's
+   * scoop and the ride never both pay (RULES §Stations, Moored).
+   */
+  dockedThisRound: boolean
+  /**
    * Face-down slots of other players this player has seen through scans.
    * Private knowledge; the table only sees face-up tiles.
    */

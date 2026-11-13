@@ -117,7 +117,7 @@ check (over 10 is hull damage, then dissipate and carry the rest) → docking (o
 arrival only, and not for a ship its check destroyed) → missions (completed
 cards face-up, Escorts paid) →
 pass. Once a round, after the last seat's turn, the stations advance (their own
-step, carrying moored ships). The first round reaches nobody (no weapon
+step, carrying moored ships, whose lit scoops take their fuel then). The first round reaches nobody (no weapon
 fires, nobody scans, nobody seizes) because everyone deploys around one hole, so the opening
 round is for getting off the line.
 

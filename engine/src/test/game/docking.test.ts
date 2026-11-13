@@ -4,7 +4,7 @@ import { salesOnArrival } from '../../game/docking.ts'
 import { viewFor } from '../../game/view.ts'
 import type { GameState, ShipLoadout } from '../../models/game.ts'
 import type { Cargo, Mission } from '../../models/missions.ts'
-import { STATION_RING } from '../../models/gravityWells.ts'
+import { PLANET_RINGS, STATION_RING } from '../../models/gravityWells.ts'
 import { LOAD_CRATES, SELL_FUEL, SELL_NOTHING } from '../../models/missions.ts'
 import {
   LOADOUTS,
@@ -25,6 +25,7 @@ import {
   dockingShip,
   executeTurnAs,
   expectRefused,
+  fire,
   expectRefusedUnless,
   getPlayer,
   getShip,
@@ -320,13 +321,52 @@ describe('docking: moored ships ride their station', () => {
     expect(eventsOf(after.events, 'stations_moved')[0].riders).toEqual([])
   })
 
-  it('runs the scoop in port: a berth is a place to skim from, not to be repaired in', () => {
-    let state = withShip(mooredAt(ALPHA), 'p1', { reactionMass: 0 })
-    state = withPower(state, 'p1', 'scoop', 3)
-    const result = executeTurnAs(state, coast(1, true))
-    expect(result.errors).toBeUndefined()
-    // Planet ring 1 drifts 4, so a dry ship is never moored for good.
-    expect(getShip(result.gameState, 'p1').reactionMass).toBe(4)
+  it.each<[string, boolean, (s: GameState) => GameState, number]>([
+    ['run, takes the ride', true, s => s, 4],
+    ['left off, takes nothing', false, s => s, 0],
+    // A critical breaks it and dumps its energy before the stations move.
+    [
+      'broken before the ride, takes nothing',
+      true,
+      s => withSub(s, 'p1', 'scoop', { isBroken: true, allocatedEnergy: 0 }),
+      0,
+    ],
+  ])('a scoop at a berth pays when the station moves: %s', (_label, scoop, between, fuel) => {
+    const state = withShip(mooredAt(ALPHA), 'p1', { reactionMass: 0 })
+    const own = mustExecute(state, coast(1, scoop))
+    // The coast holds the berth, so the fuel waits for the ride.
+    expect(getShip(own, 'p1').reactionMass).toBe(0)
+    const round = executeTurnAs(between(own), coast(1))
+    expect(round.errors).toBeUndefined()
+    // The station's ring drifts 4, so a dry ship is never moored for good.
+    expect(getShip(round.gameState, 'p1').reactionMass).toBe(fuel)
+    expect(eventsOf(round.events, 'fuel_scooped')).toEqual(
+      fuel > 0 ? [expect.objectContaining({ playerId: 'p1', amount: fuel })] : []
+    )
+  })
+
+  it("a ship that docks this round takes its scoop's fuel once: on the coast, not again on the ride", () => {
+    // Coasts on ring 3 onto the berth's sector with the scoop, then a railgun's
+    // recoil pushes it inward onto the berth, where it docks with the scoop lit.
+    const v3 = PLANET_RINGS.find(r => r.ring === 3)!.velocity
+    let state = makeGameState([
+      makePlayer(
+        'p1',
+        { wellId: ALPHA, ring: 3, sector: 24 - v3, facing: 'prograde' },
+        LOADOUTS.railRack
+      ),
+      makePlayer('p2', { wellId: ALPHA, ring: 3, sector: 2 }, LOADOUTS.railRack),
+    ])
+    state = withShip(state, 'p1', { reactionMass: 0 })
+    const turn = executeTurnAs(state, coast(1, true), fire(2, 'forward-0', 'p2'))
+    expect(turn.errors).toBeUndefined()
+    expect(eventsOf(turn.events, 'docked')).toHaveLength(1)
+    expect(getShip(turn.gameState, 'p1').reactionMass).toBe(v3)
+    const round = executeTurnAs(turn.gameState, coast(1))
+    expect(eventsOf(round.events, 'fuel_scooped')).toEqual([])
+    expect(getShip(round.gameState, 'p1').reactionMass).toBe(v3)
+    // The next round the berth is held, and the ride pays again.
+    expect(getPlayer(round.gameState, 'p1').dockedThisRound).toBe(false)
   })
 
   it('loads every crate waiting here: the hold has no limit', () => {

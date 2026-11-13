@@ -91,7 +91,7 @@ export const ACTIONS = {
     scoop: 'Scoop +{fuel} fuel',
     scoopBroken: 'No scoop: it is broken.',
     scoopTip:
-      "Recover fuel equal to this ring's velocity ({fuel}). Puts {energy} energy on the scoop. A berth is as good a place to skim from as any.",
+      "Recover fuel equal to this ring's velocity ({fuel}). Puts {energy} energy on the scoop. At a berth the fuel comes when the station moves.",
     intensityTip: '{rings} · {energy} energy on the engines · {fuel} fuel',
     burnCost: '{rings} · {energy} energy · {fuel} fuel',
     phase: 'phase {value}',

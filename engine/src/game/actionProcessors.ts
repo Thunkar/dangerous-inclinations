@@ -286,8 +286,11 @@ function processCoast(state: GameState, action: CoastAction, turn: TurnContext):
       ship = used.ship
       heat = used.heat
       events.push(...used.events)
-      massScooped = scoopYield(ship, ship.reactionMass)
-      ship = { ...ship, reactionMass: ship.reactionMass + massScooped }
+      // A berth holds now: its scoop pays when the station moves (`advanceStations`).
+      if (!moored) {
+        massScooped = scoopYield(ship, ship.reactionMass)
+        ship = { ...ship, reactionMass: ship.reactionMass + massScooped }
+      }
     }
     return { ...p, ship }
   })
@@ -300,7 +303,7 @@ function processCoast(state: GameState, action: CoastAction, turn: TurnContext):
     heat,
     ...(moored ? { moored: true } : {}),
   })
-  if (action.data.activateScoop) {
+  if (action.data.activateScoop && !moored) {
     events.push({ type: 'fuel_scooped', playerId: action.playerId, amount: massScooped })
   }
   return { state: next, events }

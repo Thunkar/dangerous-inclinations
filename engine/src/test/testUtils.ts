@@ -204,6 +204,7 @@ export function makePlayer(
     home: { wellId: BH, ring: 4, sector: 0 },
     recovering: false,
     soldAt: [],
+    dockedThisRound: false,
     intel: {},
     ...overrides,
     ...(overrides.ship ? { ship: { ...ship, ...overrides.ship } } : {}),

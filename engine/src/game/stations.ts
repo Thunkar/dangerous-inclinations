@@ -8,7 +8,9 @@ import type { GameState, GravityWell, Position, Station } from '../models/game.t
 import type { EventDraft } from '../models/events.ts'
 import { PLANETS, STATION_INITIAL_SECTOR, STATION_RING } from '../models/gravityWells.ts'
 import { driftPosition, positionOf, samePosition } from './geometry.ts'
-import { isOnBoard } from './ship.ts'
+import { isPowered } from '../models/subsystems.ts'
+import { findSubsystem, isOnBoard } from './ship.ts'
+import { scoopYield } from './movement.ts'
 
 export function createInitialStations(planets: GravityWell[] = PLANETS): Station[] {
   return planets.map(planet => ({
@@ -83,21 +85,35 @@ export function isMooredMidTurn(stations: Station[], start: Position, at: Positi
  * End of the round: every station advances, and the ships moored to them go
  * with it. A destroyed ship is off the board and rides nothing. Wrecks drift
  * in the same step, each by its own ring's speed (RULES §Missions, Salvage).
+ *
+ * A rider whose scoop still has energy on it, unbroken, takes its fuel now:
+ * the berth moves the ship, so the scoop pays on the ride, not on the coast
+ * that held the berth (RULES §Stations, Moored). Not a ship that docked this
+ * round: its scoop ran on a coast before the dock and paid there.
  */
 export function advanceStations(state: GameState): { state: GameState; events: EventDraft[] } {
   const stations = updateStationPositions(state.stations)
   const riders: string[] = []
-  const players = state.players.map(player => {
+  const scooped: EventDraft[] = []
+  const players = state.players.map(before => {
+    const player = { ...before, dockedThisRound: false }
     if (!isOnBoard(player)) return player
     const station = getStationAt(state.stations, positionOf(player.ship))
     if (!station) return player
     const moved = stations.find(s => s.id === station.id)!
     riders.push(player.id)
-    return { ...player, ship: { ...player.ship, sector: moved.sector } }
+    let ship = { ...player.ship, sector: moved.sector }
+    const scoop = findSubsystem(ship, 'scoop')
+    if (scoop && isPowered(scoop) && !scoop.isBroken && !before.dockedThisRound) {
+      const amount = scoopYield(ship, ship.reactionMass)
+      ship = { ...ship, reactionMass: ship.reactionMass + amount }
+      scooped.push({ type: 'fuel_scooped', playerId: player.id, amount })
+    }
+    return { ...player, ship }
   })
   const wrecks = state.wrecks.map(wreck => ({ ...wreck, ...driftPosition(wreck) }))
   return {
     state: { ...state, stations, players, wrecks },
-    events: [{ type: 'stations_moved', riders, wrecks }],
+    events: [{ type: 'stations_moved', riders, wrecks }, ...scooped],
   }
 }

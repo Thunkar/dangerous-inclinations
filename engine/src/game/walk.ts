@@ -168,7 +168,8 @@ function coast(table: TurnTable, actor: Player, scoop: boolean): Player {
   if (scoop) {
     const working = findSubsystem(ship, 'scoop')?.isBroken === false
     ship = useSubsystem(ship, actor.id, 'scoop').ship
-    if (working)
+    // A berth's scoop pays when the station moves, after the turn.
+    if (working && !moored)
       ship = { ...ship, reactionMass: ship.reactionMass + scoopYield(ship, ship.reactionMass) }
   }
   return { ...actor, ship }

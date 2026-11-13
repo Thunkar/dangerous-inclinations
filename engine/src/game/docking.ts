@@ -236,6 +236,6 @@ export function processDocking(
 
   const soldAt = sale ? [...player.soldAt, planetId] : player.soldAt
   const players = [...state.players]
-  players[playerIndex] = { ...player, ship, cargo, soldAt }
+  players[playerIndex] = { ...player, ship, cargo, soldAt, dockedThisRound: true }
   return { state: { ...state, players }, events, planetId }
 }
