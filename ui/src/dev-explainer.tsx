@@ -43,8 +43,7 @@ import {
   WELL_TRANSFER_COSTS,
   fill,
   getMissileStats,
-  heatAfterCheck,
-  heatDamage,
+  interceptsPerRack,
 } from '@dangerous-inclinations/engine'
 import './index.css'
 import { theme } from './theme'
@@ -71,6 +70,7 @@ import { TileIcon } from './art/glyphs'
 import { MissionCard } from './components/common/MissionCard'
 import { CHEATSHEET } from './text/cheatsheet'
 import { EXPLAINER } from './text/explainer'
+import { getPlayerColor } from './utils/playerColors'
 
 const X = EXPLAINER
 const S = X.slides
@@ -309,7 +309,7 @@ function GoalSlide({ t, out }: { t: number; out: number }) {
             {fill(G.sum, { held, points: POINTS })}
           </Display>
           <Line size="1.6rem" color={PRESS.paperSoft} sx={{ mt: 1.5, ...show(t, 5.6) }}>
-            {fill(G.end, { points: POINTS })}
+            {fill(G.end, { points: POINTS })} {G.ties}
           </Line>
         </Box>
       </Box>
@@ -646,6 +646,33 @@ function OrbitsSlide({ t, out }: { t: number; out: number }) {
           </Box>
         ))}
       </Box>
+      <Box
+        sx={{
+          position: 'absolute',
+          left: 120,
+          top: 760,
+          width: 620,
+          bgcolor: PRESS.ink,
+          color: PRESS.paper,
+          p: 3,
+          borderTop: `10px solid ${PRESS.red}`,
+          ...show(t, 5.2),
+        }}
+      >
+        <Display size="2.2rem" color={PRESS.paper}>
+          {O.primer.title}
+        </Display>
+        {O.primer.rows.map((row, i) => (
+          <Line
+            key={row}
+            size="1.6rem"
+            color={PRESS.paperSoft}
+            sx={{ mt: 0.75, ...show(t, 5.8 + i * 1.6) }}
+          >
+            {row}
+          </Line>
+        ))}
+      </Box>
     </Slide>
   )
 }
@@ -726,7 +753,12 @@ function Phasing({ t, at }: { t: number; at: number }) {
 function MovesSlide({ t, out }: { t: number; out: number }) {
   const M = S.moves
   const panels = [
-    { k: M.coast, diagram: <CoastDiagram />, cost: M.coast.cost, text: M.coast.text },
+    {
+      k: M.coast,
+      diagram: <CoastDiagram />,
+      cost: M.coast.cost,
+      text: fill(M.coast.text, { energy: SUBSYSTEM_CONFIGS.scoop.minEnergy }),
+    },
     {
       k: M.burn,
       diagram: <BurnDiagram />,
@@ -739,12 +771,16 @@ function MovesSlide({ t, out }: { t: number; out: number }) {
     {
       k: M.jump,
       diagram: <JumpDiagram />,
-      cost: fill(M.jump.cost, { fuel: WELL_TRANSFER_COSTS.mass, compressed: COMPRESSED_JUMP_MASS }),
+      cost: fill(M.jump.cost, {
+        energy: WELL_TRANSFER_COSTS.energy,
+        fuel: WELL_TRANSFER_COSTS.mass,
+        compressed: COMPRESSED_JUMP_MASS,
+      }),
       text: M.jump.text,
     },
   ]
   return (
-    <Slide n={M.n} kicker={M.kicker} title={M.title} t={t} out={out} zoom={1.12}>
+    <Slide n={M.n} kicker={M.kicker} title={M.title} t={t} out={out} zoom={1.02}>
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
         {panels.map((p, i) => (
           <Box key={p.k.title} sx={show(t, 0.8 + i * 1.8)}>
@@ -850,41 +886,35 @@ function HeatSlide({ t, out }: { t: number; out: number }) {
   )
 }
 
-function HeatCheckSlide({ t, out }: { t: number; out: number }) {
+function HeatCheckSlide({
+  t,
+  out,
+  vars,
+}: {
+  t: number
+  out: number
+  vars?: Record<string, number>
+}) {
   const H = S.heatCheck
-  const L = CHEATSHEET.heat.ledger
-  const carried = 3
-  const spent =
-    SUBSYSTEM_CONFIGS.railgun.minEnergy +
-    BURN_COSTS.hard.energy +
-    SUBSYSTEM_CONFIGS.shields.maxEnergy
-  const atCheck = carried + spent
+  if (!vars) return null
+  // The check the table shows next, worked line by line.
   const rows = [
-    { value: `${carried}`, label: L.carried },
+    { value: `${vars.carried}`, label: X.ledger.carried },
     {
-      value: `+${spent}`,
-      label: fill(L.spent, {
-        railgun: SUBSYSTEM_CONFIGS.railgun.minEnergy,
-        hardBurn: BURN_COSTS.hard.energy,
-        shields: SUBSYSTEM_CONFIGS.shields.maxEnergy,
-      }),
+      value: `+${vars.cubes}`,
+      label: `${X.ledger.cubes}: ${fill(X.ledger.spent, {
+        engines: vars.engines,
+        racks: vars.racks,
+        shields: vars.shields,
+      })}`,
     },
-    { value: `${atCheck}`, label: L.atCheck, rule: true },
-    {
-      value: `−${heatDamage(atCheck)}`,
-      label: fill(L.hull, { maxHeat: MAX_HEAT }),
-      tone: 'red' as const,
-    },
-    { value: `${MAX_HEAT}`, label: L.stops },
-    { value: `−${DEFAULT_DISSIPATION_CAPACITY}`, label: L.dissipate },
-    {
-      value: `${heatAfterCheck(atCheck, DEFAULT_DISSIPATION_CAPACITY)}`,
-      label: L.carries,
-      tone: 'ink' as const,
-    },
+    { value: `${vars.heat}`, label: X.ledger.atCheck, rule: true },
+    { value: `−${DEFAULT_DISSIPATION_CAPACITY}`, label: X.ledger.dissipate },
+    { value: `−${vars.radiator}`, label: X.ledger.radiator },
+    { value: `${vars.next}`, label: X.ledger.next, tone: 'ink' as const },
   ]
-  const ledgerAt = 0.9
-  const shown = Math.max(0, Math.min(rows.length, Math.floor((t - ledgerAt) / 0.5) + 1))
+  const ledgerAt = 1.0
+  const shown = Math.max(0, Math.min(rows.length, Math.floor((t - ledgerAt) / 1.3) + 1))
   return (
     <Slide tone="deep" n={H.n} kicker={H.kicker} title={H.title} lede={H.lede} t={t} out={out}>
       <Box sx={{ display: 'grid', gridTemplateColumns: '560px 1fr', gap: 7, alignItems: 'start' }}>
@@ -901,20 +931,14 @@ function HeatCheckSlide({ t, out }: { t: number; out: number }) {
           <Ledger rows={rows.slice(0, shown)} />
         </Box>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <Bullet t={t} at={3.0}>
+          <Bullet t={t} at={6.0}>
             {fill(H.dissipate, {
               dissipation: DEFAULT_DISSIPATION_CAPACITY,
               radiator: RADIATOR_DISSIPATION,
             })}
           </Bullet>
-          <Bullet t={t} at={4.0}>
+          <Bullet t={t} at={9.0}>
             <b>{fill(H.over, { maxHeat: MAX_HEAT })}</b>
-          </Bullet>
-          <Bullet t={t} at={5.4}>
-            {H.absorbed}
-          </Bullet>
-          <Bullet t={t} at={6.6}>
-            {fill(H.rack, { heat: INTERCEPT_HEAT })}
           </Bullet>
         </Box>
       </Box>
@@ -994,9 +1018,12 @@ function FightSlide({ t, out }: { t: number; out: number }) {
           <b>{F.critical}</b>
         </Bullet>
         <Bullet t={t} at={4.6}>
+          {F.broken}
+        </Bullet>
+        <Bullet t={t} at={5.2}>
           {F.shields}
         </Bullet>
-        <Bullet t={t} at={5.4}>
+        <Bullet t={t} at={5.8}>
           <b>{F.zero}</b>
         </Bullet>
       </Box>
@@ -1015,6 +1042,7 @@ function MissilesSlide({ t, out }: { t: number; out: number }) {
     turns: missile.maxMoves,
     on: INTERCEPT_ON,
     heat: INTERCEPT_HEAT,
+    count: interceptsPerRack(),
   }
   return (
     <Slide n={R.n} kicker={R.kicker} title={R.title} t={t} out={out}>
@@ -1224,7 +1252,10 @@ function DeathSlide({ t, out }: { t: number; out: number }) {
   )
 }
 
-const SLIDES: Record<string, (p: { t: number; out: number }) => ReactNode> = {
+const SLIDES: Record<
+  string,
+  (p: { t: number; out: number; vars?: Record<string, number> }) => ReactNode
+> = {
   goal: GoalSlide,
   build: BuildSlide,
   turn: TurnSlide,
@@ -1503,6 +1534,149 @@ function Roll({ face, u }: { face: number; u: number }) {
   )
 }
 
+/** Several rolls at once (a rack at a salvo), at the right: each face and what it did. */
+function Rolls({ faces, u }: { faces: number[]; u: number }) {
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        right: 64,
+        top: 150,
+        bgcolor: PRESS.paper,
+        p: 2.5,
+        borderTop: `10px solid ${PRESS.red}`,
+        opacity: smooth(u),
+      }}
+    >
+      <Box sx={{ display: 'flex', gap: 1.5 }}>
+        {faces.map((face, i) => (
+          <Box
+            key={i}
+            sx={{
+              width: 104,
+              height: 104,
+              bgcolor: PRESS.ink,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: smooth(u * faces.length - i),
+            }}
+          >
+            <Numeral size="3.6rem" color={PRESS.paper}>
+              {face}
+            </Numeral>
+          </Box>
+        ))}
+      </Box>
+      <Box
+        sx={{
+          mt: 1.5,
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 700,
+          fontSize: '2.2rem',
+          textTransform: 'uppercase',
+          color: PRESS.redText,
+        }}
+      >
+        {X.roll.down}
+      </Box>
+    </Box>
+  )
+}
+
+type StatusKey = keyof typeof X.status
+/** A ship's numbers as the demonstration changes them, top left under the topic: a value flashes red as it changes. */
+function Status({
+  seat,
+  rows,
+  u,
+}: {
+  seat: number
+  rows: { label: Exclude<StatusKey, 'ships'>; value: string; delta?: string; flash: number }[]
+  u: number
+}) {
+  const color = getPlayerColor(seat)
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        left: 64,
+        top: 140,
+        width: 330,
+        bgcolor: PRESS.ink,
+        color: PRESS.paper,
+        opacity: smooth(u),
+        transform: `translateY(${(1 - smooth(u)) * -12}px)`,
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          px: 2.5,
+          py: 1.25,
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 700,
+          fontSize: '1.8rem',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          borderBottom: `4px solid ${color}`,
+        }}
+      >
+        <Box sx={{ width: 26, height: 26, bgcolor: color }} />
+        {X.status.ships[seat]}
+      </Box>
+      {rows.map(row => (
+        <Box
+          key={row.label}
+          sx={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 1.5,
+            px: 2.5,
+            py: 1,
+            bgcolor: row.flash > 0 ? `rgba(210, 27, 51, ${0.85 * row.flash})` : 'transparent',
+          }}
+        >
+          <Box
+            sx={{
+              flex: 1,
+              fontFamily: FONT_DISPLAY,
+              fontWeight: 600,
+              fontSize: '1.5rem',
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: PRESS.paperSoft,
+            }}
+          >
+            {X.status[row.label]}
+          </Box>
+          <Numeral size="2.6rem" color={PRESS.paper}>
+            {row.value}
+          </Numeral>
+          {row.delta && (
+            <Box
+              sx={{
+                fontFamily: FONT_DISPLAY,
+                fontWeight: 700,
+                fontSize: '1.6rem',
+                color: PRESS.paper,
+                bgcolor: PRESS.red,
+                px: 1,
+                minWidth: 56,
+                textAlign: 'center',
+              }}
+            >
+              {row.delta}
+            </Box>
+          )}
+        </Box>
+      ))}
+    </Box>
+  )
+}
+
 /** The heat check worked as the cheatsheet's ledger works it, at the right. */
 function HeatCheck({
   rows,
@@ -1516,10 +1690,10 @@ function HeatCheck({
     <Box
       sx={{
         position: 'absolute',
-        right: 64,
+        right: 40,
         top: 150,
         width: 420,
-        zoom: 1.5,
+        zoom: 1.25,
         bgcolor: PRESS.paper,
         border: `4px solid ${PRESS.ink}`,
         p: 2.5,
@@ -1538,8 +1712,214 @@ function HeatCheck({
   )
 }
 
+/** A label beside a piece on the table: what landed, left or changed. */
+function Tag({
+  x,
+  y,
+  text,
+  vars,
+  lift = 0,
+  u,
+}: {
+  x: number
+  y: number
+  text: string
+  vars?: Vars
+  /** Pixels higher than its piece, clear of a tag beside it. */
+  lift?: number
+  u: number
+}) {
+  const T = X.tags
+  const words = fill(String(T[text as keyof typeof T] ?? text), {
+    ...vars,
+    name: vars?.type ? tileName(vars.type as SubsystemType) : '',
+  })
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        transform: `translate(-50%, calc(-100% - ${14 + (1 - smooth(u)) * 10}px))`,
+        opacity: smooth(u),
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+      }}
+    >
+      <Box
+        sx={{
+          bgcolor: PRESS.ink,
+          color: PRESS.paper,
+          borderLeft: `8px solid ${PRESS.red}`,
+          px: 1.5,
+          py: 0.5,
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 600,
+          fontSize: '1.55rem',
+          letterSpacing: '0.05em',
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {words}
+      </Box>
+      <Box sx={{ width: 3, height: 14 + lift, bgcolor: PRESS.ink }} />
+    </Box>
+  )
+}
+
+/** A counted move's mark on the board: a sector's number, the ring crossed to, a phased sector's fuel. */
+function Mark({
+  x,
+  y,
+  text,
+  vars,
+  u,
+}: {
+  x: number
+  y: number
+  text: string
+  vars?: Vars
+  u: number
+}) {
+  const number = text === 'sector'
+  const e = smooth(u)
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        transform: `translate(-50%, -50%) scale(${0.6 + 0.4 * e})`,
+        opacity: e,
+        minWidth: 40,
+        height: 40,
+        px: number ? 0 : 1.25,
+        borderRadius: number ? '50%' : 0,
+        bgcolor: number ? PRESS.paper : PRESS.red,
+        color: number ? PRESS.ink : PRESS.paper,
+        border: `4px solid ${number ? PRESS.ink : PRESS.red}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: FONT_DISPLAY,
+        fontWeight: 700,
+        fontSize: '1.45rem',
+        textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {fill(String(X.tags[text as keyof typeof X.tags]), vars ?? {})}
+    </Box>
+  )
+}
+
+/** A counted cube: its number in a red disc. */
+function Count({ x, y, n, u }: { x: number; y: number; n: number; u: number }) {
+  const e = smooth(u)
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        transform: `translate(-50%, -100%) scale(${0.5 + 0.5 * e})`,
+        opacity: e,
+        width: 44,
+        height: 44,
+        borderRadius: '50%',
+        bgcolor: PRESS.red,
+        border: `3px solid ${PRESS.paper}`,
+        color: PRESS.paper,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: FONT_DISPLAY,
+        fontWeight: 700,
+        fontSize: '1.6rem',
+      }}
+    >
+      {n}
+    </Box>
+  )
+}
+
+/** An arrow on the board: the way a ship faces, or the prograde way, dashed. */
+function Arrow({
+  x1,
+  y1,
+  x2,
+  y2,
+  label,
+  dashed,
+  u,
+}: {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  label: 'facing' | 'prograde'
+  dashed: boolean
+  u: number
+}) {
+  const a = Math.atan2(y2 - y1, x2 - x1)
+  const head = (s: number) =>
+    `${x2},${y2} ${x2 - 22 * Math.cos(a - s)},${y2 - 22 * Math.sin(a - s)} ${x2 - 22 * Math.cos(a + s)},${y2 - 22 * Math.sin(a + s)}`
+  const color = dashed ? PRESS.paper : PRESS.red
+  return (
+    <>
+      <svg
+        width={1920}
+        height={1080}
+        style={{ position: 'absolute', left: 0, top: 0, overflow: 'visible', opacity: smooth(u) }}
+      >
+        <line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={PRESS.ink}
+          strokeWidth={13}
+          strokeLinecap="round"
+        />
+        <line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={color}
+          strokeWidth={7}
+          strokeDasharray={dashed ? '12 9' : undefined}
+        />
+        <polygon points={head(0.45)} fill={color} stroke={PRESS.ink} strokeWidth={3} />
+      </svg>
+      <Box
+        sx={{
+          position: 'absolute',
+          left: x2 + 18 * Math.cos(a),
+          top: y2 + 18 * Math.sin(a),
+          transform: `translate(${Math.cos(a) < 0 ? '-100%' : '0'}, -50%)`,
+          opacity: smooth(u),
+          bgcolor: dashed ? PRESS.paper : PRESS.red,
+          color: dashed ? PRESS.ink : PRESS.paper,
+          px: 1.25,
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 700,
+          fontSize: '1.4rem',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {X.tags[label]}
+      </Box>
+    </>
+  )
+}
+
 interface Frame {
-  slide?: { id: string; t: number; out: number }
+  slide?: { id: string; t: number; out: number; vars?: Record<string, number> }
   hero?: { end: boolean; u: number }
   topic?: { id: keyof typeof S; u: number }
   caption?: { text: string; vars?: Vars; u: number }
@@ -1547,6 +1927,12 @@ interface Frame {
   paths?: { points: [number, number][]; u: number }[]
   shots?: { x1: number; y1: number; x2: number; y2: number; u: number }[]
   roll?: { face: number; u: number }
+  rolls?: { faces: number[]; u: number }
+  status?: Parameters<typeof Status>[0]
+  tags?: Parameters<typeof Tag>[0][]
+  marks?: Parameters<typeof Mark>[0][]
+  counts?: Parameters<typeof Count>[0][]
+  arrows?: Parameters<typeof Arrow>[0][]
   ledger?: {
     rows: { value: string; text: string; tone?: 'red' | 'ink'; rule?: boolean }[]
     u: number
@@ -1569,12 +1955,28 @@ function App() {
       {frame.rings?.map((r, i) => (
         <Ring key={`r${i}`} {...r} />
       ))}
+      {frame.marks?.map((m, i) => (
+        <Mark key={`m${i}`} {...m} />
+      ))}
+      {frame.arrows?.map((a, i) => (
+        <Arrow key={`a${i}`} {...a} />
+      ))}
+      {frame.counts?.map((k, i) => (
+        <Count key={`k${i}`} {...k} />
+      ))}
+      {frame.tags?.map((g, i) => (
+        <Tag key={`g${i}`} {...g} />
+      ))}
       {frame.topic && <Topic {...frame.topic} />}
       {frame.caption && <Caption {...frame.caption} />}
       {frame.roll && <Roll {...frame.roll} />}
+      {frame.rolls && <Rolls {...frame.rolls} />}
+      {frame.status && <Status {...frame.status} />}
       {frame.ledger && <HeatCheck {...frame.ledger} />}
       {frame.hero && <Hero {...frame.hero} />}
-      {SlideOf && frame.slide && <SlideOf t={frame.slide.t} out={frame.slide.out} />}
+      {SlideOf && frame.slide && (
+        <SlideOf t={frame.slide.t} out={frame.slide.out} vars={frame.slide.vars} />
+      )}
     </Box>
   )
 }

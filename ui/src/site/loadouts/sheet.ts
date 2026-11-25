@@ -1,16 +1,27 @@
 /**
  * Where the loadout cards sit on printed A4 pages, in millimetres.
  *
- * Nine cards to a page, three columns by three rows, centred, with the player
- * card's gutter between them and its crop marks (`card/sheet.ts`) on every
- * trim line outside the faces. A page is the next nine in order and the last
+ * Nine cards to a page, three columns by three rows, centred, touching, so
+ * one cut separates two cards, with the crop marks (`card/sheet.ts`) on every
+ * trim line outside the grid. The duplex shifts the backs off their fronts,
+ * and the backs' plain frame (`missions/backs.tsx`) is what hides it. A page is the next nine in order and the last
  * page holds what is left; `missions/sheet.ts` puts each page's backs behind it.
  */
 import { gridSlots, type Grid, type Rect } from '../card/sheet'
 
-/** Mission-card stock: poker size. */
+/** Mission-card stock: the standard sleeve's card (Magic's), 63 x 88. */
 export const LOADOUT_WIDTH_MM = 63
 export const LOADOUT_HEIGHT_MM = 88
+
+/**
+ * The plain frame of the card's paper round every front: the art is drawn
+ * this much smaller, so a cut that misses its line lands in the frame.
+ */
+export const FRONT_FRAME_MM = 2.5
+/** How much smaller the art is drawn inside the frame, the same both ways. */
+export const ART_SCALE = (LOADOUT_WIDTH_MM - 2 * FRONT_FRAME_MM) / LOADOUT_WIDTH_MM
+/** Where the art sits inside the frame: the frame at the sides, the rest above and below. */
+export const ART_TOP_MM = (LOADOUT_HEIGHT_MM * (1 - ART_SCALE)) / 2
 
 /** Nine to a page, three by three. */
 export const LOADOUT_GRID: Grid = {
@@ -18,6 +29,7 @@ export const LOADOUT_GRID: Grid = {
   rows: 3,
   width: LOADOUT_WIDTH_MM,
   height: LOADOUT_HEIGHT_MM,
+  gutter: 0,
 }
 
 /** The pages `cards` print on, each card with the rectangle it takes there. */

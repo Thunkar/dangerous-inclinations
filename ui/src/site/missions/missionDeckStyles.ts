@@ -10,13 +10,15 @@
  */
 import { PRESS } from '../../design/press'
 import { MISSION_HEIGHT_MM, MISSION_WIDTH_MM } from './sheet'
+import { ART_SCALE, ART_TOP_MM, FRONT_FRAME_MM } from '../loadouts/sheet'
 
 /** The full cut of `MissionCard`, in CSS pixels. */
 const FRONT_WIDTH_PX = 168
 const FRONT_HEIGHT_PX = 235
 const MM_PER_PX = 25.4 / 96
-const FRONT_SCALE_X = MISSION_WIDTH_MM / (FRONT_WIDTH_PX * MM_PER_PX)
-const FRONT_SCALE_Y = MISSION_HEIGHT_MM / (FRONT_HEIGHT_PX * MM_PER_PX)
+/** The card stretched to the stock, then drawn inside the front's frame. */
+const FRONT_SCALE_X = (MISSION_WIDTH_MM / (FRONT_WIDTH_PX * MM_PER_PX)) * ART_SCALE
+const FRONT_SCALE_Y = (MISSION_HEIGHT_MM / (FRONT_HEIGHT_PX * MM_PER_PX)) * ART_SCALE
 
 export const MISSION_DECK_CSS = `
 /* A pile on screen: every card in deck order, its back first. */
@@ -48,7 +50,8 @@ export const MISSION_DECK_CSS = `
 .di-mc-front {
   width: ${FRONT_WIDTH_PX}px;
   height: ${FRONT_HEIGHT_PX}px;
-  transform: scale(${FRONT_SCALE_X.toFixed(5)}, ${FRONT_SCALE_Y.toFixed(5)});
+  transform: translate(${FRONT_FRAME_MM}mm, ${ART_TOP_MM.toFixed(3)}mm)
+    scale(${FRONT_SCALE_X.toFixed(5)}, ${FRONT_SCALE_Y.toFixed(5)});
   transform-origin: top left;
 }
 

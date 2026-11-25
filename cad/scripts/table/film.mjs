@@ -5,13 +5,20 @@
 // the path that piece takes. Words in ui/src/text/explainer.ts.
 //
 //   timeout 1800 yarn dev &        # the UI on :5173, for the slides, the overlay and the cards
-//   cd cad && timeout 3600 node --import ./scripts/ts-hooks.mjs scripts/table/film.mjs [--steps=story,cards,table,overlay,mux] [--stills=12,40.5]
+//   cd cad && timeout 3600 node --import ./scripts/ts-hooks.mjs scripts/table/film.mjs [--steps=voice,layout,cards,table,overlay,mux] [--stills=12,40.5]
+//
+// The vignettes are the game seed 117 played under the rules of 9 Nov 2026
+// (cached in shots/table/film). A rule change since plays the seed
+// differently, so `story` is not a default step: run it only to choose new
+// vignettes, and then check every turn number below and every number the
+// narration speaks.
 //
 // 1. story: plays the game with the engine (its source, through the hooks) and, for each vignette
 //    (one turn of it), writes the table before and after that turn
-//    (shots/table/film/<name>-before.json, as state.mjs writes state.json)
-//    and lays both out (layout.ts).
-// 2. cards: photographs the mission cards those tables hold (cards.mjs).
+//    (shots/table/film/<name>-before.json, as state.mjs writes state.json).
+//    voice: speaks the narration (voice.py) when its words change.
+// 2. layout: lays out every table (layout.ts), with the pieces as they print now.
+//    cards: photographs the mission cards those tables hold (cards.mjs).
 // 3. table: renders each demonstration with render.js, every piece the turn
 //    moves taken from one layout to the other along the move its events
 //    name: shots/film/table.mp4 (black under the slides).
@@ -39,12 +46,14 @@ import {
   GRAVITY_WELLS,
   INTERCEPT_HEAT,
   INTERCEPT_ROLL,
+  MAX_HEAT,
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
   getMissileStats,
   runGame,
 } from '@dangerous-inclinations/engine'
 import { tableState } from './tableState.mjs'
+import { EXPLAINER } from '../../../ui/src/text/explainer.ts'
 
 const CAD = resolve(import.meta.dirname, '../..')
 const ROOT = resolve(CAD, '..')
@@ -53,7 +62,7 @@ const OUT = join(CAD, 'shots/film')
 const flag = (k, d) => process.argv.find(a => a.startsWith(`--${k}=`))?.split('=')[1] ?? d
 const FPS = Number(flag('fps', '30'))
 const UI = flag('ui', 'http://localhost:5173')
-const STEPS = flag('steps', 'story,cards,table,overlay,mux').split(',')
+const STEPS = flag('steps', 'layout,cards,table,overlay,mux').split(',')
 const STILLS = flag('stills', '').split(',').filter(Boolean).map(Number)
 mkdirSync(STATES, { recursive: true })
 mkdirSync(OUT, { recursive: true })
@@ -78,7 +87,7 @@ const VIGNETTES = [
   { name: 'coast', k: 5, roll: DIE.away },
   { name: 'fire', k: 9, roll: '2@-150,-232', after: DIE.second, poses: DIE.first },
   { name: 'respawn', k: 10, roll: DIE.second },
-  { name: 'jump', k: 33, roll: DIE.away },
+  { name: 'jump', k: 33, roll: DIE.away, peak: true },
   { name: 'dive', k: 37, roll: DIE.away },
   { name: 'scoop', k: 41, roll: DIE.away },
   { name: 'launch', k: 51, roll: DIE.away },
@@ -102,6 +111,18 @@ if (STEPS.includes('story')) {
         file,
         JSON.stringify(tableState(s, { seed: SEED, round: turn.turnNumber, score: null }), null, 2)
       )
+    }
+    writeFileSync(join(STATES, `${v.name}-turn.json`), JSON.stringify(turn, null, 2))
+    console.log(
+      `${v.name}: turn ${turn.turnNumber}, ${turn.playerId}: ${turn.events.map(e => e.type).join(', ')}`
+    )
+  }
+}
+
+if (STEPS.includes('layout')) {
+  for (const v of VIGNETTES) {
+    for (const when of ['before', 'after']) {
+      const file = join(STATES, `${v.name}-${when}.json`)
       const roll = when === 'after' && v.after ? v.after : v.roll
       execFileSync(
         'node',
@@ -120,10 +141,29 @@ if (STEPS.includes('story')) {
         { stdio: 'inherit', cwd: CAD }
       )
     }
-    writeFileSync(join(STATES, `${v.name}-turn.json`), JSON.stringify(turn, null, 2))
-    console.log(
-      `${v.name}: turn ${turn.turnNumber}, ${turn.playerId}: ${turn.events.map(e => e.type).join(', ')}`
-    )
+    // `peak`: the table at its heat check, every cube's heat on the track before any dissipates.
+    if (v.peak) {
+      const turn = JSON.parse(readFileSync(join(STATES, `${v.name}-turn.json`), 'utf8'))
+      const check = turn.events.find(e => e.type === 'heat_check')
+      const s = JSON.parse(readFileSync(join(STATES, `${v.name}-after.json`), 'utf8'))
+      s.players.find(p => p.id === check.playerId).ship.heat = Math.min(check.heat, MAX_HEAT)
+      const file = join(STATES, `${v.name}-peak.json`)
+      writeFileSync(file, JSON.stringify(s, null, 2))
+      execFileSync(
+        'node',
+        [
+          '--experimental-strip-types',
+          '--no-warnings',
+          '--import',
+          './scripts/ts-hooks.mjs',
+          'scripts/table/layout.ts',
+          `--state=${file}`,
+          `--out=${join(STATES, `${v.name}-peak-scene.json`)}`,
+          `--roll=${v.after ?? v.roll}`,
+        ],
+        { stdio: 'inherit', cwd: CAD }
+      )
+    }
   }
 }
 
@@ -154,6 +194,7 @@ const compose = (p, q, s) => new Matrix4().compose(p, q, s)
 const Z = new Vector3(0, 0, 1)
 const STEP = (2 * Math.PI) / 24
 const deg = a => (a * Math.PI) / 180
+const deg2rad = deg
 
 /** A well's centre on the table (layout.ts: WELLS). */
 function centreOf(wellId) {
@@ -254,7 +295,11 @@ function toss(a, b, u) {
 function loadVignette(v) {
   const scene = when =>
     JSON.parse(readFileSync(join(STATES, `${v.name}-${when}-scene.json`), 'utf8'))
-  const sc = { before: scene('before'), after: scene('after') }
+  const sc = {
+    before: scene('before'),
+    after: scene('after'),
+    ...(v.peak && { peak: scene('peak') }),
+  }
   const byKey = {}
   for (const [when, s] of Object.entries(sc))
     byKey[when] = new Map(s.instances.filter(i => i.id).map(i => [keyOf(i), i]))
@@ -264,7 +309,7 @@ function loadVignette(v) {
     ...v,
     sc,
     byKey,
-    keys: [...new Set([...byKey.before.keys(), ...byKey.after.keys()])],
+    keys: [...new Set(Object.values(byKey).flatMap(m => [...m.keys()]))],
     turn,
     state,
     moves: [],
@@ -299,10 +344,43 @@ function piecesAt(vg, t) {
       continue
     }
     const u = m.t1 > m.t0 ? clamp((t - m.t0) / (m.t1 - m.t0)) : t >= m.t0 ? 1 : 0
-    if (m.kind === 'swap') out[key] = (t < m.t0 ? a : b)?.matrix ?? null
+    if (m.kind === 'track') {
+      // A heat cube at its place on the track at the check: dropped on at t0-t1, lifted off at t2-t3.
+      const p = vg.byKey.peak.get(key)
+      out[key] =
+        t < m.t0 || (m.t3 !== undefined && t >= m.t3)
+          ? null
+          : m.t2 !== undefined && t >= m.t2
+            ? rise(p, 320 * ease(clamp((t - m.t2) / (m.t3 - m.t2))) ** 2)
+            : rise(p, 220 * (1 - u) * (1 - u))
+    } else if (m.kind === 'swap') out[key] = (t < m.t0 ? a : b)?.matrix ?? null
     else if (m.kind === 'clear') out[key] = a && t < m.t1 ? rise(a, 320 * ease(u) * ease(u)) : null
-    else if (m.kind === 'place') {
-      if (t >= m.t0) out[key] = b ? rise(b, 120 * (1 - u) * (1 - u)) : null
+    else if (m.kind === 'hinge') {
+      // A bay's door swung about its hinge, from where it was to where it is.
+      const inst = b ?? a
+      const seat = id.split(':')[1]
+      const base = M(vg.sc.after.instances.find(i => i.id === `base:${seat}`).matrix)
+      const shut = deg => {
+        const { door: at, bay } = inst.op
+        const frame = new Matrix4()
+          .makeTranslation(at.x, at.y, 0)
+          .multiply(new Matrix4().makeRotationZ(deg2rad(at.turn)))
+        return frame
+          .clone()
+          .multiply(new Matrix4().makeTranslation(0, bay.axis.y, bay.axis.z))
+          .multiply(new Matrix4().makeRotationX(deg2rad(deg)))
+          .multiply(new Matrix4().makeTranslation(0, -bay.axis.y, -bay.axis.z))
+          .multiply(frame.clone().invert())
+      }
+      const open = x => x && M(x.matrix).equals(base)
+      const from = a && !open(a) ? 90 : 0
+      const to = b && !open(b) ? 90 : 0
+      out[key] = base
+        .clone()
+        .multiply(shut(from + (to - from) * ease(u)))
+        .toArray()
+    } else if (m.kind === 'place') {
+      if (t >= m.t0) out[key] = b ? rise(b, (m.height ?? 120) * (1 - u) * (1 - u)) : null
       else if (m.hidden) out[key] = null
       else if (a && vg.clear && t < vg.clear.t1)
         out[key] = rise(a, 320 * ease(clamp((t - vg.clear.t0) / (vg.clear.t1 - vg.clear.t0))) ** 2)
@@ -388,51 +466,61 @@ const cubes = subsystem => id => id.startsWith(`cube:${HERO}:${subsystem}:`)
 const heroCubes = id => id.startsWith(`cube:${HERO}:`) && !id.includes(':heat:')
 const BH = centreOf('blackhole')
 const GAMMA = centreOf('planet-gamma')
+/** The hero's cubes landing on one subsystem, tagged with what it is and how many. */
+const place = (name, sub, t0) => {
+  const s = JSON.parse(readFileSync(join(STATES, `${name}-after.json`), 'utf8')).players[
+    HERO
+  ].ship.subsystems.find(x => x.id === sub)
+  return {
+    match: cubes(sub),
+    t0,
+    t1: t0 + 0.5,
+    kind: 'place',
+    tag: { text: 'cubes', vars: { type: s.type, n: s.energy } },
+  }
+}
+/** The hero's cubes from last turn going back to the supply. */
+const clearCubes = (name, t0, t1) => {
+  vg[name].clear = { t0, t1 }
+  return {
+    match: heroCubes,
+    t0,
+    t1,
+    kind: 'clear',
+    tag: { text: 'supply', at: `base:${HERO}`, hold: 1.6 },
+  }
+}
+/** A die's new face, tagged with the number it was and the one it shows. */
+const dieTag = (name, seat, what, when = 'before') => {
+  const ship = w =>
+    JSON.parse(readFileSync(join(STATES, `${name}-${w}.json`), 'utf8')).players[seat].ship
+  return { text: what, vars: { from: ship(when)[what], to: ship('after')[what] } }
+}
 
 vg.build.moves = [
   ...['forward-0', 'side-0', 'side-1', 'side-2', 'side-3'].map((s, i) => ({
     match: `module:${HERO}:${s}`,
-    t0: 1.0 + i * 0.7,
-    t1: 1.5 + i * 0.7,
+    t0: 1.0 + i * 0.8,
+    t1: 1.6 + i * 0.8,
     kind: 'place',
     hidden: true,
   })),
-  { match: `base:${HERO}`, t0: 5.2, t1: 5.2, kind: 'swap' },
+  { match: `door:${HERO}:`, t0: 5.6, t1: 7.0, kind: 'hinge' },
 ]
-// Coast vignette: title 0-5, hand 5-10, clear 10-16, coast 16-23, energy 23-33.
-vg.coast.clear = { t0: 11.6, t1: 12.6 }
-vg.coast.moves = [
-  { match: cubes('side-2'), t0: 24.0, t1: 24.4, kind: 'place' },
-  { match: cubes('side-0'), t0: 24.6, t1: 25.0, kind: 'place' },
-  { match: cubes('scoop'), t0: 25.2, t1: 25.6, kind: 'place' },
-  { match: heroCubes, ...vg.coast.clear, kind: 'clear' },
-  { match: `die:${HERO}:fuel:`, t0: 21.0, t1: 21.8, kind: 'lift', height: 30 },
-  { match: `base:${HERO}`, t0: 30.4, t1: 30.4, kind: 'swap' },
-  { match: `module:${HERO}:side-3`, t0: 30.5, t1: 32.0, kind: 'lift', height: 70 },
-]
-// The coast's heat check, as its captions and ledger read it: the hero's
-// cubes by subsystem once its actions are done, and the check's own numbers.
-const coastCheck = ev('coast', 'heat_check')
-const coastAfter = JSON.parse(readFileSync(join(STATES, 'coast-after.json'), 'utf8'))
-const coastLoadout = coastAfter.players[HERO].ship.subsystems
-const coastCubes = type =>
-  coastLoadout.filter(s => s.type === type).reduce((n, s) => n + s.energy, 0)
-const coastRadiators =
-  coastLoadout.filter(s => s.type === 'radiator' && !s.broken).length *
-  (SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0)
+// Coast vignette: title 0-5, hand 5-10, clear 10-16.
+vg.coast.moves = [clearCubes('coast', 11.6, 12.6)]
 // Fire vignette: burn 0-10, fire 10-21, critical 21-28, racks 28-35.
 const fired = vg.fire.turn.events.filter(e => e.type === 'attack_resolved')
 const VICTIM = seatOf('fire', fired[0].targetId)
 const OTHER = seatOf('fire', fired[1].targetId)
 const burned = ev('fire', 'burned')
-vg.fire.clear = { t0: 0.1, t1: 0.4 }
 vg.fire.moves = [
-  { match: cubes('rotation'), t0: 1.2, t1: 1.5, kind: 'place' },
-  { match: cubes('engines'), t0: 4.0, t1: 4.3, kind: 'place' },
-  { match: cubes('side-0'), t0: 11.0, t1: 11.3, kind: 'place' },
-  { match: cubes('side-1'), t0: 21.6, t1: 21.9, kind: 'place' },
-  { match: cubes('side-2'), t0: 0.5, t1: 0.8, kind: 'place' },
-  { match: heroCubes, ...vg.fire.clear, kind: 'clear' },
+  place('fire', 'rotation', 1.2),
+  place('fire', 'engines', 4.0),
+  place('fire', 'side-0', 11.0),
+  place('fire', 'side-1', 21.6),
+  place('fire', 'side-2', 0.5),
+  clearCubes('fire', 0.1, 0.4),
   { match: `cube:${HERO}:heat:`, t0: 33.0, t1: 33.4, kind: 'place' },
   {
     match: `ship:${HERO}`,
@@ -442,30 +530,75 @@ vg.fire.moves = [
     centre: BH,
     drift: speedOf('blackhole', burned.from.ring),
     rotate: true,
+    count: { ring: burned.to.ring },
   },
   { match: 'die:roll:', t0: 12.4, t1: 13.6, t2: 22.4, t3: 23.6, kind: 'toss', via: DIE.first },
-  { match: 'wreck:', t0: 16.4, t1: 17.8, kind: 'lift', height: 140, from: 'pool:wreck:' },
+  {
+    match: 'wreck:',
+    t0: 16.4,
+    t1: 17.8,
+    kind: 'lift',
+    height: 140,
+    from: 'pool:wreck:',
+    tag: { text: 'wreck' },
+  },
   { match: `ship:${VICTIM}`, t0: 17.0, t1: 17.5, kind: 'lift', height: 4 },
-  { match: `die:${VICTIM}:hull:`, t0: 15.0, t1: 15.6, kind: 'lift', height: 30 },
-  { match: `base:${HERO}`, t0: 29.4, t1: 29.4, kind: 'swap' },
-  { match: `module:${HERO}:side-0`, t0: 29.5, t1: 31.0, kind: 'lift', height: 70 },
-  { match: `module:${HERO}:side-1`, t0: 30.3, t1: 31.8, kind: 'lift', height: 70 },
+  {
+    match: `die:${VICTIM}:hull:`,
+    t0: 15.0,
+    t1: 15.6,
+    kind: 'lift',
+    height: 30,
+    tag: dieTag('fire', VICTIM, 'hull'),
+  },
+  { match: `door:${HERO}:`, t0: 28.8, t1: 29.8, kind: 'hinge' },
+  { match: `module:${HERO}:side-0`, t0: 30.0, t1: 31.5, kind: 'lift', height: 70 },
+  { match: `module:${HERO}:side-1`, t0: 30.8, t1: 32.3, kind: 'lift', height: 70 },
 ]
 const RESPAWNER = seatOf('respawn', vg.respawn.turn.playerId)
-vg.respawn.moves = [{ match: `ship:${RESPAWNER}`, t0: 2.0, t1: 4.0, kind: 'lift', height: 40 }]
+vg.respawn.moves = [
+  {
+    match: `ship:${RESPAWNER}`,
+    t0: 2.0,
+    t1: 4.0,
+    kind: 'lift',
+    height: 40,
+    tag: { text: 'home', hold: 3 },
+  },
+]
 // Launch: purple's salvo leaves its ship and flies 3 steps. Intercept: it rides, flies on and reaches orange, whose rack shoots it down.
 const LAUNCHER = seatOf('launch', vg.launch.turn.playerId)
 const LAUNCH_TARGET = seatOf('launch', ev('launch', 'missile_launched').targetId)
 const SALVO = ev('launch', 'weapon_fired')
 vg.launch.moves = [
-  { match: 'salvo:', t0: 2.2, t1: 4.4, kind: 'lift', height: 24, fromId: `ship:${LAUNCHER}` },
-]
-vg.intercept.moves = [
   {
     match: 'salvo:',
-    t0: 1.4,
-    t1: 4.0,
-    t2: 6.6,
+    t0: 2.2,
+    t1: 4.4,
+    kind: 'lift',
+    height: 24,
+    fromId: `ship:${LAUNCHER}`,
+    tag: { text: 'salvo', vars: { count: SALVO.count }, hold: 3 },
+  },
+]
+const lasered = vg.intercept.turn.events.filter(
+  e => e.type === 'attack_resolved' && seatOf('intercept', e.targetId) === LAUNCH_TARGET
+)
+const intercepted = vg.intercept.turn.events.filter(e => e.type === 'missile_intercepted')
+vg.intercept.moves = [
+  {
+    match: `die:${LAUNCH_TARGET}:hull:`,
+    t0: 2.4,
+    t1: 3.0,
+    kind: 'lift',
+    height: 30,
+    tag: dieTag('intercept', LAUNCH_TARGET, 'hull'),
+  },
+  {
+    match: 'salvo:',
+    t0: 4.2,
+    t1: 6.8,
+    t2: 9.4,
     kind: 'lift',
     height: 24,
     toId: `ship:${LAUNCH_TARGET}`,
@@ -474,11 +607,10 @@ vg.intercept.moves = [
 const MISSILE = getMissileStats()
 // Dive: green turns retrograde and burns 3 rings in at Gamma.
 const dived = ev('dive', 'burned')
-vg.dive.clear = { t0: 0.1, t1: 0.4 }
 vg.dive.moves = [
-  { match: cubes('rotation'), t0: 1.0, t1: 1.3, kind: 'place' },
-  { match: cubes('engines'), t0: 3.4, t1: 3.7, kind: 'place' },
-  { match: heroCubes, ...vg.dive.clear, kind: 'clear' },
+  place('dive', 'rotation', 1.0),
+  place('dive', 'engines', 3.4),
+  clearCubes('dive', 0.1, 0.4),
   {
     match: `ship:${HERO}`,
     t0: 1.0,
@@ -487,26 +619,105 @@ vg.dive.moves = [
     centre: GAMMA,
     drift: speedOf(dived.from.wellId, dived.from.ring),
     rotate: true,
+    count: { ring: dived.to.ring },
   },
 ]
-// Scoop vignette: the coast on the board 0-8, the fuel die 8-13.
+// Scoop vignette: the coast on the board.
 const scooped = ev('scoop', 'fuel_scooped')
-vg.scoop.clear = { t0: 0.1, t1: 0.4 }
 vg.scoop.moves = [
-  { match: cubes('scoop'), t0: 0.6, t1: 0.9, kind: 'place' },
-  { match: heroCubes, ...vg.scoop.clear, kind: 'clear' },
-  { match: `ship:${HERO}`, t0: 1.2, t1: 4.4, kind: 'orbit', centre: GAMMA },
-  { match: `die:${HERO}:fuel:`, t0: 9.6, t1: 10.6, kind: 'lift', height: 40 },
+  place('scoop', 'scoop', 0.6),
+  clearCubes('scoop', 0.1, 0.4),
+  { match: `ship:${HERO}`, t0: 1.2, t1: 4.4, kind: 'orbit', centre: GAMMA, count: {} },
 ]
-vg.jump.moves = [{ match: `ship:${HERO}`, t0: 1.6, t1: 4.8, kind: 'lift', height: 110 }]
+// Jump vignette: the jump on the board 0-8, its cubes on the base 10-16, its
+// heat check 16-26 (the one that carries heat into the next turn).
+const jumpCheck = ev('jump', 'heat_check')
+const jumpAfter = JSON.parse(readFileSync(join(STATES, 'jump-after.json'), 'utf8'))
+const jumpLoadout = jumpAfter.players[HERO].ship.subsystems
+const jumpCubes = type => jumpLoadout.filter(s => s.type === type).reduce((n, s) => n + s.energy, 0)
+const jumpRadiators =
+  jumpLoadout.filter(s => s.type === 'radiator' && !s.broken).length *
+  (SUBSYSTEM_CONFIGS.radiator.passiveEffect?.dissipationBonus ?? 0)
+const heatBefore = vg.jump.state.players[HERO].ship.heat
+/**
+ * The check on the table: for each cube on the ship (counted in the order they
+ * landed) a heat cube goes onto the track, then the dissipated ones come off,
+ * the top first: the base's five, then the radiator's.
+ */
+const CHECK_AT = 16
+/** The demonstration's time before the check: the turn's cubes landing. */
+const CUBES_FOR = CHECK_AT - 10
+const counted = ['engines', 'side-0', 'side-1', 'side-2'].flatMap(sub =>
+  Array.from(
+    { length: jumpLoadout.find(x => x.id === sub).energy },
+    (_, k) => `cube:${HERO}:${sub}:${k}`
+  )
+)
+const peakHeat = Math.min(jumpCheck.heat, MAX_HEAT)
+const CHECK = {
+  /** A heat cube goes on as cube i on the ship is counted. */
+  on: i => 1.2 + 0.5 * i,
+  dissipate: 6.4,
+  radiator: 9.4,
+  /** The j-th cube to come off, the top first. */
+  off: j =>
+    j < DEFAULT_DISSIPATION_CAPACITY
+      ? 6.8 + 0.4 * j
+      : 9.8 + 0.4 * (j - DEFAULT_DISSIPATION_CAPACITY),
+  next: 11.4,
+  dur: 13.6,
+}
+const trackCube = k => `cube:${HERO}:heat:${k}`
+const trackMid = placeOf(vg.jump, trackCube(Math.floor(peakHeat / 2)), 'peak').toArray()
+vg.jump.moves = [
+  { match: `ship:${HERO}`, t0: 1.6, t1: 4.8, kind: 'lift', height: 110 },
+  place('jump', 'engines', 12.0),
+  place('jump', 'side-0', 12.9),
+  place('jump', 'side-1', 13.6),
+  place('jump', 'side-2', 14.4),
+  clearCubes('jump', 10.6, 11.4),
+  ...Array.from({ length: peakHeat }, (_, k) => {
+    const on = k < heatBefore ? -1 : CHECK_AT + CHECK.on(k - heatBefore)
+    const j = peakHeat - 1 - k
+    const off = k >= jumpCheck.carried ? CHECK_AT + CHECK.off(j) : undefined
+    return {
+      match: trackCube(k),
+      t0: on,
+      t1: on + 0.5,
+      ...(off !== undefined && { t2: off, t3: off + 0.6 }),
+      kind: 'track',
+    }
+  }),
+  // What went on and what came off, beside the track.
+  {
+    match: trackCube(peakHeat - 1),
+    t0: CHECK_AT + CHECK.on(counted.length - 1) + 0.5,
+    t1: CHECK_AT + CHECK.dissipate - 0.4,
+    tag: { text: 'heat', vars: { n: jumpCheck.cubes }, hold: 0, at: trackMid },
+    kind: 'none',
+  },
+  {
+    match: trackCube(peakHeat - 1),
+    t0: CHECK_AT + CHECK.dissipate + 0.4,
+    t1: CHECK_AT + CHECK.radiator - 0.4,
+    tag: { text: 'dissipate', vars: { n: DEFAULT_DISSIPATION_CAPACITY }, hold: 0, at: trackMid },
+    kind: 'none',
+  },
+  {
+    match: trackCube(peakHeat - 1),
+    t0: CHECK_AT + CHECK.radiator + 0.4,
+    t1: CHECK_AT + CHECK.next - 0.2,
+    tag: { text: 'radiator', vars: { n: jumpRadiators }, hold: 0, at: trackMid },
+    kind: 'none',
+  },
+]
 // Dock vignette: dock 0-10, sell 10-18, missions 18-24.
 const dockBurn = ev('dock', 'burned')
 const sold = ev('dock', 'cargo_delivered')
-vg.dock.clear = { t0: 0.1, t1: 0.4 }
 vg.dock.moves = [
-  { match: cubes('rotation'), t0: 1.0, t1: 1.3, kind: 'place' },
-  { match: cubes('engines'), t0: 3.0, t1: 3.3, kind: 'place' },
-  { match: heroCubes, ...vg.dock.clear, kind: 'clear' },
+  place('dock', 'rotation', 1.0),
+  place('dock', 'engines', 3.0),
+  clearCubes('dock', 0.1, 0.4),
   {
     match: `ship:${HERO}`,
     t0: 1.0,
@@ -515,8 +726,15 @@ vg.dock.moves = [
     centre: GAMMA,
     drift: speedOf(dockBurn.from.wellId, dockBurn.from.ring),
     rotate: true,
+    count: { ring: dockBurn.to.ring },
   },
-  { match: `hold:${HERO}:${sold.cargoId}`, t0: 11.0, t1: 11.8, kind: 'clear' },
+  {
+    match: `hold:${HERO}:${sold.cargoId}`,
+    t0: 11.0,
+    t1: 11.8,
+    kind: 'clear',
+    tag: { text: 'data', hold: 1.4 },
+  },
   {
     match: `chip:${HERO}:`,
     t0: 12.0,
@@ -524,17 +742,123 @@ vg.dock.moves = [
     kind: 'lift',
     height: 120,
     from: 'pool:chip:planet-gamma:',
+    tag: { text: 'chip' },
   },
-  { match: `die:${HERO}:hull:`, t0: 15.4, t1: 16.1, kind: 'lift', height: 30 },
-  { match: `card:${HERO}:1`, t0: 19.6, t1: 20.4, kind: 'lift', height: 40 },
+  {
+    match: `die:${HERO}:hull:`,
+    t0: 15.4,
+    t1: 16.1,
+    kind: 'lift',
+    height: 30,
+    tag: dieTag('dock', HERO, 'hull'),
+  },
+  {
+    match: `card:${HERO}:1`,
+    t0: 19.6,
+    t1: 20.4,
+    kind: 'lift',
+    height: 40,
+    tag: { text: 'point', hold: 3 },
+  },
 ]
 vg.stations.moves = [
-  { match: 'station:planet-gamma', t0: 1.6, t1: 4.4, kind: 'orbit', centre: GAMMA },
+  {
+    match: 'station:planet-gamma',
+    t0: 1.6,
+    t1: 4.4,
+    kind: 'orbit',
+    centre: GAMMA,
+    count: {},
+  },
   { match: `ship:${HERO}`, t0: 1.6, t1: 4.4, kind: 'orbit', centre: GAMMA },
 ]
 
+/** u with ease(u) = y. */
+const unease = y => {
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 30; i++) {
+    const m = (lo + hi) / 2
+    if (ease(m) < y) lo = m
+    else hi = m
+  }
+  return (lo + hi) / 2
+}
+/**
+ * The sectors a move passes, numbered as the piece reaches each (a burn's
+ * drift, a coast, the stations' step), the ring a burn crosses to, and each
+ * sector of a burn's phasing at a fuel apiece: [vignette time, place, tag].
+ */
+function marksOf(v, m) {
+  const key = v.keys.find(k => matches(m.match, idOf(k)))
+  const A = decompose(M(v.byKey.before.get(key).matrix))
+  const B = decompose(M(v.byKey.after.get(key).matrix))
+  const c = m.centre
+  const pa = polar(A.p, c)
+  const pb = polar(B.p, c)
+  const at = (r, a) => new Vector3(c.x + r * Math.cos(a), c.y + r * Math.sin(a), A.p.z + 6)
+  const when = u => m.t0 + (m.t1 - m.t0) * u
+  if (m.kind === 'orbit') {
+    const d = clockwise(pa.a, pb.a)
+    const n = Math.round(-d / STEP)
+    return Array.from({ length: n }, (_, i) => ({
+      t: when(unease((i + 1) / n)),
+      p: at(pa.r, pa.a + (d * (i + 1)) / n),
+      text: 'sector',
+      vars: { n: i + 1 },
+    }))
+  }
+  const turnEnd = m.rotate ? 0.15 : 0
+  const driftEnd = turnEnd + (1 - turnEnd) * 0.5
+  const crossEnd = driftEnd + (1 - driftEnd) * 0.55
+  const aDrift = pa.a - m.drift * STEP
+  let target = pb.a
+  while (target - aDrift > Math.PI) target -= 2 * Math.PI
+  while (aDrift - target > Math.PI) target += 2 * Math.PI
+  const phased = Math.round((target - aDrift) / STEP)
+  return [
+    ...Array.from({ length: m.drift }, (_, i) => ({
+      t: when(turnEnd + (driftEnd - turnEnd) * unease((i + 1) / m.drift)),
+      p: at(pa.r, pa.a - (i + 1) * STEP),
+      text: 'sector',
+      vars: { n: i + 1 },
+    })),
+    { t: when(crossEnd), p: at(pb.r, aDrift), text: 'ring', vars: { ring: m.count.ring } },
+    ...Array.from({ length: Math.abs(phased) }, (_, i) => ({
+      t: when(crossEnd + (1 - crossEnd) * unease((i + 1) / Math.abs(phased))),
+      p: at(pb.r, aDrift + Math.sign(phased) * (i + 1) * STEP),
+      text: 'phase',
+      vars: { fuel: 1 },
+    })),
+  ]
+}
+
 // ---- The film ---------------------------------------------------------------------
 
+/**
+ * A ship's numbers in the corner as a demonstration changes them: per row,
+ * [time, value, change] steps in the demo's own time.
+ */
+const playerOf = (name, seat, when = 'before') =>
+  JSON.parse(readFileSync(join(STATES, `${name}-${when}.json`), 'utf8')).players[seat].ship
+const signed = n => (n > 0 ? `+${n}` : `−${-n}`)
+const status = (seat, rows) => ({ seat, rows })
+/** Energy put on the move and fuel spent or gained, step by step. */
+const moveStatus = (name, energy, fuel) => {
+  const tank = playerOf(name, HERO).fuel
+  let used = 0
+  let left = tank
+  return status(HERO, [
+    {
+      label: 'energy',
+      steps: [[0, '0'], ...energy.map(([t, n]) => [t, String((used += n)), signed(n)])],
+    },
+    {
+      label: 'fuel',
+      steps: [[0, String(tank)], ...fuel.map(([t, n]) => [t, String((left += n)), signed(n)])],
+    },
+  ])
+}
 const P = (name, id, when) => placeOf(vg[name], id, when)
 const xy = (p, z = 0) => [p.x, p.y, p.z + z]
 const mid = (...ps) => [
@@ -576,19 +900,22 @@ const FILM = [
   {
     demo: 'build',
     vt: 0,
-    dur: 7,
+    dur: 8.4,
     topic: 'build',
-    cam: drift([base.x, base.y, 20], -60, -45, 60, 380, 350, 7, { focus: true }),
+    cam: drift([base.x, base.y, 20], -60, -45, 60, 380, 350, 8.4, { focus: true }),
     captions: [{ text: 'bays', t0: 0.4 }],
   },
   { slide: 'turn', dur: 9 },
   {
     demo: 'coast',
     vt: 10,
-    dur: 6,
+    dur: 9,
     topic: 'turn',
-    cam: drift([base.x, base.y, 20], -70, -60, 52, 400, 380, 6, { focus: true }),
-    captions: [{ text: 'clear', t0: 0.6 }],
+    cam: drift([base.x, base.y, 20], -70, -58, 52, 400, 375, 9, { focus: true }),
+    captions: [
+      { text: 'clear', t0: 0.6, t1: 4.8 },
+      { text: 'actions', t0: 4.8 },
+    ],
     rings: [{ at: [base.x, base.y + 20, 30], t0: 1.0, t1: 3.2, r: 70 }],
   },
   { slide: 'orbits', dur: 8 },
@@ -596,6 +923,7 @@ const FILM = [
   {
     demo: 'fire',
     vt: 0,
+    facing: true,
     dur: 10,
     topic: 'moves',
     cam: drift([0, 0, 0], -88, -96, 72, 420, 400, 10),
@@ -609,7 +937,11 @@ const FILM = [
       },
       {
         text: 'burnOut',
-        vars: { ring: burned.to.ring, fuel: BURN_COSTS[burned.intensity].mass },
+        vars: {
+          ring: burned.to.ring,
+          energy: BURN_COSTS[burned.intensity].energy,
+          fuel: BURN_COSTS[burned.intensity].mass,
+        },
         t0: 5.3,
         t1: 7.0,
       },
@@ -627,6 +959,17 @@ const FILM = [
     ],
     rings: [{ at: `ship:${HERO}`, t0: 0.4, r: 26 }],
     paths: [{ id: `ship:${HERO}`, t0: 1.2, t1: 8.4 }],
+    status: moveStatus(
+      'fire',
+      [
+        [1.2, SUBSYSTEM_CONFIGS.rotation.minEnergy],
+        [4.0, BURN_COSTS[burned.intensity].energy],
+      ],
+      [
+        [5.3, -BURN_COSTS[burned.intensity].mass],
+        [7.0, -(burned.massSpent - BURN_COSTS[burned.intensity].mass)],
+      ]
+    ),
   },
   {
     demo: 'jump',
@@ -656,19 +999,30 @@ const FILM = [
       ],
     ],
     captions: [
-      { text: 'jump', t0: 0.4, t1: 5.2 },
+      {
+        text: 'jump',
+        vars: { energy: WELL_TRANSFER_COSTS.energy, fuel: WELL_TRANSFER_COSTS.mass },
+        t0: 0.4,
+        t1: 5.2,
+      },
       {
         text: 'compressor',
-        vars: { fuel: WELL_TRANSFER_COSTS.mass, compressed: COMPRESSED_JUMP_MASS },
+        vars: { compressed: COMPRESSED_JUMP_MASS },
         t0: 5.2,
       },
     ],
     rings: [{ at: `ship:${HERO}`, t0: 0.4, r: 22 }],
     paths: [{ id: `ship:${HERO}`, t0: 1.6, t1: 4.8 }],
+    status: moveStatus(
+      'jump',
+      [[1.6, WELL_TRANSFER_COSTS.energy]],
+      [[4.8, -ev('jump', 'jumped').massSpent]]
+    ),
   },
   {
     demo: 'dive',
     vt: 0,
+    facing: true,
     dur: 10,
     topic: 'moves',
     cam: drift([GAMMA.x, GAMMA.y, 0], -112, -120, 70, 430, 410, 10),
@@ -682,12 +1036,24 @@ const FILM = [
       },
       {
         text: 'burnIn',
-        vars: { rings: dived.from.ring - dived.to.ring, fuel: dived.massSpent },
+        vars: {
+          rings: dived.from.ring - dived.to.ring,
+          energy: BURN_COSTS[dived.intensity].energy,
+          fuel: dived.massSpent,
+        },
         t0: 5.2,
       },
     ],
     rings: [{ at: `ship:${HERO}`, t0: 0.4, r: 26 }],
     paths: [{ id: `ship:${HERO}`, t0: 1.0, t1: 7.4 }],
+    status: moveStatus(
+      'dive',
+      [
+        [1.0, SUBSYSTEM_CONFIGS.rotation.minEnergy],
+        [3.4, BURN_COSTS[dived.intensity].energy],
+      ],
+      [[5.2, -dived.massSpent]]
+    ),
   },
   {
     demo: 'scoop',
@@ -697,66 +1063,104 @@ const FILM = [
     cam: drift([GAMMA.x, GAMMA.y, 0], -112, -120, 70, 430, 410, 8),
     captions: [
       { text: 'coast', vars: { sectors: speedOf('planet-gamma', 1) }, t0: 0.4, t1: 4.8 },
-      { text: 'scoop', vars: { fuel: scooped.amount }, t0: 4.8 },
+      {
+        text: 'scoop',
+        vars: { energy: SUBSYSTEM_CONFIGS.scoop.minEnergy, fuel: scooped.amount },
+        t0: 4.8,
+      },
     ],
     rings: [{ at: `ship:${HERO}`, t0: 0.4, r: 26 }],
     paths: [{ id: `ship:${HERO}`, t0: 1.2, t1: 4.4 }],
-  },
-  {
-    demo: 'scoop',
-    vt: 8,
-    dur: 5,
-    topic: 'moves',
-    cam: drift(xy(P('scoop', `die:${HERO}:fuel:`, 'after'), 10), -60, -48, 40, 300, 280, 5, {
-      focus: true,
-    }),
-    captions: [{ text: 'fuelDie', vars: { fuel: scooped.amount }, t0: 0.4 }],
-    rings: [{ at: `die:${HERO}:fuel:`, t0: 2.8, r: 50 }],
+    status: moveStatus('scoop', [[0.6, ev('scoop', 'coasted').heat]], [[4.8, scooped.amount]]),
   },
   { slide: 'heat', dur: 9 },
   {
-    demo: 'coast',
-    vt: 23,
-    dur: 4.5,
-    topic: 'heat',
-    cam: drift([base.x + 10, base.y, 25], -20, -14, 46, 380, 365, 4.5, { focus: true }),
+    slide: 'heatCheck',
+    dur: 13,
+    // The slide works the same check the table shows next.
+    vars: {
+      carried: heatBefore,
+      engines: jumpCubes('engines'),
+      racks: jumpCubes('ballistic_rack'),
+      shields: jumpCubes('shields'),
+      cubes: jumpCheck.cubes,
+      heat: jumpCheck.heat,
+      radiator: jumpRadiators,
+      next: jumpCheck.carried,
+    },
+  },
+  {
+    // The jump's cubes land on the base, then its heat check: the same turn as the slide.
+    demo: 'jump',
+    vt: 10,
+    dur: CUBES_FOR + CHECK.dur,
+    topic: 'heatCheck',
+    cam: drift([base.x + 10, base.y, 25], -20, -8, 46, 380, 350, CUBES_FOR + CHECK.dur, {
+      focus: true,
+    }),
     captions: [
       {
         text: 'cubes',
         vars: {
-          shields: coastCubes('shields'),
-          rack: coastCubes('ballistic_rack'),
-          scoop: coastCubes('scoop'),
-          cubes: coastCheck.cubes,
+          jump: jumpCubes('engines'),
+          rack: jumpCubes('ballistic_rack'),
+          shields: jumpCubes('shields'),
+          cubes: jumpCheck.cubes,
         },
-        t0: 0.4,
+        t0: 1.6,
+        t1: CUBES_FOR + 0.4,
+      },
+      {
+        text: 'check',
+        vars: { cubes: jumpCheck.cubes, carried: heatBefore, heat: jumpCheck.heat },
+        t0: CUBES_FOR + 0.4,
+        t1: CUBES_FOR + CHECK.dissipate,
+      },
+      {
+        text: 'carry',
+        vars: { dissipation: DEFAULT_DISSIPATION_CAPACITY },
+        t0: CUBES_FOR + CHECK.dissipate,
+        t1: CUBES_FOR + CHECK.radiator,
+      },
+      {
+        text: 'radiator',
+        vars: { radiator: jumpRadiators },
+        t0: CUBES_FOR + CHECK.radiator,
+        t1: CUBES_FOR + CHECK.next,
+      },
+      { text: 'track', vars: { next: jumpCheck.carried }, t0: CUBES_FOR + CHECK.next },
+    ],
+    // Each cube on the ship counted as its heat cube goes onto the track.
+    counts: counted.map((at, i) => ({
+      at,
+      n: i + 1,
+      t0: CUBES_FOR + CHECK.on(i),
+      t1: CUBES_FOR + CHECK.dissipate,
+    })),
+    ledger: {
+      rows: [
+        { value: String(heatBefore), text: 'carried', at: 0.6 },
+        { value: `+${jumpCheck.cubes}`, text: 'cubes', at: CHECK.on(counted.length - 1) + 0.5 },
+        {
+          value: String(jumpCheck.heat),
+          text: 'atCheck',
+          rule: true,
+          at: CHECK.on(counted.length - 1) + 0.9,
+        },
+        { value: `−${DEFAULT_DISSIPATION_CAPACITY}`, text: 'dissipate', at: CHECK.dissipate + 0.4 },
+        { value: `−${jumpRadiators}`, text: 'radiator', at: CHECK.radiator + 0.4 },
+        { value: String(jumpCheck.carried), text: 'next', tone: 'ink', at: CHECK.next },
+      ].map(r => ({ ...r, at: CUBES_FOR + r.at })),
+    },
+    rings: [
+      { at: trackMid, t0: CUBES_FOR + 0.4, t1: CUBES_FOR + 1.2, r: 60 },
+      {
+        at: `module:${HERO}:side-3`,
+        t0: CUBES_FOR + CHECK.radiator,
+        t1: CUBES_FOR + CHECK.next,
+        r: 36,
       },
     ],
-  },
-  { slide: 'heatCheck', dur: 11 },
-  {
-    demo: 'coast',
-    vt: 27.5,
-    dur: 5.5,
-    topic: 'heatCheck',
-    cam: drift([base.x + 10, base.y, 25], -14, -8, 46, 365, 350, 5.5, { focus: true }),
-    captions: [
-      { text: 'check', vars: { heat: coastCheck.heat }, t0: 0.3, t1: 2.9 },
-      { text: 'radiator', t0: 2.9 },
-    ],
-    ledger: {
-      t0: 0.3,
-      t1: 2.4,
-      rows: [
-        { value: String(coastCheck.cubes), text: 'cubes' },
-        { value: String(coastCheck.heat - coastCheck.cubes), text: 'carried' },
-        { value: String(coastCheck.heat), text: 'atCheck', rule: true },
-        { value: `−${DEFAULT_DISSIPATION_CAPACITY}`, text: 'dissipate' },
-        { value: `−${coastRadiators}`, text: 'radiator' },
-        { value: String(coastCheck.carried), text: 'next', tone: 'ink' },
-      ],
-    },
-    rings: [{ at: `module:${HERO}:side-3`, t0: 3.1, r: 40 }],
   },
   { slide: 'fight', dur: 9 },
   {
@@ -784,6 +1188,15 @@ const FILM = [
     ],
     shots: [{ from: `ship:${HERO}`, to: `ship:${VICTIM}`, t0: 0.8, t1: 4.2 }],
     roll: { face: fired[0].roll, t0: 3.8, t1: 8.0 },
+    status: status(VICTIM, [
+      {
+        label: 'hull',
+        steps: [
+          [0, String(playerOf('fire', VICTIM).hull)],
+          [4.0, String(fired[0].targetHullAfter), signed(-fired[0].toHull)],
+        ],
+      },
+    ]),
   },
   {
     demo: 'fire',
@@ -806,6 +1219,15 @@ const FILM = [
     rings: [{ at: `ship:${OTHER}`, t0: 0.6, r: 24 }],
     shots: [{ from: `ship:${HERO}`, to: `ship:${OTHER}`, t0: 0.6, t1: 3.6 }],
     roll: { face: fired[1].roll, t0: 3.0, t1: 7 },
+    status: status(OTHER, [
+      {
+        label: 'hull',
+        steps: [
+          [0, String(playerOf('fire', OTHER).hull)],
+          [3.4, String(fired[1].targetHullAfter), signed(-fired[1].toHull)],
+        ],
+      },
+    ]),
   },
   { slide: 'missiles', dur: 11 },
   {
@@ -832,11 +1254,14 @@ const FILM = [
       { at: `ship:${LAUNCH_TARGET}`, t0: 4.6, r: 24 },
     ],
     paths: [{ id: 'salvo:', t0: 2.2, t1: 4.4 }],
+    status: status(LAUNCH_TARGET, [
+      { label: 'hull', steps: [[0, String(playerOf('launch', LAUNCH_TARGET).hull)]] },
+    ]),
   },
   {
     demo: 'intercept',
     vt: 0,
-    dur: 9,
+    dur: 12,
     topic: 'missiles',
     cam: drift(
       mid(P('intercept', 'salvo:'), P('intercept', `ship:${LAUNCH_TARGET}`, 'after')),
@@ -848,15 +1273,47 @@ const FILM = [
       9
     ),
     captions: [
-      { text: 'rides', vars: { steps: MISSILE.stepsPerMove }, t0: 0.4, t1: 4.0 },
-      { text: 'reaches', t0: 4.0, t1: 6.6 },
-      { text: 'shotDown', vars: { count: 4, on: INTERCEPT_ROLL, heat: INTERCEPT_HEAT }, t0: 6.6 },
+      {
+        text: 'lasers',
+        vars: { damage: lasered.reduce((n, e) => n + e.toHull, 0) },
+        t0: 0.4,
+        t1: 3.8,
+      },
+      { text: 'rides', vars: { steps: MISSILE.stepsPerMove }, t0: 3.8, t1: 6.8 },
+      { text: 'reaches', t0: 6.8, t1: 9.4 },
+      {
+        text: 'shotDown',
+        vars: { count: intercepted.length, on: INTERCEPT_ROLL, heat: INTERCEPT_HEAT },
+        t0: 9.4,
+      },
     ],
     rings: [
-      { at: 'salvo:', t0: 0.6, t1: 6.6, r: 22 },
-      { at: `ship:${LAUNCH_TARGET}`, t0: 4.0, r: 26 },
+      { at: 'salvo:', t0: 4.0, t1: 9.4, r: 22 },
+      { at: `ship:${LAUNCH_TARGET}`, t0: 6.8, r: 26 },
     ],
-    paths: [{ id: 'salvo:', t0: 1.4, t1: 4.0 }],
+    shots: [{ from: `ship:${LAUNCHER}`, to: `ship:${LAUNCH_TARGET}`, t0: 0.6, t1: 3.4 }],
+    paths: [{ id: 'salvo:', t0: 4.2, t1: 6.8 }],
+    rolls: { faces: intercepted.map(e => e.roll), t0: 7.4 },
+    status: status(LAUNCH_TARGET, [
+      {
+        label: 'hull',
+        steps: [
+          [0, String(playerOf('intercept', LAUNCH_TARGET).hull)],
+          [
+            2.6,
+            String(lasered[lasered.length - 1].targetHullAfter),
+            signed(-lasered.reduce((n, e) => n + e.toHull, 0)),
+          ],
+        ],
+      },
+      {
+        label: 'heat',
+        steps: [
+          [0, String(playerOf('intercept', LAUNCH_TARGET).heat)],
+          [9.4, String(playerOf('intercept', LAUNCH_TARGET, 'after').heat), signed(INTERCEPT_HEAT)],
+        ],
+      },
+    ]),
   },
   { slide: 'secrets', dur: 7 },
   {
@@ -868,8 +1325,8 @@ const FILM = [
     cam: drift([base.x - 10, base.y, 45], 165, 178, 26, 400, 370, 7, { focus: true }),
     captions: [{ text: 'racks', t0: 0.6 }],
     rings: [
-      { at: `module:${HERO}:side-0`, t0: 3.4, r: 34 },
-      { at: `module:${HERO}:side-1`, t0: 4.0, r: 34 },
+      { at: `module:${HERO}:side-0`, t0: 3.8, r: 34 },
+      { at: `module:${HERO}:side-1`, t0: 4.6, r: 34 },
     ],
   },
   { slide: 'death', dur: 8 },
@@ -890,17 +1347,39 @@ const FILM = [
     captions: [{ text: 'home', t0: 0.4 }],
     rings: [{ at: `ship:${RESPAWNER}`, t0: 0.6, r: 24 }],
     paths: [{ id: `ship:${RESPAWNER}`, t0: 2.0, t1: 4.0 }],
+    status: status(
+      RESPAWNER,
+      ['hull', 'fuel'].map(label => {
+        const [a, b] = ['before', 'after'].map(w => playerOf('respawn', RESPAWNER, w)[label])
+        return {
+          label,
+          steps: [
+            [0, String(a)],
+            [4.0, String(b), signed(b - a)],
+          ],
+        }
+      })
+    ),
   },
   { slide: 'stations', dur: 10 },
   {
     demo: 'dock',
     vt: 0,
+    facing: true,
     dur: 10,
     topic: 'stations',
     cam: drift([GAMMA.x, GAMMA.y, 0], -112, -118, 70, 460, 440, 10),
     captions: [{ text: 'dock', t0: 0.4 }],
     rings: [{ at: `ship:${HERO}`, t0: 0.4, r: 24 }],
     paths: [{ id: `ship:${HERO}`, t0: 1.0, t1: 7.0 }],
+    status: moveStatus(
+      'dock',
+      [
+        [1.0, SUBSYSTEM_CONFIGS.rotation.minEnergy],
+        [3.0, BURN_COSTS[dockBurn.intensity].energy],
+      ],
+      [[4.6, -dockBurn.massSpent]]
+    ),
   },
   {
     demo: 'dock',
@@ -916,6 +1395,19 @@ const FILM = [
       { at: `chip:${HERO}:`, t0: 3.4, t1: 5.0, r: 26 },
       { at: `die:${HERO}:hull:`, t0: 5.4, r: 34 },
     ],
+    status: status(HERO, [
+      {
+        label: 'hull',
+        steps: [
+          [0, String(playerOf('dock', HERO).hull)],
+          [
+            5.4,
+            String(playerOf('dock', HERO, 'after').hull),
+            signed(ev('dock', 'docked').hullRestored),
+          ],
+        ],
+      },
+    ]),
   },
   {
     demo: 'dock',
@@ -961,9 +1453,7 @@ const SAY = [
   'jump',
   'burnIn',
   'scoop',
-  'fuelDie',
   'heat',
-  'cubes',
   'heatCheck',
   'check',
   'fight',
@@ -990,7 +1480,6 @@ const VOICE = join(OUT, 'voice')
 const LEAD = 0.5
 const TAIL = 0.7
 if (STEPS.includes('voice')) {
-  const { EXPLAINER } = await import('../../../ui/src/text/explainer.ts')
   const lines = SAY.map(key => ({ key, text: EXPLAINER.narration[key] }))
   mkdirSync(VOICE, { recursive: true })
   writeFileSync(join(VOICE, 'lines.json'), JSON.stringify(lines, null, 2))
@@ -1012,12 +1501,19 @@ const spoken = existsSync(join(VOICE, 'durations.json'))
   : {}
 // A moment lasts as long as its picture needs or its line takes, whichever is longer;
 // a demonstration that outlasts its picture holds its last frame (vdur).
+// A demonstration plays its vignette at PACE times its authored length, so
+// each step has time to be taken in; its times stay authored (vdur, local).
+const PACE = 1.3
 FILM.forEach((item, i) => {
   item.say = SAY[i]
   item.vdur = item.dur
-  if (spoken[item.say])
-    item.dur = Math.max(item.dur, Math.ceil((LEAD + spoken[item.say] + TAIL) * 10) / 10)
+  const picture = item.demo ? item.dur * PACE : item.dur
+  item.dur = spoken[item.say]
+    ? Math.max(picture, Math.ceil((LEAD + spoken[item.say] + TAIL) * 10) / 10)
+    : picture
 })
+/** A moment's own time at film time t: a demonstration's in its authored seconds. */
+const localOf = (item, t) => (item.demo ? (t - item.start) / PACE : t - item.start)
 
 let clock = 0
 for (const item of FILM) {
@@ -1037,7 +1533,7 @@ const orbitCam = (target, az, el, dist) => [
   target[2] + dist * Math.sin(deg(el)),
 ]
 function cameraOf(item, t) {
-  const local = t - item.start
+  const local = localOf(item, t)
   const keys = item.cam
   let i = 0
   while (i < keys.length - 2 && local >= keys[i + 1][0]) i++
@@ -1063,19 +1559,20 @@ function project(c, p) {
   cam.updateMatrixWorld()
   cam.updateProjectionMatrix()
   const v = p.clone().project(cam)
-  return [((v.x + 1) / 2) * 1920, ((1 - v.y) / 2) * 1080]
+  return [((v.x + 1) / 2) * 1920, ((1 - v.y) / 2) * 1080, v.z]
 }
+const onScreen = ([x, y, z]) => z < 1 && x > 40 && x < 1880 && y > 40 && y < 1040
 const piecesOf = t => {
   const item = itemAt(t)
-  return item.demo ? piecesAt(vg[item.demo], item.vt + Math.min(t - item.start, item.vdur)) : null
+  return item.demo ? piecesAt(vg[item.demo], item.vt + Math.min(localOf(item, t), item.vdur)) : null
 }
 
 /** What the overlay draws at t. */
 function overlayAt(t, pieces) {
   const item = itemAt(t)
-  const local = t - item.start
-  const out = clamp((item.dur - local) / 0.35)
-  if (item.slide) return { slide: { id: item.slide, t: local, out } }
+  const local = localOf(item, t)
+  const out = clamp((item.dur - (t - item.start)) / 0.35)
+  if (item.slide) return { slide: { id: item.slide, t: local, out, vars: item.vars } }
   const v = vg[item.demo]
   const c = cameraOf(item, t)
   const at = (target, z = 6) => {
@@ -1124,11 +1621,112 @@ function overlayAt(t, pieces) {
     })
     .filter(Boolean)
   if (item.roll) frame.roll = { face: item.roll.face, u: appear(item.roll.t0, item.roll.t1, 0.8) }
-  if (item.ledger)
-    frame.ledger = {
-      rows: item.ledger.rows,
-      u: Math.min(clamp((local - item.ledger.t0) / (item.ledger.t1 - item.ledger.t0)), out),
+  if (item.rolls)
+    frame.rolls = { faces: item.rolls.faces, u: appear(item.rolls.t0, undefined, 1.6) }
+  if (item.status)
+    frame.status = {
+      seat: item.status.seat,
+      u: Math.min(clamp(local / 0.4), out),
+      rows: item.status.rows.map(row => {
+        const [at, value, delta] = row.steps.filter(s => local >= s[0]).pop() ?? row.steps[0]
+        return { label: row.label, value, delta, flash: at > 0 ? clamp(1 - (local - at) / 0.9) : 0 }
+      }),
     }
+  if (item.ledger) {
+    const rows = item.ledger.rows.filter(r => local >= r.at)
+    if (rows.length) frame.ledger = { rows, u: out }
+  }
+  // The vignette's time now, and whether a vignette time falls in this moment.
+  const now = item.vt + Math.min(local, item.vdur)
+  const within = vt => vt >= item.vt - 0.05 && vt <= item.vt + item.vdur
+  // Tags: what lands, leaves or changes, beside the piece, for a while after.
+  frame.tags = v.moves
+    .filter(m => m.tag && within(m.t0))
+    .map(m => {
+      const u = appear(m.t0 - item.vt, m.t1 - item.vt + (m.tag.hold ?? 2.2))
+      if (u <= 0) return null
+      const p = at(m.tag.at ?? m.match, 14)
+      return onScreen(p) ? { x: p[0], y: p[1], text: m.tag.text, vars: m.tag.vars, u } : null
+    })
+    .filter(Boolean)
+  // Tags side by side are stacked, the later one lifted above the earlier.
+  const placed = []
+  for (const g of frame.tags) {
+    const words = String(EXPLAINER.tags[g.text] ?? g.text).replace(/\{(\w+)\}/g, (_, k) =>
+      k === 'name' ? String(g.vars?.type ?? '').replace(/_/g, ' ') : String(g.vars?.[k] ?? '')
+    )
+    const w = 17 * words.length + 50
+    g.lift = 0
+    while (
+      placed.some(
+        o => Math.abs(o.x - g.x) < (o.w + w) / 2 && Math.abs(o.y - o.lift - (g.y - g.lift)) < 52
+      )
+    )
+      g.lift += 52
+    placed.push({ ...g, w })
+  }
+  // Counted moves: each sector numbered as the piece reaches it.
+  frame.marks = v.moves
+    .filter(m => m.count && within(m.t0))
+    .flatMap(m => (m.marks ??= marksOf(v, m)))
+    .filter(k => now >= k.t)
+    .map(k => {
+      const p = project(c, k.p)
+      return onScreen(p)
+        ? { x: p[0], y: p[1], text: k.text, vars: k.vars, u: appear(k.t - item.vt, undefined, 0.3) }
+        : null
+    })
+    .filter(Boolean)
+  // Counted cubes: a badge on each, numbered.
+  frame.counts = (item.counts ?? [])
+    .map(k => {
+      const u = appear(k.t0, k.t1, 0.25)
+      if (u <= 0) return null
+      const p = at(k.at, 12)
+      return { x: p[0], y: p[1], n: k.n, u }
+    })
+    .filter(Boolean)
+  // Facing: an arrow the way the ship faces, turning as it rotates, beside the prograde way.
+  if (item.facing) {
+    const m = v.moves.find(x => x.kind === 'burn' && x.rotate)
+    const turnEnd = m.t0 + 0.15 * (m.t1 - m.t0)
+    const u = appear(0.4, turnEnd - item.vt + 1.8)
+    if (u > 0) {
+      const ship = liveAt(v, pieces, m.match)
+      const a = Math.atan2(ship.y - m.centre.y, ship.x - m.centre.x)
+      const pro = new Vector3(Math.sin(a), -Math.cos(a), 0)
+      const out_ = new Vector3(Math.cos(a), Math.sin(a), 0)
+      const was = v.state.players[HERO].ship.facing
+      const is = v.turn.events.find(e => e.type === 'rotated')?.facing ?? was
+      const f0 = pro.clone().multiplyScalar(was === 'prograde' ? 1 : -1)
+      const phi = was === is ? 0 : Math.PI * ease(clamp((now - m.t0) / (turnEnd - m.t0)))
+      const f = f0
+        .clone()
+        .multiplyScalar(Math.cos(phi))
+        .add(out_.clone().multiplyScalar(Math.sin(phi)))
+      const arrow = (from, dir, l0, l1, label, dashed) => {
+        const p1 = project(
+          c,
+          from
+            .clone()
+            .addScaledVector(dir, l0)
+            .setZ(ship.z + 10)
+        )
+        const p2 = project(
+          c,
+          from
+            .clone()
+            .addScaledVector(dir, l1)
+            .setZ(ship.z + 10)
+        )
+        return { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], label, dashed, u }
+      }
+      frame.arrows = [
+        arrow(ship.clone().addScaledVector(out_, 30), pro, -8, 40, 'prograde', true),
+        arrow(ship, f, 12, 50, 'facing', false),
+      ]
+    }
+  }
   return frame
 }
 
@@ -1223,7 +1821,12 @@ if (STEPS.includes('table')) {
         page.on('pageerror', e => console.error('page:', e.message))
         const scene = when => `/cad/shots/table/film/${name}-${when}-scene.json`
         await page.goto(
-          `${host}/cad/scripts/table/render.html?scene=${scene('before')}&film=${scene('after')}`
+          `${host}/cad/scripts/table/render.html?scene=${scene('before')}&film=${[
+            'after',
+            ...(vg[name].sc.peak ? ['peak'] : []),
+          ]
+            .map(scene)
+            .join(',')}`
         )
         await page.waitForFunction(() => document.title === 'ready', null, { timeout: 900_000 })
         pages.set(name, page)
@@ -1355,6 +1958,10 @@ export const TIMELINE = FILM.map(f => ({
   say: f.say,
   voice: spoken[f.say] ?? null,
   captions: f.captions?.map(c => ({ text: c.text, vars: c.vars, at: c.t0 })),
+  status: f.status,
+  roll: f.roll?.face,
+  rolls: f.rolls?.faces,
+  ledger: f.ledger?.rows,
 }))
 if (process.argv.includes('--timeline'))
   writeFileSync(join(OUT, 'timeline.json'), JSON.stringify(TIMELINE, null, 2))

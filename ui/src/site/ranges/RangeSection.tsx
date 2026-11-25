@@ -55,7 +55,7 @@ export function RangeSection() {
         </Box>
       </div>
       <PrintPages pages={pages}>
-        {slot => (slot.face === 'front' ? <RangeCard type={slot.card} /> : <LoadoutBack />)}
+        {slot => (slot.face === 'front' ? <RangeCard type={slot.card} /> : <LoadoutBack bleed />)}
       </PrintPages>
     </PrintSection>
   )

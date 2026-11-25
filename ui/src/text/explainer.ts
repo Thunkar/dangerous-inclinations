@@ -29,6 +29,7 @@ export const EXPLAINER = {
       secondariesDeal: 'Dealt {dealt}, keep {kept}',
       sum: 'Your hand is worth {held}. {points} wins.',
       end: 'When anyone reaches {points}, finish the round. Highest score wins.',
+      ties: 'A tie goes to more hull, then more fuel.',
     },
     build: {
       n: '02',
@@ -39,7 +40,7 @@ export const EXPLAINER = {
       fixed: 'Every ship has',
       missions: 'Build for your missions',
       needs: ['Destroy needs a weapon that deals damage', 'Intercept needs a sensor array'],
-      hidden: 'Your subsystems start face-down. Nobody knows your build.',
+      hidden: 'Your subsystems start hidden.',
     },
     turn: {
       n: '03',
@@ -47,14 +48,14 @@ export const EXPLAINER = {
       title: 'Your turn',
       lede: 'Your actions in any order. The rest is fixed.',
       steps: [
-        { title: 'Clear', text: 'Last turn’s energy goes back' },
+        { title: 'Clear', text: 'Last turn’s energy goes back to the pool' },
         { title: 'Actions', text: 'Power, rotate, move, fire, scan…' },
-        { title: 'Missiles', text: 'Yours in flight move and strike' },
-        { title: 'Heat check', text: 'Every cube on your ship is heat' },
+        { title: 'Missiles', text: 'The ones you fired in previous turns move and strike' },
+        { title: 'Heat check', text: 'Compute your current heat level' },
         { title: 'Dock', text: 'If you arrived at a station' },
-        { title: 'Missions', text: 'Flip what you completed' },
+        { title: 'Missions', text: 'Reveal what you completed' },
       ],
-      round: 'Once a round, after the last player: the stations move.',
+      round: 'Once a round, after the last player: the stations and wrecks move.',
     },
     orbits: {
       n: '04',
@@ -63,6 +64,14 @@ export const EXPLAINER = {
       lede: 'Every ring turns. Inner rings are faster.',
       speed: '{speed} a turn',
       ring: 'Ring {ring}',
+      primer: {
+        title: 'As in a real orbit',
+        rows: [
+          'The lower you orbit, the faster you go.',
+          'Speed up along your orbit and you climb.',
+          'Slow down and you fall inward.',
+        ],
+      },
     },
     moves: {
       n: '04',
@@ -71,24 +80,24 @@ export const EXPLAINER = {
       coast: {
         title: 'Coast',
         cost: 'Free',
-        text: 'Drift your ring’s speed. Run the scoop for fuel.',
+        text: 'Ride the orbit at your ring’s speed. Run the scoop for fuel: {energy} energy.',
       },
       burn: {
         title: 'Burn',
-        cost: '{fuel} fuel, {energy} energy a ring',
+        cost: '{energy} energy, {fuel} fuel a ring',
         text: 'Drift, then cross {fewest}–{most} rings. Facing prograde out, retrograde in.',
       },
       phasing: {
         title: 'Phasing',
-        text: 'A burn lands where the drift takes you, or short or long of it for {fuel} fuel a sector.',
+        text: 'A burn lands at the same sector number your current ring’s speed would take you, or short or long of it for {fuel} fuel a sector.',
         free: 'Free',
         fuel: 'fuel',
         drift: 'drift {speed}',
       },
       jump: {
         title: 'Jump',
-        cost: '{fuel} fuel ({compressed} with a compressor)',
-        text: 'From the black hole’s outer ring to a planet. Lanes run one way.',
+        cost: '{energy} energy, {fuel} fuel ({compressed} with a compressor)',
+        text: 'From one gravity well to another. Lanes run one way.',
       },
     },
     heat: {
@@ -108,18 +117,17 @@ export const EXPLAINER = {
       dissipate:
         'Dissipate {dissipation} (+{radiator} for each radiator). Carry the rest into your next turn.',
       over: 'Over {maxHeat}: each point over is 1 hull damage, and your heat stops at {maxHeat}.',
-      absorbed:
-        'Shields absorb a point a cube: the cube is spent for that turn and the point goes on your heat track.',
-      rack: 'A rack that rolls at missiles puts {heat} on your heat track, however many it rolls at.',
     },
     fight: {
       n: '06',
       kicker: 'Combat',
       title: 'Roll one d10',
-      lede: 'Each weapon fires once a turn. Name a slot on the target, then roll.',
+      lede: 'Each weapon fires once a turn.',
       faces: ['{top} misses', '{from}–{to} hit', '{face} critical'],
-      critical: 'A critical also breaks the slot you named, shields or not.',
-      shields: 'Shields absorb damage, a point a cube. Not lasers.',
+      critical: 'A critical also breaks a slot of your choice, shields or not.',
+      broken: 'A broken subsystem drops its energy onto its owner’s heat track.',
+      shields:
+        'Shields absorb damage, a point a cube, but not lasers. Every point absorbed goes on your heat track.',
       zero: 'At 0 hull the ship is destroyed.',
     },
     missiles: {
@@ -130,7 +138,7 @@ export const EXPLAINER = {
         'One action launches a salvo: any number of your missiles at one ship in your well.',
         'It flies {steps} steps at once, rings first, and attacks if it reaches the target’s sector: {damage} damage on a hit.',
         'After each of your turns it flies {steps} more and rides its orbit, in either order. It lasts {turns} turns.',
-        'A rack with energy on it rolls at each missile that reaches it: {on}+ shoots it down. That is {heat} heat, however many.',
+        'A rack with energy on it rolls at up to {count} missiles a turn: {on}+ shoots one down. Its owner pays {heat} heat a turn, however many it rolls at.',
       ],
     },
     secrets: {
@@ -177,23 +185,26 @@ export const EXPLAINER = {
   /** The demonstrations' captions, one at a time in the lower third. */
   captions: {
     hand: 'Your three missions lie face-down in front of you',
-    bays: 'Each subsystem goes face-down in its bay',
+    bays: 'Each subsystem goes into its bay',
     clear: '1 · Clear: last turn’s cubes go back to the supply',
+    actions: '2 · Actions, in any order. First, how you move',
     coast: 'Coast: Gamma’s ring 1 drifts {sectors} sectors',
-    scoop: 'The scoop gains the ring’s speed in fuel: +{fuel}',
-    fuelDie: 'The tank was empty: the fuel die goes back on its stand at {fuel}',
+    scoop: 'The scoop: {energy} energy for the ring’s speed in fuel, +{fuel}',
     rotate: 'Facing prograde burns out. Rotate to face prograde: +{energy} energy',
     drift: 'Burn: first drift {sectors} sectors…',
-    burnOut: '…then cross out to ring {ring}: {fuel} fuel',
+    burnOut: '…then cross out to ring {ring}: {energy} energy, {fuel} fuel',
     phase: 'Phasing: land {sectors} sectors further, {fuel} fuel each',
-    jump: 'Jump: down the lane to Gamma',
+    jump: 'Jump: down the lane to Gamma, {energy} energy and {fuel} fuel',
     rotateIn: 'Facing retrograde burns in. Rotate to face retrograde: +{energy} energy',
     driftIn: 'Burn: first drift {sectors} sector (ring {ring} is slow)…',
-    burnIn: '…then cross in {rings} rings: a hard burn, {fuel} fuel',
-    compressor: 'A jump is {fuel} fuel. With a compressor: {compressed}',
-    cubes: 'Shields +{shields}, rack +{rack}, scoop +{scoop}: {cubes} cubes on the ship',
-    check: 'Heat check: {heat} heat, dissipate {dissipation} + {radiator} for the radiator',
-    radiator: 'Dissipating heat turns the radiator face-up',
+    burnIn: '…then cross in {rings} rings: a hard burn, {energy} energy and {fuel} fuel',
+    compressor: 'With a compressor, a jump is {compressed} fuel',
+    cubes:
+      'Engines +{jump} for the jump, racks +{rack}, shields +{shields}: {cubes} cubes on the ship',
+    check: 'A heat cube on the track for each cube on the ship: {carried} + {cubes} = {heat}',
+    carry: 'Dissipate {dissipation}: {dissipation} come off the track',
+    radiator: 'The radiator dissipates {radiator} more',
+    track: '{next} stay on the track for your next turn',
     fire: 'The rack fires at the orange ship',
     hit: 'A {roll}: hit for {damage}. Orange is at 0 hull',
     wreck: 'Destroyed: a wreck goes on its sector',
@@ -202,7 +213,8 @@ export const EXPLAINER = {
     racks: 'Both racks fired: both turn face-up',
     launch: 'Purple launches a salvo of {count} at orange',
     flies: 'It flies {steps} steps at once',
-    rides: 'Purple’s next turn: the salvo rides its orbit and flies {steps} more',
+    lasers: 'Purple’s next turn: its two lasers hit orange for {damage}',
+    rides: 'The salvo rides its orbit and flies {steps} more',
     reaches: 'It reaches orange: orange’s rack rolls at each missile',
     shotDown: 'All {count} shot down on {on}+. Orange puts {heat} on its heat track',
     home: 'Orange’s next turn: back at its Home, full hull',
@@ -219,33 +231,33 @@ export const EXPLAINER = {
    */
   narration: {
     title:
-      'Dangerous Inclinations. A tabletop game of orbits, heat and hidden weapons, for three to six players.',
-    goal: 'You play for secret mission cards. You are dealt three primaries, worth two points, and keep one. Then three secondaries, worth one point, and keep two. When anyone reaches three points, the round plays out, and the highest score wins.',
+      'Dangerous Inclinations. A tabletop game of orbital maneuvering, handling heat and hidden roles, for three to six players.',
+    goal: 'You play for secret mission cards. You are dealt three primaries, worth two points, and keep one. Then three secondaries, worth one point, and keep two. When anyone reaches three points, the last round plays out, and the highest score wins. A tie goes to the ship with more hull, then more fuel.',
     hand: 'Your missions lie face-down in front of you until you complete them.',
     build:
-      'Before the first turn, build your ship. Choose one subsystem for the forward slot and four for the side slots. Every ship also has engines, thrusters and a fuel scoop. Build for your missions: Destroy needs a weapon, and Intercept needs a sensor.',
-    bays: 'Each subsystem goes face-down into its bay on your ship’s base. Nobody knows what you are carrying.',
-    turn: 'Every turn runs the same way. Clear last turn’s energy, take your actions in any order, let your missiles fly, then check your heat. If you arrived at a station, you dock. Last, flip any mission you completed.',
-    clear: 'First, clear. The energy cubes from your last turn go back to the supply.',
+      'Before the first turn, build your ship. Choose one subsystem for the forward slot and four for the side slots. Every ship also has engines, thrusters and a fuel scoop. Build for your missions and playstyle.',
+    bays: 'Each subsystem goes into its bay on your ship’s base.',
+    turn: 'With the ships built, play goes round the table. Every turn runs the same way. Clear last turn’s energy, take your actions in any order, let your missiles fly, then check your heat. If you arrived at a station, you dock. Last, reveal any mission you completed.',
+    clear:
+      'First, clear. The energy cubes from your last turn go back to the supply. Then come your actions, in any order, and the one to learn first is how you move.',
     orbits:
-      'Everything orbits. Each ring carries you a set number of sectors every turn, and the inner rings are the fastest.',
+      'Everything orbits, as real spacecraft do. The lower your orbit, the faster you go, so each ring carries you a set number of sectors every turn, and the inner rings are the fastest. Speed up along your orbit and you climb outward. Slow down and you fall inward.',
     moves:
-      'You make one move a turn. Coast, and you drift your ring’s speed for free. Burn, and you drift, then cross one to three rings: facing prograde takes you out, facing retrograde takes you in. A burn can also land a few sectors short or long, for one fuel each. Or jump down a lane, from the black hole to a planet.',
+      'You make one move a turn. Every move but a plain coast costs energy, cubes you put on your engines, and fuel, off your fuel die. Coast, and you ride your orbit at your ring’s speed, for free. Burn, and you move at your current ring’s speed, then cross one to three rings, for one energy and one fuel a ring: facing prograde takes you out, facing retrograde takes you in. A burn can also land a few sectors short or long, for one fuel each. Or jump down a lane, from one gravity well to another, for three energy and three fuel.',
     burnOut:
-      'Here the ship turns to face prograde, drifts eight sectors, and burns out one ring. Then it pays two more fuel to land two sectors further on.',
-    jump: 'From the black hole’s outer ring, a jump follows a one-way lane to a planet. It costs three fuel, or one with a compressor.',
+      'Here the ship turns to face prograde, for one energy, drifts eight sectors, and burns out one ring, for one energy and one fuel. Then it pays two more fuel to land two sectors further on.',
+    jump: 'From the black hole’s outer ring, a jump follows a one-way lane to a planet. It costs three energy and three fuel, or one fuel with a compressor.',
     burnIn:
-      'Now facing retrograde, a burn takes the ship inward. It drifts one sector on the slow outer ring, then burns hard across three rings.',
-    scoop: 'Coasting with the scoop running gains fuel equal to your ring’s speed. Six, here.',
-    fuelDie: 'The tank was empty, so the fuel die goes back on its stand.',
-    heat: 'Every action puts energy cubes on the subsystem that does it, and they stay there until your next turn. That is how shields, racks and sensors keep working while others play.',
-    cubes: 'This turn: shields, a rack and the scoop. Seven cubes.',
+      'Now facing retrograde, a burn takes the ship inward. It drifts one sector on the slow outer ring, then burns hard across three rings, for three energy and three fuel.',
+    scoop:
+      'Coasting with the scoop running costs three energy and gains fuel equal to your ring’s speed. Six, here.',
+    heat: 'Every action puts energy cubes on the subsystem that does it, and they stay there until your next turn.',
     heatCheck:
-      'At your heat check, every cube is one point of heat. You dissipate five, plus two for each radiator, and carry the rest. Over ten, every point over is hull damage. Damage your shields absorb, and a rack firing at missiles, also go on your heat track.',
+      'At your heat check, every energy cube on your ship is a point of heat, added to the heat already on your track. Dissipate five, plus two for each radiator, and carry the rest into your next turn. Over ten, every point over is hull damage.',
     check:
-      'Seven heat. Dissipate five, plus two for the radiator, and nothing carries over. Dissipating that heat gives the radiator away.',
+      'Here green jumped. Three cubes go on the engines for the jump, two on each rack, and one on the shields: eight cubes on the ship. At the check, put a heat cube on your track for each of them. Eight go on, so the track reaches ten. Take five off to dissipate, and two more for the radiator. Three stay on the track for your next turn.',
     fight:
-      'To shoot, name a slot on your target and roll a ten-sided die. A one misses, two to nine hits, and a ten is a critical: it also breaks the slot you named.',
+      'To shoot, roll a ten-sided die. A one misses, two to nine hits, and a ten is a critical: it also breaks a slot of your choice. A broken subsystem immediately drops its energy onto its owner’s heat track. Shields absorb a point of damage a cube, but not from lasers, and every point they absorb goes on your heat track.',
     fire: 'The rack fires at the orange ship and rolls a six: a hit for two. Orange is at zero hull. Destroyed, it leaves a wreck.',
     critical:
       'The second rack fires at purple and rolls a ten. A critical: purple’s missiles are broken.',
@@ -253,7 +265,7 @@ export const EXPLAINER = {
       'Missiles fly in salvos. One action launches any number at a ship in your well. The salvo flies three steps at once, then flies three more and rides its orbit each turn, in either order. A powered rack can shoot them down on a two or better.',
     launch: 'Purple launches a salvo of four at orange. It flies three steps straight away.',
     intercept:
-      'On purple’s next turn, it rides its orbit and catches orange. But orange’s rack shoots down all four.',
+      'On purple’s next turn, its lasers hit orange twice, from six hull to two. Then the salvo rides its orbit and catches orange. But orange’s rack shoots down all four.',
     secrets:
       'Your subsystems stay secret until they do their job: a weapon when it fires, shields when they absorb. But energy cubes are public, so everyone can see what you have powered.',
     racks: 'Both racks fired, so both come out of their bays and onto the ship.',
@@ -270,10 +282,40 @@ export const EXPLAINER = {
     end: 'Dangerous Inclinations. Burn. Jump. Fire.',
   },
 
-  roll: { miss: 'miss', hit: 'hit', critical: 'critical' },
+  roll: { miss: 'miss', hit: 'hit', critical: 'critical', down: 'shot down' },
+  /** Labels on the table beside the pieces as they land, leave or change. */
+  tags: {
+    cubes: '{name} +{n}',
+    supply: 'Back to the supply',
+    heat: 'Heat +{n}',
+    hull: 'Hull {from} → {to}',
+    fuel: 'Fuel {from} → {to}',
+    wreck: 'Wreck',
+    salvo: 'Salvo of {count}',
+    data: 'Survey data sold',
+    chip: 'Gamma’s sale chip',
+    point: '+1 point',
+    home: 'Home',
+    sector: '{n}',
+    ring: 'Ring {ring}',
+    phase: '+{fuel} fuel',
+    dissipate: 'Dissipate −{n}',
+    radiator: 'Radiator −{n}',
+    facing: 'Facing',
+    prograde: 'Prograde',
+  },
+  /** The readout of a ship's numbers in a demonstration, top left. */
+  status: {
+    ships: ['Blue', 'Green', 'Orange', 'Purple'],
+    hull: 'Hull',
+    fuel: 'Fuel',
+    energy: 'Energy used',
+    heat: 'Heat track',
+  },
   ledger: {
     cubes: 'cubes on the ship',
     carried: 'carried in',
+    spent: 'engines {engines}, racks {racks}, shields {shields}',
     atCheck: 'heat at the check',
     dissipate: 'dissipates',
     radiator: 'radiator',

@@ -1,12 +1,12 @@
 /**
  * The loadout cards are cut along their marks: every card has to be on the
- * page, clear of every other card and of every mark, the marks clear of the
- * margin no printer reaches, and the twelve presets on two pages of nine and
+ * page, touching its neighbours and clear of every mark, every trim line
+ * marked from the grid out to the margin no printer reaches, and the twelve presets on two pages of nine and
  * three.
  */
 import { describe, expect, it } from 'vitest'
 import { SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from '../card/cardStyles'
-import { cropMarks, gridSlots, type Rect } from '../card/sheet'
+import { cropMarks, gridSlots, type Line, type Rect } from '../card/sheet'
 import { LOADOUT_GRID, LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM, loadoutPages } from './sheet'
 
 const UNPRINTABLE_MM = 5
@@ -59,23 +59,42 @@ describe('the loadout sheet', () => {
       for (const b of page.slice(i + 1)) expect(overlaps(a, b)).toBe(false)
   })
 
+  it('touches its cards, so one cut separates two', () => {
+    const slots = gridSlots(LOADOUT_GRID)
+    for (const [i, a] of slots.entries()) {
+      const right = slots[i + 1]
+      const below = slots[i + LOADOUT_GRID.columns]
+      if (right && i % LOADOUT_GRID.columns !== LOADOUT_GRID.columns - 1)
+        expect(right.x).toBeCloseTo(a.x + a.width)
+      if (below) expect(below.y).toBeCloseTo(a.y + a.height)
+    }
+  })
+
   it.each([1, 3, 9])(
-    'a page of %i draws marks at every corner, none on a card or in the margin',
+    'a page of %i marks every trim line from the cards to the margin, none on a card',
     n => {
       const [page] = loadoutPages(cards(n))
       const marks = cropMarks(page)
-      for (const face of page)
-        for (const [x, y] of [
-          [face.x, face.y],
-          [face.x + face.width, face.y],
-          [face.x, face.y + face.height],
-          [face.x + face.width, face.y + face.height],
-        ]) {
-          const touching = marks.filter(
-            m => Math.min(Math.hypot(m.x1 - x, m.y1 - y), Math.hypot(m.x2 - x, m.y2 - y)) < 1
-          )
-          expect(touching.length).toBeGreaterThanOrEqual(2)
-        }
+      const near = (a: number, b: number) => Math.abs(a - b) < 1
+      const reaches = (m: Line, x: number, y: number) =>
+        near(m.x1, x) && near(m.y1, y) ? 'inner' : near(m.x2, x) && near(m.y2, y) ? 'outer' : null
+      const top = Math.min(...page.map(f => f.y))
+      const bottom = Math.max(...page.map(f => f.y + f.height))
+      const left = Math.min(...page.map(f => f.x))
+      const right = Math.max(...page.map(f => f.x + f.width))
+      // Every trim line is marked at both ends, each mark from the grid to the margin.
+      for (const x of new Set(page.flatMap(f => [f.x, f.x + f.width]))) {
+        expect(marks.some(m => reaches(m, x, top) && near(m.y2, UNPRINTABLE_MM))).toBe(true)
+        expect(
+          marks.some(m => reaches(m, x, bottom) && near(m.y2, SHEET_HEIGHT_MM - UNPRINTABLE_MM))
+        ).toBe(true)
+      }
+      for (const y of new Set(page.flatMap(f => [f.y, f.y + f.height]))) {
+        const rowLeft = Math.min(...page.filter(f => f.y <= y && y <= f.y + f.height).map(f => f.x))
+        expect(marks.some(m => reaches(m, rowLeft, y) && near(m.x2, UNPRINTABLE_MM))).toBe(true)
+      }
+      expect(left).toBeGreaterThan(UNPRINTABLE_MM)
+      expect(right).toBeLessThan(SHEET_WIDTH_MM - UNPRINTABLE_MM)
       const onFace = (x: number, y: number, f: Rect) =>
         x >= f.x - 0.1 && x <= f.x + f.width + 0.1 && y >= f.y - 0.1 && y <= f.y + f.height + 0.1
       for (const m of marks)

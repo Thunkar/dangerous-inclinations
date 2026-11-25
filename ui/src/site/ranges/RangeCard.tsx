@@ -181,50 +181,52 @@ export function RangeCard({ type }: { type: RangeCardType }) {
   const nameSize = Math.min(10.5, 48 / (name.length * 0.5))
   return (
     <div className="di-lo-card di-rg-card" role="group" aria-label={name}>
-      <div className="di-lo-stripe di-rg-stripe" style={{ background: ink }}>
-        <svg
-          viewBox="0 0 64 64"
-          fill={PRESS.paper}
-          className="di-rg-mark"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path fillRule="evenodd" d={SUBSYSTEM_PATHS[type]} />
-        </svg>
-        <div className="di-lo-name" style={{ fontSize: `${nameSize}mm` }}>
-          {name}
-        </div>
-      </div>
-
-      <div className="di-rg-fanbox">
-        <Fan type={type} />
-      </div>
-
-      <div className="di-rg-top">
-        <div className="di-lo-eyebrow" style={{ color: ink }}>
-          {T.slots[config.slotType as 'forward' | 'side' | 'either']}
-        </div>
-        {type !== 'sensor_array' && (
-          <div className="di-rg-stat">
-            <span>{T.damage}</span>
-            <b>{config.weaponStats!.damage}</b>
+      <div className="di-lo-art">
+        <div className="di-lo-stripe di-rg-stripe" style={{ background: ink }}>
+          <svg
+            viewBox="0 0 64 64"
+            fill={PRESS.paper}
+            className="di-rg-mark"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path fillRule="evenodd" d={SUBSYSTEM_PATHS[type]} />
+          </svg>
+          <div className="di-lo-name" style={{ fontSize: `${nameSize}mm` }}>
+            {name}
           </div>
-        )}
-        <div className="di-rg-stat">
-          <span>{T.energy}</span>
-          <b>{config.minEnergy}</b>
         </div>
-      </div>
 
-      <div className="di-rg-keys">
-        {isOneSided(type) && <Key colour={ink} label={T.portMounts} />}
-        {isOneSided(type) && <Key colour={PRESS.ink} label={T.starboardMounts} />}
-        {wellwide && <Key colour={ink} label={T.firstFlight} />}
-        {wellwide && <Key colour={PRESS.paperDeep} label={T.wellwide} />}
-      </div>
+        <div className="di-rg-fanbox">
+          <Fan type={type} />
+        </div>
 
-      <div className="di-lo-bar di-rg-bar">
-        <div className="di-rg-line">{cardLine(type)}</div>
+        <div className="di-rg-top">
+          <div className="di-lo-eyebrow" style={{ color: ink }}>
+            {T.slots[config.slotType as 'forward' | 'side' | 'either']}
+          </div>
+          {type !== 'sensor_array' && (
+            <div className="di-rg-stat">
+              <span>{T.damage}</span>
+              <b>{config.weaponStats!.damage}</b>
+            </div>
+          )}
+          <div className="di-rg-stat">
+            <span>{T.energy}</span>
+            <b>{config.minEnergy}</b>
+          </div>
+        </div>
+
+        <div className="di-rg-keys">
+          {isOneSided(type) && <Key colour={ink} label={T.portMounts} />}
+          {isOneSided(type) && <Key colour={PRESS.ink} label={T.starboardMounts} />}
+          {wellwide && <Key colour={ink} label={T.firstFlight} />}
+          {wellwide && <Key colour={PRESS.paperDeep} label={T.wellwide} />}
+        </div>
+
+        <div className="di-lo-bar di-rg-bar">
+          <div className="di-rg-line">{cardLine(type)}</div>
+        </div>
       </div>
     </div>
   )

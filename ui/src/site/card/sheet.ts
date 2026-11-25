@@ -2,7 +2,9 @@
  * Where the card's faces sit on a printed A4 sheet, in millimetres.
  *
  * Four faces to a page, two columns by two rows, centred, with one gutter
- * between them and crop marks on every trim line outside the faces. A sheet
+ * between them and crop marks on every trim line outside the faces. A grid
+ * may have no gutter (`Grid.gutter`): its cards touch and one cut separates
+ * two of them. A sheet
  * printed on one side carries two cards, each front beside its back. A sheet
  * printed on both sides carries four fronts on the first page and four backs
  * on the second, each back where the printer's flip puts it behind its front:
@@ -12,12 +14,13 @@
  */
 import { CARD_HEIGHT_MM, CARD_WIDTH_MM, SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from './cardStyles'
 
-/** Between two faces: room to cut once on each side and for the marks between. */
+/** Between two player-card faces: room to cut once on each side and for the marks between. */
 const GUTTER_MM = 4
 
-/** How far a crop mark stays off the trim corner, and how long it runs. */
+/** How far a crop mark stays off the trim corner and off whatever stops it. */
 const MARK_GAP_MM = 0.5
-const MARK_LENGTH_MM = 5
+/** How wide a cut line is drawn: anywhere the blade lands on it cuts clean. */
+export const CUT_BAND_MM = 1
 /** Printers do not reach the paper's edge; no mark runs into this. */
 const UNPRINTABLE_MM = 5
 
@@ -44,27 +47,34 @@ export interface Line {
   y2: number
 }
 
-/** A grid of equal cards on the page: how many across and down, and each card's size. */
+/** A grid of equal cards on the page: how many across and down, each card's size and the gap between. */
 export interface Grid {
   columns: number
   rows: number
   width: number
   height: number
+  gutter: number
 }
 
 /** The player card's grid: four faces, two by two. */
-export const CARD_GRID: Grid = { columns: 2, rows: 2, width: CARD_WIDTH_MM, height: CARD_HEIGHT_MM }
+export const CARD_GRID: Grid = {
+  columns: 2,
+  rows: 2,
+  width: CARD_WIDTH_MM,
+  height: CARD_HEIGHT_MM,
+  gutter: GUTTER_MM,
+}
 
-/** The grid's slots, row by row, centred on the page with a gutter between: each card's rectangle. */
-export function gridSlots({ columns, rows, width, height }: Grid): Rect[] {
-  const x0 = (SHEET_WIDTH_MM - (columns * width + (columns - 1) * GUTTER_MM)) / 2
-  const y0 = (SHEET_HEIGHT_MM - (rows * height + (rows - 1) * GUTTER_MM)) / 2
+/** The grid's slots, row by row, centred on the page with its gutter between: each card's rectangle. */
+export function gridSlots({ columns, rows, width, height, gutter }: Grid): Rect[] {
+  const x0 = (SHEET_WIDTH_MM - (columns * width + (columns - 1) * gutter)) / 2
+  const y0 = (SHEET_HEIGHT_MM - (rows * height + (rows - 1) * gutter)) / 2
   const slots: Rect[] = []
   for (let row = 0; row < rows; row++)
     for (let col = 0; col < columns; col++)
       slots.push({
-        x: x0 + col * (width + GUTTER_MM),
-        y: y0 + row * (height + GUTTER_MM),
+        x: x0 + col * (width + gutter),
+        y: y0 + row * (height + gutter),
         width,
         height,
       })
@@ -115,7 +125,9 @@ export function sheetPages(mode: PrintMode): PlacedFace[][] {
 
 /**
  * The crop marks for a page: every face corner extended outward along both
- * of its edges, stopping short of the next face or the unprintable edge.
+ * of its edges as far as the next face or the unprintable edge. Where two
+ * faces touch there is no room, so a shared trim line is marked only outside
+ * the grid.
  */
 export function cropMarks(faces: Rect[]): Line[] {
   const marks: Line[] = []
@@ -168,7 +180,7 @@ export function cropMarks(faces: Rect[]): Line[] {
           [0, sy],
         ]) {
           const free = room(x, y, dx, dy)
-          const end = Math.min(MARK_GAP_MM + MARK_LENGTH_MM, free - MARK_GAP_MM)
+          const end = free - MARK_GAP_MM
           if (end <= MARK_GAP_MM) continue
           add({
             x1: x + dx * MARK_GAP_MM,

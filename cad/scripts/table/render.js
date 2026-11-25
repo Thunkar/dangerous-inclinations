@@ -130,14 +130,14 @@ function components(g) {
 
 /**
  * The base prints with its doors open, lying on the bed beyond the deck's
- * edge. Each listed bay's door (every separate body beyond its hinge) is
- * turned shut about the hinge (pieces/bay.ts: bayDoor).
+ * edge: a door is every separate body beyond its bay's hinge (pieces/bay.ts:
+ * bayDoor). `doorless` keeps the base without any of them, `door` keeps one
+ * bay's, as it prints; the layout turns it shut about its hinge.
  */
-function closeBays(g, { closeBays: bays, bay }) {
+function doors(g, op) {
   const comp = components(g)
   const p = g.attributes.position.array
   const n = p.length / 9
-  // Each component's box centre.
   const box = new Map()
   for (let t = 0; t < n; t++) {
     const b = box.get(comp[t]) ?? { lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9] }
@@ -148,37 +148,29 @@ function closeBays(g, { closeBays: bays, bay }) {
     }
     box.set(comp[t], b)
   }
-  const turnOf = new Map()
-  for (const at of bays) {
-    const frame = new THREE.Matrix4()
+  const { bay } = op
+  const isDoor = at => {
+    const inv = new THREE.Matrix4()
       .makeTranslation(at.x, at.y, 0)
       .multiply(new THREE.Matrix4().makeRotationZ((at.turn * Math.PI) / 180))
-    const inv = frame.clone().invert()
-    const hinge = new THREE.Matrix4()
-      .makeTranslation(0, bay.axis.y, bay.axis.z)
-      .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2))
-      .multiply(new THREE.Matrix4().makeTranslation(0, -bay.axis.y, -bay.axis.z))
-    const shut = frame.clone().multiply(hinge).multiply(inv)
+      .invert()
+    const mine = new Set()
     for (const [c, b] of box) {
       const centre = new THREE.Vector3(
         (b.lo[0] + b.hi[0]) / 2,
         (b.lo[1] + b.hi[1]) / 2,
         (b.lo[2] + b.hi[2]) / 2
       ).applyMatrix4(inv)
-      if (Math.abs(centre.x) < bay.half + 0.5 && centre.y > bay.axis.y + 0.5) turnOf.set(c, shut)
+      if (Math.abs(centre.x) < bay.half + 0.5 && centre.y > bay.axis.y + 0.5) mine.add(c)
     }
+    return mine
   }
-  const v = new THREE.Vector3()
-  return subset(
-    g,
-    () => true,
-    (x, y, z, t) => {
-      const m = turnOf.get(comp[t])
-      if (!m) return [x, y, z]
-      v.set(x, y, z).applyMatrix4(m)
-      return [v.x, v.y, v.z]
-    }
-  )
+  if (op.door) {
+    const mine = isDoor(op.door)
+    return subset(g, t => mine.has(comp[t]))
+  }
+  const any = new Set(op.doorless.flatMap(at => [...isDoor(at)]))
+  return subset(g, t => !any.has(comp[t]))
 }
 
 /** A die's inlay set: below its two rows of numbers, the stand's icon at x 0 to 9, and the fuel stand's 0 beyond it. */
@@ -203,7 +195,7 @@ async function geometryOf(inst) {
     if (op.numbers) parts = [numbersAt(g, op.numbers)]
     else if (op.dieNumber) parts = [dieNumber(g, op.dieNumber)]
     else if (op.fin !== undefined) parts = [fin(g, op.fin)]
-    else if (op.closeBays) parts = [closeBays(g, op)]
+    else if (op.doorless || op.door) parts = [doors(g, op)]
     else if (op.inlay) parts = [inlay(g, op.inlay)]
     return parts.map(part => {
       part.deleteAttribute('normal')

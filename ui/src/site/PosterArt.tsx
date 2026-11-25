@@ -9,19 +9,21 @@
  * `POSTER_VIEWBOX` in `posterGeometry.ts`).
  */
 import { BAND_ANGLE, PRESS } from '../design/press'
-import { POSTER_HOLE, POSTER_VIEWBOX } from './posterGeometry'
+import { POSTER_HOLE, POSTER_HOLE_RADIUS, POSTER_RINGS, POSTER_VIEWBOX } from './posterGeometry'
 
 interface ShapesProps {
   /** The rings, the planet's orbit, the lane and the ship. Paper on an ink ground. */
   line?: string
   /** The stamp in the bottom right corner; the card backs leave it off. */
   stamp?: boolean
+  /** The hole and its rings; the card backs draw them themselves, the rings run on across the sheet. */
+  orbits?: boolean
 }
 
 /** The picture's shapes, for an `<svg>` whose user units are the picture's. */
-export function PosterShapes({ line = PRESS.ink, stamp = true }: ShapesProps) {
+export function PosterShapes({ line = PRESS.ink, stamp = true, orbits = true }: ShapesProps) {
   const { x: cx, y: cy } = POSTER_HOLE
-  const rings = [148, 194, 240]
+  const rings = POSTER_RINGS
   const rad = (deg: number) => (deg * Math.PI) / 180
   const at = (r: number, deg: number) =>
     [cx + r * Math.cos(rad(deg)), cy + r * Math.sin(rad(deg))] as const
@@ -47,11 +49,12 @@ export function PosterShapes({ line = PRESS.ink, stamp = true }: ShapesProps) {
 
   return (
     <>
-      <circle cx={cx} cy={cy} r={110} fill={PRESS.ink} />
+      {orbits && <circle cx={cx} cy={cy} r={POSTER_HOLE_RADIUS} fill={PRESS.ink} />}
       <path d={wedge} fill={PRESS.red} />
-      {rings.map(r => (
-        <circle key={r} cx={cx} cy={cy} r={r} fill="none" stroke={line} strokeWidth={3} />
-      ))}
+      {orbits &&
+        rings.map(r => (
+          <circle key={r} cx={cx} cy={cy} r={r} fill="none" stroke={line} strokeWidth={3} />
+        ))}
 
       <circle cx={planet[0]} cy={planet[1]} r={62} fill="none" stroke={line} strokeWidth={3} />
       <circle cx={planet[0]} cy={planet[1]} r={36} fill={PRESS.teal} />

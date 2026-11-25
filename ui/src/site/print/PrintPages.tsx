@@ -3,7 +3,7 @@
  * one prints): the section around a print, with its words, its controls and
  * its button; the title over a row of cards on screen; and the A4 pages,
  * hidden on screen, each card at scale 1 at the millimetre its sheet puts it
- * and the crop marks drawn under them (`card/sheet.ts`).
+ * and the cut lines drawn under them on the pages of fronts (`card/sheet.ts`).
  */
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
@@ -13,7 +13,7 @@ import { Body, Display, Kicker, Slab } from '../poster'
 import { COLUMN } from '../guide/parts'
 import { INK } from '../diagram'
 import { SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from '../card/cardStyles'
-import { cropMarks, type PlacedFace } from '../card/sheet'
+import { CUT_BAND_MM, cropMarks, type PlacedFace } from '../card/sheet'
 import type { Flip } from '../missions/sheet'
 import { Segments } from '../tools/controls'
 import { printAs, type PrintName } from './print'
@@ -30,25 +30,30 @@ export function PrintPages<F extends PlacedFace>({
     <div className="di-sheets">
       {pages.map((faces, page) => (
         <div key={page} className="di-page">
-          <svg
-            className="di-marks"
-            width={`${SHEET_WIDTH_MM}mm`}
-            height={`${SHEET_HEIGHT_MM}mm`}
-            viewBox={`0 0 ${SHEET_WIDTH_MM} ${SHEET_HEIGHT_MM}`}
-            aria-hidden
-          >
-            {cropMarks(faces).map((m, i) => (
-              <line
-                key={i}
-                x1={m.x1}
-                y1={m.y1}
-                x2={m.x2}
-                y2={m.y2}
-                stroke={INK}
-                strokeWidth={0.2}
-              />
-            ))}
-          </svg>
+          {/* The cards are cut from the fronts; a back page's marks would be off by the duplex. */}
+          {faces.some(f => f.face === 'front') && (
+            <svg
+              className="di-marks"
+              width={`${SHEET_WIDTH_MM}mm`}
+              height={`${SHEET_HEIGHT_MM}mm`}
+              viewBox={`0 0 ${SHEET_WIDTH_MM} ${SHEET_HEIGHT_MM}`}
+              aria-hidden
+            >
+              {cropMarks(faces).map((m, i) => (
+                <g key={i}>
+                  <line
+                    x1={m.x1}
+                    y1={m.y1}
+                    x2={m.x2}
+                    y2={m.y2}
+                    stroke={PRESS.inkFaint}
+                    strokeWidth={CUT_BAND_MM}
+                  />
+                  <line x1={m.x1} y1={m.y1} x2={m.x2} y2={m.y2} stroke={INK} strokeWidth={0.2} />
+                </g>
+              ))}
+            </svg>
+          )}
           {faces.map((face, i) => (
             <div
               key={i}

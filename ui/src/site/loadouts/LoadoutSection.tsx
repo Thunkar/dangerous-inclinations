@@ -63,7 +63,7 @@ export function LoadoutSection() {
         ))}
       </div>
       <PrintPages pages={pages}>
-        {slot => (slot.face === 'front' ? <LoadoutCard id={slot.card} /> : <LoadoutBack />)}
+        {slot => (slot.face === 'front' ? <LoadoutCard id={slot.card} /> : <LoadoutBack bleed />)}
       </PrintPages>
     </PrintSection>
   )

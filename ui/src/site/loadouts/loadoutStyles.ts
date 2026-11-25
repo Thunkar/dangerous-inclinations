@@ -11,7 +11,7 @@
  * scales it with a transform.
  */
 import { FONT_DISPLAY, PRESS } from '../../design/press'
-import { LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM } from './sheet'
+import { ART_SCALE, ART_TOP_MM, FRONT_FRAME_MM, LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM } from './sheet'
 
 /** The black bar across the foot. */
 const BAR_MM = 18.5
@@ -48,10 +48,19 @@ export const LOADOUT_CSS = `
   print-color-adjust: exact;
 }
 .di-lo-card * { box-sizing: border-box; }
+/* A front's art inside its frame (FRONT_FRAME_MM): the card's own layout, drawn smaller. */
+.di-lo-art {
+  position: absolute; left: 0; top: 0;
+  width: ${LOADOUT_WIDTH_MM}mm;
+  height: ${LOADOUT_HEIGHT_MM}mm;
+  overflow: hidden;
+  transform: translate(${FRONT_FRAME_MM}mm, ${ART_TOP_MM.toFixed(3)}mm) scale(${ART_SCALE.toFixed(5)});
+  transform-origin: top left;
+}
 /* The edge on screen only: the sheet is cut at its marks. */
 .di-lo-row .di-lo-card { outline: 1px solid ${PRESS.inkFaint}; }
 /* Nothing on the card shrinks: content that does not fit is content to cut. */
-.di-lo-card > *, .di-lo-col > *, .di-lo-bow > *, .di-lo-cell > *, .di-lo-bar > *, .di-lo-keep > * { flex: none; }
+.di-lo-card > *, .di-lo-art > *, .di-lo-col > *, .di-lo-bow > *, .di-lo-cell > *, .di-lo-bar > *, .di-lo-keep > * { flex: none; }
 
 .di-lo-stripe {
   position: absolute; left: 0; top: 0; bottom: ${BAR_MM}mm; width: ${STRIPE_MM}mm;

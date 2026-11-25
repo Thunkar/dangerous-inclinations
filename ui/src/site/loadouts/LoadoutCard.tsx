@@ -72,58 +72,60 @@ export function LoadoutCard({ id }: { id: BotPresetId }) {
   const secondaries = presetSecondaries(id)
   return (
     <div className="di-lo-card" role="group" aria-label={PRESET_NAMES[id]}>
-      <div className="di-lo-stripe" style={{ background: ink }}>
-        <div className="di-lo-name">{PRESET_NAMES[id]}</div>
-      </div>
-      <Insignia className="di-lo-insignia" role={role} mark={SIGNATURE[id]} ink={ink} />
+      <div className="di-lo-art">
+        <div className="di-lo-stripe" style={{ background: ink }}>
+          <div className="di-lo-name">{PRESET_NAMES[id]}</div>
+        </div>
+        <Insignia className="di-lo-insignia" role={role} mark={SIGNATURE[id]} ink={ink} />
 
-      <div className="di-lo-col">
-        <div className="di-lo-eyebrow" style={{ color: ink }}>
-          {T.roles[role]}
-        </div>
-        <div className="di-lo-bow">
-          <div className="di-lo-bowtile">
-            <span className="di-lo-chip">{BOW.short}</span>
-            <Mark type={bow} size={12} />
+        <div className="di-lo-col">
+          <div className="di-lo-eyebrow" style={{ color: ink }}>
+            {T.roles[role]}
           </div>
-          <div className="di-lo-bowname">
-            {nameOf(bow)}
-            <div className="di-lo-eyebrow">{T.bow}</div>
+          <div className="di-lo-bow">
+            <div className="di-lo-bowtile">
+              <span className="di-lo-chip">{BOW.short}</span>
+              <Mark type={bow} size={12} />
+            </div>
+            <div className="di-lo-bowname">
+              {nameOf(bow)}
+              <div className="di-lo-eyebrow">{T.bow}</div>
+            </div>
           </div>
-        </div>
-        <div className="di-lo-flanks">
-          <div className="di-lo-eyebrow">{T.port}</div>
-          <div className="di-lo-eyebrow">{T.starboard}</div>
-          {FLANK_ORDER.map(i => {
-            const type = loadout.sideSlots[SIDE[i].index]
-            return (
-              <div key={SIDE[i].id} className="di-lo-cell">
-                <div className="di-lo-tile">
-                  <span className="di-lo-chip">{SIDE[i].short}</span>
-                  <Mark type={type} size={7.6} />
+          <div className="di-lo-flanks">
+            <div className="di-lo-eyebrow">{T.port}</div>
+            <div className="di-lo-eyebrow">{T.starboard}</div>
+            {FLANK_ORDER.map(i => {
+              const type = loadout.sideSlots[SIDE[i].index]
+              return (
+                <div key={SIDE[i].id} className="di-lo-cell">
+                  <div className="di-lo-tile">
+                    <span className="di-lo-chip">{SIDE[i].short}</span>
+                    <Mark type={type} size={7.6} />
+                  </div>
+                  <div className="di-lo-label">{nameOf(type)}</div>
                 </div>
-                <div className="di-lo-label">{nameOf(type)}</div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
-      </div>
 
-      <div className="di-lo-bar">
-        <div className="di-lo-eyebrow di-lo-for">{T.recommended}</div>
-        <div className="di-lo-keep">
-          <Mission type={ROLE_PRIMARY[role]} />
-          <span className="di-lo-mission">+</span>
-          {secondaries.length === 0 ? (
-            <span className="di-lo-mission">{T.any}</span>
-          ) : (
-            secondaries.map((kind, i) => (
-              <Fragment key={kind}>
-                {i > 0 && <span className="di-lo-mission di-lo-or">{T.or}</span>}
-                <Mission type={kind} />
-              </Fragment>
-            ))
-          )}
+        <div className="di-lo-bar">
+          <div className="di-lo-eyebrow di-lo-for">{T.recommended}</div>
+          <div className="di-lo-keep">
+            <Mission type={ROLE_PRIMARY[role]} />
+            <span className="di-lo-mission">+</span>
+            {secondaries.length === 0 ? (
+              <span className="di-lo-mission">{T.any}</span>
+            ) : (
+              secondaries.map((kind, i) => (
+                <Fragment key={kind}>
+                  {i > 0 && <span className="di-lo-mission di-lo-or">{T.or}</span>}
+                  <Mission type={kind} />
+                </Fragment>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

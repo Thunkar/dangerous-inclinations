@@ -75,7 +75,7 @@ export function MissionDeckSection() {
       </div>
       <PrintPages pages={pages}>
         {slot =>
-          slot.face === 'front' ? <Front mission={slot.card} /> : <Back pile={slot.pile} />
+          slot.face === 'front' ? <Front mission={slot.card} /> : <Back pile={slot.pile} bleed />
         }
       </PrintPages>
     </PrintSection>

@@ -597,11 +597,21 @@ function players() {
     const closed = process.argv.includes('--open-bays')
       ? []
       : slots.filter(s => !s.revealed && !s.broken).map(s => bayOfMount[s.id])
+    // The base without its doors, and each door a piece of its own (as it
+    // prints, open), turned shut about its hinge when the bay is closed.
+    const bay = bayGeometry()
     put('base/base.stl', COLOUR.grey, B, {
-      op: { closeBays: closed.map(k => L.bays[k]), bay: bayGeometry() },
+      op: { doorless: L.bays, bay },
       kind: 'piece',
       id: `base:${i}`,
     })
+    L.bays.forEach((at, k) =>
+      put('base/base.stl', COLOUR.grey, closed.includes(k) ? mul(B, shutDoor(at, bay)) : B, {
+        op: { door: at, bay },
+        kind: 'piece',
+        id: `door:${i}:${k}`,
+      })
+    )
     // The stand (printed lowered, its tenon's foot on the bed) and the hull on it.
     const st = standOf(hull)
     put(
@@ -739,6 +749,21 @@ function players() {
 }
 
 /** What render.js needs to shut a bay's door: the hinge in the bay's frame (pieces/bay.ts: bayOf, bayDoor). */
+/** A bay's door turned shut about its hinge, in the base's frame (pieces/bay.ts: bayDoor). */
+function shutDoor(
+  at: { x: number; y: number; turn: number },
+  bay: { axis: { y: number; z: number } }
+) {
+  const frame = mul(T(at.x, at.y), Rz(at.turn))
+  return mul(
+    frame,
+    T(0, bay.axis.y, bay.axis.z),
+    Rx(90),
+    T(0, -bay.axis.y, -bay.axis.z),
+    frame.clone().invert()
+  )
+}
+
 function bayGeometry() {
   const b = bayOf()
   return { axis: b.axis, half: b.half, front: b.front, deckFront: b.deckFront }

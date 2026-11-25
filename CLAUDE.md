@@ -206,6 +206,7 @@ yarn workspace @dangerous-inclinations/cad plates                 # MK4S beds of
 yarn workspace @dangerous-inclinations/cad colour-hulls           # each hull, and the subsystems plate, painted in the game's colours for a multi-material printer: cad/out/colour/*.3mf
 yarn workspace @dangerous-inclinations/cad shot coupons/mount.part.js iso-ftr top   # PNGs of a part, headless, to cad/shots/
 cd cad && node --import ./scripts/ts-hooks.mjs scripts/table/film.mjs [--stills=4,12.5]   # the explainer: one seat's turns of a bot game on the printed table, a presentation over them (ui/dev-explainer.html, words in ui/src/text/explainer.ts; needs yarn dev): cad/shots/film/explainer.mp4
+cd cad && node --import ./scripts/ts-hooks.mjs scripts/table/storyboard.mjs   # the film's storyboard to edit, from its last render (film.mjs --timeline): cad/shots/film/storyboard/storyboard.md
 node scripts/shot.mjs '/' shot.png                    # photograph the running UI (needs `yarn dev`; PLAYER_ID + ?game=<id> for a seat)
 DOCKERHUB_USER=<you> scripts/deploy.sh               # build + push both images, restart the stack on the NAS (Dockerfile, deploy/)
 ```
@@ -438,7 +439,17 @@ fronts then backs with a long- or short-edge flip. A front is the game's own
 `MissionCard`, scaled to the stock. A back is the landing page's picture
 (`PosterArt.tsx`) cropped on the hole, ink for the primaries and paper for
 the secondaries, with the pile's points ("2 points", "1 point") along the
-wedge. The four prints on the page are exclusive (`body[data-printing]`): one
+wedge. Every 63x88 card (loadout, range, mission) fits a standard
+Magic sleeve, and its sheet sets the nine touching, so one cut separates
+two. The cut lines are drawn only on the pages of fronts, from the grid out
+to the printable edge, each a 1mm band (`CUT_BAND_MM`) where the blade may
+land, and every front's art is drawn inside a 2.5mm frame of its paper
+(`FRONT_FRAME_MM`, `ART_SCALE` in `loadouts/sheet.ts`), so a cut off its
+line lands in the frame. A duplex shifts a whole page of backs off its
+fronts, so the backs are one surface (`missions/backs.tsx`): each runs 3mm
+past its card and draws its neighbours' rings where they reach, so the
+orbits run on across every cut, and keeps its wedge and hole 3mm inside
+its edge. The four prints on the page are exclusive (`body[data-printing]`): one
 section shell, one `printAs` and one set of A4 pages for all of them
 (`site/print/`), each on its grid (`gridSlots` in `card/sheet.ts`).
 
