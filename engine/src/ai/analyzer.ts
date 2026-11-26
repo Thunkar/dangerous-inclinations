@@ -146,6 +146,40 @@ function slotAsSubsystem(slot: SlotView, type: SubsystemType = slot.type!): Subs
   }
 }
 
+/** A rival's slot read as a gun: the weapon, and the damage one action of it may do. */
+export interface RivalGun {
+  weapon: Subsystem
+  /** Damage one action may do, weighted by how sure the read is for a face-down slot. */
+  damage: number
+}
+
+/**
+ * The gun a rival's slot is as far as the bot knows: a face-up or scanned
+ * weapon that is not broken, or the weapon a face-down slot's cubes suggest
+ * ({@link suspectedWeapon}), or null. A face-up launcher shows what is left,
+ * and the whole magazine can come in one launch, so its damage is the
+ * magazine. A disruptor takes no hull but breaks a slot on every hit: it is
+ * priced as a small gun. The threat estimate and the fold's landing safety
+ * (behaviors/exposure.ts) both read a rival's guns from here.
+ */
+export function rivalGun(slot: SlotView): RivalGun | null {
+  if (slot.type === null) {
+    const suspected = suspectedWeapon(slot)
+    return suspected
+      ? {
+          weapon: slotAsSubsystem(slot, suspected.type),
+          damage: suspected.damage * suspected.confidence,
+        }
+      : null
+  }
+  if (!isWeaponType(slot.type) || slot.isBroken === true) return null
+  const weapon = slotAsSubsystem(slot)
+  return {
+    weapon,
+    damage: isDisruptor(weapon) ? DISRUPTOR_WORTH : potentialDamage(slot.type, slot.ammo),
+  }
+}
+
 function analyzeStatus(me: Player, stations: Station[] = []): BotStatus {
   const ship = me.ship
   const find = (id: string) => ship.subsystems.find(s => s.id === id)!
@@ -193,13 +227,13 @@ function analyzeOpponent(
     if (slot.type === null) {
       // Face-down: the cubes are the only evidence.
       const suspected = sameWell ? suspectedWeapon(slot) : null
+      const gun = suspected ? rivalGun(slot) : null
       // canEngage, not the bare range rule: a missile may be launched at
       // anyone in the well, so a launcher only threatens me from somewhere its
       // missile could actually run me down.
-      const inRange =
-        suspected !== null && canEngage(slotAsSubsystem(slot, suspected.type), attacker, myPosition)
+      const inRange = gun !== null && canEngage(gun.weapon, attacker, myPosition)
       unknownSlots.push({ slot, suspected, inRange })
-      if (inRange && suspected) threatInRange += suspected.damage * suspected.confidence
+      if (inRange && gun) threatInRange += gun.damage
       continue
     }
     if (!isWeaponType(slot.type)) continue
@@ -209,11 +243,7 @@ function analyzeOpponent(
     const weapon = slotAsSubsystem(slot)
     const inRange = !weapon.isBroken && sameWell && canEngage(weapon, attacker, myPosition)
     knownWeapons.push({ slotId: slot.id, type: slot.type, isBroken: weapon.isBroken, inRange })
-    // A face-up launcher shows what is left, and the whole magazine can come
-    // at us in one launch, so the threat is the magazine. A disruptor takes no
-    // hull but breaks a slot on every hit: it is priced as a small gun.
-    if (inRange)
-      threatInRange += isDisruptor(weapon) ? DISRUPTOR_WORTH : potentialDamage(slot.type, slot.ammo)
+    if (inRange) threatInRange += rivalGun(slot)?.damage ?? 0
   }
 
   return {

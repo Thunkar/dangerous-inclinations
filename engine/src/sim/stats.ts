@@ -6,6 +6,7 @@ import type { GameEvent } from '../models/events.ts'
 import type { CargoKind, MissionType } from '../models/missions.ts'
 import { MISSION_FAMILY } from '../models/missions.ts'
 import { SUBSYSTEM_CONFIGS, weaponSubsystemTypes } from '../models/subsystems.ts'
+import { isPlanet } from '../models/gravityWells.ts'
 import type { GameRunResult } from './runGame.ts'
 import { cardTracksOf, type CardTrack } from './cardFunnel.ts'
 
@@ -28,6 +29,10 @@ export interface PerPlayerStats {
   scans: number
   firstDockRound: number | null
   firstJumpRound: number | null
+  /** Jump drive folds made. */
+  folds: number
+  /** Of those, the folds into a planet's well: a station, a carrier or a lane is what they were for. */
+  foldsToPlanet: number
   /** Loadout tiles still face-down when the game ended. */
   hiddenTilesAtEnd: number
   loadout: string
@@ -176,6 +181,8 @@ export function computePerGameStats(run: GameRunResult): PerGameStats {
       scans: 0,
       firstDockRound: null,
       firstJumpRound: null,
+      folds: 0,
+      foldsToPlanet: 0,
       hiddenTilesAtEnd: p.ship.subsystems.filter(s => s.slotGroup !== undefined && !s.isRevealed)
         .length,
       loadout: [...p.ship.loadout.forwardSlots, ...p.ship.loadout.sideSlots].join(','),
@@ -454,6 +461,11 @@ function creditEvent(
     case 'jumped':
       if (per[e.playerId]) first(per[e.playerId], 'firstJumpRound')
       break
+    case 'folded':
+      if (!per[e.playerId]) break
+      per[e.playerId].folds++
+      if (isPlanet(e.to.wellId)) per[e.playerId].foldsToPlanet++
+      break
     case 'mission_completed':
       completionsByType[e.mission.type] = (completionsByType[e.mission.type] ?? 0) + 1
       break
@@ -515,6 +527,10 @@ export interface AggregateStats {
   /** Per player id across games. */
   firstDockRound: Distribution
   firstJumpRound: Distribution
+  /** Folds a game, every seat together. */
+  foldsPerGame: Distribution
+  /** Share of all folds that went into a planet's well. */
+  foldsToPlanetShare: number
   hiddenTilesAtEnd: Distribution
   scansPerGame: Distribution
   missilesLaunchedPerGame: Distribution
@@ -545,6 +561,8 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
   const loadoutWins: Record<string, { games: number; wins: number }> = {}
   const firstDock: number[] = []
   const firstJump: number[] = []
+  const folds: number[] = []
+  let foldsToPlanet = 0
   const hidden: number[] = []
   const scans: number[] = []
   const launched: number[] = []
@@ -573,7 +591,10 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
     let gameScans = 0
     let gameLaunched = 0
     let gameIntercepted = 0
+    let gameFolds = 0
     for (const p of Object.values(g.perPlayer)) {
+      gameFolds += p.folds
+      foldsToPlanet += p.foldsToPlanet
       if (p.firstDockRound !== null) firstDock.push(p.firstDockRound)
       if (p.firstJumpRound !== null) firstJump.push(p.firstJumpRound)
       hidden.push(p.hiddenTilesAtEnd)
@@ -596,6 +617,7 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
     scans.push(gameScans)
     launched.push(gameLaunched)
     intercepted.push(gameIntercepted)
+    folds.push(gameFolds)
   }
 
   const meanOf = (key: keyof TurnBehaviour) =>
@@ -624,6 +646,11 @@ export function aggregateStats(games: PerGameStats[]): AggregateStats {
     winsByPlayer,
     firstDockRound: distribution(firstDock),
     firstJumpRound: distribution(firstJump),
+    foldsPerGame: distribution(folds),
+    foldsToPlanetShare: (() => {
+      const total = folds.reduce((s, n) => s + n, 0)
+      return total === 0 ? 0 : Math.round((1000 * foldsToPlanet) / total) / 1000
+    })(),
     hiddenTilesAtEnd: distribution(hidden),
     scansPerGame: distribution(scans),
     missilesLaunchedPerGame: distribution(launched),

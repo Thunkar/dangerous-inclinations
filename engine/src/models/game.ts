@@ -331,6 +331,21 @@ const WellTransferActionSchema = z
   })
   .strict()
 
+/** A fold with the jump drive: the turn's move, to a sector of its own well or across the black hole's. */
+const FoldActionSchema = z
+  .object({
+    ...actionBase,
+    type: z.literal('fold'),
+    data: z
+      .object({
+        wellId: actionId,
+        ring: actionInt,
+        sector: actionInt,
+      })
+      .strict(),
+  })
+  .strict()
+
 /**
  * A standing order for the turn, not a tactical action: name the tile the crew
  * will get to if the ship is cold at its heat check. It has no sequence because
@@ -442,6 +457,7 @@ export const PlayerActionSchema = z.discriminatedUnion('type', [
   FireWeaponActionSchema,
   ScanActionSchema,
   WellTransferActionSchema,
+  FoldActionSchema,
   RepairActionSchema,
   DockSaleActionSchema,
   EscortMarkActionSchema,
@@ -457,6 +473,7 @@ export type PowerAction = z.infer<typeof PowerActionSchema>
 export type FireWeaponAction = z.infer<typeof FireWeaponActionSchema>
 export type ScanAction = z.infer<typeof ScanActionSchema>
 export type WellTransferAction = z.infer<typeof WellTransferActionSchema>
+export type FoldAction = z.infer<typeof FoldActionSchema>
 export type RepairAction = z.infer<typeof RepairActionSchema>
 export type DockSaleAction = z.infer<typeof DockSaleActionSchema>
 export type EscortMarkAction = z.infer<typeof EscortMarkActionSchema>
@@ -473,11 +490,12 @@ export const PLAYER_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set(
   PlayerActionSchema.options.map(option => option.shape.type.value)
 )
 
-/** The three moves; a turn takes at most one. */
+/** The moves; a turn takes at most one. */
 export const MOVE_ACTION_TYPES: ReadonlySet<PlayerAction['type']> = new Set([
   'coast',
   'burn',
   'well_transfer',
+  'fold',
 ])
 
 /** Standing orders: named with the turn and settled at its end, so they carry no sequence. */

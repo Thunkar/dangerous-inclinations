@@ -245,14 +245,14 @@ export function belowLaneState(): GameState {
  * and a soft burn inward drift it two sectors and drop it onto the station
  * (ring 2, sector 0). A ship is not moored until it docks at the end of the
  * turn (RULES §Stations, Moored), so it fires after arriving.
- *  - p2 one sector past the station on its ring: the rack's from the
- *    station's sector, and from nowhere else this turn reaches.
+ *  - p2 one sector past the station on ring 1, off the station: the rack's
+ *    from the station's sector, and from nowhere else this turn reaches.
  */
 export function stationState(): GameState {
   return makeGameState(
     [
       makePlayer('p1', { wellId: ALPHA, ring: 3, sector: 22 }, LOADOUTS.brawler),
-      makePlayer('p2', { wellId: ALPHA, ring: 2, sector: 1 }),
+      makePlayer('p2', { wellId: ALPHA, ring: 1, sector: 1 }),
     ],
     PINNED_EIGHT
   )
@@ -265,16 +265,16 @@ export function stationState(): GameState {
  * 2's speed (RULES §Stations, Moored).
  *  - p2 two sectors ahead on ring 3: the railgun's from the start, and point
  *    blank after a coast.
- *  - p3 one sector past the station on its ring: the rack's from the start,
- *    from the station's sector and after a coast, not from where a coast
- *    leaves the recoiled ship.
+ *  - p3 one sector past the station on ring 3, off the station: the rack's
+ *    from the start, from the station's sector and after a coast, not from
+ *    where a coast leaves the recoiled ship.
  */
 export function stationRecoilState(): GameState {
   return makeGameState(
     [
       makePlayer('p1', { wellId: ALPHA, ring: 3, sector: 0 }, LOADOUTS.brawler),
       makePlayer('p2', { wellId: ALPHA, ring: 3, sector: 2 }),
-      makePlayer('p3', { wellId: ALPHA, ring: 2, sector: 1 }),
+      makePlayer('p3', { wellId: ALPHA, ring: 3, sector: 1 }),
     ],
     PINNED_EIGHT
   )

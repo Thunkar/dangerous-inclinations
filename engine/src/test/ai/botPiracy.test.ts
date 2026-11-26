@@ -50,14 +50,14 @@ describe('bots and Piracy', () => {
       [takenData(SURVEY), LOOT],
       [CRATE.cargoId],
     ],
-    ['loot over data', [PIRACY], [], [takenData(SURVEY), LOOT], [LOOT.id]],
-    ['data when that is all there is', [PIRACY], [], [takenData(SURVEY)], [SURVEY.dataCargoId]],
+    ['data over loot', [PIRACY], [], [LOOT, takenData(SURVEY)], [SURVEY.dataCargoId]],
+    ['loot when that is all there is', [PIRACY], [], [LOOT], [LOOT.id]],
     [
       'two cards, the two best items',
       [PIRACY, piracyMission('piracy-2')],
       [CRATE_ABOARD],
       [takenData(SURVEY), LOOT],
-      [CRATE.cargoId, LOOT.id],
+      [CRATE.cargoId, SURVEY.dataCargoId],
     ],
     [
       "equal kinds in seat order from the pirate's left",

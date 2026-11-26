@@ -27,6 +27,7 @@ import { Flare } from './effects/Flare'
 import { Float } from './effects/Float'
 import { Plasma } from './effects/Plasma'
 import { Ray } from './effects/Ray'
+import { Wormhole } from './effects/Wormhole'
 import { clearImpacts } from './effects/impacts'
 import { NO_RAYCAST, disposeEffectResources } from './effects/resources'
 import { countRender } from './effects/renders'
@@ -80,6 +81,8 @@ export const Effects = memo(function Effects({
           return <Burst key={effect.id} effect={effect} pointOf={pointOf} />
         if (effect.kind === 'float')
           return <Float key={effect.id} effect={effect} pointOf={pointOf} />
+        if (effect.kind === 'wormhole')
+          return <Wormhole key={effect.id} effect={effect} pointOf={pointOf} />
         return null
       })}
     </>

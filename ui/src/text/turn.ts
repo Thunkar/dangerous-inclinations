@@ -44,7 +44,7 @@ export const TURN = {
     docking: {
       title: 'Dock',
       blurb:
-        'Arrived on a station? Repair everything, full hull, reload, and one action: load your crates or sell one item. Each station buys from you once.',
+        'Arrived on a station, on any of its {stationSectors} sectors? Repair everything, full hull, reload, and one action: load your crates or sell one item. Each station buys from you once.',
       terse: 'Repair, rearm, load or sell',
     },
     missions: {

@@ -19,6 +19,7 @@ export const AGENT_INTENT = {
   },
   move: '  "move": { "kind": "coast", "scoop": false }  // or { "kind": "burn", "intensity": "soft|medium|hard", "adjustment": 0, "facing": "prograde|retrograde" }',
   jump: '                                               // or { "kind": "jump", "destinationWellId": "planet-alpha", "adjustment": 0 }',
+  fold: '                                               // or { "kind": "fold", "wellId": "planet-beta", "ring": 3, "sector": 10 } (jump drive: put down there, in this well or between the black hole and a planet, never on a station\'s sector; what comes after it is taken there)',
   fire: '  "fire": [ { "weapon": "forward-0", "target": "<playerId>", "critical": "engines", "compensateRecoil": false, "when": "after" } ],',
   scan: '  "scan": { "target": "<playerId>", "slot": "side-1" },',
   repair:

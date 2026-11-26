@@ -34,6 +34,7 @@ import {
   slideProgress,
 } from '../../geometry'
 import { shipLabel } from '../../labels'
+import { foldFlight, mouthPoints } from '../../wormhole'
 import { sceneTime } from '../clock'
 import { FX_INK } from '../palette'
 import { DASHED_RING_FRAGMENT, DASHED_RING_VERTEX } from '../shaders/dashedRing'
@@ -150,6 +151,7 @@ const THRUST: Record<MoveKind, number> = {
   coast: 0,
   burn: 1,
   jump: 1,
+  fold: 1,
   recoil: 0.12,
   ride: 0,
 }
@@ -407,8 +409,22 @@ function ShipMesh({
     const from = positionPoint(motion.from)
     const to = positionPoint(ship.position)
     const swept = forwardDistance(motion.from.sector, ship.position.sector)
+    // A fold flies into a mouth ahead of where it was and out of one behind
+    // where it lands (`wormhole.ts`, which the flat board reads too).
+    const mouths = mouthPoints(motion.from, ship.position, ship.facing, {
+      x: resting.x,
+      y: resting.z,
+    })
     return {
       jump,
+      fold:
+        motion.kind === 'fold'
+          ? {
+              entry: toWorld(mouths.entry, elevationAt(motion.from) + LAYER.token),
+              exit: toWorld(mouths.exit, elevationAt(ship.position) + LAYER.token),
+              yaw: facingYaw(motion.from, ship.facing),
+            }
+          : null,
       thrust: THRUST[motion.kind],
       heading: Math.atan2(to.y - from.y, to.x - from.x),
       departure: positionWorld(motion.from, LAYER.token),
@@ -435,9 +451,23 @@ function ShipMesh({
     let lean = 0
     let thrust = 0
     let streak = 0
+    /** The hull's size: a folding ship shrinks into one mouth and grows out of the other. */
+    let size = 1
 
     if (moving && motion && move) {
-      if (move.jump) {
+      if (move.fold) {
+        const flight = foldFlight(raw)
+        if (flight.end === 'entry') {
+          node.position.lerpVectors(move.departure, move.fold.entry, flight.travel)
+          heading.rotation.y = move.fold.yaw
+          thrust = move.thrust
+        } else {
+          node.position.lerpVectors(move.fold.exit, resting, flight.travel)
+          heading.rotation.y = restingYaw
+          thrust = move.thrust * (1 - flight.travel) * 0.8
+        }
+        size = flight.scale
+      } else if (move.jump) {
         // Straight down the lane, in the plane both arcs lie in: the two ends
         // are the rims of their own wells and are the same height, so the track
         // is a line and nothing lifts it off the table. Facing follows the
@@ -509,8 +539,8 @@ function ShipMesh({
     roll.rotation.set(lean, 0, 0)
 
     const age = now - born.current
-    if (age < BORN_MS) roll.scale.setScalar(0.2 + 0.8 * smoother(age / BORN_MS))
-    else if (roll.scale.x !== 1) roll.scale.setScalar(1)
+    const scale = Math.max(0.001, size) * (age < BORN_MS ? 0.2 + 0.8 * smoother(age / BORN_MS) : 1)
+    if (roll.scale.x !== scale) roll.scale.setScalar(scale)
 
     const nozzle = parts.current.nozzle
     if (nozzle)

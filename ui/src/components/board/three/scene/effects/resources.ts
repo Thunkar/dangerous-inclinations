@@ -43,6 +43,7 @@ import {
   SHELL_VERTEX,
   SHOCK_FRAGMENT,
   SHOCK_VERTEX,
+  WORMHOLE_FRAGMENT,
 } from './glsl'
 
 /**
@@ -140,7 +141,10 @@ interface MaterialByKind {
   shell: ShaderMaterial
   plasma: ShaderMaterial
   embers: ShaderMaterial
+  wormhole: ShaderMaterial
   glow: MeshBasicMaterial
+  /** A dark throat: the one effect material that is not light. */
+  throat: MeshBasicMaterial
 }
 
 type MaterialKind = keyof MaterialByKind
@@ -282,6 +286,21 @@ const makers: { [K in MaterialKind]: () => MaterialByKind[K] } = {
       blending: AdditiveBlending,
       toneMapped: false,
     }),
+  wormhole: () =>
+    new ShaderMaterial({
+      uniforms: {
+        uColor: { value: new Color('#ffffff') },
+        uOpen: { value: 0 },
+        uSpin: { value: 0 },
+      },
+      vertexShader: SHOCK_VERTEX,
+      fragmentShader: WORMHOLE_FRAGMENT,
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+      side: DoubleSide,
+      toneMapped: false,
+    }),
   glow: () =>
     new MeshBasicMaterial({
       color: new Color('#ffffff'),
@@ -289,6 +308,15 @@ const makers: { [K in MaterialKind]: () => MaterialByKind[K] } = {
       opacity: 0,
       depthWrite: false,
       blending: AdditiveBlending,
+      toneMapped: false,
+    }),
+  throat: () =>
+    new MeshBasicMaterial({
+      color: new Color('#000000'),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: DoubleSide,
       toneMapped: false,
     }),
 }
@@ -301,7 +329,9 @@ const pools: { [K in MaterialKind]: MaterialByKind[K][] } = {
   shell: [],
   plasma: [],
   embers: [],
+  wormhole: [],
   glow: [],
+  throat: [],
 }
 
 /**

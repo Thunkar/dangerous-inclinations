@@ -33,6 +33,7 @@ const REVEALS: Array<{ types: SubsystemType[]; when: ReactNode }> = [
   { types: ['sensor_array'], when: T.reveals.sensor },
   { types: ['radiator'], when: fill(T.reveals.radiator, { heat: DEFAULT_DISSIPATION_CAPACITY }) },
   { types: ['fuel_compressor'], when: fill(T.reveals.compressor, { fuel: COMPRESSED_JUMP_MASS }) },
+  { types: ['jump_drive'], when: T.reveals.jumpDrive },
   { types: [], when: T.reveals.broken },
 ]
 

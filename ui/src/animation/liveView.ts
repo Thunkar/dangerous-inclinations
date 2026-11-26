@@ -257,6 +257,17 @@ export function foldEvent(live: GameView, event: GameEvent, next: GameView): Gam
         event.playerId,
         -event.massSpent
       )
+    case 'folded':
+      return addFuel(
+        addCubes(
+          addCubes(live, event.playerId, event.subsystemId, event.heat - event.engineHeat),
+          event.playerId,
+          'engines',
+          event.engineHeat
+        ),
+        event.playerId,
+        -event.massSpent
+      )
     case 'recoil':
       return event.compensated
         ? addFuel(

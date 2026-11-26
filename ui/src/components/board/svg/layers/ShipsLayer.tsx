@@ -31,6 +31,7 @@ import {
   type Point,
 } from '../../geometry'
 import { shipLabel } from '../../labels'
+import { foldFlight, mouthPoints } from '../../wormhole'
 
 /** An Escort marker: a shield, 11 units tall, set above the hull. */
 const BADGE = 'M -4.5 -5.5 H 4.5 V 0.5 L 0 5.5 L -4.5 0.5 Z'
@@ -56,6 +57,7 @@ function slide(ship: ShipToken, now: number, rest: Point) {
   if (!ship.motion) return null
   const raw = Math.min(1, Math.max(0, (now - ship.motion.start) / ship.motion.duration))
   if (raw >= 1) return null
+  if (ship.motion.kind === 'fold') return fold(ship, ship.motion.from, raw, rest)
   const t = slideProgress(raw)
   const arc = interpolatePositions(ship.motion.from, ship.position, t)
   const centred = positionPoint(ship.position)
@@ -67,7 +69,21 @@ function slide(ship: ShipToken, now: number, rest: Point) {
     ship.motion.from.wellId === ship.position.wellId
       ? headingAtPoint(ship.position.wellId, point, ship.facing)
       : undefined
-  return { point, heading }
+  return { point, heading, scale: 1 }
+}
+
+/**
+ * A fold (`wormhole.ts`): the hull flies from where it was into the mouth
+ * ahead of it, shrinking to nothing, then out of the mouth behind where it
+ * lands, growing back, facing the way it did all along.
+ */
+function fold(ship: ShipToken, from: ShipToken['position'], raw: number, rest: Point) {
+  const flight = foldFlight(raw)
+  const mouths = mouthPoints(from, ship.position, ship.facing, rest)
+  const [a, b] = flight.end === 'entry' ? [positionPoint(from), mouths.entry] : [mouths.exit, rest]
+  const point = { x: a.x + (b.x - a.x) * flight.travel, y: a.y + (b.y - a.y) * flight.travel }
+  const heading = facingAngle(flight.end === 'entry' ? from : ship.position, ship.facing)
+  return { point, heading, scale: flight.scale }
 }
 
 export const ShipsLayer = memo(function ShipsLayer({
@@ -85,6 +101,9 @@ export const ShipsLayer = memo(function ShipsLayer({
         const angle =
           ((sliding?.heading ?? facingAngle(ship.position, ship.facing)) * 180) / Math.PI
         const selectable = selectableIds.includes(ship.playerId)
+        const size = sliding?.scale ?? 1
+        // In the wormhole between its two mouths the hull is nowhere on the board.
+        if (size <= 0.001) return null
         return (
           <g
             key={ship.playerId}
@@ -121,7 +140,7 @@ export const ShipsLayer = memo(function ShipsLayer({
                 opacity={0.75}
               />
             )}
-            <g transform={`translate(${p.x} ${p.y}) rotate(${angle})`}>
+            <g transform={`translate(${p.x} ${p.y}) rotate(${angle}) scale(${size})`}>
               <path
                 d="M 15 0 L -9 8 L -9 -8 Z"
                 fill={ship.color}

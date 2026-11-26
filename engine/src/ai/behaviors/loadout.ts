@@ -159,7 +159,7 @@ export const BOT_PRESET_LOADOUTS: Record<BotPresetId, ShipLoadout> = {
   },
   watcher: {
     forwardSlots: ['sensor_array'],
-    sideSlots: ['shields', 'shields', 'radiator', 'laser'],
+    sideSlots: ['jump_drive', 'shields', 'radiator', 'laser'],
   },
   picket: {
     forwardSlots: ['sensor_array'],
@@ -210,7 +210,10 @@ function classifyRole(missions: Mission[]): BotRole {
  * - Salvage finishes cripples at the wrecks from range, so launchers: the
  *   corsair, the picket, the smuggler.
  * - Escort rides beside a carrier: the warden, the sentry, the convoy.
- * - Survey dives with data aboard, which is loot: the watcher's two walls.
+ * - Survey dives with data aboard, which is loot: the watcher folds out to
+ *   black hole ring 1 and away again with its jump drive (26 Nov 2026: a
+ *   drive for its second wall took the watcher with Intercept 24 → 32%,
+ *   200 games, nothing else moving).
  * - Tanker carries fuel worth chasing: the ghost breaks the pursuer.
  */
 const KIT: Record<BotRole, Partial<Record<SecondaryKind, BotPresetId>>> = {

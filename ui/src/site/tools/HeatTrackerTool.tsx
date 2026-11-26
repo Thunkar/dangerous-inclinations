@@ -106,6 +106,8 @@ function purpose(type: SubsystemType, energy: number): string {
       return fill(T.scan, { crit: SENSOR_CRIT })
     case 'ballistic_rack':
       return T.rack
+    case 'jump_drive':
+      return T.fold
     default:
       return T.fire
   }

@@ -1,7 +1,7 @@
 /**
  * What the turn you are building would do: the sectors your weapon reaches,
  * the path your move takes, the route the planner found, the sector you are
- * about to pick and the sectors you may deploy into.
+ * about to pick, the sectors you may deploy into and those a fold may land on.
  *
  * Every answer is already in the model; this only draws it. Five marks, each
  * the one the paper board prints (red for a weapon's reach and for anything
@@ -16,8 +16,8 @@ import type { MovementPlan, Position } from '@dangerous-inclinations/engine'
 import { SECTORS_PER_RING } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../../../design/tokens'
 import { allWells } from '../../geometry'
-import type { BoardModel } from '../../model'
-import { deployLabel, routeCellLabel } from '../../labels'
+import type { BoardModel, PlannedLeg } from '../../model'
+import { deployLabel, foldCellLabel, routeCellLabel } from '../../labels'
 import { BOARD_FONT } from '../fonts'
 import { EDGE_HUE } from '../palette'
 import { LAYER, positionWorld } from '../world'
@@ -62,30 +62,47 @@ const RangeWedges = memo(function RangeWedges({ cells }: { cells: readonly Posit
 // The move you are building
 // ---------------------------------------------------------------------------
 
+/**
+ * The arcs the move rides and a fold's straight chord, which rides no ring:
+ * the legs the flat board draws, the chord dashed shorter.
+ */
 const PlannedPath = memo(function PlannedPath({
-  points,
+  legs,
   color,
 }: {
-  points: readonly Position[]
+  legs: readonly PlannedLeg[]
   color: string
 }) {
-  const track = useMemo(() => arcPoints(points, LAYER.path), [points])
-  const end = useMemo(
-    () => (points.length > 0 ? positionWorld(points[points.length - 1], LAYER.path) : null),
-    [points]
+  const tracks = useMemo(
+    () =>
+      legs.map(leg => ({
+        chord: leg.shape === 'chord',
+        points:
+          leg.shape === 'chord'
+            ? chordSamples(leg.points[0], leg.points[leg.points.length - 1], 2, LAYER.path)
+            : arcPoints(leg.points, LAYER.path),
+      })),
+    [legs]
   )
-  if (points.length < 2 || !end) return null
+  const end = useMemo(() => {
+    const last = legs[legs.length - 1]
+    return last ? positionWorld(last.points[last.points.length - 1], LAYER.path) : null
+  }, [legs])
+  if (!end) return null
   return (
     <group>
-      <SurfaceLine
-        points={track}
-        color={color}
-        width={2.6}
-        opacity={0.9}
-        dash={7}
-        gap={5}
-        speed={DASH_SPEED}
-      />
+      {tracks.map((track, i) => (
+        <SurfaceLine
+          key={i}
+          points={track.points}
+          color={color}
+          width={2.6}
+          opacity={0.9}
+          dash={track.chord ? 3 : 7}
+          gap={track.chord ? 6 : 5}
+          speed={DASH_SPEED}
+        />
+      ))}
       <SurfaceRing position={end} color={color} radius={8} thickness={2.5} opacity={0.95} />
       <SurfaceDot position={end} color={color} radius={3} />
     </group>
@@ -217,12 +234,15 @@ const SectorPicker = memo(function SectorPicker({
 // Deployment
 // ---------------------------------------------------------------------------
 
-const DeploymentWedges = memo(function DeploymentWedges({
+/** Sectors a click may pick, lit as the flat board lights them: where to deploy, or where a fold lands. */
+const PickWedges = memo(function PickWedges({
   positions,
   onPick,
+  label,
 }: {
   positions: readonly Position[]
   onPick: (position: Position) => void
+  label: (position: Position) => string
 }) {
   return (
     <WedgeField
@@ -234,7 +254,7 @@ const DeploymentWedges = memo(function DeploymentWedges({
       breathe={BREATH}
       litColor={ACCENT}
       litFillOpacity={0.55}
-      label={deployLabel}
+      label={label}
       onPick={onPick}
     />
   )
@@ -244,11 +264,22 @@ export const Overlays = memo(function Overlays({ model }: { model: BoardModel })
   return (
     <>
       <RangeWedges cells={model.rangeCells} />
-      <PlannedPath points={model.plannedPoints} color={model.planColor} />
+      <PlannedPath legs={model.plannedLegs} color={model.planColor} />
       {model.route && <RouteOverlay route={model.route} />}
       {model.onPickDestination && <SectorPicker onPick={model.onPickDestination} />}
       {model.deployment && (
-        <DeploymentWedges positions={model.deployment.positions} onPick={model.deployment.onPick} />
+        <PickWedges
+          positions={model.deployment.positions}
+          onPick={model.deployment.onPick}
+          label={deployLabel}
+        />
+      )}
+      {model.foldPick && (
+        <PickWedges
+          positions={model.foldPick.positions}
+          onPick={model.foldPick.onPick}
+          label={foldCellLabel}
+        />
       )}
     </>
   )

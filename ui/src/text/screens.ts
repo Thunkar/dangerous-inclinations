@@ -131,6 +131,8 @@ export const SCREENS = {
         'Side gun, {damage} damage within {rings} ring and {sectors} sector, one side; shields stop it {plasma} points a cube. Hot stuff.',
       disruptor:
         "Either slot, {energy} cubes, the rack's reach, no damage: a hit breaks the subsystem you name, unless any shield is powered; a critical breaks it anyway. Have you tried turning it off and on again?",
+      jump_drive:
+        'Either slot, {energy} cubes, {engines} on the engines and {fuel} fuel: your move folds you anywhere in your well or between the black hole and a planet, never onto a station. Are we there yet?',
     },
     /** The Systems tab (`ships/ShipControls.tsx`): role and preset, the mounts, the refit. */
     systems: {

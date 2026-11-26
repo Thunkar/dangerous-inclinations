@@ -12,8 +12,8 @@
  *      a survey's data, a black box
  *   3. rotate (if the movement, a scan or the railgun needs a facing)
  *   4. shots and scans that are in range from the current position
- *   5. the movement (coast / burn / jump), and a rotation after it when only
- *      that turns the ship for a scan
+ *   5. the movement (coast / burn / jump / fold), and a rotation after it
+ *      when only that turns the ship for a scan
  *   6. what the ship takes where the move ends, the same four
  *   7. shots and scans that are in range from the projected position
  *
@@ -38,7 +38,7 @@ import type { SubsystemId } from '../models/subsystems.ts'
 import { getMissileStats, getSubsystemConfig, interceptsPerRack } from '../models/subsystems.ts'
 import { BURN_COSTS } from '../models/rings.ts'
 import { projectPosition, scoopYield } from '../game/movement.ts'
-import { getStationAt } from '../game/stations.ts'
+import { getStationInReach } from '../game/stations.ts'
 import { samePosition } from '../game/geometry.ts'
 import { bestSale, salesOnArrival } from '../game/docking.ts'
 import { allowedSales } from './behaviors/sales.ts'
@@ -72,10 +72,18 @@ import { scanOption } from './behaviors/scanning.ts'
 import type { ScanIntent } from './behaviors/scanning.ts'
 import { assignDefensiveEnergy } from './behaviors/survival.ts'
 import { powerActions, type EnergyTargets } from '../game/power.ts'
-import { castOffChoice, coastChoice, movementFromPlan } from './behaviors/positioning.ts'
+import {
+  castOffChoice,
+  coastChoice,
+  foldChoice,
+  moveHeat,
+  movementFromPlan,
+} from './behaviors/positioning.ts'
 import type { MovementChoice } from './behaviors/positioning.ts'
-import { planShipToTarget } from './movementPlanner/index.ts'
+import { dockingAvoidance, planShipToTarget } from './movementPlanner/index.ts'
 import { turnSeizures } from './behaviors/piracy.ts'
+import { planEscape, planFold } from './behaviors/fold.ts'
+import type { Stay } from './behaviors/fold.ts'
 import type { SeizableItem } from '../game/piracy.ts'
 import { canSurvey } from '../game/survey.ts'
 import { salvageToTake, salvageableWrecks } from '../game/salvage.ts'
@@ -213,7 +221,7 @@ function buildCandidate(
 
   const pre = { ...status.position, facing }
   const post = { ...landing, facing: facingPlan.post }
-  const endsOnStation = getStationAt(view.stations, post) !== undefined
+  const endsOnStation = getStationInReach(view.stations, post) !== undefined
   /**
    * "Arrives at a station" (deliberately not "is at one"). Since a docked ship
    * stays docked (RULES §Stations, Moored), a coast keeps ending on the station; if
@@ -243,6 +251,10 @@ function buildCandidate(
   // Budgets.
   const budget: Budget = { targets: new Map(), heatUsed: 0, heatBudget: status.heatBudget }
   if (movement.engineEnergy > 0) spend(budget, status.engines.id, movement.engineEnergy)
+  if (movement.fold) {
+    spend(budget, movement.fold.driveId, movement.fold.energy)
+    spend(budget, status.engines.id, movement.fold.engines)
+  }
   if (rotate || rotateAfterMove)
     spend(budget, status.rotation.id, getSubsystemConfig('rotation').minEnergy)
 
@@ -352,11 +364,11 @@ function gateOverheat(situation: TacticalSituation, movement: MovementChoice): M
   const { ship, status, view } = situation
   const arrives =
     !status.moored &&
-    getStationAt(
+    getStationInReach(
       view.stations,
       projectPosition(ship, movement.requiredFacing ?? ship.facing, movement.preview)
     ) !== undefined
-  return moveOverheats(status.hull, status.heat, movement.engineEnergy, arrives)
+  return moveOverheats(status.hull, status.heat, moveHeat(movement), arrives)
     ? coastChoice(false)
     : movement
 }
@@ -393,7 +405,7 @@ function mayFireAt(
   return (
     !isQuietTurn(view.turn, me) &&
     canFireFrom(status.position, at, view.stations) &&
-    o.sameWell &&
+    o.position.wellId === at.wellId &&
     canBeTargeted(o.player, view.stations) &&
     !holdFire.has(o.player.id)
   )
@@ -552,8 +564,12 @@ function allocateFire(
   // shot is a candidate; `selectTarget` ranks those it can hurt first.
   // The disruptor takes no hull, so it is no part of choosing the target or
   // queueing the volley: it is decided after both (below).
+  // A ship in the well the move ends in is a target after it, whatever the
+  // move: a jump or a fold into a rival's well fires on arrival.
   const firing = situation.opponents
-    .filter(o => o.sameWell && !holdFire.has(o.player.id))
+    .filter(
+      o => (o.sameWell || o.position.wellId === ctx.post.wellId) && !holdFire.has(o.player.id)
+    )
     .map(opponent => ({ opponent, all: firingOptions(situation, opponent, ctx, parameters) }))
   const options = firing
     .map(({ opponent, all }) => ({ opponent, intents: all.filter(i => !isDisruptor(i.weapon)) }))
@@ -935,6 +951,16 @@ function assembleTactical(
         },
       })
       break
+    case 'fold': {
+      const to = movement.fold!.to
+      tactical.push({
+        type: 'fold',
+        playerId: me.id,
+        sequence: sequence++,
+        data: { wellId: to.wellId, ring: to.ring, sector: to.sector },
+      })
+      break
+    }
   }
 
   if (facingPlan.post !== facingPlan.pre)
@@ -1142,6 +1168,19 @@ function coldRepairCandidate(situation: TacticalSituation): ActionPlan | null {
   }
 }
 
+/** Where `movement` ends the ship's move, and the heat the move puts on the loadout. */
+function stayOf(situation: TacticalSituation, movement: MovementChoice): Stay {
+  const { ship, status } = situation
+  const preview =
+    movement.kind === 'coast' && status.moored
+      ? { ...movement.preview, moored: true }
+      : movement.preview
+  return {
+    at: projectPosition(ship, movement.requiredFacing ?? ship.facing, preview),
+    heat: moveHeat(movement),
+  }
+}
+
 export function generateCandidates(
   situation: TacticalSituation,
   parameters: BotParameters
@@ -1159,7 +1198,29 @@ export function generateCandidates(
    * holding port as progress and stayed until the game timed out.
    */
   const goalMovement = planned && status.moored && planned.kind === 'coast' ? null : planned
-  if (goalMovement && currentGoal) {
+  /**
+   * A fold that saves the goal enough turns (behaviors/fold.ts) is the goal's
+   * move this turn, in place of the route's first step: the decision is the
+   * saving, not the candidates' scores, which would price the drive's heat
+   * against a route the fold makes longer than it. So is a fold out of fire
+   * that would gut the ship where the goal's step or a coast ends: the
+   * candidates' scores read the threats where the ship is, not where it
+   * lands, so the decision is the exposure (behaviors/exposure.ts).
+   */
+  const stays: Stay[] = [
+    ...(goalMovement ? [stayOf(situation, goalMovement)] : []),
+    stayOf(situation, coastChoice(false)),
+  ]
+  const fold = planFold(situation) ?? planEscape(situation, stays, parameters.repairHullThreshold)
+  if (fold) {
+    const description =
+      fold.kind === 'goal'
+        ? `Fold for goal (${fold.saving} turns saved): ${currentGoal?.description}`
+        : `Fold out of fire (${fold.stayLoss} hull at risk, ${fold.loss} after)`
+    candidates.push(
+      buildCandidate(situation, parameters, foldChoice(fold.to, fold.driveId), description, true)
+    )
+  } else if (goalMovement && currentGoal) {
     candidates.push(
       buildCandidate(situation, parameters, goalMovement, `Goal: ${currentGoal.description}`, true)
     )
@@ -1201,7 +1262,9 @@ export function generateCandidates(
       const plan = planShipToTarget(
         ship,
         weaponRangeTarget(readyWeapons, prey.position),
-        ENGAGE_PLAN_TURNS
+        ENGAGE_PLAN_TURNS,
+        0,
+        dockingAvoidance(situation.view.stations, status.position)
       )
       const movement = plan ? movementFromPlan(ship, status, plan) : null
       if (movement) {
@@ -1218,7 +1281,8 @@ export function generateCandidates(
       parameters,
       coastChoice(false),
       'Hold position',
-      goalMovement?.kind === 'coast'
+      // When the goal's move is a fold, a coast is no step toward it.
+      !fold && goalMovement?.kind === 'coast'
     )
   )
 

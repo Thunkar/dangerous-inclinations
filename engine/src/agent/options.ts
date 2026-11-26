@@ -25,6 +25,7 @@ import { escortCandidates, unplacedEscorts } from '../game/escort.ts'
 import { freePiracyCards, seizableItems, type SeizableItem } from '../game/piracy.ts'
 import { onSurveyRing, surveyToTake } from '../game/survey.ts'
 import { salvageToTake, salvageableWrecks } from '../game/salvage.ts'
+import { foldEngines, foldFuel, jumpDriveOf } from '../game/fold.ts'
 
 export type BurnOption = LegalBurn
 
@@ -66,6 +67,12 @@ export interface SeatOptions {
   burns: BurnOption[]
   /** The jump from the departure arc the ship is in, if the tank covers it (`legalMoves`). */
   jump: LegalJump | null
+  /**
+   * A jump drive aboard: whether it can fold this turn (unbroken, unused, the
+   * fuel in the tank), the energy it puts on the drive (heat at the check)
+   * and the fuel it costs. Null with no drive aboard.
+   */
+  fold: { ready: boolean; reason?: string; energy: number; engines: number; fuel: number } | null
   /** Docked at a station: a coast holds the berth, only a burn casts off. */
   moored: boolean
   /** Fuel a scoop would gain this turn: 0 when the scoop is broken. */
@@ -126,6 +133,26 @@ export function seatOptions(view: GameView): SeatOptions {
   const moves = legalMoves(ship)
   const burns: BurnOption[] = moves.burns
   const jump = moves.jumps[0] ?? null
+  const drive = jumpDriveOf(ship)
+  const foldPrice = foldFuel()
+  const foldReason = !drive
+    ? undefined
+    : drive.isBroken
+      ? 'broken: repair it at a station or by a cold turn'
+      : drive.usedThisTurn
+        ? 'already used this turn'
+        : ship.reactionMass < foldPrice
+          ? `needs ${foldPrice} fuel`
+          : undefined
+  const fold = drive
+    ? {
+        ready: foldReason === undefined,
+        ...(foldReason ? { reason: foldReason } : {}),
+        energy: getSubsystemConfig('jump_drive').minEnergy,
+        engines: foldEngines(),
+        fuel: foldPrice,
+      }
+    : null
   const moored = isMooredAt(view.stations, here)
 
   // A ship recovering from a respawn is untouchable until the turn it plays
@@ -247,6 +274,7 @@ export function seatOptions(view: GameView): SeatOptions {
     },
     burns,
     jump,
+    fold,
     moored,
     scoopGain: scoopWorks ? velocity : 0,
     weapons,

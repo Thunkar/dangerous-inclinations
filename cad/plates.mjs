@@ -186,7 +186,10 @@ export const PLATES = [
     title: `${planet[0].toUpperCase()}${planet.slice(1)}: its station, sale chips, sector numbers, lane markers and coloured bands`,
     colour: planet,
     parts: [
-      ['tokens/station', 1],
+      // The station in its three parts; the plugs part is its six plugs, one a berth.
+      ['tokens/station-stem', 1],
+      ['tokens/station-beam', 1],
+      ['tokens/station-habitat', 1],
       ['tokens/station-plugs', 1],
       [`tokens/sale-chip-${planet}`, 6],
       ['board/shared/numbers', 4, 'loose'],

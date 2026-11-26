@@ -50,10 +50,12 @@ import {
   canFireFrom,
   drawFor,
   escortCandidates,
+  foldDestinations,
+  foldEngines,
   fill,
   freePiracyCards,
   getJumpOptions,
-  getStationAt,
+  getStationInReach,
   getSubsystemConfig,
   inScanRange,
   isDestroyed,
@@ -62,6 +64,7 @@ import {
   isOnBoard,
   isPowerableType,
   isWeaponType,
+  jumpDriveOf,
   lowestCriticalFace,
   oppositeFacing,
   refusal,
@@ -84,6 +87,12 @@ export type MoveChoice =
   | { kind: 'coast'; scoop: boolean }
   | { kind: 'burn'; intensity: BurnIntensity; adjustment: number }
   | { kind: 'jump'; destinationWellId: string; adjustment: number }
+  /**
+   * A fold with the jump drive (RULES §Movement, Fold): `to` is the sector
+   * picked on the board, null until one is. Facing is kept, so a fold adds no
+   * rotation.
+   */
+  | { kind: 'fold'; to: Position | null }
 
 export type PlanStep =
   | { id: string; kind: 'rotate' }
@@ -214,7 +223,11 @@ function drawsFor(player: Player, steps: readonly PlanStep[]): Record<SubsystemI
           take('engines', drawFor('engines', BURN_COSTS[step.move.intensity].energy))
         else if (step.move.kind === 'jump')
           take('engines', drawFor('engines', WELL_TRANSFER_COSTS.energy))
-        else if (step.move.scoop) take('scoop', drawFor('scoop'))
+        else if (step.move.kind === 'fold') {
+          const drive = jumpDriveOf(player.ship)
+          if (drive) take(drive.id, drawFor('jump_drive'))
+          take('engines', drawFor('engines', foldEngines()))
+        } else if (step.move.scoop) take('scoop', drawFor('scoop'))
         break
       case 'fire': {
         const weapon = player.ship.subsystems.find(s => s.id === step.subsystemId)
@@ -270,6 +283,14 @@ function stepAction(me: Player, step: PlanStep, facing: Facing, sequence: number
     case 'rotate':
       return { playerId, type: 'rotate', sequence, data: { targetFacing: oppositeFacing(facing) } }
     case 'move':
+      if (step.move.kind === 'fold')
+        return {
+          playerId,
+          type: 'fold',
+          sequence,
+          // An unpicked fold is walked off the board, so it is refused for that alone.
+          data: step.move.to ?? UNPICKED_FOLD,
+        }
       return step.move.kind === 'coast'
         ? { playerId, type: 'coast', sequence, data: { activateScoop: step.move.scoop } }
         : step.move.kind === 'burn'
@@ -332,6 +353,9 @@ function stepAction(me: Player, step: PlanStep, facing: Facing, sequence: number
       return { playerId, type: 'escort_mark', sequence, data: { carrierId: step.carrierId } }
   }
 }
+
+/** Where a fold with no sector picked is walked: nowhere on the board. */
+const UNPICKED_FOLD: Position = { wellId: '', ring: 0, sector: 0 }
 
 /** Power first, in loadout order: a sensor powered now widens every shot the turn takes. */
 function powerActionsFor(me: Player, powers: Record<SubsystemId, number>): PlayerAction[] {
@@ -406,6 +430,13 @@ function issuesOf(
       return fill(I.scanPick, { range: SCAN_SECTOR_RANGE })
     if (step?.kind === 'scan' && step.peekSlot === null && r.code === 'peekNotSlot')
       return I.scanPeek
+    if (
+      step?.kind === 'move' &&
+      step.move.kind === 'fold' &&
+      step.move.to === null &&
+      r.code === 'foldOffBoard'
+    )
+      return I.foldPick
     return refusalText(r, slotName)
   }
   return [
@@ -562,6 +593,7 @@ export function moveReadiness(
   rotateReady: MoveReadiness
   burnReady: Record<BurnIntensity, MoveReadiness>
   jumpReady: MoveReadiness
+  foldReady: MoveReadiness
 } {
   const newId = () => 'readiness'
   /** The first refusal at a step of this kind, walked with `plan`. */
@@ -616,7 +648,23 @@ export function moveReadiness(
         ),
         ['move', 'rotate']
       )
-  return { rotateReady, burnReady, jumpReady }
+  // A fold is asked about with the sector picked, or the first it could land
+  // on: the drive, its use this turn and the fuel are the same for every sector.
+  const firstLanding = moveFrom ? foldTargets(view, me, moveFrom.position)[0] : undefined
+  const foldTo = (planned?.kind === 'fold' ? planned.to : null) ?? firstLanding ?? null
+  const foldReady = readiness(withMove({ kind: 'fold', to: foldTo }), ['move'])
+  return { rotateReady, burnReady, jumpReady, foldReady }
+}
+
+/**
+ * The sectors a fold from `from` may land on, as the referee reads them
+ * (`foldDestinations`): the board lights these, and only these, while a fold
+ * is being picked. None without a working drive.
+ */
+export function foldTargets(view: GameView, me: Player, from: Position): Position[] {
+  const drive = jumpDriveOf(me.ship)
+  if (!drive || drive.isBroken) return []
+  return foldDestinations(view.stations, from)
 }
 
 /**
@@ -642,7 +690,8 @@ export function criticalFrom(
  * A visit does one thing, load the crates waiting or sell one item, and a
  * station buys from each player once (RULES §Stations). Docking happens on
  * arrival only, so a ship that began the turn moored is holding its berth,
- * not visiting. Stations do not move during a turn, so where they are now is
+ * not visiting. A turn that ends on a station's ring within its docking reach
+ * docks there. Stations do not move during a turn, so where they are now is
  * where the plan meets them. Offered when there is something to do (doing
  * nothing keeps the station for later) or when the station has bought from
  * this player already, so the table can say so.
@@ -654,7 +703,7 @@ function dockOfferFor(
   projectedFuel: number
 ): (SaleOffer & { planetId: string }) | null {
   if (isDestroyed(me.ship) || isMooredAt(view.stations, me.ship)) return null
-  const station = getStationAt(view.stations, finalPosition)
+  const station = getStationInReach(view.stations, finalPosition)
   if (!station) return null
   const offer = salesOnArrival(
     { cargo: me.cargo, missions: me.missions, reactionMass: projectedFuel, soldAt: me.soldAt },
@@ -960,6 +1009,7 @@ export function planActions(
   steps.forEach((step, i) => {
     if (step.kind === 'fire' && !step.targetId) return
     if (step.kind === 'scan' && (!step.targetId || !step.peekSlot)) return
+    if (step.kind === 'move' && step.move.kind === 'fold' && !step.move.to) return
     list.push(stepAction(me, step, facings[i], list.length + 1))
   })
   if (extras.repair !== null && preview.repairable.includes(extras.repair))

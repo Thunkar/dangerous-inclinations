@@ -16,7 +16,7 @@ export const SIGNATURE: Record<BotPresetId, SubsystemType> = {
   corsair: 'missiles',
   warden: 'disruptor',
   raider: 'sensor_array',
-  watcher: 'shields',
+  watcher: 'jump_drive',
   picket: 'missiles',
   sentry: 'ballistic_rack',
   freighter: 'fuel_compressor',

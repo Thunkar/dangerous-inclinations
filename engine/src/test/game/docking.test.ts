@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { getStationForPlanet, isMooredAt, stationSectors } from '../../game/stations.ts'
 import { salesOnArrival } from '../../game/docking.ts'
 import { viewFor } from '../../game/view.ts'
+import { canBeTargeted } from '../../game/targeting.ts'
 import type { GameState, ShipLoadout } from '../../models/game.ts'
 import type { Cargo, Mission } from '../../models/missions.ts'
 import { PLANET_RINGS, STATION_RING } from '../../models/gravityWells.ts'
@@ -12,7 +13,6 @@ import {
   BH,
   BETA,
   GAMMA,
-  approachSector,
   burn,
   coast,
   deliverMission,
@@ -91,13 +91,20 @@ describe('docking: ending the turn on a station', () => {
     expect(docked).not.toHaveProperty('privateTo')
   })
 
-  it('does not dock one sector short or on the wrong ring', () => {
-    const short = withShip(approaching(ALPHA), 'p1', {
-      sector: approachSector(approaching(ALPHA), ALPHA) - 1,
-    })
-    expect(eventTypes(executeTurnAs(short, coast(1)).events)).not.toContain('docked')
-    const wrongRing = withShip(approaching(ALPHA), 'p1', { ring: STATION_RING + 1, sector: 22 }) // that ring drifts 2 -> sector 0
-    expect(eventTypes(executeTurnAs(wrongRing, coast(1)).events)).not.toContain('docked')
+  // The station spans its centre (sector 0) and a sector either side on its
+  // ring. A coast on that ring drifts 4; on ring 3 it drifts 2, onto sector 0.
+  it.each<[string, { ring: number; sector: number }, number, boolean]>([
+    ['docks one sector short', { ring: STATION_RING, sector: 19 }, 23, true],
+    ['docks one sector past', { ring: STATION_RING, sector: 21 }, 1, true],
+    ['not two sectors short', { ring: STATION_RING, sector: 18 }, 22, false],
+    ['not two sectors past', { ring: STATION_RING, sector: 22 }, 2, false],
+    ['not on the wrong ring', { ring: STATION_RING + 1, sector: 22 }, 0, false],
+  ])('%s, and stays on the sector it ends on', (_label, from, end, docks) => {
+    const result = executeTurnAs(withShip(approaching(ALPHA), 'p1', from), coast(1))
+    expect(result.errors).toBeUndefined()
+    expect(eventsOf(result.events, 'docked')).toHaveLength(docks ? 1 : 0)
+    expect(getShip(result.gameState, 'p1')).toMatchObject({ ring: from.ring, sector: end })
+    expect(isMooredAt(result.gameState.stations, getShip(result.gameState, 'p1'))).toBe(docks)
   })
 
   it('a burn that lands on the station docks too', () => {
@@ -308,6 +315,59 @@ describe('docking: moored ships ride their station', () => {
       expect(getShip(second.gameState, id)).toMatchObject({ ring: STATION_RING, sector: 4 })
       expect(isMooredAt(second.gameState.stations, getShip(second.gameState, id))).toBe(true)
     }
+  })
+
+  it('a ship docked a sector off the centre rides the advance on that sector', () => {
+    const state = withShip(approaching(ALPHA), 'p1', { sector: 21 })
+    const docked = executeTurnAs(state, coast(1))
+    expect(eventsOf(docked.events, 'docked')).toHaveLength(1)
+    // p2's turn ends the round: the station steps 0 -> 4 and carries p1 1 -> 5.
+    const round = executeTurnAs(docked.gameState, coast(1))
+    expect(getStationForPlanet(round.gameState.stations, ALPHA)!.sector).toBe(4)
+    expect(eventsOf(round.events, 'stations_moved')[0].riders).toEqual(['p1'])
+    expect(getShip(round.gameState, 'p1')).toMatchObject({ ring: STATION_RING, sector: 5 })
+    expect(isMooredAt(round.gameState.stations, getShip(round.gameState, 'p1'))).toBe(true)
+  })
+
+  it('a ship docked a sector off the centre cannot be fired at there', () => {
+    // p2 on the ring outside, beside p1: p1 is in its rack's box either way.
+    const state = makeTwoPlayerGame(
+      { wellId: ALPHA, ring: STATION_RING, sector: 21 },
+      { wellId: ALPHA, ring: STATION_RING + 1, sector: 2, loadout: LOADOUTS.railRack }
+    )
+    const docked = mustExecute(state, coast(1))
+    expect(getShip(docked, 'p1')).toMatchObject({ ring: STATION_RING, sector: 1 })
+    expect(canBeTargeted(getPlayer(docked, 'p1'), docked.stations)).toBe(false)
+    const offStation = withShip(docked, 'p1', { ring: STATION_RING + 1, sector: 1 })
+    expectRefusedUnless(
+      executeTurnAs(docked, fire(1, 'side-0', 'p1')),
+      executeTurnAs(offStation, fire(1, 'side-0', 'p1'))
+    )
+  })
+
+  it('a ship moored a sector off the centre holds that sector and docks nothing again', () => {
+    // Moored on sector 1 when its turn begins, hurt: it ends the turn on the station.
+    const state = withShip(mooredAt(ALPHA), 'p1', { sector: 1, hitPoints: 4 })
+    const result = executeTurnAs(state, coast(1))
+    expect(result.errors).toBeUndefined()
+    expect(getShip(result.gameState, 'p1')).toMatchObject({ ring: STATION_RING, sector: 1 })
+    expect(eventsOf(result.events, 'coasted')[0]).toMatchObject({ moored: true })
+    expect(eventTypes(result.events)).not.toContain('docked')
+    expect(getShip(result.gameState, 'p1').hitPoints).toBe(4)
+  })
+
+  it.each([
+    ["the station's centre", 0, 4],
+    ['a sector off the centre', 1, 5],
+  ])('a ship moored on %s casts off from its own sector', (_label, sector, drifted) => {
+    const state = withPower(withShip(mooredAt(ALPHA), 'p1', { sector }), 'p1', 'engines', 1)
+    const result = executeTurnAs(state, burn(1, 'soft'))
+    expect(result.errors).toBeUndefined()
+    expect(getShip(result.gameState, 'p1')).toMatchObject({
+      ring: STATION_RING + 1,
+      sector: drifted,
+    })
+    expect(eventTypes(result.events)).not.toContain('docked')
   })
 
   it("a burn casts off: the ship drifts with the station's orbit, then changes ring", () => {

@@ -16,6 +16,9 @@ import {
   staticTarget,
   orbitingTarget,
   planFromShip,
+  anySectorOnRing,
+  dockingAvoidance,
+  stationTarget,
 } from '../../ai/movementPlanner/index.ts'
 import type {
   MovementPlan,
@@ -24,7 +27,7 @@ import type {
 } from '../../ai/movementPlanner/types.ts'
 import type { Facing } from '../../models/game.ts'
 import type { PlannerTarget } from '../../ai/movementPlanner/index.ts'
-import { createInitialStations } from '../../game/stations.ts'
+import { createInitialStations, inDockingReach, isMooredAt } from '../../game/stations.ts'
 import { wrapSector } from '../../game/geometry.ts'
 import { ALPHA, BETA, BH, GAMMA, LOADOUTS, at, makePlayer } from '../testUtils.ts'
 
@@ -320,10 +323,11 @@ describe('planMovementToTarget: the forward search', () => {
       LOADOUTS.sensorStarboardLaser
     ).ship
     const meet = planStationMeetUp(ship, { planetId: ALPHA, ring: STATION_RING, sector: 16 })
-    // Two turns: the station has advanced once, S16 to S20, when the ship arrives.
+    // Two turns: the station has advanced once, S16 to S20, when the ship
+    // arrives on one of its three sectors (S19 to S21).
     expect(meet?.totalTurns).toBe(2)
-    expect(meet?.meetPosition).toEqual(at(STATION_RING, 20, ALPHA))
-    expect(meet?.plan.steps.at(-1)?.to).toMatchObject(at(STATION_RING, 20, ALPHA))
+    expect(inDockingReach(at(STATION_RING, 20, ALPHA), meet!.meetPosition)).toBe(true)
+    expect(meet?.plan.steps.at(-1)?.to).toMatchObject(meet!.meetPosition)
   })
 })
 
@@ -604,5 +608,96 @@ describe('planFromShip: the forward search behind the reverse one', () => {
     const ship = { ...makePlayer('p1', facing(at(3, 0))).ship, reactionMass }
     const plan = planFromShip(ship, destination, 'fastest', 20)
     expect(plan && plan.steps.map(s => s.actionType)).toEqual(actions)
+  })
+})
+
+describe('dockingAvoidance: a route stops at a station only to arrive', () => {
+  const stations = createInitialStations()
+  const ship = (from: OrbitalPosition) => makePlayer('p1', facing(from)).ship
+  /** The turns short of the arrival that end on a station, where the rule would dock the ship. */
+  const stopsInside = (plan: MovementPlan | null) =>
+    (plan?.steps.slice(0, -1) ?? []).filter((step, i) =>
+      stations.some(s => inDockingReach(stationTarget(s).positionAt(i + 1), step.to))
+    ).length
+  // Every place in Alpha's well off the station.
+  const origins = [1, 2, 3, 4]
+    .flatMap(ring => Array.from({ length: 24 }, (_, sector) => at(ring, sector, ALPHA)))
+    .filter(p => !isMooredAt(stations, p))
+
+  it.each([
+    [
+      'the forward search',
+      (from: OrbitalPosition, avoid?: ReturnType<typeof dockingAvoidance>) =>
+        // Out of the well to the black hole's lane ring.
+        planMovementToTarget(facing(from), anySectorOnRing(BH, 5), { maxTurns: 12, avoid }),
+    ],
+    [
+      // Into Alpha's ring 1, past the station's ring on the way down.
+      'planFromShip (the reverse search, planned again forward)',
+      (from: OrbitalPosition, avoid?: ReturnType<typeof dockingAvoidance>) =>
+        planFromShip(ship(from), at(1, 12, ALPHA), 'fastest', 12, avoid),
+    ],
+  ] as const)('%s never ends a turn on the way on a station', (_label, plan) => {
+    // The case is a real one: without the stations, some routes stop on one.
+    expect(origins.filter(from => stopsInside(plan(from)) > 0).length).toBeGreaterThan(0)
+    const avoided = origins.map(from => plan(from, dockingAvoidance(stations, from)))
+    expect(avoided.map(stopsInside).filter(n => n > 0)).toEqual([])
+    // And nobody is stranded by it.
+    expect(avoided.filter(p => p === null)).toEqual([])
+  })
+
+  // A ship that begins its turn moored does not dock that turn, wherever it ends it.
+  // Alpha's station is on S0 on turns 1 and 7 (six turns are a whole drift round the ring).
+  it.each([
+    {
+      label: 'from the centre, the first turn is free',
+      start: at(STATION_RING, 0, ALPHA),
+      turn: 1,
+      covers: false,
+    },
+    {
+      label: 'from a sector off the centre, the first turn is free',
+      start: at(STATION_RING, 23, ALPHA),
+      turn: 1,
+      covers: false,
+    },
+    {
+      label: 'from the centre, the seventh is not',
+      start: at(STATION_RING, 0, ALPHA),
+      turn: 7,
+      covers: true,
+    },
+    {
+      label: 'from off the station, the first is not',
+      start: at(3, 22, ALPHA),
+      turn: 1,
+      covers: true,
+    },
+  ])('$label', ({ start, turn, covers }) => {
+    expect(dockingAvoidance(stations, start).covers(at(STATION_RING, 1, ALPHA), turn)).toBe(covers)
+  })
+
+  it.each([
+    { label: 'two sectors off', pos: at(STATION_RING, 2, ALPHA) },
+    { label: "the centre's sector on the ring outside", pos: at(3, 0, ALPHA) },
+  ])('does not cover $label', ({ pos }) => {
+    expect(dockingAvoidance(stations, at(3, 22, ALPHA)).covers(pos, 1)).toBe(false)
+  })
+
+  it.each([
+    // Ring 3 drifts two a turn onto the station's sector, and the burn drops it in.
+    { label: 'a burn in from the ring outside', from: at(3, 22, ALPHA), turns: 1 },
+    // Ring 2 drifts four: one sector past the station's centre, on its ring.
+    { label: 'along its ring, a sector past the centre', from: at(2, 21, ALPHA), turns: 1 },
+    { label: 'from the black hole', from: at(5, 8), turns: undefined },
+  ])('still plans the arrival on the station: $label', ({ from, turns }) => {
+    const alpha = stations.find(s => s.planetId === ALPHA)!
+    const meet = planStationMeetUp(ship(from), alpha, 12, 0, dockingAvoidance(stations, from))
+    expect(meet).not.toBeNull()
+    if (turns !== undefined) expect(meet!.totalTurns).toBe(turns)
+    expect(
+      inDockingReach(stationTarget(alpha).positionAt(meet!.totalTurns), meet!.meetPosition)
+    ).toBe(true)
+    expect(stopsInside(meet!.plan)).toBe(0)
   })
 })

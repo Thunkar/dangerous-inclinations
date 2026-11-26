@@ -143,6 +143,11 @@ export function HeatSection() {
                 value={energy('sensor_array')}
               />
               <EnergyCell type="shields" label={T.energy.shields} value={energyLabel('shields')} />
+              <EnergyCell
+                type="jump_drive"
+                label={T.energy.fold}
+                value={`${energy('jump_drive')} + ${SUBSYSTEM_CONFIGS.jump_drive.fold!.foldEngines}`}
+              />
             </Box>
           </Box>
         </Box>

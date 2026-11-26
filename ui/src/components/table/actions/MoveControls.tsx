@@ -1,5 +1,6 @@
-import { Box, Chip, Slider, Typography } from '@mui/material'
-import type { BurnIntensity } from '@dangerous-inclinations/engine'
+import { Box, Button, Chip, Slider, Typography } from '@mui/material'
+import MyLocationIcon from '@mui/icons-material/MyLocation'
+import type { BurnIntensity, Position } from '@dangerous-inclinations/engine'
 import {
   BURN_COSTS,
   BURN_INTENSITIES,
@@ -7,11 +8,17 @@ import {
   STATION_DRIFT,
   WELL_TRANSFER_COSTS,
   calculateBurnMassCost,
+  BLACK_HOLE_ID,
   calculateJumpMassCost,
+  drawFor,
   fill,
+  foldEngines,
+  foldFuel,
   getSubsystemConfig,
   getWellName,
   hasWorkingCompressor,
+  heatDamage,
+  jumpDriveOf,
   phasedJumpDestination,
 } from '@dangerous-inclinations/engine'
 import { usePlan } from '../../../context/PlanContext'
@@ -70,7 +77,117 @@ function PhaseSlider({
   )
 }
 
-/** Coast, burn or jump: exactly one a turn, and the choices each one has. */
+/**
+ * A fold's choices: the sector it lands on, picked on the board among the lit
+ * ones, what it can reach from here, and what it costs. With no sector picked
+ * the turn is blocked (the sequence says so), as a shot with no target is.
+ */
+function FoldOptions({ to }: { to: Position | null }) {
+  const plan = usePlan()
+  const picking = plan.picking?.kind === 'fold'
+  const from = plan.moveFrom.position
+  const drive = drawFor('jump_drive')
+  const engines = foldEngines()
+  const damage = heatDamage(plan.projectedHeat)
+  const line = { color: TABLE.inkSoft, lineHeight: 1.3 } as const
+  return (
+    <Box
+      data-testid="fold-options"
+      sx={{ display: 'flex', flexDirection: 'column', gap: 0.4, minWidth: 0 }}
+    >
+      {picking ? (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.6,
+            px: 0.75,
+            py: 0.4,
+            border: `1px solid ${TABLE.accent}`,
+            minWidth: 0,
+          }}
+        >
+          <MyLocationIcon sx={{ fontSize: 15, color: TABLE.accent, flexShrink: 0 }} />
+          <Typography
+            sx={{
+              fontFamily: FONT_MONO,
+              fontSize: '0.76rem',
+              fontWeight: 700,
+              color: TABLE.accent,
+              flex: 1,
+              minWidth: 0,
+            }}
+            noWrap
+          >
+            {T.foldPicking}
+          </Typography>
+          <Button
+            size="small"
+            data-testid="fold-cancel"
+            onClick={() => plan.setPicking(null)}
+            sx={{ minWidth: 0, px: 0.75, py: 0, fontSize: '0.72rem', color: TABLE.inkSoft }}
+          >
+            {T.foldCancel}
+          </Button>
+        </Box>
+      ) : to ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+          <Typography
+            data-testid="fold-landing"
+            sx={{
+              fontFamily: FONT_MONO,
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              color: TABLE.ink,
+              flex: 1,
+              minWidth: 0,
+            }}
+            noWrap
+          >
+            {fill(T.foldTo, { place: placeLabel(to), facing: plan.moveFrom.facing })}
+          </Typography>
+          <Button
+            size="small"
+            data-testid="fold-change"
+            disabled={plan.disabled}
+            onClick={() => plan.setPicking({ kind: 'fold' })}
+            sx={{ minWidth: 0, px: 0.6, py: 0, fontSize: '0.72rem', flexShrink: 0 }}
+          >
+            {T.foldChange}
+          </Button>
+        </Box>
+      ) : (
+        <Button
+          fullWidth
+          size="small"
+          variant="outlined"
+          data-testid="fold-pick"
+          startIcon={<MyLocationIcon sx={{ fontSize: 15 }} />}
+          disabled={plan.disabled}
+          onClick={() => plan.setPicking({ kind: 'fold' })}
+          sx={{ justifyContent: 'flex-start', py: 0.3, fontSize: '0.74rem' }}
+        >
+          {T.foldPick}
+        </Button>
+      )}
+      <Typography variant="caption" sx={line}>
+        {from.wellId === BLACK_HOLE_ID
+          ? T.foldReach.hole
+          : fill(T.foldReach.planet, { well: getWellName(from.wellId) })}
+      </Typography>
+      <Typography variant="caption" sx={line}>
+        {fill(T.foldCost, { drive, engines, fuel: foldFuel(), heat: drive + engines })}
+      </Typography>
+      {damage > 0 && (
+        <Typography variant="caption" sx={{ color: TABLE.danger, lineHeight: 1.3 }}>
+          {fill(T.foldOverheat, { damage })}
+        </Typography>
+      )}
+    </Box>
+  )
+}
+
+/** Coast, burn, jump or fold: exactly one a turn, and the choices each one has. */
 export function MoveControls() {
   const plan = usePlan()
   const disabled = plan.disabled
@@ -99,6 +216,9 @@ export function MoveControls() {
   }
   /** The mode button offers a burn when any intensity is available. */
   const anyBurn = BURN_INTENSITIES.find(i => plan.burnReady[i].ok)
+  /** The fold is offered only to a ship carrying a working jump drive. */
+  const drive = jumpDriveOf(plan.me.ship)
+  const canFold = Boolean(drive && !drive.isBroken)
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
@@ -143,6 +263,20 @@ export function MoveControls() {
             )
           }
         />
+        {canFold && (
+          <Segment
+            label={T.fold}
+            title={plan.foldReady.ok ? T.foldTip : plan.foldReady.reason}
+            selected={move.kind === 'fold'}
+            icon="jump_drive"
+            disabled={disabled || !plan.foldReady.ok}
+            onClick={() => {
+              // Picking starts at once; a fold already planned keeps its sector until a new one is clicked.
+              if (move.kind !== 'fold') plan.setMove({ kind: 'fold', to: null })
+              plan.setPicking({ kind: 'fold' })
+            }}
+          />
+        )}
       </SegmentedRow>
 
       {move.kind === 'coast' && plan.moored && (
@@ -209,6 +343,8 @@ export function MoveControls() {
           />
         </Box>
       )}
+
+      {move.kind === 'fold' && <FoldOptions to={move.to} />}
 
       {move.kind === 'jump' && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>

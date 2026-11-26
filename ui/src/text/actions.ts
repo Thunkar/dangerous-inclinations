@@ -98,6 +98,19 @@ export const ACTIONS = {
     jumpCost:
       'Engines at {energy}, {fuel} fuel{compressor}. Phasing never lands you outside the arrival arc.',
     compressor: " (the compressor pays {saved} of the jump's {fuel} fuel, never the phasing)",
+    fold: 'Fold',
+    foldTip: 'Jump drive: land on any sector of your well, or between the black hole and a planet.',
+    foldPicking: 'click a lit sector on the board',
+    foldCancel: 'cancel',
+    foldTo: 'lands {place} · {facing}',
+    foldChange: 'change',
+    foldPick: 'pick a sector',
+    foldReach: {
+      hole: 'Anywhere on the board but a station.',
+      planet: '{well} or the black hole, never another planet.',
+    },
+    foldCost: 'Drive {drive}, engines {engines} · {fuel} fuel · no drift · +{heat} heat',
+    foldOverheat: '{damage} hull damage at your check.',
   },
 
   routePlanner: {
@@ -289,6 +302,8 @@ export const ACTIONS = {
       burn: '{intensity} burn{phase}',
       burnPhase: ', phase {value}',
       jump: 'Jump to {well}',
+      fold: 'Fold to {place}',
+      foldUnpicked: 'Fold',
       fire: 'Fire {slot}{count}{target}',
       fireCount: ' ×{count}',
       fireTarget: ' at {name}',
@@ -354,5 +369,6 @@ export const ACTIONS = {
     pickTarget: '{slot}: pick a target',
     scanPick: 'Scan: pick a target on your ring, up to {range} sectors ahead',
     scanPeek: 'Scan: choose which subsystem to look at',
+    foldPick: 'Fold: pick a sector on the board',
   },
 } as const

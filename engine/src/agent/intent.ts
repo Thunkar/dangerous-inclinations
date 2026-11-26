@@ -78,6 +78,11 @@ export interface TurnIntent {
     | { kind: 'coast'; scoop?: boolean }
     | { kind: 'burn'; intensity: BurnIntensity; adjustment?: number; facing?: Facing }
     | { kind: 'jump'; destinationWellId: string; adjustment?: number }
+    /**
+     * A jump drive's fold to that sector (RULES §Movement, Fold): the turn's
+     * one move, with no drift. Actions after it are taken where it lands.
+     */
+    | { kind: 'fold'; wellId: string; ring: number; sector: number }
   /**
    * Shots in the order given within each side of the move. Order matters: a
    * salvo that lands flies and attacks as it is launched, so list it before
@@ -190,7 +195,7 @@ export function buildTurn(view: GameView, intent: TurnIntent): BuiltTurn {
     move,
     rotation,
     turned,
-    shots: planShots(view, ship, intent.fire ?? [], pre, post, notes),
+    shots: planShots(view, ship, intent.fire ?? [], pre, post, move.kind === 'fold', notes),
     scan: planScan(view, ship, intent.scan, pre, notes),
     seizes: planSeizures(view, me.id, intent.seize ?? [], pre, notes),
     marks: planEscorts(view, me, intent.escort, pre, notes),
@@ -305,6 +310,12 @@ function stances(
     move.kind === 'jump'
       ? getJumpOptions(pre).find(o => o.destination.wellId === move.destinationWellId)
       : undefined
+  // A fold puts the ship on the sector it names, facing as it was.
+  if (move.kind === 'fold')
+    return {
+      pre,
+      post: { wellId: move.wellId, ring: move.ring, sector: move.sector, facing: postFacing },
+    }
   const preview: MovementPreview =
     move.kind === 'coast'
       ? { kind: 'coast', moored: isMooredMidTurn(view.stations, ship, pre) }
@@ -336,6 +347,7 @@ function planShots(
   fire: FireIntent[],
   pre: Stance,
   post: Stance,
+  fold: boolean,
   notes: string[]
 ): FireIntent[] {
   const find = (id: SubsystemId) => ship.subsystems.find(s => s.id === id)
@@ -349,8 +361,10 @@ function planShots(
     const before = !!at && isInWeaponRange(weapon, pre, at)
     const after = !!at && isInWeaponRange(weapon, post, at)
     // A railgun's recoil moves the ship a ring, so it waits for the move
-    // unless only the start of the move has the shot.
-    if (weapon.type === 'railgun') return before && !after ? 'before' : 'after'
+    // unless only the start of the move has the shot. A fold lands where it
+    // names whatever the recoil did, so before a fold the shot goes first
+    // whenever the start has it.
+    if (weapon.type === 'railgun') return before && (fold || !after) ? 'before' : 'after'
     // Reaching from neither, it goes before the move and the walk says why.
     return before || !after ? 'before' : 'after'
   }
@@ -576,6 +590,13 @@ function moveAction(playerId: string, move: Move, seq: Sequence): PlayerAction {
       playerId,
       sequence: seq(),
       data: { burnIntensity: move.intensity, sectorAdjustment: move.adjustment ?? 0 },
+    }
+  if (move.kind === 'fold')
+    return {
+      type: 'fold',
+      playerId,
+      sequence: seq(),
+      data: { wellId: move.wellId, ring: move.ring, sector: move.sector },
     }
   return {
     type: 'well_transfer',

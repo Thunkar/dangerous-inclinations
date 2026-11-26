@@ -1,7 +1,7 @@
 /**
  * Planning overlays drawn over the board: which sectors a weapon reaches,
- * the path the turn you are building will take, and the sectors you may
- * deploy into.
+ * the path the turn you are building will take, and the sectors a click may
+ * pick: where you may deploy, or where a fold may land.
  *
  * Every range answer comes from the engine, tested sector by sector: the
  * sweep lives in the board model now, so both boards shade the same wedges
@@ -21,15 +21,15 @@ import { TABLE } from '../../../../design/tokens'
 import { BOARD, cream } from '../palette'
 import { allWells, positionPoint, ringRadius, ringsOf, sectorWedgePath } from '../../geometry'
 import { trackAttr, trackPoints } from '../../trajectory'
-import { deployLabel, routeCellLabel } from '../../labels'
+import { routeCellLabel } from '../../labels'
+import type { PlannedLeg } from '../../model'
 
 /**
- * The table's red, which is what you can act on. Every deployment sector is
- * in the same well, so the wedges carry no well colour.
- * They are simply the thing on the board you are being asked to click, and the
- * black hole's own colour is all but black.
+ * The table's red, which is what you can act on. A pickable sector carries no
+ * well colour: it is simply the thing on the board you are being asked to
+ * click, and the black hole's own colour is all but black.
  */
-const DEPLOY_ACCENT = BOARD.red
+const PICK_ACCENT = BOARD.red
 /**
  * Route planner colour: the cream, printed softer than the plan you are
  * building, so it never reads as a lane, a weapon or a ship.
@@ -236,20 +236,30 @@ export const RangeOverlay = memo(function RangeOverlay({ cells }: { cells: Posit
 // ---------------------------------------------------------------------------
 
 export const PlannedPath = memo(function PlannedPath({
-  points,
+  legs,
   color,
 }: {
-  points: ReadonlyArray<Position>
+  legs: ReadonlyArray<PlannedLeg>
   color: string
 }) {
-  if (points.length < 2) return null
-  // The arcs the ship actually rides, bowed clear of the rings they ride: the
-  // same polyline the 3D board draws, from the same helper.
-  const track = trackPoints(points, 'arc')
-  const end = positionPoint(points[points.length - 1])
+  const last = legs[legs.length - 1]
+  if (!last) return null
+  // The arcs the ship actually rides, bowed clear of the rings they ride, and
+  // a fold's straight chord, which rides none: the same polylines the 3D board
+  // draws, from the same helper.
+  const end = positionPoint(last.points[last.points.length - 1])
   return (
     <g className="planned-path" pointerEvents="none">
-      <Track points={trackAttr(track)} color={color} width={2.5} dash="7 5" opacity={0.9} />
+      {legs.map((leg, i) => (
+        <Track
+          key={i}
+          points={trackAttr(trackPoints(leg.points, leg.shape))}
+          color={color}
+          width={2.5}
+          dash={leg.shape === 'chord' ? '3 6' : '7 5'}
+          opacity={0.9}
+        />
+      ))}
       <circle
         cx={end.x}
         cy={end.y}
@@ -275,22 +285,25 @@ export const PlannedPath = memo(function PlannedPath({
 })
 
 // ---------------------------------------------------------------------------
-// Deployment
+// Sectors to pick: deployment, a fold's landing
 // ---------------------------------------------------------------------------
 
-export const DeploymentSectors = memo(function DeploymentSectors({
+export const PickSectors = memo(function PickSectors({
   positions,
   onPick,
   hovered,
   onHover,
+  label,
 }: {
   positions: ReadonlyArray<Position>
   onPick: (position: Position) => void
   hovered: Position | null
   onHover: (position: Position | null) => void
+  /** The hover text a sector carries: what a click there does. */
+  label: (position: Position) => string
 }) {
   return (
-    <g className="deployment">
+    <g className="pick-sectors">
       {positions.map(position => {
         const radius = ringRadius(position.wellId, position.ring)
         const isHovered =
@@ -310,12 +323,12 @@ export const DeploymentSectors = memo(function DeploymentSectors({
             onMouseEnter={() => onHover(position)}
             onMouseLeave={() => onHover(null)}
           >
-            <title>{deployLabel(position)}</title>
+            <title>{label(position)}</title>
             <path
               d={sectorWedgePath(position.wellId, position.sector, radius - 16, radius + 16)}
-              fill={DEPLOY_ACCENT}
+              fill={PICK_ACCENT}
               fillOpacity={isHovered ? 0.55 : 0.22}
-              stroke={DEPLOY_ACCENT}
+              stroke={PICK_ACCENT}
               strokeWidth={isHovered ? 2 : 1}
               style={{
                 animation: isHovered ? undefined : 'di-breathe 2.6s ease-in-out infinite',

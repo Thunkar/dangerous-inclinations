@@ -171,7 +171,7 @@ export function volleyPotential(weapons: Subsystem[]): number {
  * Points of this weapon's damage a shield cube absorbs, or null when shields
  * do not stop it (lasers go straight through).
  */
-function shieldPerCubeOf(weapon: Pick<Subsystem, 'type'>): number | null {
+export function shieldPerCubeOf(weapon: Pick<Subsystem, 'type'>): number | null {
   const stats = getSubsystemConfig(weapon.type).weaponStats
   return stats?.ignoresShields === true ? null : shieldPointsPerEnergyOf(stats)
 }

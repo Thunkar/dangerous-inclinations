@@ -1,7 +1,7 @@
 /**
- * A route followed with Done has to end where the planner said it would: on a
- * station's sector when the station is there, on a fixed sector otherwise, with
- * the fuel the plan counted. Each Done moves the ship and the stations one turn
+ * A route followed with Done has to end where the planner said it would: on
+ * the station when the station is there, riding it from the sector it docked
+ * on, on a fixed sector otherwise, with the fuel the plan counted. Each Done moves the ship and the stations one turn
  * on, so the kept route is checked against the engine's own station target
  * after every step, not only at the end.
  */
@@ -12,12 +12,17 @@ import {
   SECTORS_PER_RING,
   STATION_DRIFT,
   createInitialStations,
+  dockingAvoidance,
+  inDockingReach,
   planAlternativesToTarget,
   planMovementAlternatives,
   samePosition,
+  staticTarget,
   stationPosition,
   stationSectors,
   stationTarget,
+  stopsInside,
+  wrapSector,
 } from '@dangerous-inclinations/engine'
 import { ROUTE_SEARCH_TURNS } from '../../utils/route'
 import { edit, hasArrived, markDone, startTrip, undoDone, type Trip } from './routeProgress'
@@ -71,15 +76,21 @@ describe('following a route with Done', () => {
       expect(stationSectors()).toContain(clock)
       const stations = stationsAt(clock)
       const station = stations.find(s => s.planetId === planetId)!
+      // As the tool plans it: a route stops on a station only to arrive.
       const alternatives =
-        planAlternativesToTarget({ ...at, facing }, stationTarget(station), options(fuel))
-          ?.alternatives ?? []
+        planAlternativesToTarget({ ...at, facing }, stationTarget(station), {
+          ...options(fuel),
+          avoid: dockingAvoidance(stations, at),
+        })?.alternatives ?? []
       expect(alternatives.length).toBeGreaterThan(0)
 
       for (const route of alternatives) {
         const arrival = stationTarget(station).positionAt(route.totalTurns)
-        // Moored on arrival, the ship rides the station's step at the round's end.
-        const berth = stationTarget(station).positionAt(route.totalTurns + 1)
+        const docked = place(route.steps[route.steps.length - 1].to)
+        expect(inDockingReach(arrival, docked)).toBe(true)
+        // Moored on the sector it arrived on, the ship rides the station's
+        // step at the round's end, keeping its place on the station.
+        const berth = { ...docked, sector: wrapSector(docked.sector + STATION_DRIFT) }
         const end = follow(startTrip({ at, facing, fuel }, stations), route, trip => {
           const moved = trip.stations.find(s => s.planetId === planetId)!
           // The kept route still meets the station where the first plan met it.
@@ -93,11 +104,12 @@ describe('following a route with Done', () => {
         })
         const moved = end.stations.find(s => s.planetId === planetId)!
         expect(hasArrived(end)).toBe(true)
-        // After k Dones the ship is where the station is after k drifts.
-        expect(end.ship.at).toEqual(stationPosition(moved))
+        // After k Dones the station has drifted k times, and the ship is on it
+        // where it docked, one drift on.
         expect(moved.sector).toBe((clock + route.totalTurns * STATION_DRIFT) % SECTORS_PER_RING)
+        expect(inDockingReach(stationPosition(moved), end.ship.at)).toBe(true)
         expect(end.ship.at).toEqual(berth)
-        expect(samePosition(arrival, berth)).toBe(false)
+        expect(samePosition(docked, berth)).toBe(false)
         expect(end.ship.fuel).toBe(fuel - route.totalMassCost)
       }
     }
@@ -117,8 +129,14 @@ describe('following a route with Done', () => {
       { wellId: 'blackhole', ring: 1, sector: 0 },
     ],
   ])('reaches the sector from %o facing %s on %i fuel', (at, facing, fuel, to) => {
-    const alternatives =
-      planMovementAlternatives({ ...at, facing }, to, options(fuel))?.alternatives ?? []
+    // As the tool plans it: a reverse route that would stop on a station on
+    // the way is planned forward instead, stopping on one only to arrive.
+    const avoid = dockingAvoidance(stationsAt(0), at)
+    const fixed = planMovementAlternatives({ ...at, facing }, to, options(fuel))?.alternatives ?? []
+    const alternatives = fixed.some(route => stopsInside(route, avoid))
+      ? (planAlternativesToTarget({ ...at, facing }, staticTarget(to), { ...options(fuel), avoid })
+          ?.alternatives ?? [])
+      : fixed
     expect(alternatives.length).toBeGreaterThan(0)
     for (const route of alternatives) {
       const end = follow(startTrip({ at, facing, fuel }, stationsAt(0)), route, () => {})

@@ -124,6 +124,8 @@ export function describeEvent(e: GameEvent, name: NameResolver): string {
       return `${name(e.playerId)} scoops ${e.amount} fuel`
     case 'burned':
       return `${name(e.playerId)} makes a ${e.intensity} burn to ${pos(e.to)} (-${e.massSpent} fuel)${heat(e.heat)}`
+    case 'folded':
+      return `${name(e.playerId)} folds to ${pos(e.to)}${e.massSpent ? ` (-${e.massSpent} fuel)` : ''}${heat(e.heat)}`
     case 'jumped': {
       const phased = e.sectorAdjustment
         ? `, phased ${e.sectorAdjustment > 0 ? '+' : ''}${e.sectorAdjustment} in the arc`

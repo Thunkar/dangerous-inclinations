@@ -143,13 +143,19 @@ function Board({
     return () => setCinematic(false)
   }, [auto, setCinematic])
 
-  /** What you need in view to play: your ship's well, and every well your plan reaches. */
+  /** The wells a fold being picked may land in: the camera pulls back to hold them all. */
+  const pickWells = useMemo(
+    () => [...new Set((model.foldPick?.positions ?? []).map(p => p.wellId))].sort(),
+    [model.foldPick]
+  )
+
+  /** What you need in view to play: your ship's well, every well your plan reaches, and a fold's. */
   const actWells = useMemo(() => {
-    const wells = new Set<GravityWellId>()
+    const wells = new Set<GravityWellId>(pickWells)
     if (followWellId) wells.add(followWellId)
-    for (const point of model.plannedPoints) wells.add(point.wellId)
+    for (const leg of model.plannedLegs) for (const point of leg.points) wells.add(point.wellId)
     return [...wells].sort()
-  }, [followWellId, model.plannedPoints])
+  }, [followWellId, model.plannedLegs, pickWells])
 
   /**
    * A ping asks "where are they?", and on this board the honest answer is to
@@ -200,6 +206,7 @@ function Board({
         <CameraRig
           rig={rig}
           followWellId={followWellId}
+          pickWells={pickWells}
           director={{
             shot: model.shot,
             animating: model.animating,

@@ -1,8 +1,9 @@
 /**
- * Docking. A ship that **arrives** on a station's sector is docked: broken
- * systems are repaired, the hull is restored and missiles are reloaded, and
- * the visit does one thing: load the crates waiting, or sell one item (RULES
- * §Stations).
+ * Docking. A ship that **arrives** on a station (its ring, within
+ * DOCKING_REACH sectors of its centre) is docked, on the sector it arrived
+ * on: broken systems are repaired, the hull is restored and missiles are
+ * reloaded, and the visit does one thing: load the crates waiting, or sell
+ * one item (RULES §Stations).
  *
  * Each station buys one item from each player, once per game. A sale is one
  * item handed in (a Deliver crate at its destination, a piece of data filed,
@@ -19,7 +20,7 @@
  * After the heat check. The check comes first (RULES §A Turn), so a hot
  * approach is paid from the hull the ship arrives with and the dock heals
  * what is left; a ship the check destroys never docks, and its wreck stays on
- * the station's sector.
+ * the station.
  *
  * Arriving, not sitting. A docked ship stays moored until it burns away, and
  * for a while the whole dock re-resolved every turn it held the berth: a free
@@ -40,7 +41,7 @@ import {
   missionPoints,
 } from '../models/missions.ts'
 import { positionOf } from './geometry.ts'
-import { getStationAt } from './stations.ts'
+import { getStationInReach } from './stations.ts'
 import { isDestroyed, reloadMissiles, repairAllSubsystems } from './ship.ts'
 
 /** What a visit reads off the ship: the hold, the hand, the tank and where it has sold. */
@@ -167,7 +168,7 @@ export function processDocking(
   const player = state.players[playerIndex]
   if (isDestroyed(player.ship)) return { state, events: [] }
   if (!arriving) return { state, events: [] }
-  const station = getStationAt(state.stations, positionOf(player.ship))
+  const station = getStationInReach(state.stations, positionOf(player.ship))
   if (!station) return { state, events: [] }
 
   const planetId = station.planetId

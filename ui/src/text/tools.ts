@@ -110,6 +110,7 @@ export const TOOLS = {
     fire: 'fire',
     radiator: '+{dissipation} dissipate',
     compressor: 'jump: {fuel} fuel',
+    fold: 'fold',
     broken: 'Broken',
     /** The slot's subsystem picker, read aloud. */
     chooseAloud: '{slot} subsystem',

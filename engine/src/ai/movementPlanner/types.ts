@@ -115,6 +115,20 @@ export interface PlannerOptions {
    * `availableMass` and `maxFuelCapacity` shrunk instead.
    */
   arrivalMass?: number
+  /**
+   * Places a turn of the route may end on only if it is the arrival: a
+   * station's docking reach, where the ship would dock on the way. Only the
+   * forward search ({@link planMovementToTarget}) reads it.
+   */
+  avoid?: PlannerAvoid
+}
+
+/** Places a route's turns may not end on short of its arrival (see {@link PlannerOptions.avoid}). */
+export interface PlannerAvoid {
+  /** Whether a turn ending at `pos` on planner turn `turn` (1 or more) is inside. */
+  covers(pos: OrbitalPosition, turn: number): boolean
+  /** Turns after which `covers` repeats, as a target's `period` does. */
+  period: number
 }
 
 export const DEFAULT_PLANNER_OPTIONS: PlannerOptions = {

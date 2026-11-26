@@ -67,14 +67,18 @@ import { salesOnArrival } from '../../game/docking.ts'
 import { saleAllowedAt, saleBlocked } from './sales.ts'
 import type { BotGoal, BotParameters, BotStatus, Opponent, OpponentDanger } from '../types.ts'
 import { isOpenMission } from '../types.ts'
+import type { MovementPlan, PlannerAvoid } from '../movementPlanner/index.ts'
 import {
   anySectorOnRing,
+  dockingAvoidance,
   nearDriftingShip,
   orbitingTarget,
   planFromShip,
   planShipToTarget,
   planStationMeetUp,
+  stationTarget,
 } from '../movementPlanner/index.ts'
+import type { PlannerTarget } from '../movementPlanner/index.ts'
 import { CRITICAL_DANGER, INTERDICT_DANGER } from '../types.ts'
 import {
   cheapTurnEstimate,
@@ -86,7 +90,7 @@ import {
 import { destroyTargetIds, isWeaponReady, volleyPotential, weaponRangeTarget } from './combat.ts'
 
 /** Turns the chosen goal's plan may take. */
-const PLAN_TURNS = 12
+export const PLAN_TURNS = 12
 const HUNT_PLAN_TURNS = 10
 /** Ambushes are set further ahead than a chase: the meeting point is fixed. */
 const INTERDICT_PLAN_TURNS = 14
@@ -306,7 +310,47 @@ function dockGoal(
   }
 }
 
-/** The nearest station worth a trip for `dockSale`, whichever planet it orbits. */
+/**
+ * The station of `candidates` the ship meets soonest by the route it would
+ * fly (one forward search to whichever it reaches first, as `attachPlanToGoal`
+ * plans a dock), else the nearest by the cheap estimate when none is in reach
+ * of a plan. The route comes back with it, to be the goal's own (it is the
+ * fastest meet with that station). By the estimate alone a goal could change planet every turn as
+ * the ship circled the black hole, since the route flown toward one station
+ * did not shorten its estimate. The soonest planned meet shortens by a turn
+ * every turn the ship follows it, so the choice cannot go round in circles.
+ */
+function soonestStation(
+  view: GameView,
+  seat: DockingSeat,
+  candidates: string[]
+): { planetId: string; turns: number; plan?: MovementPlan } | null {
+  const from = seat.status.position
+  const targets = candidates.flatMap(planetId => {
+    const station = getStationForPlanet(view.stations, planetId)
+    return station ? [{ planetId, target: stationTarget(station) }] : []
+  })
+  if (targets.length === 0) return null
+  const anyOf: PlannerTarget = {
+    positionAt: targets[0].target.positionAt,
+    isMatch: (pos, turn) => targets.some(t => t.target.isMatch!(pos, turn)),
+    // The stations drift together.
+    period: targets[0].target.period,
+  }
+  const plan = planShipToTarget(
+    seat.me.ship,
+    anyOf,
+    PLAN_TURNS,
+    0,
+    dockingAvoidance(view.stations, from)
+  )
+  const met = plan && targets.find(t => t.target.isMatch!(plan.destination, plan.totalTurns))
+  return met
+    ? { planetId: met.planetId, turns: plan.totalTurns, plan }
+    : nearestPlanet(view, from, candidates)
+}
+
+/** The soonest station worth a trip for `dockSale`, whichever planet it orbits. */
 function dockAnywhereGoal(
   view: GameView,
   seat: DockingSeat,
@@ -318,7 +362,7 @@ function dockAnywhereGoal(
   const candidates = PLANETS.map(p => p.id).filter(id =>
     worthVisiting(seat, id, dockSale, missionId)
   )
-  const nearest = nearestPlanet(view, seat.status.position, candidates)
+  const nearest = soonestStation(view, seat, candidates)
   if (!nearest) return null
   return {
     type: 'dock',
@@ -327,6 +371,7 @@ function dockAnywhereGoal(
     planetId: nearest.planetId,
     ...(dockSale !== undefined ? { dockSale } : {}),
     estimatedTurns: nearest.turns,
+    ...(nearest.plan ? { plan: nearest.plan } : {}),
     urgency,
   }
 }
@@ -970,16 +1015,90 @@ export function selectCurrentGoal(goals: BotGoal[]): BotGoal | null {
 function ridePlan(
   ship: Player['ship'],
   from: Position,
-  carrier: Position
+  carrier: Position,
+  avoid: PlannerAvoid
 ): ReturnType<typeof planFromShip> {
   if (isPlanet(carrier.wellId)) {
     const ring = from.wellId === carrier.wellId ? from.ring : PLANET_OUTER_RING
-    return planShipToTarget(ship, anySectorOnRing(carrier.wellId, ring), PLAN_TURNS)
+    return planShipToTarget(ship, anySectorOnRing(carrier.wellId, ring), PLAN_TURNS, 0, avoid)
   }
   return (
-    planShipToTarget(ship, nearDriftingShip(carrier, SCAN_SECTOR_RANGE), HUNT_PLAN_TURNS) ??
-    planFromShip(ship, carrier, 'fastest', PLAN_TURNS)
+    planShipToTarget(
+      ship,
+      nearDriftingShip(carrier, SCAN_SECTOR_RANGE),
+      HUNT_PLAN_TURNS,
+      0,
+      avoid
+    ) ?? planFromShip(ship, carrier, 'fastest', PLAN_TURNS, avoid)
   )
+}
+
+/**
+ * Fuel a dock goal's route holds back: a Tanker's, on a trip whose visit may
+ * sell the fuel, to a station that would buy it (`attachPlanToGoal`).
+ */
+function dockReserve(me: Player, goal: BotGoal): number {
+  const fuelVisit = goal.dockSale === undefined || goal.dockSale === SELL_FUEL
+  const tanker = me.missions.find(m => m.type === 'tanker' && !m.isCompleted)
+  const fuelSells = tanker !== undefined && saleAllowedAt(me, goal.planetId!, tanker.id)
+  return holdsTanker(me) && fuelVisit && fuelSells ? TANKER_FUEL : 0
+}
+
+/**
+ * Where the chosen goal's route aims, as a planner target, and the fuel it
+ * must arrive with: the precise target of `attachPlanToGoal`, without its
+ * coarse fallbacks. A fold (behaviors/fold.ts) plans the rest of the trip to
+ * it. Null for a patrol, which has nowhere in particular to be, and for a
+ * goal whose station, wreck or ship is gone.
+ */
+export function goalTarget(
+  goal: BotGoal,
+  me: Player,
+  view: GameView,
+  opponents: Opponent[],
+  status: BotStatus
+): { target: PlannerTarget; reserve: number } | null {
+  const aim = (target: PlannerTarget, reserve = 0) => ({ target, reserve })
+  const ship = (id: string | undefined) => opponents.find(o => o.player.id === id)
+  switch (goal.type) {
+    case 'dock': {
+      const station = getStationForPlanet(view.stations, goal.planetId!)
+      return station ? aim(stationTarget(station), dockReserve(me, goal)) : null
+    }
+    case 'survey':
+      return aim(anySectorOnRing(BLACK_HOLE_ID, SURVEY_RING))
+    case 'tanker':
+      return aim(anySectorOnRing(BLACK_HOLE_ID, tankerFillRing(status.position)))
+    case 'salvage': {
+      const wreck = view.wrecks.find(w => w.id === goal.wreckId)
+      if (!wreck) return null
+      const start = positionOf(wreck)
+      return aim(orbitingTarget(start, ringVelocity(start.wellId, start.ring)))
+    }
+    case 'pirate':
+    case 'escort': {
+      if (!goal.targetPlayerId && goal.planetId) return aim(laneArrivalTarget(goal.planetId))
+      const prey = ship(goal.targetPlayerId)
+      if (!prey) return null
+      if (!isRide(me, goal)) return aim(nearDriftingShip(prey.position, 0))
+      const carrier = prey.position
+      if (!isPlanet(carrier.wellId)) return aim(nearDriftingShip(carrier, SCAN_SECTOR_RANGE))
+      const ring =
+        status.position.wellId === carrier.wellId ? status.position.ring : PLANET_OUTER_RING
+      return aim(anySectorOnRing(carrier.wellId, ring))
+    }
+    case 'patrol':
+      return null
+    case 'shadow': {
+      const target = ship(goal.targetPlayerId)
+      return target ? aim(nearDriftingShip(target.position, SCAN_SECTOR_RANGE)) : null
+    }
+    case 'hunt':
+    case 'interdict': {
+      const target = ship(goal.targetPlayerId)
+      return target ? aim(weaponRangeTarget(usableWeapons(status), target.position)) : null
+    }
+  }
 }
 
 /**
@@ -995,6 +1114,8 @@ export function attachPlanToGoal(
   status: BotStatus
 ): BotGoal {
   const ship = me.ship
+  // No route stops at a station on the way: a turn ending in docking reach docks.
+  const avoid = dockingAvoidance(view.stations, status.position)
   const planned = (plan: ReturnType<typeof planFromShip>): BotGoal =>
     plan ? { ...goal, plan, estimatedTurns: plan.totalTurns } : goal
 
@@ -1009,25 +1130,38 @@ export function attachPlanToGoal(
       // there would never pump. The fastest route burns the tank down and pumps
       // nothing; the same search with the fuel held back coasts in instead.
       // Fastest when no such route exists.
-      const fuelVisit = goal.dockSale === undefined || goal.dockSale === SELL_FUEL
-      const tanker = me.missions.find(m => m.type === 'tanker' && !m.isCompleted)
-      const fuelSells = tanker !== undefined && saleAllowedAt(me, goal.planetId!, tanker.id)
-      const reserve = holdsTanker(me) && fuelVisit && fuelSells ? TANKER_FUEL : 0
-      const fastest = planStationMeetUp(ship, station, PLAN_TURNS)
-      const fuelled = reserve > 0 ? planStationMeetUp(ship, station, PLAN_TURNS, reserve) : null
+      const reserve = dockReserve(me, goal)
+      // A dock at whichever station is soonest came with its fastest route.
+      const fastest = goal.plan
+        ? { plan: goal.plan, totalTurns: goal.plan.totalTurns }
+        : planStationMeetUp(ship, station, PLAN_TURNS, 0, avoid)
+      const fuelled =
+        reserve > 0 ? planStationMeetUp(ship, station, PLAN_TURNS, reserve, avoid) : null
       const meet =
         fuelled && (!fastest || fuelled.totalTurns <= fastest.totalTurns + TANKER_DETOUR_TURNS)
           ? fuelled
           : fastest
       if (meet) return planned(meet.plan)
       return planned(
-        planShipToTarget(ship, anySectorOnRing(station.planetId, STATION_RING), PLAN_TURNS) ??
-          planShipToTarget(ship, anySectorOnRing(station.planetId, PLANET_OUTER_RING), PLAN_TURNS)
+        planShipToTarget(
+          ship,
+          anySectorOnRing(station.planetId, STATION_RING),
+          PLAN_TURNS,
+          0,
+          avoid
+        ) ??
+          planShipToTarget(
+            ship,
+            anySectorOnRing(station.planetId, PLANET_OUTER_RING),
+            PLAN_TURNS,
+            0,
+            avoid
+          )
       )
     }
     case 'survey':
       return planned(
-        planShipToTarget(ship, anySectorOnRing(BLACK_HOLE_ID, SURVEY_RING), PLAN_TURNS)
+        planShipToTarget(ship, anySectorOnRing(BLACK_HOLE_ID, SURVEY_RING), PLAN_TURNS, 0, avoid)
       )
     // A tanker fills where a coast is worth enough fuel to be worth the trip,
     // which is not the survey's dive: the scoop takes a ring's velocity out of
@@ -1038,7 +1172,9 @@ export function attachPlanToGoal(
         planShipToTarget(
           ship,
           anySectorOnRing(BLACK_HOLE_ID, tankerFillRing(status.position)),
-          PLAN_TURNS
+          PLAN_TURNS,
+          0,
+          avoid
         )
       )
     case 'salvage': {
@@ -1051,8 +1187,10 @@ export function attachPlanToGoal(
         planShipToTarget(
           ship,
           orbitingTarget(start, ringVelocity(start.wellId, start.ring)),
-          PLAN_TURNS
-        ) ?? planShipToTarget(ship, anySectorOnRing(start.wellId, start.ring), PLAN_TURNS)
+          PLAN_TURNS,
+          0,
+          avoid
+        ) ?? planShipToTarget(ship, anySectorOnRing(start.wellId, start.ring), PLAN_TURNS, 0, avoid)
       )
     }
     case 'pirate':
@@ -1061,15 +1199,19 @@ export function attachPlanToGoal(
       // this planet has to come through. A coast, not a berth: a moored ship
       // seizes nothing and marks nothing.
       if (!goal.targetPlayerId && goal.planetId) {
-        return planned(planShipToTarget(ship, laneArrivalTarget(goal.planetId), PLAN_TURNS))
+        return planned(
+          planShipToTarget(ship, laneArrivalTarget(goal.planetId), PLAN_TURNS, 0, avoid)
+        )
       }
       const prey = opponents.find(o => o.player.id === goal.targetPlayerId)
       if (!prey) return goal
       // Our marker is on it: ride along (`rideGoal`).
-      if (isRide(me, goal)) return planned(ridePlan(ship, status.position, prey.position))
+      if (isRide(me, goal)) return planned(ridePlan(ship, status.position, prey.position, avoid))
       // The same sector, not near it: a seizure is matched orbits. Their ship
       // drifts while we close, so it is planned as a moving target.
-      return planned(planShipToTarget(ship, nearDriftingShip(prey.position, 0), PLAN_TURNS))
+      return planned(
+        planShipToTarget(ship, nearDriftingShip(prey.position, 0), PLAN_TURNS, 0, avoid)
+      )
     }
     case 'patrol': {
       // On the patrol ring already: a coast keeps the goal, and no sector is
@@ -1077,10 +1219,10 @@ export function attachPlanToGoal(
       const target = patrolTarget(status.position, opponents)
       const onRing = anySectorOnRing(BLACK_HOLE_ID, target.ring)
       const here = status.position.wellId === BLACK_HOLE_ID && status.position.ring === target.ring
-      if (here) return planned(planShipToTarget(ship, onRing, PLAN_TURNS))
+      if (here) return planned(planShipToTarget(ship, onRing, PLAN_TURNS, 0, avoid))
       return planned(
-        planShipToTarget(ship, nearDriftingShip(target, SCAN_SECTOR_RANGE), PLAN_TURNS) ??
-          planShipToTarget(ship, onRing, PLAN_TURNS)
+        planShipToTarget(ship, nearDriftingShip(target, SCAN_SECTOR_RANGE), PLAN_TURNS, 0, avoid) ??
+          planShipToTarget(ship, onRing, PLAN_TURNS, 0, avoid)
       )
     }
     case 'shadow': {
@@ -1094,8 +1236,10 @@ export function attachPlanToGoal(
         planShipToTarget(
           ship,
           nearDriftingShip(target.position, SCAN_SECTOR_RANGE),
-          HUNT_PLAN_TURNS
-        ) ?? planFromShip(ship, target.position, 'fastest', PLAN_TURNS)
+          HUNT_PLAN_TURNS,
+          0,
+          avoid
+        ) ?? planFromShip(ship, target.position, 'fastest', PLAN_TURNS, avoid)
       )
     }
     case 'hunt':
@@ -1104,7 +1248,14 @@ export function attachPlanToGoal(
       if (!target) return goal
       const weapons = usableWeapons(status)
       const horizon = goal.type === 'interdict' ? INTERDICT_PLAN_TURNS : HUNT_PLAN_TURNS
-      const interception = planInterception(ship, weapons, target.position, target.danger, horizon)
+      const interception = planInterception(
+        ship,
+        weapons,
+        target.position,
+        target.danger,
+        horizon,
+        avoid
+      )
       if (interception) {
         return {
           ...goal,
@@ -1114,8 +1265,8 @@ export function attachPlanToGoal(
         }
       }
       return planned(
-        planShipToTarget(ship, weaponRangeTarget(weapons, target.position), horizon) ??
-          planFromShip(ship, target.position, 'fastest', PLAN_TURNS)
+        planShipToTarget(ship, weaponRangeTarget(weapons, target.position), horizon, 0, avoid) ??
+          planFromShip(ship, target.position, 'fastest', PLAN_TURNS, avoid)
       )
     }
   }

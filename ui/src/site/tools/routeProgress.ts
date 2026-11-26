@@ -9,10 +9,10 @@
  * drifts on at the ship's `k`-th move, and one Done moves both the ship and
  * the stations one turn on.
  *
- * A ship whose step ends on a station's sector is moored, and the station
- * carries it when it steps. That is the arrival at a station; a route that
- * only passes over a berth on the way is dropped there and planned afresh,
- * since the planner did not count the ride.
+ * A ship whose step ends on a station (any of its three sectors) is moored,
+ * and the station carries it when it steps, keeping its sector on it. That is
+ * the arrival at a station; a route that only passes over one on the way is
+ * dropped there and planned afresh, since the planner did not count the ride.
  *
  * Any edit to the inputs drops the kept route (the tool plans afresh), and
  * the history with it. Undo puts back the table as it was before the last
@@ -28,8 +28,7 @@ import type {
 import {
   MAX_REACTION_MASS,
   STATION_DRIFT,
-  samePosition,
-  stationPosition,
+  isMooredAt,
   wrapSector,
 } from '@dangerous-inclinations/engine'
 
@@ -99,14 +98,16 @@ export function markDone(trip: Trip, route: MovementPlan): Trip {
   if (!step) return trip
   const stepped = afterStep(trip.ship, step)
   const stations = advanceStations(trip.stations)
-  const berth = trip.stations.findIndex(s => samePosition(stationPosition(s), stepped.at))
-  const ship = berth < 0 ? stepped : { ...stepped, at: stationPosition(stations[berth]) }
+  const moored = isMooredAt(trip.stations, stepped.at)
+  const ship = moored
+    ? { ...stepped, at: { ...stepped.at, sector: wrapSector(stepped.at.sector + STATION_DRIFT) } }
+    : stepped
   const rest = remainingRoute(route, ship)
   const before: Before = { ship: trip.ship, stations: trip.stations, kept: trip.kept }
   return {
     ship,
     stations,
-    kept: berth >= 0 && rest.steps.length > 0 ? null : rest,
+    kept: moored && rest.steps.length > 0 ? null : rest,
     history: [...trip.history, before].slice(-HISTORY),
   }
 }

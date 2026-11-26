@@ -26,6 +26,7 @@ import { ringVelocity, wrapSector } from '../../game/geometry.ts'
 import { viewFor } from '../../game/view.ts'
 import { isMooredAt } from '../../game/stations.ts'
 import { botDecideActions } from '../../ai/index.ts'
+import { dockingAvoidance, planStationMeetUp } from '../../ai/movementPlanner/index.ts'
 import { moveOverheats } from '../../ai/planner.ts'
 import { planetLane } from '../../ai/behaviors/danger.ts'
 import { PATROL_GOAL_ID, REPAIR_GOAL_ID as REPAIR_GOAL } from '../../ai/behaviors/missions.ts'
@@ -260,11 +261,11 @@ describe('bot missions', () => {
     expect(currentGoal(docked.gameState)).toMatchObject({ planetId: BETA })
   })
 
-  it('stops surveying once the data is aboard and files it at the station the circuit reaches first', () => {
+  it('stops surveying once the data is aboard and files it at the station it meets soonest', () => {
     // Survey data is filed anywhere (the deck deals every survey card with
-    // "any" for its station) so the bot takes the door it is
-    // already standing under. From black hole ring 1 sector 0 that is Beta's
-    // outbound lane at ring 5 sectors 0-3, not Alpha's at 16-19.
+    // "any" for its station), so the bot heads for the station its route
+    // meets soonest, and keeps to it: that route is a turn shorter every
+    // turn it is flown, so the data is filed in exactly that many turns.
     const start = withMissions(
       makeGameState([
         makePlayer(
@@ -279,9 +280,26 @@ describe('bot missions', () => {
     )
 
     const completed = (s: GameState) => getPlayer(s, 'p1').points > 0
-    const state = playUntil(start, 'p1', completed, 120)
+    // p1's next turn with the data aboard.
+    const aboard = (s: GameState) =>
+      s.players[s.activePlayerIndex].id === 'p1' && getPlayer(s, 'p1').cargo.length > 0
+    const surveyed = playUntil(start, 'p1', aboard, 4)
+    expect(aboard(surveyed)).toBe(true)
+    const ship = getShip(surveyed, 'p1')
+    const avoid = dockingAvoidance(surveyed.stations, ship)
+    const meets = surveyed.stations.map(station => ({
+      planetId: station.planetId,
+      turns: planStationMeetUp(ship, station, 12, 0, avoid)?.totalTurns ?? Infinity,
+    }))
+    const soonest = Math.min(...meets.map(m => m.turns))
+    expect(soonest).toBeLessThan(Infinity)
+
+    // Two seats: each of p1's turns is two turns of the table.
+    const state = playUntil(surveyed, 'p1', completed, 2 * soonest)
     expect(completed(state)).toBe(true)
-    expect(getShip(state, 'p1').wellId).toBe(BETA)
+    expect(meets.filter(m => m.turns === soonest).map(m => m.planetId)).toContain(
+      getShip(state, 'p1').wellId
+    )
   })
 })
 

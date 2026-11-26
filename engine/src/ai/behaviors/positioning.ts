@@ -3,7 +3,9 @@
  * the current ship can actually perform, checked against the engine's
  * `legalMoves`. Anything that fails becomes a coast.
  */
-import type { BurnIntensity, Facing, ShipState } from '../../models/game.ts'
+import type { BurnIntensity, Facing, Position, ShipState } from '../../models/game.ts'
+import type { SubsystemId } from '../../models/subsystems.ts'
+import { getSubsystemConfig } from '../../models/subsystems.ts'
 import {
   BURN_COSTS,
   WELL_TRANSFER_COSTS,
@@ -13,14 +15,15 @@ import {
 import { findJump, phasedJumpDestination } from '../../models/gravityWells.ts'
 import { positionOf } from '../../game/geometry.ts'
 import { legalMoves, phasingAllowed } from '../../game/movement.ts'
+import { foldEngines, foldFuel } from '../../game/fold.ts'
 import type { MovementPreview } from '../../game/movement.ts'
 import type { MovementPlan } from '../movementPlanner/index.ts'
 import { getFirstAction } from '../movementPlanner/index.ts'
 import type { BotStatus } from '../types.ts'
 
 export interface MovementChoice {
-  kind: 'coast' | 'burn' | 'jump'
-  /** Engine's projection input. */
+  kind: 'coast' | 'burn' | 'jump' | 'fold'
+  /** Engine's projection input (a fold is previewed as a jump that lands where it names). */
   preview: MovementPreview
   /** Facing the ship must have when the movement executes; null = any. */
   requiredFacing: Facing | null
@@ -33,6 +36,16 @@ export interface MovementChoice {
   burnIntensity?: BurnIntensity
   sectorAdjustment?: number
   destinationWellId?: string
+  /**
+   * A fold: where it puts the ship, the drive's energy and the energy it puts
+   * on the engines, both heat at the check.
+   */
+  fold?: { to: Position; driveId: SubsystemId; energy: number; engines: number }
+}
+
+/** Heat the move itself puts on the track: the engines' cubes, and the drive's on a fold. */
+export function moveHeat(movement: MovementChoice): number {
+  return movement.engineEnergy + (movement.fold ? movement.fold.energy + movement.fold.engines : 0)
 }
 
 export function coastChoice(wantsScoop: boolean): MovementChoice {
@@ -43,6 +56,27 @@ export function coastChoice(wantsScoop: boolean): MovementChoice {
     engineEnergy: 0,
     massCost: 0,
     wantsScoop,
+  }
+}
+
+/**
+ * A fold to `to` with the drive `driveId` (RULES §Movement, Fold): the
+ * turn's whole move, with no drift and the facing kept.
+ */
+export function foldChoice(to: Position, driveId: SubsystemId): MovementChoice {
+  return {
+    kind: 'fold',
+    preview: { kind: 'jump', jumpDestination: to },
+    requiredFacing: null,
+    engineEnergy: 0,
+    massCost: foldFuel(),
+    wantsScoop: false,
+    fold: {
+      to,
+      driveId,
+      energy: getSubsystemConfig('jump_drive').minEnergy,
+      engines: foldEngines(),
+    },
   }
 }
 

@@ -41,6 +41,7 @@ import {
   DEPLOYMENT_GAP,
   HOME_RINGS,
   PLANET_RINGS,
+  DOCKING_REACH,
   STATION_DRIFT,
   STATION_RING,
   TRANSFER_ARC_LENGTH,
@@ -63,6 +64,8 @@ import { AGENT_RULES } from '../text/agentRules.ts'
 import { AGENT_INTENT } from '../text/agentIntent.ts'
 import { seatOptions } from './options.ts'
 import { isMooredAt } from '../game/stations.ts'
+import { wrapSector } from '../game/geometry.ts'
+import { foldEngines, foldFuel } from '../game/fold.ts'
 
 /** Every face of the d10 the game rolls. */
 const DIE_FACES = Array.from({ length: D10_FACES }, (_, i) => i + 1)
@@ -126,6 +129,7 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
       scoop: cubes('scoop'),
       thrusters: cubes('rotation'),
       jumpEnergy: WELL_TRANSFER_COSTS.energy,
+      jumpDrive: cubes('jump_drive'),
       shieldMin: shields.minEnergy,
       shieldMax: shields.maxEnergy,
     }),
@@ -150,6 +154,11 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
       phaseCost: SECTOR_ADJUSTMENT_COST_PER_SECTOR,
       arcLength: TRANSFER_ARC_LENGTH,
       compressorPays: WELL_TRANSFER_COSTS.mass - COMPRESSED_JUMP_MASS,
+    }),
+    fill(T.fold, {
+      foldFuel: foldFuel(),
+      foldEnergy: cubes('jump_drive'),
+      foldEngines: foldEngines(),
     }),
     fill(T.heat, {
       maxHeat: MAX_HEAT,
@@ -206,7 +215,12 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
       shieldMax: shields.maxEnergy,
     }),
     T.repair,
-    fill(T.docking, { stationRing: STATION_RING, stationDrift: STATION_DRIFT }),
+    fill(T.docking, {
+      stationRing: STATION_RING,
+      stationDrift: STATION_DRIFT,
+      stationSectors: 2 * DOCKING_REACH + 1,
+      dockingReach: DOCKING_REACH,
+    }),
     fill(T.secondaries, {
       secondaryPoints: MISSION_POINTS.survey,
       surveyRing: SURVEY_RING,
@@ -330,7 +344,7 @@ export function describeViewForAgent(
   }
   out.push(
     '',
-    `STATIONS (planet ring ${STATION_RING}, drift ${STATION_DRIFT}/round): ${view.stations.map(s => `${getWellName(s.planetId as never)} S${s.sector}`).join(', ')}.`
+    `STATIONS (planet ring ${STATION_RING}, drift ${STATION_DRIFT}/round, each spanning its sector and ${DOCKING_REACH} either side): ${view.stations.map(s => `${getWellName(s.planetId as never)} S${s.sector} (S${wrapSector(s.sector - DOCKING_REACH)}-S${wrapSector(s.sector + DOCKING_REACH)})`).join(', ')}.`
   )
   const mine = view.players.find(p => p.isMe)
   if (mine?.escortedBy.length)
@@ -372,6 +386,14 @@ export function describeViewForAgent(
           : 'no lane departs from this sector'
       }.`
     )
+    if (o.fold)
+      out.push(
+        `  Fold: ${
+          o.fold.ready
+            ? `any sector of this well, or between the black hole and a planet, never planet to planet and never on a station (${o.fold.energy} cubes on the drive and ${o.fold.engines} on the engines, ${o.fold.fuel} fuel; actions after it are taken where it lands)`
+            : `NOT READY: ${o.fold.reason}`
+        }.`
+      )
     for (const w of o.weapons)
       out.push(
         `  ${w.weapon} (${w.type}, ${w.damage} dmg, ${w.energy} cubes)${w.ready ? '' : ` NOT READY: ${w.reason}`}: in range now [${w.targetsNow.map(name).join(', ') || '-'}], after a coast [${w.targetsAfterCoast.map(name).join(', ') || '-'}].`
@@ -443,6 +465,7 @@ export function agentIntentGuide(): string {
     T.rotate.code + fill(T.rotate.note, { thrusters: cubes('rotation') }),
     T.move,
     T.jump,
+    T.fold,
     T.fire,
     T.scan,
     T.repair,

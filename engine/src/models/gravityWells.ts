@@ -80,6 +80,11 @@ export const DEPLOYMENT_GAP = 3
 export const HOME_RING = 4
 /** Ring stations orbit on (planets only). Ring 1 is faster, and is the way in. */
 export const STATION_RING = 2
+/**
+ * Sectors either side of a station, on its ring, that a ship may end its turn
+ * on and dock: the dock moves it onto the station's sector (RULES §Stations).
+ */
+export const DOCKING_REACH = 1
 /** Sector every station starts the game on. */
 export const STATION_INITIAL_SECTOR = 0
 /** Sectors a station advances at the end of every round: its ring's speed. */

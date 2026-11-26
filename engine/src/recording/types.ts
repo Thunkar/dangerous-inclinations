@@ -55,8 +55,11 @@ import type { GameEvent } from '../models/events.ts'
  * v24: a moored ship's scoop pays when the stations move, not on its coast;
  *     `fuel_scooped` follows `stations_moved`, and not for a ship that docked
  *     that round (`Player.dockedThisRound`).
+ * v25: a station spans its sector and DOCKING_REACH either side: a ship
+ *     arriving on any of them docks there, is moored there and rides the
+ *     station from that sector.
  */
-export const RECORDING_SCHEMA_VERSION = 24
+export const RECORDING_SCHEMA_VERSION = 25
 
 /**
  * Why a recording cannot be replayed, or null when it can. A recording made

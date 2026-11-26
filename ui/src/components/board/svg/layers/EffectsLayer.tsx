@@ -1,6 +1,6 @@
 /**
  * Transient effects: weapon beams, plasma bolts, disruptor pulses, flares,
- * bursts and floating numbers. Everything is
+ * bursts, a fold's wormhole and floating numbers. Everything is
  * pushed by AnimationContext from the turn's events and fades on its own.
  *
  * An effect is anchored to a ship where it is about one and to a sector where
@@ -30,6 +30,7 @@ import {
 import { positionPoint, ringRadius, sectorWedgePath, type Point } from '../../geometry'
 import { BOARD } from '../palette'
 import type { BoardModel } from '../../model'
+import { WORMHOLE, mouthPoints, mouthsOpen } from '../../wormhole'
 
 type Of<K extends TableEffect['kind']> = Extract<TableEffect, { kind: K }>
 
@@ -549,6 +550,91 @@ const TONE_COLORS = {
   good: BOARD.good,
 } as const
 
+/** A wormhole's spiral arm in a unit mouth: from near the throat out to the rim. */
+const ARM = Array.from({ length: 13 }, (_, i) => {
+  const u = i / 12
+  const angle = u * 2.6
+  const r = 0.18 + 0.78 * u
+  return `${(Math.cos(angle) * r).toFixed(3)},${(Math.sin(angle) * r).toFixed(3)}`
+}).join(' ')
+
+/**
+ * One mouth of a wormhole: a black throat, a glowing rim and three arms
+ * turning in it, the whole of it grown by how open it is. `spin` is the turn
+ * it has made so far, in degrees.
+ */
+function Mouth({
+  id,
+  at,
+  open,
+  spin,
+  color,
+}: {
+  id: string
+  at: Point
+  open: number
+  spin: number
+  color: string
+}) {
+  if (open <= 0.01) return null
+  const r = WORMHOLE.radius * open
+  return (
+    <g transform={`translate(${at.x} ${at.y})`}>
+      <radialGradient id={id}>
+        <stop offset="0.55" stopColor={color} stopOpacity={0.5} />
+        <stop offset="1" stopColor={color} stopOpacity={0} />
+      </radialGradient>
+      <circle r={r * 1.5} fill={`url(#${id})`} opacity={open} />
+      <circle r={r} fill={BOARD.deep} />
+      <g transform={`rotate(${spin}) scale(${r})`}>
+        {[0, 120, 240].map(turn => (
+          <polyline
+            key={turn}
+            points={ARM}
+            transform={`rotate(${turn})`}
+            fill="none"
+            stroke={color}
+            strokeWidth={2 / r}
+            strokeLinecap="round"
+            opacity={0.85}
+          />
+        ))}
+      </g>
+      <circle r={r} fill="none" stroke={color} strokeWidth={2.5} />
+    </g>
+  )
+}
+
+/** A fold's two mouths, opening and closing as `wormhole.ts` times them. */
+function Wormhole({ effect, progress, pointOf }: DrawProps<'wormhole'>) {
+  const mouths = mouthPoints(
+    effect.from,
+    effect.to,
+    effect.facing,
+    pointOf(effect.playerId) ?? positionPoint(effect.to)
+  )
+  const open = mouthsOpen(progress)
+  const spin = progress * 900
+  return (
+    <g>
+      <Mouth
+        id={`${effect.id}-in`}
+        at={mouths.entry}
+        open={open.entry}
+        spin={spin}
+        color={effect.color}
+      />
+      <Mouth
+        id={`${effect.id}-out`}
+        at={mouths.exit}
+        open={open.exit}
+        spin={-spin}
+        color={effect.color}
+      />
+    </g>
+  )
+}
+
 /** A line of the floats' 15-unit type, with air: one step of a pile-up. */
 const FLOAT_LINE = 18
 
@@ -599,6 +685,8 @@ export const EffectsLayer = memo(function EffectsLayer({
           return <RayPulse key={effect.id} effect={effect} progress={progress} pointOf={pointOf} />
         if (effect.kind === 'flare')
           return <Flare key={effect.id} effect={effect} progress={progress} pointOf={pointOf} />
+        if (effect.kind === 'wormhole')
+          return <Wormhole key={effect.id} effect={effect} progress={progress} pointOf={pointOf} />
         if (effect.kind === 'burst') {
           const r = effect.radius * (0.3 + progress * 0.9)
           const at = pointOf(effect.playerId) ?? positionPoint(effect.at)

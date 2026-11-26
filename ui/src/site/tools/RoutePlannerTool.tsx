@@ -11,7 +11,9 @@
  * alternatives, fastest, balanced and economical: from the reverse search to
  * a fixed sector, from the forward search to a station or when the route
  * must arrive with fuel aboard, since only that search knows the tank at
- * every step.
+ * every step. A route may stop on a station only to arrive, since a turn
+ * ending on one docks there, so a sector route the reverse search would stop
+ * on one is planned forward too.
  *
  * At the table the route is followed a turn at a time: Done on its first
  * step moves the ship and the stations on and keeps the rest of the route
@@ -38,6 +40,7 @@ import {
   STATION_RING,
   STARTING_HIT_POINTS,
   createInitialStations,
+  dockingAvoidance,
   fill,
   getMaxRing,
   getWellName,
@@ -49,6 +52,7 @@ import {
   samePosition,
   stationPosition,
   stationTarget,
+  stopsInside,
 } from '@dangerous-inclinations/engine'
 import {
   crowdShips,
@@ -347,22 +351,26 @@ export function RoutePlannerTool() {
     // A kept route is followed, not searched for again.
     if (following) return []
     const origin = { ...from, facing }
+    // A turn ending on a station docks there: the forward search stops on
+    // one only to arrive.
+    const forward = { ...options, avoid: dockingAvoidance(stations, from) }
     if (destination.kind === 'station') {
       if (!station) return []
       const target = stationTarget(station)
-      return planAlternativesToTarget(origin, target, options)?.alternatives ?? []
+      return planAlternativesToTarget(origin, target, forward)?.alternatives ?? []
     }
     if (samePosition(from, destination.at)) return []
     // Only the forward search knows the fuel at every step, so a route that
-    // has to arrive with some is planned by it.
-    if (keep > 0) {
-      const target = staticTarget(destination.at)
-      return planAlternativesToTarget(origin, target, options)?.alternatives ?? []
-    }
-    return planMovementAlternatives(origin, destination.at, options)?.alternatives ?? []
+    // has to arrive with some is planned by it, and so is one the reverse
+    // search would stop on a station on the way.
+    const target = staticTarget(destination.at)
+    if (keep > 0) return planAlternativesToTarget(origin, target, forward)?.alternatives ?? []
+    const fixed = planMovementAlternatives(origin, destination.at, options)?.alternatives ?? []
+    if (!fixed.some(route => stopsInside(route, forward.avoid))) return fixed
+    return planAlternativesToTarget(origin, target, forward)?.alternatives ?? []
     // `options` is rebuilt from these every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [following, from, facing, destination, station, fuel, keep, compressor])
+  }, [following, from, facing, destination, station, stations, fuel, keep, compressor])
 
   const current = Math.min(chosen, Math.max(0, routes.length - 1))
   const route = kept ?? routes[current] ?? null

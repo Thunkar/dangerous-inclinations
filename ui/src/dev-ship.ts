@@ -6,7 +6,9 @@
  * in every mount that takes it (`module=none` empties them), `focus=<mount>`
  * (side-0, forward-0, ...) frames that mount close up instead of the whole
  * ship (`focus=drive` its intakes), and `zoom=<n>` brings the camera n times
- * closer.
+ * closer. `dir=x,y,z` looks from that world direction instead of a named
+ * view, and `alone` (with `focus=<mount>`) draws that mount's module and
+ * nothing else.
  */
 import {
   AmbientLight,
@@ -62,7 +64,13 @@ const ship = createShip(config, false, {
 scene.add(ship.root)
 ship.root.updateMatrixWorld(true)
 
-const frame = focus && focus !== 'drive' ? ship.mounts.get(focus as MountId)?.frame : undefined
+const mount = focus && focus !== 'drive' ? ship.mounts.get(focus as MountId) : undefined
+const frame = mount?.frame
+if (mount && params.has('alone')) {
+  ship.root.traverse(o => (o.visible = false))
+  for (let o: Object3D | null = mount.module; o; o = o.parent) o.visible = true
+  mount.module.traverse(o => (o.visible = true))
+}
 // `focus=drive` frames the intakes: whatever the nozzles hang in (found on a
 // full-detail ship, since the board's merge leaves no groups to find).
 let drive: Box3 | undefined
@@ -115,6 +123,8 @@ if (frame) {
     .add(up.clone().multiplyScalar(-0.7))
     .add(fore.clone().multiplyScalar(0.8))
 }
+const dir = params.get('dir')?.split(',').map(Number)
+if (dir?.length === 3 && dir.every(Number.isFinite)) directions[view] = new Vector3(...dir)
 const camera = new PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 200)
 camera.position
   .copy(centre)

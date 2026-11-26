@@ -283,6 +283,36 @@ const offbookRows: RowSpec[] = (
       hull('sensor_array', 'shields,shields,shields,laser'),
       'intercept',
     ],
+    // The jump drive (playtest of 26 Nov 2026), here on a side slot: a fold
+    // puts the ship on any sector of its own well, or between the black
+    // hole and a planet, never planet to planet and never a station's, for
+    // 8 fuel, 3 energy on the drive and 3 on the engines; it never breaks.
+    // At 400 games (26 Nov 2026) the four rows read +1 / -1 / +7 / +9 over
+    // their bars, no failing flag. The price is the designer's to tune.
+    [
+      'jump_hauler',
+      'compressor + jump drive + shields + laser + radiator',
+      hull('fuel_compressor', 'jump_drive,shields,laser,radiator'),
+      'deliver',
+    ],
+    [
+      'jump_hunter',
+      'railgun + jump drive + laser + rack + radiator',
+      hull('railgun', 'jump_drive,laser,ballistic_rack,radiator'),
+      'destroy',
+    ],
+    [
+      'jump_corsair',
+      'missile bow + jump drive + lasers×2 + radiator',
+      hull('missiles', 'jump_drive,laser,laser,radiator'),
+      'destroy',
+    ],
+    [
+      'jump_interceptor',
+      'sensor bow + jump drive + shields + laser + radiator',
+      hull('sensor_array', 'jump_drive,shields,laser,radiator'),
+      'intercept',
+    ],
   ] as Array<[string, string, ShipLoadout, Exclude<BarName, 'any'>]>
 ).map(([name, label, loadout, bar]) => ({
   id: `offbook:${name}`,
@@ -407,6 +437,17 @@ const extremeRows: RowSpec[] = (
       'disruptor_plasma4',
       'disruptor + plasma×4',
       hull('disruptor', 'plasma_cannon,plasma_cannon,plasma_cannon,plasma_cannon'),
+    ],
+    // The jump drive in the bow (designer, 26 Nov 2026): the bow given up for a fold.
+    [
+      'jump_bow_lasers',
+      'jump drive bow + lasers×3 + radiator',
+      hull('jump_drive', 'laser,laser,laser,radiator'),
+    ],
+    [
+      'jump_bow_turtle',
+      'jump drive bow + shields×2 + radiators×2',
+      hull('jump_drive', 'shields,shields,radiator,radiator'),
     ],
   ] as Array<[string, string, ShipLoadout]>
 ).map(([name, label, loadout]) => ({
@@ -535,6 +576,8 @@ interface ForcedRow {
   deaths: number
   dealt: number
   taken: number
+  /** Seat 1's folds a game. */
+  folds: number
   finish: number
   rounds: number
   flags: string[]
@@ -639,6 +682,7 @@ function forcedRow(spec: RowSpec, batch: BatchResult, bar: number | null): Force
     deaths,
     dealt: mean(b1.map(x => x.damageDealt)),
     taken: mean(b1.map(x => x.damageTaken)),
+    folds: mean(b1.map(x => x.folds)),
     finish,
     rounds: a.rounds.median,
     flags: diluted ? ['diluted'] : flags,
@@ -651,9 +695,9 @@ const FAILING = new Set(['outlier', 'stall', 'slow', 'unpunished'])
 function renderForced(rows: ForcedRow[]): string[] {
   const lines: string[] = []
   lines.push(
-    '| row | loadout | card | outright | bar | vs bar | stuck | wins | others (each) | kills/g | deaths/g | dealt/g | taken/g | decided before cap | rounds | flags |'
+    '| row | loadout | card | outright | bar | vs bar | stuck | wins | others (each) | kills/g | deaths/g | dealt/g | taken/g | folds/g | decided before cap | rounds | flags |'
   )
-  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
+  lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|')
   for (const f of rows) {
     const note = f.suppressed.length
       ? `diluted (${f.suppressed.join(', ')} suppressed)`
@@ -661,7 +705,7 @@ function renderForced(rows: ForcedRow[]): string[] {
     const bar = f.bar === null ? `${NOT_MEASURED} (${f.barName})` : `${pct(f.bar)} (${f.barName})`
     const vsBar = f.bar === null ? NOT_MEASURED : delta(f.real - f.bar)
     lines.push(
-      `| \`${f.id}\` | ${f.label} | ${f.card} | ${pct(f.real)} | ${bar} | ${vsBar} | ${pct(f.stuck)} | ${pct(f.wins)} | ${pct(f.othersEach)} | ${f.kills} | ${f.deaths} | ${f.dealt} | ${f.taken} | ${pct(f.finish)} | ${f.rounds} | ${note} |`
+      `| \`${f.id}\` | ${f.label} | ${f.card} | ${pct(f.real)} | ${bar} | ${vsBar} | ${pct(f.stuck)} | ${pct(f.wins)} | ${pct(f.othersEach)} | ${f.kills} | ${f.deaths} | ${f.dealt} | ${f.taken} | ${f.folds} | ${pct(f.finish)} | ${f.rounds} | ${note} |`
     )
   }
   return lines

@@ -21,7 +21,7 @@ export const REFUSALS = {
   unsequenced: 'Every action in the sequence needs its place in it ({count} without one)',
   duplicateSequence: 'Two actions share a place in the sequence',
   brokenSequence: 'The sequence runs 1, 2, 3 without a gap: expected {expected}, found {found}',
-  twoMoves: 'One move a turn: a coast, a burn or a jump',
+  twoMoves: 'One move a turn: a coast, a burn, a jump or a fold',
   twoRepairs: 'One repair a turn',
   twoSales: 'One sale a visit',
   markTwice: 'Each Escort marker goes on a different ship: {name} is named twice',
@@ -59,6 +59,12 @@ export const REFUSALS = {
   jumpFacing: 'A jump is a burn out of the well: face prograde (rotate first)',
   jumpPhasing: 'Phasing a jump stays inside the arrival arc ({min} to +{max} from here)',
   jumpFuel: 'Not enough fuel for the jump: {mass} needed, {fuel} in the tank by then',
+  noDrive: 'No jump drive aboard',
+  foldOffBoard: 'A fold lands on a sector of a ring of a well on the board',
+  foldOnStation: 'A fold cannot land on a station',
+  foldTooFar: 'A fold crosses one well at most: never from one planet to another',
+  foldNowhere: 'A fold cannot land where the ship already is',
+  foldFuel: 'Not enough fuel for the fold: {mass} needed, {fuel} in the tank by then',
 
   /** A turn that reaches nobody. */
   openingNoFire: 'No weapon fires in the first round',

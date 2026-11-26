@@ -29,6 +29,7 @@ export type RevealReason =
   | 'scanned'
   | 'dissipating'
   | 'compressed_jump'
+  | 'folded'
   | 'broken'
 
 export type GameEvent =
@@ -77,6 +78,20 @@ export type GameEvent =
       to: Position
       massSpent: number
       heat: number
+    })
+  | (Base & {
+      /** A jump drive's fold: the ship is put down at `to`. */
+      type: 'folded'
+      playerId: string
+      /** The drive that folded (face-up from now on). */
+      subsystemId: SubsystemId
+      from: Position
+      to: Position
+      massSpent: number
+      /** Every cube the fold added: the drive's and the engines'. */
+      heat: number
+      /** Of those, the cubes on the engines. */
+      engineHeat: number
     })
   | (Base & {
       type: 'jumped'

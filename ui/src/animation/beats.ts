@@ -173,6 +173,24 @@ export type TableEffect =
       start: number
       duration: number
     }
+  /**
+   * A fold's wormhole: a mouth opens ahead of the ship at `from`, the ship
+   * flies into it, a mouth opens behind `to` and the ship flies out of it,
+   * facing as it was (`components/board/wormhole.ts` times both). It lasts as
+   * long as the ship's fold motion.
+   */
+  | {
+      id: string
+      kind: 'wormhole'
+      /** Who folded: the exit mouth stands behind their hull's resting point. */
+      playerId: string
+      from: Position
+      to: Position
+      facing: Facing
+      color: string
+      start: number
+      duration: number
+    }
   /** Nothing drawn: keeps the clock ticking while a ship token slides to its new sector. */
   | { id: string; kind: 'tween'; start: number; duration: number }
 
@@ -206,9 +224,10 @@ export interface ShipMotion {
    * What set the ship moving. A jump can be read off the wells, but a burn
    * and a coast end up in the same sector by different means: the 3D board
    * flares an engine for one and not the other. A ride is a moored ship
-   * carried round by its station's step, on its berth the whole way.
+   * carried round by its station's step, on its berth the whole way. A fold
+   * goes through a wormhole: into one mouth and out of the other.
    */
-  kind: 'coast' | 'burn' | 'jump' | 'recoil' | 'ride'
+  kind: 'coast' | 'burn' | 'jump' | 'fold' | 'recoil' | 'ride'
   start: number
   duration: number
 }
@@ -229,6 +248,8 @@ export interface WreckMotion {
  */
 export type CameraShot = { id: string; start: number } & (
   | { kind: 'move'; move: ShipMotion['kind']; playerId: string; from: Position; to: Position }
+  /** A fold: both mouths in one well, or the exit when it opens in another. */
+  | { kind: 'fold'; playerId: string; from: Position; to: Position }
   | { kind: 'duel'; attackerId: string; targetId: string; from: Position; to: Position }
   | { kind: 'missiles'; targetId: string; at: Position }
   | { kind: 'ship'; mood: 'destroyed' | 'docked' | 'arrived'; playerId: string; at: Position }
@@ -280,6 +301,8 @@ export function floatStack(live: readonly TableEffect[], at: Position): number {
 export const BEAT = {
   move: 700,
   jump: 800,
+  /** Long enough to see the ship go into one mouth and come out of the other. */
+  fold: 1700,
   fire: 380,
   /** Long enough for the last bolt of a plasma burst to land before the die is read. */
   plasma: 560,
@@ -641,6 +664,22 @@ export function eventToBeat(
           { at: event.to }
         )
         return BEAT.jump
+      // A fold goes through a wormhole: into a mouth where it was, out of one where it lands.
+      case 'folded': {
+        const facing = board.ships[event.playerId]?.facing ?? facingIn(next, event.playerId)
+        moveShip(event.playerId, event.to, 'fold', facing, BEAT.fold)
+        effects.push({
+          kind: 'wormhole',
+          playerId: event.playerId,
+          from: event.from,
+          to: event.to,
+          facing: facing ?? 'prograde',
+          color: TABLE.fuel,
+          duration: BEAT.fold,
+        })
+        mark(event.playerId, `FOLD · −${event.massSpent} fuel`, 'good', { at: event.to })
+        return BEAT.fold
+      }
       case 'fuel_scooped':
         mark(event.playerId, `SCOOP +${event.amount} fuel`, 'good', { offset: { x: 0, y: -14 } })
         return BEAT.small
@@ -989,6 +1028,8 @@ export function shotKey(shot: ShotDraft): string {
   switch (shot.kind) {
     case 'move':
       return `move:${shot.playerId}:${shot.move}`
+    case 'fold':
+      return `fold:${shot.playerId}`
     case 'duel':
       return `duel:${shot.attackerId}:${shot.targetId}`
     case 'missiles':
@@ -1013,6 +1054,8 @@ export function shotFor(state: BeatState, next: GameView, event: GameEvent): Sho
     to: at(targetId),
   })
   switch (event.type) {
+    case 'folded':
+      return { kind: 'fold', playerId: event.playerId, from: at(event.playerId), to: event.to }
     case 'coasted':
     case 'burned':
     case 'jumped':

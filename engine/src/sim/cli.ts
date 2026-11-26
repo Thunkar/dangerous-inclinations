@@ -174,6 +174,10 @@ function printSummary(a: AggregateStats): void {
   console.log(
     `First jump (round): median ${a.firstJumpRound.median} (${a.firstJumpRound.count} players jumped)`
   )
+  if (a.foldsPerGame.mean > 0)
+    console.log(
+      `Folds/game: mean ${a.foldsPerGame.mean}, ${Math.round(a.foldsToPlanetShare * 100)}% into a planet well`
+    )
   console.log(
     `Scans/game: mean ${a.scansPerGame.mean}; hidden subsystems per player at end: mean ${a.hiddenTilesAtEnd.mean} of 5`
   )

@@ -49,7 +49,11 @@ sectors from every placed ship; that position is their Home (destroyed ships res
 their next turn is a first round of their own: untouchable until it is over, and
 firing at, scanning and seizing from nobody on it). Transfer lanes are one-way 4-sector arcs: each planet has an outbound lane
 from black hole ring 5 to its ring 4 and an inbound lane back. Stations orbit planet ring 2, with a faster ring 1 inside them, and are where cargo is
-loaded, ships are repaired and data is delivered. A moored ship can neither fire nor be
+loaded, ships are repaired and data is delivered. A station spans three sectors of
+its ring (`DOCKING_REACH` either side of its centre, `inDockingReach`): a ship that
+arrives on any of them docks there and rides the station from that sector. The
+bots' planner aims at whichever of them it meets first and routes round the others
+(`dockingAvoidance`), since docking is automatic. A moored ship can neither fire nor be
 fired at, missiles included, nor be scanned (it may still scan).
 
 Loadout subsystems (1 forward + 4 side slots) are **face-down** and revealed the
@@ -98,6 +102,12 @@ offer differs seat to seat, so the five have to be worth roughly the same or
 the deal is a lottery.
 New mission types are proposed to the designer, never added unasked.
 
+A **jump drive** (either slot) makes the turn's one move a **fold**: the ship is put on
+any sector of its own well, or between the black hole and a planet (never planet
+to planet, never onto a station), with no drift, and actions go before and after
+it as around any move, for 8 fuel, 3 energy on the drive and 3 on the engines. It never breaks; the
+price is the fuel and the 6 heat.
+
 Missiles fire in **salvos**: one action launches any number of a subsystem's missiles
 at one ship, and that is **one use of the subsystem**: the 4-round magazine, refilled
 at a station, is what limits missiles, not heat. A powered ballistic rack rolls
@@ -109,7 +119,7 @@ Both defences are whole for every attacker: a shield's cubes that absorb are
 spent for that player-turn only, and a rack rolls at up to four each turn.
 
 Turn: (respawn turn if destroyed) → clear the loadout → actions in chosen order (power,
-rotate, one move: coast/burn/jump, fire, scan, seize, survey, salvage, mark; a
+rotate, one move: coast/burn/jump/fold, fire, scan, seize, survey, salvage, mark; a
 missile flies its 3 steps and may attack the moment it is launched, and a
 seizure, a survey, a salvage and a mark take effect where they come) → own
 missiles from earlier turns fly and ride, in the order that lands → heat
@@ -248,7 +258,7 @@ its own loadout: the bar every row with that card is read against); **logical**
 with a card that fights it: sensor bow hauling, compressor hunting); **off-book**
 (builds no preset has, with the card they are built for: sensor bow with three
 launchers, a missile boat, a rack hunter, a fifth wall in the bow, three-shield
-walls); and **extreme** (twenty-eight wild hulls, five shields among them, with
+walls); and **extreme** (thirty wild hulls, five shields among them, with
 a random legal hand, against the own-hand
 bar). One table, one flag column. Failing flags: `outlier` (12+ points over its
 bar), `stall` (20%+ of games at the cap), `slow` (a natural row), `unpunished`
@@ -655,16 +665,21 @@ counts are checked against its part files' names; a hub prints with rings 1
 and 2 round it as they sit on the board, and a ring in segments prints its
 segments turned alike and stacked one inside the next), and `scripts/plates.ts` packs them from the exported STLs into a
 3MF a bed for PrusaSlicer. The station (`pieces/station.ts`) is printed from the
-yard's (`ui/src/ships/station.ts`) as the hulls are: a spindle on a foot
-in its sector, a habitat drum, three finned radiators canted at 55
-degrees and three arms climbing to clamps a ship token drops into, so
-lifting the station to advance it carries its moored ships, each held by
-the M2x4 screw flush in the token's middle over a 4x2 magnet sealed under
-its clamp's floor (`BERTH`: slid in flat from the clamp's outer face, a
-plug, `station-plugs`, glued in behind it); one piece,
-upright, every face that looks down at 50 degrees (a print reads 45 as an
-overhang). The 3D board draws the same model and stands a moored hull
-on its berth (`world.berthWorld`; `ShipToken.berth`). A ring
+yard's (`ui/src/ships/station.ts`) as the hulls are: a stem on a foot in
+its sector, a faceted habitat ring low round it, and above that a straight
+truss out to the far walls of the sectors either side, so the piece is as
+long as the docking reach (the designer's pick of four looks, 26 Nov 2026).
+The truss carries six cradles, two over each of its three sectors (inner and
+outer), with nothing above any of them, a drum, mast, radiators and dish on
+top. A ship token drops into the cradle over its own sector, held by the M2x4
+screw flush in the token's middle over a 4x2 magnet sealed under the cradle's
+floor (`BERTH`: slid in flat from the cradle's side, a plug, `station-plugs`,
+glued in behind it), so lifting the station by its top carries its moored
+ships. It prints as `station-stem` (upright), `station-habitat` and
+`station-beam` (each flat), glued on a keyed hex peg, every face that looks
+down at 50 degrees (a print reads 45 as an overhang). The 3D board draws the
+same model and seats a moored hull by its sector's offset from the station
+(`mooringSpot`, `world.berthWorld`; `ShipToken.berth`). A ring
 too big for the printer's bed (`BED` in `spec.ts`: the MK4S's 250 x 210,
 which the plates are packed on too) is cut into segments on arm lines, so
 ring 3 prints in halves. `yarn board`
@@ -1273,7 +1288,7 @@ not an argument:
   rack, shields), the default; lancer for Piracy (railgun; plasma×2, laser);
   corsair for Salvage (missile bow; lasers×3); warden for Escort (disruptor
   bow; plasma×2, shields). Interceptor, all sensor bows: raider (shields,
-  disruptor, plasma), the default; watcher for Survey (shields×2, laser);
+  disruptor, plasma), the default; watcher for Survey (shields, laser, jump drive since 26 Nov 2026);
   picket for Salvage (missiles×2, shields); sentry for Escort (laser, rack,
   shields). Hauler, all compressors: freighter (shields×2, laser), the
   default; convoy for Piracy and Escort (racks×2, shields); smuggler for
@@ -1358,6 +1373,44 @@ not an argument:
   200 games a row over the natural, baseline and logical rows: mean +2pp;
   the one number to watch is dealt Destroy 33 → 41.5% (warden 31.5 → 44%),
   because hunters keep the Salvage and Piracy their kills feed.
+- **A station three sectors long.** Adopted 26 Nov 2026 to cut the turns a
+  hauler spends waiting for its station to come round: a station spans its
+  centre and a sector either side, and a ship arriving on any of them docks
+  there and rides the station from that sector (no snap to the centre).
+  Docking stays automatic, so the planner aims at whichever docking sector
+  it meets first and routes round the others (`dockingAvoidance`), which is
+  what made the reach pay: without it the bots docked by accident and
+  redocked. Measured with the jump drive below: a Deliver haul's median
+  8 → 6 turns, hauls of 8 turns or more 87 → 25%, Deliver holders with a
+  streak of 8 idle turns 54 / 48 → 32 / 27% at three / four seats, natural
+  games 27 → 22 rounds; haulers rise a little and hunters fall, which the
+  designer reads as right (moving is what a hauler does). A station also
+  reaching a ring either way (a cross) was tried and not kept. The printed
+  station is a truss as long as the reach, six cradles over its three
+  sectors.
+- **The jump drive.** Adopted 26 Nov 2026 from the first tabletop playtest,
+  for flavour as much as balance (RULES §Movement, Fold): either slot, a
+  fold to any sector of the ship's own well or between the black hole and
+  a planet, never planet to planet and never onto a station's three
+  sectors, for 8 fuel, 3 energy on the drive and 3 on the engines (3 so the
+  printed bases' channels need no change), no drift, an ordinary move
+  with actions before and after it. It never breaks: the first version,
+  broken by every fold, read +3 / +14 / +13 / +11 over the bars, the hunters
+  `outlier`, and the designer refused the break. As adopted, 400 games a
+  row: hauler +1, railgun hunter -1, corsair +7, interceptor +9, no failing
+  flag. The watcher carries it (24 → 32% with Intercept); swapped into
+  eight other presets it moved each within 3 points at 200 games, and no
+  hauler wants it: a haul is 6 turns and the compressor's jump is 1 fuel,
+  so a fold rarely saves the 3 turns the bots ask of it (`FOLD_MIN_SAVING`).
+  The bots also fold out of a lethal volley (`planEscape`) and only onto
+  landings the table cannot cost hull (`exposure.ts`).
+- **A scan reaching 4 sectors.** Tried 26 Nov 2026 to lift Intercept: no
+  measurable change (the first scan already lands in round 2). Back at 3.
+- **Pirates take data before loot.** Adopted 26 Nov 2026, the designer's
+  call: a bot pirate takes a crate, then data, then loot, since data may be
+  a primary (an Intercept's) and loot is always a secondary. Loot re-seized
+  per 100 Piracy starts 124 → 58; dealt Intercept 27 → 25% at 400 games,
+  within noise.
 
 Known open problems:
 
@@ -1395,12 +1448,21 @@ Known open problems:
   missiles×2 42% against 40%), so it is a two-player shape. The older
   weaponless-runner and compressor-outlier readings were before the circuit
   routes, one action a visit and heat-free absorption.
-- **Data aboard makes every Intercept and Survey holder prey.** A scan is
-  data and data is loot: three seizures in four are data, and 40% of
-  Intercept scans come on the first legal turn as the interceptor moves into
-  range. Dealt Intercept now reads 31–35%, but the raider and the watcher
-  are the presets that sit lowest with their own card (29 and 28% against
-  31).
+- **Intercept is the weakest primary for the bots, and the black hole is
+  why.** Dealt Intercept reads 25–27% against Destroy and Deliver at 38%
+  (400 games a row, 26 Nov 2026). Data draws no fire: a ship carrying an
+  Intercept's data dies as often as an empty one in the same place (6.4
+  against 6.6 per 100 ship-rounds in the black hole, 1.3 and 1.3 in a
+  planet's well). The black hole is five times deadlier than a well for
+  every ship, the scan happens there, and the data spends 78% of its time
+  there; a crate carrier there dies at 1.6. Half the losses are to the
+  scanned ship, which is beside the scanner. Three bot fixes moved nothing
+  (a scan held where the target could take the data back, no bonus for
+  shooting a loaded ship, carriers avoiding a lethal landing: 24–25%). The
+  first tabletop playtest had one kill in the game against the bots' 2.9 at
+  three seats, so the table is far quieter and the designer reads Intercept
+  as easier there: kept as it is until more playtests. If it needs a lever,
+  it is how readily bots fire in the black hole, not the card.
 - **Point defence against the launchers.** The gunship, the sentry and the
   convoy carry the racks (33–37% of seats in natural play); the corsair,
   the picket and the smuggler carry the launchers (30%). With the nine

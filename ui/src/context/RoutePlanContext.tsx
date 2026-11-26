@@ -19,8 +19,10 @@ import {
 import type { MovementPlan, MovementStep, Position, Station } from '@dangerous-inclinations/engine'
 import {
   MAX_REACTION_MASS,
+  dockingAvoidance,
   getStationAt,
   hasWorkingCompressor,
+  inDockingReach,
   planMovementAlternatives,
   planMovementToTarget,
   planStationMeetUp,
@@ -28,6 +30,7 @@ import {
   staticTarget,
   stationPosition,
   stationTarget,
+  stopsInside,
 } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
 import { usePlan } from './PlanContext'
@@ -121,34 +124,41 @@ export function RoutePlanProvider({ children }: { children: ReactNode }) {
       allowWellTransfers: true,
       maxTurns: ROUTE_SEARCH_TURNS,
       arrivalMass: reserve,
+      // A turn ending on a station docks there: the forward search stops on
+      // one only to arrive.
+      avoid: dockingAvoidance(view.stations, me.ship),
     }
     // Meeting a station is a forward search against a moving target, so it
     // yields the one plan that arrives when the station does, not a set of
     // alternatives to a fixed sector.
     if (routeStation && routeMode === 'meet') {
-      if (samePosition(me.ship, stationPosition(routeStation))) return []
+      if (inDockingReach(stationPosition(routeStation), me.ship)) return []
       if (reserve > 0) {
         const plan = planMovementToTarget(origin, stationTarget(routeStation), options)
         return plan ? [plan] : []
       }
-      const meet = planStationMeetUp(me.ship, routeStation, ROUTE_SEARCH_TURNS)
+      const meet = planStationMeetUp(me.ship, routeStation, ROUTE_SEARCH_TURNS, 0, options.avoid)
       return meet ? [meet.plan] : []
     }
     if (!routeDestination || samePosition(me.ship, routeDestination)) return []
-    if (reserve > 0) {
+    // Only the forward search keeps to the fuel to arrive with, and to a
+    // station only to arrive, so it plans what the reverse search cannot.
+    const forward = () => {
       const plan = planMovementToTarget(origin, staticTarget(routeDestination), options)
       return plan ? [plan] : []
     }
-    return planMovementAlternatives(origin, routeDestination, options)?.alternatives ?? []
-  }, [routeDestination, routeStation, routeMode, routeReserve, me.ship])
+    if (reserve > 0) return forward()
+    const fixed = planMovementAlternatives(origin, routeDestination, options)?.alternatives ?? []
+    return fixed.some(route => stopsInside(route, options.avoid)) ? forward() : fixed
+  }, [routeDestination, routeStation, routeMode, routeReserve, me.ship, view.stations])
   const route = routes[Math.min(routeIndex, Math.max(0, routes.length - 1))] ?? null
 
   // Arrived: the route has done its job. Meeting a station ends when the ship
-  // is on the station, wherever the two of them got to.
+  // is on the station (any of its sectors), wherever the two of them got to.
   useEffect(() => {
     const arrived =
       routeStation && routeMode === 'meet'
-        ? samePosition(me.ship, stationPosition(routeStation))
+        ? inDockingReach(stationPosition(routeStation), me.ship)
         : routeDestination !== null && samePosition(me.ship, routeDestination)
     if (arrived) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- the server's new position ends the route

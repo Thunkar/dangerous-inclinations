@@ -19,12 +19,22 @@ import type {
   GameView,
   Player,
   PlayerAction,
+  Position,
   SubsystemId,
 } from '@dangerous-inclinations/engine'
 import {
   FIRST_TURN,
+  GRAVITY_WELLS,
+  SECTORS_PER_RING,
   SURVEY_RING,
+  drawFor,
   executeTurn,
+  foldEngines,
+  foldFuel,
+  heatAtCheck,
+  refusalsFor,
+  samePosition,
+  tableOfView,
   getAdjustmentRange,
   getJumpAdjustmentRange,
   getJumpOptions,
@@ -36,6 +46,7 @@ import {
   walkTurn,
 } from '@dangerous-inclinations/engine'
 import {
+  foldTargets,
   moveReadiness,
   planActions,
   previewPlan,
@@ -49,6 +60,7 @@ import {
   ALPHA,
   BETA,
   BH,
+  GAMMA,
   LANDING,
   LOADOUTS,
   alongside,
@@ -167,6 +179,13 @@ function planOf(player: Player, actions: PlayerAction[]): Plan {
           victimId: null,
         })
         break
+      case 'fold':
+        steps.push({
+          id: id(),
+          kind: 'move',
+          move: { kind: 'fold', to: { ...action.data } },
+        })
+        break
     }
   }
   // The engine coasts a turn that names no move, after everything else: the
@@ -211,8 +230,9 @@ function playedTurns(config: GameConfig): Turn[] {
 }
 
 /**
- * Natural games at three sizes, and one with a missile boat dealt Destroy:
- * no hull a bot picks for itself carries a launcher, and salvos need one.
+ * Natural games at three sizes, one with a missile boat dealt Destroy (no
+ * hull a bot picks for itself carries a launcher, and salvos need one) and
+ * one with a jump drive aboard, so folds are planned too.
  */
 const GAMES: GameConfig[] = [
   { seed: 1, botCount: 3 },
@@ -224,6 +244,7 @@ const GAMES: GameConfig[] = [
     seatLoadouts: { 'bot-1': LOADOUTS.missileBoat },
     seatHands: { 'bot-1': 'destroy_ship' },
   },
+  { seed: 5, botCount: 3, seatLoadouts: { 'bot-1': LOADOUTS.jumpDrive } },
 ]
 const TURNS = GAMES.flatMap(playedTurns)
 
@@ -563,6 +584,9 @@ describe('the plan preview against the engine', () => {
           option =>
             ({ kind: 'jump', destinationWellId: option.destination.wellId, adjustment: 0 }) as const
         ),
+        ...foldTargets(view, me, me.ship)
+          .slice(0, 1)
+          .map(to => ({ kind: 'fold', to }) as const),
       ]
       for (const move of moves) {
         // A jump's button puts a rotation to prograde in first, as a click does.
@@ -573,7 +597,12 @@ describe('the plan preview against the engine', () => {
         ]
         const preview = previewPlan(view, me, steps, {})
         const ready = moveReadiness(view, me, steps, {})
-        const button = move.kind === 'burn' ? ready.burnReady[move.intensity] : ready.jumpReady
+        const button =
+          move.kind === 'burn'
+            ? ready.burnReady[move.intensity]
+            : move.kind === 'fold'
+              ? ready.foldReady
+              : ready.jumpReady
         const result = executeTurn(
           structuredClone(state),
           planActions(me, steps, preview, noExtras)
@@ -748,9 +777,10 @@ describe('the preview offers a dock exactly when the engine docks (RULES §Stati
 
   it.each<[string, () => GameState, () => PlanStep[], boolean]>([
     [
-      // Ring 3, sector 22, retrograde: a soft burn drifts two and drops onto the station.
+      // Ring 3, sector 22, retrograde: a soft burn drifts two and drops onto the
+      // station; the rival is beside it on ring 1, off the station.
       'a soft burn onto the station, then the rack',
-      () => seat(22, 3, 'retrograde', { ring: 2, sector: 1 }),
+      () => seat(22, 3, 'retrograde', { ring: 1, sector: 1 }),
       () => [
         { id: id(), kind: 'move', move: { kind: 'burn', intensity: 'soft', adjustment: 0 } },
         shot('side-0'),
@@ -763,6 +793,20 @@ describe('the preview offers a dock exactly when the engine docks (RULES §Stati
       'the railgun recoiling onto the station, then a coast',
       () => seat(0, 3, 'prograde', { ring: 3, sector: 2 }),
       () => [shot('forward-0'), { id: id(), kind: 'move', move: { kind: 'coast', scoop: false } }],
+      false,
+    ],
+    // On the station's ring a coast drifts 4: from sector 19 to 23, a sector short
+    // of the station's centre and on the station; from 18 to 22, two short and off it.
+    [
+      'a coast that ends a sector short of the centre',
+      () => seat(19, 2, 'prograde', { ring: 4, sector: 12 }),
+      () => [{ id: id(), kind: 'move', move: { kind: 'coast', scoop: false } }],
+      true,
+    ],
+    [
+      'a coast that ends two sectors short of the centre',
+      () => seat(18, 2, 'prograde', { ring: 4, sector: 12 }),
+      () => [{ id: id(), kind: 'move', move: { kind: 'coast', scoop: false } }],
       false,
     ],
   ])('%s', (_label, build, plan, docks) => {
@@ -1178,5 +1222,146 @@ describe('a salvage that counts on a kill', () => {
       COAST,
     ]
     expect(previewPlan(view, view.me!, steps, {}).issues).toHaveLength(1)
+  })
+})
+
+/**
+ * A fold (RULES §Movement, Fold) is the move a jump drive makes: the board
+ * lights where it may land, the plan blocks until one is picked, and what
+ * comes after it happens where it lands, exactly as the engine has it.
+ */
+describe('a fold', () => {
+  const NO_EXTRAS: PlanExtras = { repair: null, dockSale: null }
+  const DRIVE = 'side-2' as SubsystemId
+  const folding = (from: Position, rival: Position = { wellId: BH, ring: 5, sector: 12 }) =>
+    makeGameState([makePlayer('p1', from, LOADOUTS.jumpDrive), makePlayer('p2', rival)])
+  const foldTo = (to: Position | null): PlanStep => ({
+    id: id(),
+    kind: 'move',
+    move: { kind: 'fold', to },
+  })
+  const everySector: Position[] = GRAVITY_WELLS.flatMap(well =>
+    well.rings.flatMap(ring =>
+      Array.from({ length: SECTORS_PER_RING }, (_, sector) => ({
+        wellId: well.id,
+        ring: ring.ring,
+        sector,
+      }))
+    )
+  )
+  const judgeFold = (state: GameState, steps: PlanStep[]) => {
+    const view = viewFor(state, 'p1')
+    const me = view.me!
+    const preview = previewPlan(view, me, steps, {})
+    const result = executeTurn(structuredClone(state), planActions(me, steps, preview, NO_EXTRAS))
+    return { view, me, preview, errors: result.errors ?? [], result }
+  }
+
+  it.each<[string, () => GameState]>([
+    ['from the black hole', () => folding({ wellId: BH, ring: 3, sector: 0 })],
+    ['from Alpha', () => folding({ wellId: ALPHA, ring: 4, sector: 7 })],
+    [
+      'beside a station',
+      () => {
+        const berth = berthOf(folding({ wellId: ALPHA, ring: 4, sector: 7 }), ALPHA)
+        return folding({ ...berth, sector: (berth.sector + 2) % SECTORS_PER_RING })
+      },
+    ],
+  ])('lights exactly the sectors the referee takes, %s', (_label, build) => {
+    const view = viewFor(build(), 'p1')
+    const me = view.me!
+    const table = tableOfView(view, me.ship)
+    const accepted = everySector.filter(
+      to =>
+        refusalsFor(table, me, {
+          playerId: 'p1',
+          type: 'fold',
+          sequence: 1,
+          data: { wellId: to.wellId, ring: to.ring, sector: to.sector },
+        }).length === 0
+    )
+    const lit = foldTargets(view, me, me.ship)
+    expect(lit.length).toBeGreaterThan(0)
+    expect(lit.length).toBe(accepted.length)
+    expect(accepted.every(a => lit.some(t => samePosition(t, a)))).toBe(true)
+  })
+
+  it('blocks the turn until a sector is picked', () => {
+    const { preview, me } = judgeFold(folding({ wellId: BH, ring: 3, sector: 0 }), [foldTo(null)])
+    expect(preview.issues).toHaveLength(1)
+    expect(planActions(me, [foldTo(null)], preview, NO_EXTRAS)).toEqual([])
+  })
+
+  it('refuses a fold from one planet to another, as the engine does', () => {
+    const { preview, errors } = judgeFold(folding({ wellId: ALPHA, ring: 4, sector: 7 }), [
+      foldTo({ wellId: BETA, ring: 3, sector: 5 }),
+    ])
+    expect(preview.issues.length).toBeGreaterThan(0)
+    expect(errors.length).toBeGreaterThan(0)
+  })
+
+  it('fires a shot after it from where it lands, legal exactly when the engine says so', () => {
+    const rival: Position = { wellId: GAMMA, ring: 3, sector: 10 }
+    const state = folding({ wellId: BH, ring: 3, sector: 0 }, rival)
+    const view = viewFor(state, 'p1')
+    const landings = foldTargets(view, view.me!, view.me!.ship).filter(
+      t => t.wellId === GAMMA && Math.abs(t.ring - rival.ring) <= 1
+    )
+    let legal = 0
+    let refused = 0
+    for (const landing of landings) {
+      const steps: PlanStep[] = [
+        foldTo(landing),
+        {
+          id: id(),
+          kind: 'fire',
+          subsystemId: 'side-0' as SubsystemId,
+          targetId: 'p2',
+          criticalTarget: 'engines' as SubsystemId,
+          compensateRecoil: false,
+          count: 1,
+        },
+      ]
+      const { preview, errors } = judgeFold(state, steps)
+      expect(preview.stepStart[1].position).toEqual(landing)
+      expect(preview.issues.length > 0).toBe(errors.length > 0)
+      if (errors.length > 0) refused++
+      else legal++
+    }
+    expect(legal).toBeGreaterThan(0)
+    expect(refused).toBeGreaterThan(0)
+  })
+
+  it('puts its cubes on the drive and the engines, spends its fuel and heats by both', () => {
+    const state = folding({ wellId: BH, ring: 3, sector: 0 })
+    const to: Position = { wellId: ALPHA, ring: 3, sector: 10 }
+    const { preview, me, errors } = judgeFold(state, [foldTo(to)])
+    expect(errors).toEqual([])
+    const cubes = (sub: SubsystemId) => preview.loadout.find(s => s.id === sub)!.allocatedEnergy
+    expect(cubes(DRIVE)).toBe(drawFor('jump_drive'))
+    expect(cubes('engines')).toBe(foldEngines())
+    expect(preview.projectedFuel).toBe(me.ship.reactionMass - foldFuel())
+    expect(preview.finalPosition.position).toEqual(to)
+    expect(preview.finalPosition.facing).toBe(me.ship.facing)
+    const coasting = previewPlan(
+      viewFor(state, 'p1'),
+      me,
+      [{ id: id(), kind: 'move', move: { kind: 'coast', scoop: false } }],
+      {}
+    )
+    const heat = (loadout: PlanPreview['loadout']) =>
+      heatAtCheck({ ...me.ship, subsystems: loadout })
+    expect(heat(preview.loadout) - heat(coasting.loadout)).toBe(6)
+  })
+
+  it.each<[string, (state: GameState) => GameState]>([
+    ['with the fuel for it', state => state],
+    ['short of fuel', state => withShip(state, 'p1', { reactionMass: foldFuel() - 1 })],
+    ['with the drive broken', state => withSub(state, 'p1', DRIVE, { isBroken: true })],
+  ])('offers the Fold button exactly when the engine folds, %s', (_label, alter) => {
+    const state = alter(folding({ wellId: BH, ring: 3, sector: 0 }))
+    const steps = [foldTo({ wellId: BH, ring: 1, sector: 7 })]
+    const { view, me, errors } = judgeFold(state, steps)
+    expect(moveReadiness(view, me, steps, {}).foldReady.ok).toBe(errors.length === 0)
   })
 })

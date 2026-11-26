@@ -122,11 +122,18 @@ export function CameraRigProvider({
  */
 export function CameraRig({
   followWellId,
+  pickWells = [],
   rig,
   director,
 }: {
   /** The well the Follow preset frames; it falls back to Table when absent. */
   followWellId?: GravityWellId
+  /**
+   * The wells a fold being picked may land in. While there are any the camera
+   * pulls back to hold them all (the Auto preset's director does the same
+   * through the wells it frames to act).
+   */
+  pickWells?: readonly GravityWellId[]
   rig: CameraRigValue
   /** What the Auto preset films; the director only runs while it is selected. */
   director: Omit<DirectorProps, 'controls' | 'handAt'>
@@ -182,6 +189,24 @@ export function CameraRig({
     framePoints(
       rigControls,
       boardHullPoints(),
+      presetRef.current === 'top' ? [TOP_PITCH] : TABLE_PITCHES,
+      transition
+    )
+  }, [])
+
+  const pickKey = pickWells.join(',')
+  const pickRef = useRef(pickKey)
+  pickRef.current = pickKey
+  /** Hold every well a fold being picked may land in. The Auto preset's director does its own. */
+  const framePick = useCallback((transition: boolean) => {
+    const rigControls = controls.current
+    if (!pickRef.current || !rigControls || presetRef.current === 'auto') return
+    const points = (pickRef.current.split(',') as GravityWellId[]).flatMap(well =>
+      well === 'blackhole' ? homeHullPoints() : wellHullPoints(well, WELL_MARGIN)
+    )
+    framePoints(
+      rigControls,
+      points,
       presetRef.current === 'top' ? [TOP_PITCH] : TABLE_PITCHES,
       transition
     )
@@ -254,9 +279,15 @@ export function CameraRig({
    */
   useEffect(() => {
     if (touched.current) return
-    if (framing.current === 'all') frameAll(false)
+    if (pickRef.current) framePick(false)
+    else if (framing.current === 'all') frameAll(false)
     else framePreset(presetRef.current, false)
-  }, [framePreset, frameAll, size.width, size.height])
+  }, [framePreset, frameAll, framePick, size.width, size.height])
+
+  // Picking a fold's sector pulls the camera back to hold every well it may land in.
+  useEffect(() => {
+    if (pickKey) framePick(true)
+  }, [pickKey, framePick])
 
   /*
    * Dev only: what the headless screenshot checks measure. It projects the same

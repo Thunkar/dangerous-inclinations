@@ -1,17 +1,30 @@
 /**
  * Loose tokens on the board: station discs and the players' Home markers.
- * Under a station, a square in the colour of each player it has bought from:
- * a station buys one item from each player, once.
+ * A station's disc sits on its truss, an arc along its ring out to the far
+ * walls of the sectors either side, where a ship docks from (the yard's
+ * `STATION_REACH`). Under a station, a square in the colour of each player
+ * it has bought from: a station buys one item from each player, once.
  */
 import { memo } from 'react'
 import type { HomeMarker, StationMarker } from '../../model'
-import { positionPoint, wellColor } from '../../geometry'
+import {
+  polar,
+  positionPoint,
+  ringRadius,
+  sectorEdgeAngle,
+  wellCenter,
+  wellColor,
+} from '../../geometry'
+import { STATION_REACH } from '../../../../ships/station'
 import { BOARD } from '../palette'
 import { homeLabel, stationLabel } from '../../labels'
 
 /** The sold-at squares under a station: their side and the step between them. */
 const SOLD_SIZE = 7
 const SOLD_PITCH = 9
+/** The truss's stroke, and how far its end posts stand either side of the ring. */
+const TRUSS_WIDTH = 3
+const POST_HALF = 9
 
 interface MarkersLayerProps {
   stations: ReadonlyArray<StationMarker>
@@ -50,9 +63,37 @@ export const MarkersLayer = memo(function MarkersLayer({ stations, homes }: Mark
       {stations.map(station => {
         const p = positionPoint(station.position)
         const color = wellColor(station.planetId)
+        const { wellId, ring, sector } = station.position
+        const centre = wellCenter(wellId)
+        const radius = ringRadius(wellId, ring)
+        const ends = [sector - STATION_REACH, sector + STATION_REACH + 1].map(edge =>
+          sectorEdgeAngle(wellId, edge)
+        )
+        const [t0, t1] = ends.map(a => polar(centre, radius, a))
         return (
           <g key={station.id}>
             <title>{stationLabel(station)}</title>
+            <path
+              d={`M ${t0.x} ${t0.y} A ${radius} ${radius} 0 0 1 ${t1.x} ${t1.y}`}
+              fill="none"
+              stroke={color}
+              strokeWidth={TRUSS_WIDTH}
+            />
+            {ends.map(a => {
+              const inner = polar(centre, radius - POST_HALF, a)
+              const outer = polar(centre, radius + POST_HALF, a)
+              return (
+                <line
+                  key={a}
+                  x1={inner.x}
+                  y1={inner.y}
+                  x2={outer.x}
+                  y2={outer.y}
+                  stroke={color}
+                  strokeWidth={TRUSS_WIDTH}
+                />
+              )
+            })}
             <circle cx={p.x} cy={p.y} r={10} fill={BOARD.deep} stroke={color} strokeWidth={2.5} />
             <circle cx={p.x} cy={p.y} r={3.5} fill={color} />
             <line x1={p.x - 15} y1={p.y} x2={p.x + 15} y2={p.y} stroke={color} strokeWidth={1.6} />

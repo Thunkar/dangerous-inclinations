@@ -55,6 +55,7 @@ export type SubsystemType =
   | 'ballistic_rack'
   | 'plasma_cannon'
   | 'disruptor'
+  | 'jump_drive'
 
 export type WeaponType =
   | 'laser'
@@ -168,6 +169,18 @@ export interface WeaponStats {
   maxMoves?: number // Guided projectiles: moves before expiry
 }
 
+/**
+ * Jump drive: the turn's move may be a fold, which puts the ship on a sector
+ * of its own well or between the black hole and a planet (never planet to
+ * planet).
+ */
+export interface FoldStats {
+  /** Fuel a fold costs on top of the drive's energy. */
+  foldFuel: number
+  /** Energy a fold also puts on the engines: the fold is the turn's move, and the engines light for it. */
+  foldEngines: number
+}
+
 /** Passive bonuses that need no energy: the tile works while it is aboard and unbroken. */
 export interface PassiveEffect {
   dissipationBonus?: number
@@ -186,6 +199,7 @@ export interface SubsystemConfig {
   /** Sensor array: while it has energy on it, its owner's shots crit on this d10 face or higher. */
   criticalFace?: number
   weaponStats?: WeaponStats
+  fold?: FoldStats
 }
 
 export interface Subsystem {
@@ -410,6 +424,34 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
       sideRestricted: false,
       disrupts: true,
     },
+  },
+  jump_drive: {
+    id: 'jump_drive',
+    name: 'Jump Drive',
+    /**
+     * A fold puts the ship on any sector of its own well, or of the black
+     * hole from a planet and of a planet from the black hole, never a
+     * station's, as the turn's whole move, with no drift, hold and all.
+     * Actions before and after it are sequenced as around any move. Its
+     * energy is heat at the check like any subsystem's; the price is the
+     * fuel, and the engines light for it too (3 energy on them, as a hard
+     * burn), so a fold is 6 heat at the check, and the drive's 3 cubes fit
+     * any slot's channel (a side's holds 3, the bow's 4). Playtest of 26 Nov 2026: a player who missed the
+     * windows to a station spent the game flying round to it.
+     *
+     * Priced by fuel in the experiment (26 Nov 2026, in the bow, seat 1
+     * forced, 200 games against the same hull with a compressor bow: raider
+     * 41%, hunter 38%, hauler 33.5%). Free, a fold anywhere won 65 / 71 /
+     * 73%; 6 fuel 55 / 51 / 61%; 8 fuel 45.5 / 44.5 / 37%; 9 fuel 41.5 /
+     * 44.5 / 31%; 10 (a full tank) 41.5 / 42.5 / 23.5%. Adopted on a side
+     * slot, at 3 energy and 8 fuel, in one well: the off-book jump rows in
+     * `sim/balance.ts`. The designer let it into the bow as well (either
+     * slot): the extreme jump-bow rows there.
+     */
+    minEnergy: 3,
+    maxEnergy: 3,
+    slotType: 'either',
+    fold: { foldFuel: 8, foldEngines: 3 },
   },
 }
 

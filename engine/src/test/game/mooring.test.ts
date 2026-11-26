@@ -78,9 +78,12 @@ describe('moored ships are safe', () => {
     ])
   })
 
+  // The station spans its centre and a sector either side of it on its ring.
   it.each<[string, (berth: Position) => Position, boolean]>([
-    ['on the berth', b => b, true],
-    ["one sector along the station's ring", b => ({ ...b, sector: b.sector + 1 }), false],
+    ["on the station's centre", b => b, true],
+    ["one sector along the station's ring", b => ({ ...b, sector: b.sector + 1 }), true],
+    ["one sector back along the station's ring", b => ({ ...b, sector: b.sector + 23 }), true],
+    ["two sectors along the station's ring", b => ({ ...b, sector: b.sector + 2 }), false],
     ["the berth's sector on ring 1, inside the station", b => ({ ...b, ring: 1 }), false],
     ["the berth's sector on ring 3, outside it", b => ({ ...b, ring: 3 }), false],
     ['the same square round another planet', b => ({ ...b, wellId: 'planet-beta' }), true],
@@ -244,7 +247,7 @@ describe('moored from docking until leaving the sector (RULES §Stations, Moored
   /**
    * S1: p1 on Alpha ring 3, sector 22, facing retrograde: a soft burn drifts
    * it two sectors and drops it onto the station (ring 2, sector 0). p2 sits
-   * one sector on, on the station's ring, in the rack's box from the berth.
+   * one sector on, on the ring outside, in the rack's box from the berth.
    */
   function arriving(): GameState {
     return makeGameState([
@@ -253,7 +256,7 @@ describe('moored from docking until leaving the sector (RULES §Stations, Moored
         { wellId: ALPHA, ring: 3, sector: 22, facing: 'retrograde' },
         LOADOUTS.railRack
       ),
-      makePlayer('p2', { wellId: ALPHA, ring: 2, sector: 1 }, LOADOUTS.railRack),
+      makePlayer('p2', { wellId: ALPHA, ring: 3, sector: 1 }, LOADOUTS.railRack),
     ])
   }
 
@@ -288,7 +291,8 @@ describe('moored from docking until leaving the sector (RULES §Stations, Moored
   })
 
   it('from the end of that turn nobody scans it, and once off the berth they may', () => {
-    // p2 one sector on from the berth, facing retrograde: the berth is ahead of its sensor.
+    // p2 three sectors on from the berth, off the station, facing retrograde:
+    // the berth is ahead of its sensor, and so is sector 2, off the station too.
     const state = makeGameState([
       makePlayer(
         'p1',
@@ -297,14 +301,14 @@ describe('moored from docking until leaving the sector (RULES §Stations, Moored
       ),
       makePlayer(
         'p2',
-        { wellId: ALPHA, ring: 2, sector: 1, facing: 'retrograde' },
+        { wellId: ALPHA, ring: 2, sector: 3, facing: 'retrograde' },
         LOADOUTS.sensor
       ),
     ])
     const docked = mustExecute(state, burn(1, 'soft'))
     expect(getShip(docked, 'p1')).toMatchObject(berthOf(state, ALPHA))
     expect(canBeTargeted(getPlayer(docked, 'p1'), docked.stations)).toBe(false)
-    const offBerth = withShip(docked, 'p1', { sector: 23 })
+    const offBerth = withShip(docked, 'p1', { sector: 2 })
     expectRefusedUnless(
       executeTurnAs(docked, scan(1, 'p1')),
       executeTurnAs(offBerth, scan(1, 'p1'))
@@ -314,8 +318,8 @@ describe('moored from docking until leaving the sector (RULES §Stations, Moored
   it('a ship that began its turn moored and coasts is still moored after the coast', () => {
     const docked = mustExecute(arriving(), burn(1, 'soft'), fire(2, 'side-0', 'p2'))
     const p1Again = mustExecute(docked, coast(1))
-    // p2 is now beside the berth's new sector on the ring: in the rack's box.
-    const near = withShip(p1Again, 'p2', { sector: berthOf(p1Again, ALPHA).sector + 1 })
+    // p2 is now beside the berth's new sector on the ring outside: in the rack's box.
+    const near = withShip(p1Again, 'p2', { ring: 3, sector: berthOf(p1Again, ALPHA).sector + 1 })
     expectRefused(executeTurnAs(near, coast(1), fire(2, 'side-0', 'p2')), near)
     expectRefused(executeTurnAs(near, fire(1, 'side-0', 'p2'), coast(2)), near)
   })
@@ -366,10 +370,10 @@ describe('moored from docking until leaving the sector (RULES §Stations, Moored
   )
 
   it("a ship the recoil put on the station's sector may still fire", () => {
-    // p3 one sector on from the berth, on its ring: the rack's from there.
+    // p3 one sector on from the berth, on the ring inside: the rack's from there.
     const state = makeGameState([
       ...recoiling().players,
-      makePlayer('p3', { wellId: ALPHA, ring: 2, sector: 1 }),
+      makePlayer('p3', { wellId: ALPHA, ring: 1, sector: 1 }),
     ])
     const result = executeTurnAs(
       state,

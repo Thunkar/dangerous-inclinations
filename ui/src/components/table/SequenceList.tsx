@@ -204,6 +204,8 @@ function stepTitle(
             ? fill(S.burnPhase, { value: signed(step.move.adjustment) })
             : '',
         })
+      if (step.move.kind === 'fold')
+        return step.move.to ? fill(S.fold, { place: placeLabel(step.move.to) }) : S.foldUnpicked
       return fill(S.jump, { well: getWellName(step.move.destinationWellId) })
     case 'fire':
       return fill(S.fire, {

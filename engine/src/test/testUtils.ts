@@ -13,6 +13,7 @@ import type {
   PowerAction,
   Facing,
   FireWeaponAction,
+  FoldAction,
   GameState,
   Missile,
   Player,
@@ -171,6 +172,10 @@ export const LOADOUTS = {
   twoDisruptors: hull('disruptor', 'disruptor', 'shields', 'radiator', 'radiator'),
   /** Compressor; missiles, laser, shields, laser. */
   compressor: hull('fuel_compressor', 'missiles', 'laser', 'shields', 'laser'),
+  /** Shields; lasers, jump drive, radiator. */
+  jumpDrive: hull('shields', 'laser', 'laser', 'jump_drive', 'radiator'),
+  /** Sensor; laser, laser, jump drive, radiator: a fold that scans. */
+  sensorJumpDrive: hull('sensor_array', 'laser', 'laser', 'jump_drive', 'radiator'),
   /** Compressor; laser, laser, shields, radiator. */
   compressorLasers: hull('fuel_compressor', 'laser', 'laser', 'shields', 'radiator'),
   /** Compressor; shields, shields, radiator, laser: the hauler with no sensor. */
@@ -649,6 +654,12 @@ export const fire = (
   type: 'fire_weapon',
   sequence,
   data: { subsystemId, targetPlayerId, criticalTarget, compensateRecoil, count },
+})
+/** A fold with the jump drive to `to`. */
+export const fold = (sequence: number, to: Position): Draft<FoldAction> => ({
+  type: 'fold',
+  sequence,
+  data: { wellId: to.wellId, ring: to.ring, sector: to.sector },
 })
 /** Name the tile a cold ship's crew will fix (no sequence: it is not tactical). */
 export const repair = (subsystemId: SubsystemId): Draft<RepairAction> => ({

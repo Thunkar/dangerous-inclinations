@@ -25,6 +25,7 @@ export const BOARD_TEXT = {
   nameJoin: ', ',
   deploy: 'Place your ship here · {place}. This sector becomes your Home.',
   routeCell: 'Route to {place}',
+  foldCell: 'Fold to {place}',
   lane: {
     outbound: '{planet} lane {letter} · one way: jump from Black Hole {from} to {planet} {to}',
     inbound: '{planet} lane {letter} · one way: jump from {planet} {from} to Black Hole {to}',

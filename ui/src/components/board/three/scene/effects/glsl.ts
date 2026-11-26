@@ -364,3 +364,28 @@ export const EMBER_FRAGMENT = /* glsl */ `
     gl_FragColor = vec4(mix(uCore, uGlow, smoothstep(0.0, 0.45, vLife)), intensity);
   }
 `
+
+/**
+ * A wormhole's mouth on one disc: a rim of light and three arms turning in
+ * toward the throat, all of it grown by `uOpen` (0 shut, 1 open). The throat
+ * itself is a dark disc drawn behind this one; additive light cannot darken.
+ */
+export const WORMHOLE_FRAGMENT = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uOpen;
+  uniform float uSpin;
+  varying vec2 vUv;
+
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = length(p);
+    if (r > 1.0 || uOpen <= 0.002) discard;
+    float a = atan(p.y, p.x);
+    float arms = smoothstep(0.55, 1.0, sin(3.0 * a + 7.0 * r - uSpin));
+    float swirl = arms * smoothstep(0.08, 0.5, r) * (1.0 - smoothstep(0.82, 0.95, r));
+    float rim = smoothstep(0.72, 0.92, r) * (1.0 - smoothstep(0.92, 1.0, r));
+    float intensity = uOpen * (rim * 1.5 + swirl * 0.7);
+    if (intensity <= 0.002) discard;
+    gl_FragColor = vec4(uColor, min(1.0, intensity));
+  }
+`

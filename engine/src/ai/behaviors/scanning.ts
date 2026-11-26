@@ -72,7 +72,8 @@ export function scanOption(
 
   let best: ScanIntent | null = null
   for (const opponent of situation.opponents) {
-    if (!opponent.sameWell) continue
+    // Before the move from where the ship is, after it from where it lands.
+    if (!opponent.sameWell && opponent.position.wellId !== post.wellId) continue
     // Untouchable until their returning turn is over (RULES §Destruction and
     // Respawn), and safe at a berth (RULES §Stations): the engine refuses both.
     if (!canBeTargeted(opponent.player, situation.view.stations)) continue

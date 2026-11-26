@@ -772,6 +772,17 @@ check(
   ]),
   'a well_transfer without its sectorAdjustment is rejected'
 )
+const goodFold = {
+  playerId: HUMAN,
+  type: 'fold',
+  sequence: 1,
+  data: { wellId: 'planet-alpha', ring: 3, sector: 10 },
+}
+check(accepts([goodFold]), 'a well-formed fold is accepted')
+check(
+  !accepts([{ ...goodFold, data: { wellId: 'planet-alpha', ring: 3 } }]),
+  'a fold without its sector is rejected'
+)
 check(
   !accepts([{ playerId: HUMAN, type: 'deploy_ship', data: { wellId: 'planet-alpha', sector: 3 } }]),
   'deploy_ship is rejected inside SUBMIT_TURN'

@@ -22,6 +22,9 @@ import { join } from 'node:path'
 import { Matrix4, Vector3, type Object3D } from 'three'
 import {
   DEFAULT_SHIP_APPEARANCE,
+  inDockingReach,
+  sectorDistance,
+  sectorStepToward,
   type Hull,
   type Missile,
   type Station,
@@ -47,6 +50,8 @@ import type { Point } from '../../lib/solids.ts'
 import { createShip } from '../../../ui/src/ships/model.ts'
 import { DEFAULT_CONFIG, setModule, type MountId } from '../../../ui/src/ships/config.ts'
 import { MANTIS_ARM_FIN } from '../../../ui/src/ships/mantis.ts'
+import { mooringSpot, UNITS_PER_MM } from '../../../ui/src/ships/station.ts'
+import { STACK as STATION_STACK } from '../../pieces/station.ts'
 
 const OUT = join(import.meta.dirname, '../../shots/table')
 const arg = (k: string) => process.argv.find(a => a.startsWith(`--${k}=`))?.split('=')[1]
@@ -79,7 +84,6 @@ interface TablePlayer {
       revealed: boolean
     }[]
   }
-  moored: boolean
   cargo: { id: string; kind: string; loot: boolean }[]
   soldAt: string[]
   missions: { type: string; done: boolean; marked?: string; card: string }[]
@@ -275,39 +279,46 @@ const onRing: OnRing[] = []
 
 function tokens() {
   const { stations, wrecks, missiles, players } = state
-  // Stations, each turned with its ring (the yard's +x along the ring, prograde), and moored ships on its clamps.
+  // Stations, each turned with its ring (the yard's +x along the ring, prograde), and moored ships on its berths.
+  const berthed = new Set<string>()
   for (const st of stations) {
     const p = onBoard(st.planetId, st.ring, st.sector)
     const S0 = mul(T(p.x, p.y, p.z), Rz(p.prograde))
-    put('tokens/station.stl', PLANET_COLOURS[st.planetId], S0, {
-      kind: 'token',
-      id: `station:${st.planetId}`,
-    })
-    const moored = players.filter(
-      (pl: { moored: boolean; ship: { wellId: string; sector: number; ring: number } }) =>
-        pl.moored &&
-        pl.ship.wellId === st.planetId &&
-        pl.ship.ring === st.ring &&
-        pl.ship.sector === st.sector
-    )
-    moored.forEach((pl: { id: string; ship: { facing: string } }, k: number) => {
-      // ui/src/ships/station.ts: berth k at 12 mm from the spine, on the clamp's floor at 18,
-      // arm k at 90 + 120k degrees in the yard's (x, z), which the print turns to (x, -z).
-      const a = (90 + 120 * k) * DEG
-      const [bx, by] = [12 * Math.cos(a), -12 * Math.sin(a)]
-      // Tangent to the station, the way nearer the ship's facing (+x is prograde).
-      let yaw = Math.atan2(by, bx) / DEG + 90
-      const want = pl.ship.facing === 'prograde' ? 0 : 180
-      if (Math.cos((yaw - want) * DEG) < 0) yaw += 180
-      put('tokens/ship-token.stl', playerColour(seatOf(pl.id)), mul(S0, T(bx, by, 18), Rz(yaw)), {
+    // Its three parts stacked as they stand (the stem first: it is where the station is).
+    for (const [part, z] of [
+      ['stem', 0],
+      ['habitat', STATION_STACK.shoulder],
+      ['beam', STATION_STACK.hubTop],
+    ] as const)
+      put(`tokens/station-${part}.stl`, PLANET_COLOURS[st.planetId], mul(S0, T(0, 0, z)), {
+        kind: 'token',
+        id: `station:${st.planetId}`,
+      })
+    // A docked ship stays on its own sector, within the station's reach, and
+    // rides the cradle over it (ui/src/ships/station.ts mooringSpot, as the 3D
+    // board seats it): the spot in the yard's (x, z), which the print turns to
+    // (x, -z), along the ring, nose the way the ship faces.
+    const at = { wellId: st.planetId, ring: st.ring, sector: st.sector }
+    const moored = players.filter(pl => inDockingReach(at, pl.ship))
+    for (const pl of moored) {
+      const offset =
+        sectorStepToward(st.sector, pl.ship.sector) * sectorDistance(st.sector, pl.ship.sector)
+      const k = moored.filter(o => o.ship.sector === pl.ship.sector).indexOf(pl)
+      const b = mooringSpot(offset, k)
+      const [bx, by] = [b.x / UNITS_PER_MM, -b.z / UNITS_PER_MM]
+      // A berth's floor is the beam's; a spot beside the cradle is the board.
+      const bz = b.y > 0 ? STATION_STACK.floor : 0
+      const yaw = pl.ship.facing === 'prograde' ? 0 : 180
+      berthed.add(pl.id)
+      put('tokens/ship-token.stl', playerColour(seatOf(pl.id)), mul(S0, T(bx, by, bz), Rz(yaw)), {
         kind: 'token',
         id: `ship:${seatOf(pl.id)}`,
       })
-    })
+    }
   }
   // Ships in their sectors, nose the way they face.
   players.forEach((pl, i) => {
-    if (pl.moored) return
+    if (berthed.has(pl.id)) return
     const s = pl.ship
     onRing.push({
       wellId: s.wellId,

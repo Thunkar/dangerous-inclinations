@@ -24,12 +24,13 @@ import type {
   JumpOption,
   Player,
   PlayerAction,
+  Position,
   SaleOffer,
   SlotView,
   Subsystem,
   SubsystemId,
 } from '@dangerous-inclinations/engine'
-import { SELL_NOTHING, getSubsystemConfig } from '@dangerous-inclinations/engine'
+import { SELL_NOTHING, getSubsystemConfig, samePosition } from '@dangerous-inclinations/engine'
 import { useGame } from './GameContext'
 import { usePlanReadout } from './planReadout'
 import {
@@ -61,6 +62,8 @@ export type Picking =
   | { kind: 'peek'; stepId: string }
   /** Choosing a destination sector for the route planner. */
   | { kind: 'destination' }
+  /** Choosing the sector a fold lands on, among the lit ones. */
+  | { kind: 'fold' }
   | null
 
 interface PlanContextValue {
@@ -98,6 +101,10 @@ interface PlanContextValue {
   rotateReady: MoveReadiness
   burnReady: Record<BurnIntensity, MoveReadiness>
   jumpReady: MoveReadiness
+  /** Whether a fold can be taken: a working drive, unused this turn, and its fuel. */
+  foldReady: MoveReadiness
+  /** The sectors a fold from where the move starts may land on (`plan/preview.foldTargets`). */
+  foldTargets: Position[]
   scoopGain: number
   /** Heat at the check: the track as it stands plus every point of energy the plan puts on a tile. */
   projectedHeat: number
@@ -145,6 +152,8 @@ interface PlanContextValue {
   removeStep: (id: string) => void
   reorderStep: (id: string, direction: -1 | 1) => void
   setPicking: (picking: Picking) => void
+  /** A lit sector was clicked while picking a fold: the fold lands there. */
+  pickFold: (position: Position) => void
   /** A slot on an opponent's loadout was clicked while picking. */
   pickSlot: (targetId: string, slotId: SubsystemId) => void
   /** An opponent's ship or loadout was clicked: aim the step being edited at them. */
@@ -282,6 +291,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     rotateReady,
     burnReady,
     jumpReady,
+    foldReady,
+    foldTargets,
     scoopGain,
     dockSale,
     seizeChoices,
@@ -306,6 +317,12 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a repair the plan no longer offers is dropped for good
     if (repairChoice !== null && !repairable.includes(repairChoice)) setRepairChoiceState(null)
   }, [repairChoice, repairable])
+
+  // Picking a fold's sector only lasts while the move is a fold.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- another move ends the pick
+    if (picking?.kind === 'fold' && moveStep.move.kind !== 'fold') setPicking(null)
+  }, [picking, moveStep])
 
   const toggleSeize = useCallback(
     (item: SeizeOption) => {
@@ -526,12 +543,22 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
 
   const pickSlot = useCallback(
     (targetId: string, slotId: SubsystemId) => {
-      if (!picking || picking.kind === 'destination') return
+      if (!picking || picking.kind === 'destination' || picking.kind === 'fold') return
       if (picking.kind === 'crit') updateStep(picking.stepId, { targetId, criticalTarget: slotId })
       else updateStep(picking.stepId, { targetId, peekSlot: slotId })
       setPicking(null)
     },
     [picking, updateStep]
+  )
+
+  const pickFold = useCallback(
+    (position: Position) => {
+      if (picking?.kind !== 'fold') return
+      if (!foldTargets.some(t => samePosition(t, position))) return
+      setMove({ kind: 'fold', to: position })
+      setPicking(null)
+    },
+    [picking, foldTargets, setMove]
   )
 
   const pickTarget = useCallback(
@@ -583,6 +610,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       rotateReady,
       burnReady,
       jumpReady,
+      foldReady,
+      foldTargets,
       scoopGain,
       projectedHeat,
       projectedFuel: preview.projectedFuel,
@@ -610,6 +639,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       reorderStep,
       setPicking,
       pickSlot,
+      pickFold,
       pickTarget,
       setFocusWeapon: setFocusWeaponId,
       reset,
@@ -651,6 +681,8 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       rotateReady,
       burnReady,
       jumpReady,
+      foldReady,
+      foldTargets,
       scoopGain,
       projectedHeat,
       actions,
@@ -671,6 +703,7 @@ function SeatedPlanProvider({ me, children }: { me: Player; children: ReactNode 
       removeStep,
       reorderStep,
       pickSlot,
+      pickFold,
       pickTarget,
       reset,
       repairChoice,

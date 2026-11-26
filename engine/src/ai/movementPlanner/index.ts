@@ -42,6 +42,7 @@ export type {
   MovementPlan,
   MovementAlternatives,
   PlannerOptions,
+  PlannerAvoid,
   PlannerMode,
   MovementActionType,
   PredecessorInfo,
@@ -56,14 +57,16 @@ import type { ShipState, BurnIntensity, Facing, Station } from '../../models/gam
 import { hasWorkingCompressor } from '../../game/ship.ts'
 import { MAX_REACTION_MASS } from '../../models/game.ts'
 import { STATION_DRIFT } from '../../models/gravityWells.ts'
+import { inDockingReach, isMooredAt } from '../../game/stations.ts'
 import { planMovement } from './planner.ts'
 import { planMovementToTarget } from './forward.ts'
-import { orbitingTarget, staticTarget } from './targets.ts'
+import { driftPeriod, orbitingTarget, staticTarget } from './targets.ts'
 import type { PlannerTarget } from './targets.ts'
 import type {
   OrbitalPosition,
   OrientedPosition,
   MovementPlan,
+  PlannerAvoid,
   PlannerMode,
   PlannerOptions,
 } from './types.ts'
@@ -82,9 +85,15 @@ function shipOrigin(ship: ShipState): OrientedPosition {
  * arrival, so its dock trips are planned with that reserved and the search
  * coasts in where it would otherwise burn.
  */
-function shipPlannerOptions(ship: ShipState, maxTurns: number, reserveMass = 0): PlannerOptions {
+function shipPlannerOptions(
+  ship: ShipState,
+  maxTurns: number,
+  reserveMass = 0,
+  avoid?: PlannerAvoid
+): PlannerOptions {
   const scoop = ship.subsystems.find(s => s.type === 'scoop')
   return {
+    avoid,
     mode: 'fastest',
     maxTurns,
     availableMass: ship.reactionMass - reserveMass,
@@ -105,35 +114,51 @@ function shipPlannerOptions(ship: ShipState, maxTurns: number, reserveMass = 0):
  * is the fallback whenever the reverse search comes back empty on a ship
  * that has a working scoop. It only runs on that failure, so the common
  * case still costs one reverse search.
+ *
+ * The reverse search learns a route's turns only once it reaches the ship,
+ * so it cannot keep to `avoid`: a route it finds that stops inside is planned
+ * again forward, which can.
  */
 export function planFromShip(
   ship: ShipState,
   target: OrbitalPosition,
   mode: PlannerMode = 'fastest',
-  maxTurns: number = 20
+  maxTurns: number = 20,
+  avoid?: PlannerAvoid
 ): MovementPlan | null {
-  const options = shipPlannerOptions(ship, maxTurns)
+  const options = shipPlannerOptions(ship, maxTurns, 0, avoid)
   const origin = shipOrigin(ship)
   const plan = planMovement(origin, target, { ...options, mode })
-  if (plan || !options.hasFuelScoop) return plan
-  return planMovementToTarget(origin, staticTarget(target), options)
+  if (plan && !(avoid && stopsInside(plan, avoid))) return plan
+  if (!plan && !options.hasFuelScoop) return null
+  return planMovementToTarget(origin, staticTarget(target), plan ? { ...options, mode } : options)
+}
+
+/** Whether a turn of the route short of its arrival ends inside `avoid`. */
+export function stopsInside(plan: MovementPlan, avoid: PlannerAvoid): boolean {
+  for (let i = 0; i < plan.steps.length - 1; i++) {
+    if (avoid.covers(plan.steps[i].to, i + 1)) return true
+  }
+  return false
 }
 
 /**
  * Plan movement from a ship to any {@link PlannerTarget} (forward BFS).
  *
- * `reserveMass` is fuel the route must still have aboard when it arrives.
+ * `reserveMass` is fuel the route must still have aboard when it arrives;
+ * `avoid` the places its turns may end on only as the arrival.
  */
 export function planShipToTarget(
   ship: ShipState,
   target: PlannerTarget,
   maxTurns: number = 12,
-  reserveMass = 0
+  reserveMass = 0,
+  avoid?: PlannerAvoid
 ): MovementPlan | null {
   return planMovementToTarget(
     shipOrigin(ship),
     target,
-    shipPlannerOptions(ship, maxTurns, reserveMass)
+    shipPlannerOptions(ship, maxTurns, reserveMass, avoid)
   )
 }
 
@@ -187,14 +212,43 @@ export interface StationMeetPlan {
   plan: MovementPlan
 }
 
-/** Planner target for a station (advances STATION_DRIFT sectors once a round). */
+/**
+ * Planner target for a station (advances STATION_DRIFT sectors once a round).
+ * A turn that ends in its docking reach docks there, so that is the match.
+ */
 export function stationTarget(
   station: Pick<Station, 'planetId' | 'ring' | 'sector'>
 ): PlannerTarget {
-  return orbitingTarget(
+  const orbit = orbitingTarget(
     { wellId: station.planetId, ring: station.ring, sector: station.sector },
     STATION_DRIFT
   )
+  return { ...orbit, isMatch: (pos, turn) => inDockingReach(orbit.positionAt(turn), pos) }
+}
+
+/**
+ * The docking reach of every station, where they will be at each turn: a
+ * ship that ends a turn inside docks there, so a route may end a turn
+ * inside only as its arrival. For {@link PlannerOptions.avoid}.
+ *
+ * A ship that begins its turn moored does not dock that turn (RULES
+ * §Stations), so from `start` on a berth the first turn may end anywhere.
+ */
+export function dockingAvoidance(stations: Station[], start: OrbitalPosition): PlannerAvoid {
+  const period = driftPeriod(STATION_DRIFT)
+  const targets = stations.map(stationTarget)
+  // Where the stations are on turns 1..period; turn t is the same as t - period.
+  const at = Array.from({ length: period }, (_, i) => targets.map(t => t.positionAt(i + 1)))
+  const moored = isMooredAt(stations, start)
+  return {
+    period,
+    covers: (pos, turn) => {
+      if (moored && turn === 1) return false
+      const here = at[(turn - 1) % period]
+      for (let i = 0; i < here.length; i++) if (inDockingReach(here[i], pos)) return true
+      return false
+    },
+  }
 }
 
 /**
@@ -205,9 +259,10 @@ export function planStationMeetUp(
   ship: ShipState,
   station: Pick<Station, 'planetId' | 'ring' | 'sector'>,
   maxTurns: number = 12,
-  reserveMass = 0
+  reserveMass = 0,
+  avoid?: PlannerAvoid
 ): StationMeetPlan | null {
-  const plan = planShipToTarget(ship, stationTarget(station), maxTurns, reserveMass)
+  const plan = planShipToTarget(ship, stationTarget(station), maxTurns, reserveMass, avoid)
   if (!plan) return null
   return { meetPosition: plan.destination, totalTurns: plan.totalTurns, plan }
 }

@@ -1,13 +1,20 @@
 /**
  * Stations orbit each planet on STATION_RING and advance at the end of every
- * round. A ship is docked when it ends its turn on a station's sector, and it
- * stays docked: a moored ship rides its station round instead of drifting on
- * its own (RULES §Stations, Moored).
+ * round. A station spans its centre sector and DOCKING_REACH sectors either
+ * side of it on its ring. A ship docks when it arrives on any of them, and
+ * stays docked on that sector: a moored ship rides its station round,
+ * keeping its place on it, instead of drifting on its own (RULES §Stations,
+ * Moored).
  */
 import type { GameState, GravityWell, Position, Station } from '../models/game.ts'
 import type { EventDraft } from '../models/events.ts'
-import { PLANETS, STATION_INITIAL_SECTOR, STATION_RING } from '../models/gravityWells.ts'
-import { driftPosition, positionOf, samePosition } from './geometry.ts'
+import {
+  DOCKING_REACH,
+  PLANETS,
+  STATION_INITIAL_SECTOR,
+  STATION_RING,
+} from '../models/gravityWells.ts'
+import { driftPosition, positionOf, samePosition, sectorDistance, wrapSector } from './geometry.ts'
 import { isPowered } from '../models/subsystems.ts'
 import { findSubsystem, isOnBoard } from './ship.ts'
 import { scoopYield } from './movement.ts'
@@ -48,6 +55,7 @@ export function getStationForPlanet(stations: Station[], planetId: string): Stat
   return stations.find(s => s.planetId === planetId)
 }
 
+/** The station whose centre is on this sector: where its token stands. */
 export function getStationAt(stations: Station[], position: Position): Station | undefined {
   return stations.find(
     s => s.planetId === position.wellId && s.ring === position.ring && s.sector === position.sector
@@ -59,17 +67,34 @@ export function stationPosition(station: Station): Position {
 }
 
 /**
- * Moored: sitting on a station's sector. Docking is derived from position
- * (on the table the ship token is on the station token), so there is no
- * separate "docked" flag that could go stale.
+ * `pos` is on the station centred on `station`: the same well, the same ring
+ * and within DOCKING_REACH sectors. A ship ending its turn there docks.
+ */
+export function inDockingReach(station: Position, pos: Position): boolean {
+  return (
+    pos.wellId === station.wellId &&
+    pos.ring === station.ring &&
+    sectorDistance(pos.sector, station.sector) <= DOCKING_REACH
+  )
+}
+
+/** The station `position` is on, if any: the one a ship arriving there docks at. */
+export function getStationInReach(stations: Station[], position: Position): Station | undefined {
+  return stations.find(s => inDockingReach(stationPosition(s), position))
+}
+
+/**
+ * Moored: sitting on a station, on any of its sectors. Docking is derived
+ * from position (on the table the ship token is on the station token), so
+ * there is no separate "docked" flag that could go stale.
  */
 export function isMooredAt(stations: Station[], position: Position): boolean {
-  return getStationAt(stations, position) !== undefined
+  return getStationInReach(stations, position) !== undefined
 }
 
 /**
  * Moored during the ship's own actions (RULES §Stations, Moored): it was on a
- * station's sector when its turn began and has not left it. A ship that
+ * station when its turn began and has not left its sector. A ship that
  * arrives is not moored until it docks at the end of its turn, so it may fire
  * after its move and a railgun's recoil onto the berth moors nothing. Stations
  * do not move during a turn and no move can leave a sector and come back to
@@ -83,8 +108,9 @@ export function isMooredMidTurn(stations: Station[], start: Position, at: Positi
 
 /**
  * End of the round: every station advances, and the ships moored to them go
- * with it. A destroyed ship is off the board and rides nothing. Wrecks drift
- * in the same step, each by its own ring's speed (RULES §Missions, Salvage).
+ * with it, each keeping its sector's offset from the centre. A destroyed
+ * ship is off the board and rides nothing. Wrecks drift in the same step,
+ * each by its own ring's speed (RULES §Missions, Salvage).
  *
  * A rider whose scoop still has energy on it, unbroken, takes its fuel now:
  * the berth moves the ship, so the scoop pays on the ride, not on the coast
@@ -98,11 +124,14 @@ export function advanceStations(state: GameState): { state: GameState; events: E
   const players = state.players.map(before => {
     const player = { ...before, dockedThisRound: false }
     if (!isOnBoard(player)) return player
-    const station = getStationAt(state.stations, positionOf(player.ship))
+    const station = getStationInReach(state.stations, positionOf(player.ship))
     if (!station) return player
     const moved = stations.find(s => s.id === station.id)!
     riders.push(player.id)
-    let ship = { ...player.ship, sector: moved.sector }
+    let ship = {
+      ...player.ship,
+      sector: wrapSector(player.ship.sector + moved.sector - station.sector),
+    }
     const scoop = findSubsystem(ship, 'scoop')
     if (scoop && isPowered(scoop) && !scoop.isBroken && !before.dockedThisRound) {
       const amount = scoopYield(ship, ship.reactionMass)

@@ -52,7 +52,7 @@ import { circuitRoutes } from '../../game/missions/missionDeck.ts'
 import type { PlayerView } from '../../game/view.ts'
 import { holdCounts } from '../../game/view.ts'
 import type { OpponentDanger } from '../types.ts'
-import type { MovementPlan, PlannerTarget } from '../movementPlanner/index.ts'
+import type { MovementPlan, PlannerAvoid, PlannerTarget } from '../movementPlanner/index.ts'
 import { nearDriftingShip, planFromShip, planShipToTarget } from '../movementPlanner/index.ts'
 import { weaponRangeTarget } from './combat.ts'
 
@@ -336,10 +336,12 @@ export function planInterception(
   weapons: Subsystem[],
   target: Position,
   danger: OpponentDanger,
-  maxTurns: number
+  maxTurns: number,
+  /** Where the route's turns may end only as its arrival (the stations' docking reach). */
+  avoid?: PlannerAvoid
 ): InterceptionPlan | null {
   if (weapons.length === 0) return null
-  const chase = planShipToTarget(ship, weaponRangeTarget(weapons, target), maxTurns)
+  const chase = planShipToTarget(ship, weaponRangeTarget(weapons, target), maxTurns, 0, avoid)
   if (chase && chase.totalTurns <= IMMEDIATE_ENGAGE_TURNS) return { plan: chase, kind: 'chase' }
 
   const candidates: Array<{ plan: MovementPlan; kind: InterceptionPlan['kind']; cost: number }> = []
@@ -347,10 +349,16 @@ export function planInterception(
 
   const destination = danger.deliveryPosition
   if (destination) {
-    const station = planShipToTarget(ship, weaponRangeTarget(weapons, destination), maxTurns)
+    const station = planShipToTarget(
+      ship,
+      weaponRangeTarget(weapons, destination),
+      maxTurns,
+      0,
+      avoid
+    )
     if (station) candidates.push({ plan: station, kind: 'station', cost: station.totalTurns })
     if (destination.wellId !== target.wellId) {
-      const lane = planShipToTarget(ship, laneArrivalTarget(destination.wellId), maxTurns)
+      const lane = planShipToTarget(ship, laneArrivalTarget(destination.wellId), maxTurns, 0, avoid)
       if (lane) candidates.push({ plan: lane, kind: 'lane', cost: lane.totalTurns })
     }
   }
@@ -361,7 +369,7 @@ export function planInterception(
   if (best) return { plan: best.plan, kind: best.kind }
 
   const fallback =
-    planShipToTarget(ship, nearDriftingShip(target, 1), maxTurns) ??
-    planFromShip(ship, target, 'fastest', maxTurns)
+    planShipToTarget(ship, nearDriftingShip(target, 1), maxTurns, 0, avoid) ??
+    planFromShip(ship, target, 'fastest', maxTurns, avoid)
   return fallback ? { plan: fallback, kind: 'chase' } : null
 }

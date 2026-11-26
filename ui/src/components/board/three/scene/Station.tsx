@@ -8,26 +8,26 @@
  * stations make their step it slides along its ring as a drifting wreck does,
  * turning with the ring as it goes, and the riders keep their berths.
  *
- * The players it has bought from show as tiles in their colours round the
- * foot. Nothing re-renders per frame: the slide and the beacon's pulse are
+ * The players it has bought from show as tiles in their colours along the
+ * truss's top chord. Nothing re-renders per frame: the slide and the beacon's pulse are
  * written straight onto the objects.
  */
 import { useEffect, useMemo, useRef } from 'react'
 import { Color, Vector3, type Group, type Mesh, type MeshStandardMaterial } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { sceneTime } from '../clock'
-import { createStation, UNITS_PER_MM } from '../../../../ships/station'
+import { createStation, STATION_TOP_CHORD, UNITS_PER_MM } from '../../../../ships/station'
 import { driftProgress, headingAtPoint, wellColor } from '../../geometry'
 import { LAYER, interpolateWorld, positionWorld, stationYaw, yawFromHeading } from '../world'
 import type { StationMarker } from '../../model'
 
 /** Seconds for one beacon cycle. */
 const BEACON_PERIOD = 2.6
-/** The sold-at tiles on the foot's top, board units: how far out, how far apart, how big. */
-const SOLD_RADIUS = 5.6 * UNITS_PER_MM
-const SOLD_STEP = 0.42
+/** The sold-at tiles along the top chord, board units: the first's place, how far apart (1.4 mm), how big. */
+const SOLD_FROM = STATION_TOP_CHORD.from * UNITS_PER_MM
+const SOLD_STEP = 1.4 * UNITS_PER_MM
 const SOLD_TILE: [number, number, number] = [2.2, 1, 2.2]
-const FOOT_TOP = 1.6 * UNITS_PER_MM
+const CHORD_TOP = STATION_TOP_CHORD.y * UNITS_PER_MM
 
 export function StationToken({ station }: { station: StationMarker }) {
   const node = useRef<Group>(null)
@@ -76,30 +76,22 @@ export function StationToken({ station }: { station: StationMarker }) {
     <group ref={node} name={`station-${station.planetId}`} position={at} rotation={[0, yaw, 0]}>
       <primitive object={model.root} dispose={null} />
       {/* A tile in the colour of each player this station has bought from:
-          it buys one item from each, once. Round the foot, under the arms. */}
-      {station.soldBy.map((seller, i) => {
-        const angle = Math.PI / 2 + (i - (station.soldBy.length - 1) / 2) * SOLD_STEP
-        return (
-          <mesh
-            key={seller.playerId}
-            name={`station_sold_${seller.playerId}`}
-            position={[
-              Math.cos(angle) * SOLD_RADIUS,
-              FOOT_TOP + SOLD_TILE[1] / 2,
-              Math.sin(angle) * SOLD_RADIUS,
-            ]}
-            rotation={[0, -angle, 0]}
-          >
-            <boxGeometry args={SOLD_TILE} />
-            <meshStandardMaterial
-              color={seller.color}
-              emissive={new Color(seller.color)}
-              emissiveIntensity={0.6}
-              roughness={0.6}
-            />
-          </mesh>
-        )
-      })}
+          it buys one item from each, once. Along the truss's top chord. */}
+      {station.soldBy.map((seller, i) => (
+        <mesh
+          key={seller.playerId}
+          name={`station_sold_${seller.playerId}`}
+          position={[SOLD_FROM + i * SOLD_STEP, CHORD_TOP + SOLD_TILE[1] / 2, 0]}
+        >
+          <boxGeometry args={SOLD_TILE} />
+          <meshStandardMaterial
+            color={seller.color}
+            emissive={new Color(seller.color)}
+            emissiveIntensity={0.6}
+            roughness={0.6}
+          />
+        </mesh>
+      ))}
     </group>
   )
 }

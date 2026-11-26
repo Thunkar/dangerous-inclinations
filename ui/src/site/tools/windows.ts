@@ -17,6 +17,7 @@ import {
   TANKER_FUEL,
   TRANSFER_LANES,
   circuitRoutes,
+  dockingAvoidance,
   planMovementToTarget,
   stationSectors,
   stationTarget,
@@ -69,6 +70,14 @@ function turnsTo(
   compressor: boolean,
   arrivalMass: number
 ): number | null {
+  // Every station stands on the same sector, and a turn ending on one docks
+  // there: the route stops on one only to arrive.
+  const stations = PLANETS.map(planet => ({
+    id: `station-${planet.id}`,
+    planetId: planet.id,
+    ring: STATION_RING,
+    sector,
+  }))
   // The planner seeds both facings itself: rotating before the first move is free.
   const plan = planMovementToTarget(
     { ...origin, facing: 'prograde' },
@@ -82,6 +91,7 @@ function turnsTo(
       maxTurns: SECTORS_PER_RING,
       arrivalMass,
       allowWellTransfers: true,
+      avoid: dockingAvoidance(stations, origin),
     }
   )
   return plan ? plan.totalTurns : null

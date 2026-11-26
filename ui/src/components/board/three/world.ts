@@ -24,8 +24,8 @@
  */
 import { BufferAttribute, BufferGeometry, Vector3 } from 'three'
 import type { Facing, GravityWellId, Position } from '@dangerous-inclinations/engine'
-import { SECTORS_PER_RING, getGravityWell } from '@dangerous-inclinations/engine'
-import { STATION_BERTHS } from '../../../ships/station'
+import { SECTORS_PER_RING, getGravityWell, wrapSector } from '@dangerous-inclinations/engine'
+import type { StationBerth } from '../../../ships/station'
 import {
   BOARD_BOUNDS,
   HOME_VIEW_RADIUS,
@@ -97,10 +97,11 @@ export const LAYER = {
 } as const
 
 /**
- * How high above its terrace the tallest thing on the board stands: a hull
- * moored on a station's berth, a lane badge, a float. The camera frames this much headroom and no more.
+ * How high above its terrace the tallest thing on the board stands: a
+ * shrike moored on a station's berth (56.4; the station's dish is 53.3), a lane badge, a float.
+ * The camera frames this much headroom and no more.
  */
-export const BOARD_RELIEF = 56
+export const BOARD_RELIEF = 57
 
 /**
  * The funnel, in numbers.
@@ -418,22 +419,23 @@ export function stationYaw(position: Position): number {
 }
 
 /**
- * Where a ship moored on berth `index` of the station at `position` stands,
- * on the clamp's floor, and its yaw: tangent to the station, whichever way
- * of the two is nearer the way the ship faces, so the hull still says it.
+ * Where a ship moored at `position` on `berth` stands, on its cradle's floor
+ * (or beside it), and its yaw: along the ring, whichever way of the two is
+ * nearer the way the ship faces, so the hull still says it. The station
+ * stands `berth.sector` sectors back from the ship.
  */
 export function berthWorld(
   position: Position,
-  index: number,
+  berth: StationBerth,
   facing: Facing,
   out = new Vector3()
 ): { at: Vector3; yaw: number } {
-  const berth = STATION_BERTHS[index]
-  const turn = stationYaw(position)
+  const station = { ...position, sector: wrapSector(position.sector - berth.sector) }
+  const turn = stationYaw(station)
   out
     .set(berth.x, berth.y, berth.z)
     .applyAxisAngle(UP, turn)
-    .add(positionWorld(position, LAYER.token))
+    .add(positionWorld(station, LAYER.token))
   const along = turn - berth.heading
   const wanted = facingYaw(position, facing)
   const gap = Math.atan2(Math.sin(wanted - along), Math.cos(wanted - along))

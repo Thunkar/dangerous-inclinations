@@ -57,6 +57,7 @@ import {
   RADIATOR_DISSIPATION,
   SENSOR_CRIT,
   SENSOR_ENERGY,
+  STATION_SECTORS,
 } from '../../site/numbers'
 import { RULES_DIALOG as T } from '../../text/rulesDialog'
 import { rich } from '../../utils/rich'
@@ -91,6 +92,9 @@ const NUMBERS = {
   jumpEnergy: WELL_TRANSFER_COSTS.energy,
   jumpFuel: WELL_TRANSFER_COSTS.mass,
   compressedFuel: COMPRESSED_JUMP_MASS,
+  foldEnergy: SUBSYSTEM_CONFIGS.jump_drive.minEnergy,
+  foldEngines: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldEngines,
+  foldFuel: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldFuel,
   // The hit roll, read off the engine's roll table.
   miss: MISS_TOP,
   hitFrom: MISS_TOP + 1,
@@ -110,6 +114,7 @@ const NUMBERS = {
   primaryPoints: MISSION_POINTS.destroy_ship,
   secondaryPoints: MISSION_POINTS.survey,
   surveyRing: SURVEY_RING,
+  stationSectors: STATION_SECTORS,
 }
 
 /** The button that lives in the top bar, and the card it opens. */

@@ -6,19 +6,18 @@
  *
  * What the view says about an item is its kind, and the order follows it: a
  * Deliver crate (the victim's primary, two points sent back to the pickup
- * station), then loot (a rival pirate's card sent back to undone), then data.
- * An Intercept's transmission is a primary too, but which data is which is
- * private (the scan that takes it is announced to its taker alone, and an
- * item's id is an opaque token), so data is ranked as one kind. Ties go to
- * the order `seizableItems` lists them, which is seat order from the next
- * seat after the pirate.
+ * station), then data (an Intercept's transmission is a primary, a Survey's
+ * or a Salvage's a secondary: which is which is private, so data is ranked
+ * as one kind, and may be a primary), then loot (a rival pirate's card, a
+ * secondary). Ties go to the order `seizableItems` lists them, which is seat
+ * order from the next seat after the pirate.
  */
 import type { Player, Position } from '../../models/game.ts'
 import type { HoldItemKind } from '../../models/missions.ts'
 import type { GameView } from '../../game/view.ts'
 import { freePiracyCards, seizableItems, type SeizableItem } from '../../game/piracy.ts'
 
-const RANK: Readonly<Record<HoldItemKind, number>> = { crate: 0, loot: 1, data: 2 }
+const RANK: Readonly<Record<HoldItemKind, number>> = { crate: 0, data: 1, loot: 2 }
 
 /**
  * The items this seat seizes with its ship at `at`, one per Piracy card still

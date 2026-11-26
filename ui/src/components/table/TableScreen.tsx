@@ -67,7 +67,10 @@ export function TableScreen({
   /** Read-only tables have no turn to build, so the right column goes away. */
   const playing = seated && !readOnly
 
-  const loadoutPick = plan?.picking && plan.picking.kind !== 'destination' ? plan.picking : null
+  const loadoutPick =
+    plan?.picking && (plan.picking.kind === 'crit' || plan.picking.kind === 'peek')
+      ? plan.picking
+      : null
   const picking = loadoutPick ? loadoutPick.kind : null
   const activeStep = loadoutPick ? plan?.steps.find(s => s.id === loadoutPick.stepId) : undefined
   const selectedSlotId =

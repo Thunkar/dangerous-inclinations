@@ -83,6 +83,11 @@ export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
     plasma: PLASMA_SHIELD_POINTS,
   }),
   disruptor: fill(notes.disruptor, { energy: SUBSYSTEM_CONFIGS.disruptor.minEnergy }),
+  jump_drive: fill(notes.jump_drive, {
+    energy: SUBSYSTEM_CONFIGS.jump_drive.minEnergy,
+    engines: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldEngines,
+    fuel: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldFuel,
+  }),
 }
 
 export function moduleAt(config: ShipConfig, id: MountId): SubsystemType | null {

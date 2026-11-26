@@ -16,8 +16,16 @@ import type {
   Position,
   WeaponType,
 } from '@dangerous-inclinations/engine'
-import { filterEventsFor, runGame, viewFor } from '@dangerous-inclinations/engine'
-import { LOADOUTS, makeGameState, makePlayer } from '../../../engine/src/test/testUtils.ts'
+import { executeTurn, filterEventsFor, runGame, viewFor } from '@dangerous-inclinations/engine'
+import {
+  ALPHA,
+  LOADOUTS,
+  fold,
+  makeGameState,
+  makePlayer,
+  makeTwoPlayerGame,
+} from '../../../engine/src/test/testUtils.ts'
+import { foldFlight, mouthsOpen } from '../components/board/wormhole'
 import {
   EFFECT_COLORS,
   PLASMA_GREEN,
@@ -342,5 +350,51 @@ describe('the guns with shapes of their own', () => {
     const event = resolved('missiles', { missileId: 'm1', damage: 2, toHull: 0, absorbed: 2 })
     const { effects } = eventToBeat(state, view, event, CLOCK)
     expect(effects.find(e => e.kind === 'flare')).toMatchObject({ from: approach })
+  })
+})
+
+describe('a fold goes through a wormhole', () => {
+  const from: Position = { wellId: 'blackhole', ring: 3, sector: 0 }
+  const to: Position = { wellId: ALPHA, ring: 3, sector: 10 }
+  const state = makeTwoPlayerGame({ ...from, facing: 'retrograde', loadout: LOADOUTS.jumpDrive })
+  const result = executeTurn(state, [{ ...fold(1, to), playerId: 'p1' }])
+  const folded = result.events.find(e => e.type === 'folded')!
+  const beat = eventToBeat(
+    beatStart(viewFor(state, 'p1')),
+    viewFor(result.gameState, 'p1'),
+    folded,
+    CLOCK
+  )
+
+  it('opens a mouth where the ship was and one where it lands, and flies it through', () => {
+    const wormholes = beat.effects.filter(e => e.kind === 'wormhole')
+    expect(wormholes).toEqual([
+      expect.objectContaining({ playerId: 'p1', from, to, facing: 'retrograde' }),
+    ])
+    expect(beat.state.board.ships.p1).toMatchObject({
+      position: to,
+      facing: 'retrograde',
+      motion: { kind: 'fold', from },
+    })
+    // Not a jump: no slide across the board and no arrival flash.
+    expect(beat.effects.some(e => e.kind === 'burst')).toBe(false)
+    expect(
+      shotFor(beatStart(viewFor(state, 'p1')), viewFor(result.gameState, 'p1'), folded)
+    ).toEqual({ kind: 'fold', playerId: 'p1', from, to })
+  })
+
+  it.each<[number, 'entry' | 'exit', boolean, { entry: boolean; exit: boolean }]>([
+    [0, 'entry', true, { entry: false, exit: false }],
+    [0.3, 'entry', true, { entry: true, exit: false }],
+    [0.5, 'exit', false, { entry: true, exit: true }],
+    [0.75, 'exit', true, { entry: false, exit: true }],
+    [1, 'exit', true, { entry: false, exit: false }],
+  ])('at %s of the beat the hull is at the %s mouth', (raw, end, drawn, open) => {
+    const flight = foldFlight(raw)
+    expect(flight.end).toBe(end)
+    expect(flight.scale > 0.01).toBe(drawn)
+    const mouths = mouthsOpen(raw)
+    expect(mouths.entry > 0.01).toBe(open.entry)
+    expect(mouths.exit > 0.01).toBe(open.exit)
   })
 })

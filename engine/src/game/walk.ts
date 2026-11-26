@@ -27,6 +27,7 @@ import { getSubsystemConfig, isWeaponType } from '../models/subsystems.ts'
 import { BURN_COSTS, WELL_TRANSFER_COSTS, calculateJumpMassCost } from '../models/rings.ts'
 import { findJump, phasedJumpDestination } from '../models/gravityWells.ts'
 import { withItemAboard } from '../models/missions.ts'
+import { applyFold, isBoardPosition, jumpDriveOf } from './fold.ts'
 import { orList } from '../utils/fill.ts'
 import type { GameView } from './view.ts'
 import { positionOf, samePosition } from './geometry.ts'
@@ -215,6 +216,12 @@ function applyOwn(
       ship = useSubsystem(ship, id, 'engines', 'fired', WELL_TRANSFER_COSTS.energy).ship
       for (const compressor of workingCompressors(ship))
         ship = useSubsystem(ship, id, compressor.id, 'compressed_jump').ship
+      break
+    }
+    case 'fold': {
+      const to = { wellId: action.data.wellId, ring: action.data.ring, sector: action.data.sector }
+      if (!jumpDriveOf(ship) || !isBoardPosition(to)) break
+      ship = applyFold(ship, id, to).ship
       break
     }
     case 'fire_weapon': {

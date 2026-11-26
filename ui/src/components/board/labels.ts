@@ -51,6 +51,10 @@ export function routeCellLabel(position: Position): string {
   return fill(T.routeCell, { place: placeLabel(position) })
 }
 
+export function foldCellLabel(position: Position): string {
+  return fill(T.foldCell, { place: placeLabel(position) })
+}
+
 /** "beta-a" → "A". The two lanes to a planet are told apart by their letter. */
 export function laneLetter(laneId: string): string {
   return laneId.slice(-1).toUpperCase()

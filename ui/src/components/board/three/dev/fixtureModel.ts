@@ -20,6 +20,7 @@ import {
   DEFAULT_SHIP_APPEARANCE,
   HULLS,
   viewFor,
+  wrapSector,
 } from '@dangerous-inclinations/engine'
 import {
   crowdShips,
@@ -53,6 +54,8 @@ interface FixtureSeat {
 const ALPHA_BERTH: Position = stationPosition(
   getStationForPlanet(createInitialStations(), 'planet-alpha')!
 )
+/** The sector prograde of it, which the station's prograde cradle stands over. */
+const ALPHA_PROGRADE: Position = { ...ALPHA_BERTH, sector: wrapSector(ALPHA_BERTH.sector + 1) }
 
 const SEATS: FixtureSeat[] = [
   {
@@ -70,10 +73,11 @@ const SEATS: FixtureSeat[] = [
   {
     // Moored at Alpha's station, which is the one arrangement the board has to
     // get right that no other fixture shows: a hull riding on a berth's
-    // clamp rather than standing in its sector.
+    // cradle rather than standing in its sector. Docked a sector prograde of
+    // it, so it rides the prograde cradle.
     playerId: 'p3',
     name: 'Vagrant',
-    position: ALPHA_BERTH,
+    position: ALPHA_PROGRADE,
     home: { wellId: 'blackhole', ring: 4, sector: 20 },
   },
   {
@@ -85,8 +89,8 @@ const SEATS: FixtureSeat[] = [
     home: { wellId: 'blackhole', ring: 4, sector: 8 },
   },
   {
-    // A second hull in Alpha's berth: the spread must not push either of them
-    // out from under the deck.
+    // A second hull at Alpha's station, on the station's own sector: it
+    // rides the middle cradle.
     playerId: 'p5',
     name: 'Tender',
     position: ALPHA_BERTH,

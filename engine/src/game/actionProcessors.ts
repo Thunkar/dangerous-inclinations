@@ -17,6 +17,7 @@ import type {
   PowerAction,
   FireWeaponAction,
   WellTransferAction,
+  FoldAction,
   TacticalAction,
   Player,
   EscortMarkAction,
@@ -26,6 +27,7 @@ import type {
   Missile,
 } from '../models/game.ts'
 import { MOVE_ACTION_TYPES, isTacticalAction } from '../models/game.ts'
+import { applyFold } from './fold.ts'
 import type { EventDraft } from '../models/events.ts'
 import { getSubsystemConfig, type WeaponType } from '../models/subsystems.ts'
 import { BURN_COSTS, WELL_TRANSFER_COSTS, calculateJumpMassCost } from '../models/rings.ts'
@@ -197,6 +199,8 @@ function stepFor(a: TacticalAction, turn: TurnContext): (s: GameState) => Step {
       return s => processBurn(s, a)
     case 'well_transfer':
       return s => processWellTransfer(s, a)
+    case 'fold':
+      return s => processFold(s, a)
     case 'fire_weapon':
       return s => processFireWeapon(s, a)
     case 'scan':
@@ -384,6 +388,30 @@ function processWellTransfer(state: GameState, action: WellTransferAction): Step
     compressed,
     heat,
   })
+  return { state: next, events }
+}
+
+/** A fold (validated): the ship is put down where it names, for the drive's energy and the fold's fuel. */
+function processFold(state: GameState, action: FoldAction): Step {
+  const events: EventDraft[] = []
+  const to = { wellId: action.data.wellId, ring: action.data.ring, sector: action.data.sector }
+  let folded: ReturnType<typeof applyFold> | null = null
+  const next = withPlayer(state, action.playerId, p => {
+    folded = applyFold(p.ship, p.id, to)
+    return { ...p, ship: folded.ship }
+  })
+  const done = folded!
+  events.push({
+    type: 'folded',
+    playerId: action.playerId,
+    subsystemId: done.driveId,
+    from: done.from,
+    to,
+    massSpent: done.massSpent,
+    heat: done.heat,
+    engineHeat: done.engineHeat,
+  })
+  events.push(...done.events)
   return { state: next, events }
 }
 

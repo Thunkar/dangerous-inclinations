@@ -140,10 +140,12 @@ describe('piracy: the pirate names the item', () => {
 
   it.each([
     ['a berth is no place to change hands', 0, false],
-    ['a sector along from it, it is', 1, true],
+    ["nor is the station's sector either side of its centre", 1, false],
+    ['two sectors along from it, it is', 2, true],
   ])('%s', (_label, sector, seized) => {
     // The pirate coasts into the victim's sector; Alpha's station starts on
-    // sector 0, and a moored ship neither loses an item nor takes one.
+    // sector 0 and spans a sector either side, and a moored ship neither
+    // loses an item nor takes one.
     const state = alongside([PIRACY], [CRATE], at(STATION_RING, sector, ALPHA))
     const accepted = executeTurnAs(state, coast(1))
     const result = executeTurnAs(state, coast(1), seize(2, 'p2', CRATE.cargoId))

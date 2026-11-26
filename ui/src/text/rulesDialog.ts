@@ -21,10 +21,10 @@ export const RULES_DIALOG = {
    * slots every row may use: halfShield, fullShield, rackEnergy,
    * sensorEnergy, maxHeat, dissipation, radiator, shieldPoints, plasmaPoints,
    * intercepts, interceptHeat, hull, fuel, sectors, soft, medium, hard, mostPhase,
-   * jumpEnergy, jumpFuel, compressedFuel, miss, hitFrom, hitTo, crit,
+   * jumpEnergy, jumpFuel, compressedFuel, foldEnergy, foldEngines, foldFuel, miss, hitFrom, hitTo, crit,
    * sensorCrit, salvoEnergy, scanRange, tankerFuel, homeRings, deploymentGap,
    * primaryOffers, primaries, secondaryOffers, secondaries, handPoints,
-   * pointsToWin.
+   * stationSectors, pointsToWin.
    */
   quick: [
     [
@@ -60,6 +60,10 @@ export const RULES_DIALOG = {
       'Jump',
       'facing prograde, engines {jumpEnergy}, {jumpFuel} fuel ({compressedFuel} with a compressor), no drift',
     ],
+    [
+      'Fold',
+      'jump drive {foldEnergy} and engines {foldEngines}, {foldFuel} fuel: any sector of your well, or between the black hole and a planet, never on a station. Your whole move, with no drift',
+    ],
     ['Hit roll', '{miss} miss, {hitFrom}–{hitTo} hit, {crit} crit ({sensorCrit}–10 with sensors)'],
     [
       'Salvo',
@@ -71,11 +75,11 @@ export const RULES_DIALOG = {
     ],
     [
       'Docking',
-      'on arrival only, after the heat check: full hull, repair all, reload missiles, and one thing: load the crates waiting for you, or sell one item (a crate, data, loot or the Tanker fuel). Each station buys from you once per game. You choose, by default the sale worth the most points, else the load. You stay moored until you burn away',
+      "end your turn on any of the station's {stationSectors} sectors, on arrival only, after the heat check: full hull, repair all, reload missiles, and one thing: load the crates waiting for you, or sell one item (a crate, data, loot or the Tanker fuel). Each station buys from you once per game. You choose, by default the sale worth the most points, else the load. You stay moored until you burn away",
     ],
     [
       'Berth',
-      'moored from the moment you dock until you leave the sector, so on the turn you arrive you may still fire after the move. A moored ship neither fires nor is fired at, missiles included, and nobody can scan it, though it may scan',
+      'moored from the moment you dock until you leave your sector, riding the station on it, so on the turn you arrive you may still fire after the move. A moored ship neither fires nor is fired at, missiles included, and nobody can scan it, though it may scan',
     ],
     [
       'Wrecks',
@@ -149,6 +153,6 @@ export const RULES_DIALOG = {
 
   reveals: {
     title: 'Reveals',
-    text: 'A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack rolls at a missile), and a missiles subsystem then shows what is left. Shields absorb damage or stop a disruptor. A sensor array scans. A radiator when your heat goes above {dissipation} at a heat check. A compressor when a jump costs {compressedFuel} fuel instead of {jumpFuel}. Any subsystem when a critical breaks it. Powering a subsystem does not turn it over: a wall you never needed, a rack nothing came at and a sensor you never scanned with are still secrets at the end of the game.',
+    text: 'A subsystem flips face-up the first time it does something: a weapon fires (or a ballistic rack rolls at a missile), and a missiles subsystem then shows what is left. Shields absorb damage or stop a disruptor. A sensor array scans. A radiator when your heat goes above {dissipation} at a heat check. A compressor when a jump costs {compressedFuel} fuel instead of {jumpFuel}. A jump drive when it folds. Any subsystem when a critical breaks it. Powering a subsystem does not turn it over: a wall you never needed, a rack nothing came at and a sensor you never scanned with are still secrets at the end of the game.',
   },
 } as const

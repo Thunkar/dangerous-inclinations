@@ -137,6 +137,8 @@ function summarizeAction(action: PlayerAction): string {
       const phase = action.data.sectorAdjustment
       return `Jump to ${action.data.destinationWellId}${phase ? ` (${phase > 0 ? '+' : ''}${phase})` : ''}`
     }
+    case 'fold':
+      return `Fold to ${action.data.wellId} R${action.data.ring} S${action.data.sector}`
     case 'repair':
       return `Repair ${action.data.subsystemId} if cold`
     case 'dock_sale':
@@ -264,10 +266,13 @@ export {
   planFromShip,
   planStationMeetUp,
   stationTarget,
+  dockingAvoidance,
+  stopsInside,
 } from './movementPlanner/index.ts'
 export type {
   OrbitalPosition,
   OrientedPosition,
   MovementStep,
   MovementPlan,
+  PlannerAvoid,
 } from './movementPlanner/index.ts'

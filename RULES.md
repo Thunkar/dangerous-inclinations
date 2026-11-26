@@ -10,7 +10,7 @@ A game of orbital manoeuvre, heat management and hidden objectives for 3–6 pla
 
 - The board: a black hole with 5 rings and three planets (Alpha, Beta, Gamma) with 4 rings each. Every ring has 24 sectors. Transfer lanes are drawn between the black hole's outer ring and each planet's outer ring.
 - Per player: a ship token, a Home marker, a loadout with 1 forward slot and 4 side slots, a small screen for your cards, a supply of energy cubes, a heat track (10) on the loadout, and a hull die and a fuel die beside it, each a d10 numbered 1 to 10 on its own stand. When your tank is empty, lift the fuel die off its stand: the stand reads 0.
-- Subsystems: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles, plasma cannon, disruptor. Take as many copies of a subsystem as you have slots it fits: two shields, four lasers, anything goes. Subsystems are double-sided: face-down shows only the slot type.
+- Subsystems: railgun, sensor array, broadside laser, shields, radiator, fuel compressor, ballistic rack, missiles, plasma cannon, disruptor, jump drive. Take as many copies of a subsystem as you have slots it fits: two shields, four lasers, anything goes. Subsystems are double-sided: face-down shows only the slot type.
 - Two decks of mission cards (primaries and secondaries), crate tokens and data tokens (each with a loot face on its back), wreck tokens, Escort markers, salvo tokens (each player has twelve in their colour: three each showing 1, 2, 3 and 4 missiles), station tokens, sale chips (six in each planet's colour), one d10.
 
 ---
@@ -48,11 +48,11 @@ Reading Black Hole Ring 5 clockwise: out to Beta, in from Alpha, out to Gamma, i
 
 ### Stations
 
-Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at the end of every round. Ships dock by ending their turn on the station's sector.
+Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at the end of every round. The station spans three sectors of its ring: end your turn on any of them and you dock, and you ride the station from that sector.
 
-**Ring 1 is how you catch one.** A ship on the station's own ring drifts exactly as fast as the station, so the gap between them never closes by waiting, and every ring outside it is slower still. Ring 1 runs at 6: drop into it, let it carry you round faster than the station, and burn back out onto the sector the station will be in. Docking is a manoeuvre you fly, not a queue you join.
+**Ring 1 is how you catch one.** A ship on the station's own ring drifts exactly as fast as the station, so the gap between them never closes by waiting, and every ring outside it is slower still. Ring 1 runs at 6: drop into it, let it carry you round faster than the station, and burn back out onto the station where it will be. Docking is a manoeuvre you fly, not a queue you join.
 
-**Moored.** A docked ship rides its station: it does not drift on its own, and it moves with the station when stations advance. Burn to cast off. A ship is moored from the moment it docks (step 5 of the turn it arrives) until it leaves the station's sector, so during the actions of the turn it arrives it is not yet moored: it may still fire after its move, and a railgun's recoil that puts it on the station's sector mid-turn moors nothing (its coast drifts it off as usual).
+**Moored.** A docked ship rides its station: it does not drift on its own, and it moves with the station when stations advance, staying on its sector of it. Burn to cast off, from that sector. A ship is moored from the moment it docks (step 5 of the turn it arrives) until it leaves its sector, so during the actions of the turn it arrives it is not yet moored: it may still fire after its move, and a railgun's recoil that puts it on the station mid-turn moors nothing (its coast drifts it off as usual).
 
 **A berth is safe.** A moored ship can neither fire nor be fired at, missiles included: a missile that reaches a moored ship does not attack and flies on. Nobody can scan it either, though it may scan others. Your own missiles already in flight still fly and attack while you are moored; only launching is refused. Burn off the berth to fight.
 
@@ -65,7 +65,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 ## Setup
 
 1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then shuffle the secondary pile, deal **three** to each player, and each keeps **all three**. Kept cards go face-down behind the screen; the cards you leave go face-down onto one shared discard pile. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
-2. **Loadout.** Each player fills their loadout: 1 forward subsystem (railgun, disruptor, sensor array, fuel compressor, shields or missiles) and 4 side subsystems (laser, plasma cannon, disruptor, radiator, shields, ballistic rack or missiles); repeats are allowed. All subsystems are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
+2. **Loadout.** Each player fills their loadout: 1 forward subsystem (railgun, disruptor, sensor array, fuel compressor, shields, missiles or jump drive) and 4 side subsystems (laser, plasma cannon, disruptor, radiator, shields, ballistic rack, missiles or jump drive); repeats are allowed. All subsystems are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 2, 3 or 4**, **at least three sectors from every ship already placed** (if no sector qualifies, the one farthest from them), and puts their Home marker there. Everyone starts around the hole and scatters from there; missions are secret, so pick your ring and sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring; Ring 3 drifts 4 and Ring 2 drifts 6, closer to the others and further from the lanes).
 4. Set your hull die and your fuel die to 10 and your heat track to 0, all in the open. Energy cubes sit in the supply until something calls for them. Only your cards and the ammo in a face-down missiles subsystem sit behind the screen.
 
@@ -81,7 +81,7 @@ Otherwise:
 2. **Actions,** in any order you choose. Each subsystem does one thing a turn (a ballistic rack also intercepts during other players' turns). Seize, Survey, Salvage and Mark use no subsystem and cost no energy:
    - **Power.** Put energy on your shields (1 or 2), a ballistic rack (2) or a sensor array (2). They work until your next turn (see Energy and Heat).
    - **Rotate.** Flip facing (prograde ↔ retrograde). Thrusters take 1 energy.
-   - **Move.** Exactly one of: _coast_, _burn_ or _jump_. If you take no move, you coast after your other actions.
+   - **Move.** Exactly one of: _coast_, _burn_, _jump_ or _fold_. If you take no move, you coast after your other actions.
    - **Fire.** Any number of weapons, each at its own point in the sequence (before or after your move). A missile flies and attacks the moment you launch it (see Weapons). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan.** With a sensor array (see Hidden Information).
    - **Seize.** With a Piracy card, while you share a sector with an undocked ship carrying cargo and you are not moored, take one item of your choice from it (see Missions). Seize before you fire at that ship: a ship destroyed earlier in your turn takes its cargo down with it, and there is nothing left to take.
@@ -90,7 +90,7 @@ Otherwise:
    - **Mark.** With an Escort card, while on the same ring as an undocked rival carrying cargo, and not moored, put your marker on it (see Missions). Mark before you fire at that ship.
 3. **Missiles.** Each of your missiles launched on an earlier turn flies and rides its orbit, in the order you choose, and may attack. A missile you launched this turn has already flown.
 4. **Heat check.** Every energy cube on your loadout is 1 heat. **If your heat is now 0**, repair one broken subsystem of your choice. Above **10** (the **redline**), the excess is hull damage and your heat drops to 10. Then dissipate; what is left stays on the track for next turn. The check comes before docking, so a hot approach is paid from the hull you arrive with.
-5. **Docking.** If you **arrived** on a station's sector this turn, you are docked: broken subsystems are repaired, hull is restored to full and missiles reloaded, and you do **one thing** (see Stations): load the crates waiting there for you, or sell one item (a crate, a piece of data, loot or a Tanker's fuel) if the station has not bought from you before. You choose, or do nothing. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival. **A ship its own heat check destroys does not dock**: its wreck stays on the station's sector.
+5. **Docking.** If you **arrived** on a station this turn (any of its three sectors), you are docked: broken subsystems are repaired, hull is restored to full and missiles reloaded, and you do **one thing** (see Stations): load the crates waiting there for you, or sell one item (a crate, a piece of data, loot or a Tanker's fuel) if the station has not bought from you before. You choose, or do nothing. You stay moored until you burn away, riding the station. But the dock itself only happens on arrival. **A ship its own heat check destroys does not dock**: its wreck stays where the ship ended its turn.
 6. **Missions.** Turn completed cards face-up. Pass play.
 
 Once a round, after the last player's turn:
@@ -131,6 +131,7 @@ Once a round, after the last player's turn:
 | Ballistic rack (side)         | 2      | 2 damage, ±1 ring/same ring, ±1 sector; while it has energy: rolls at 4 missiles a turn, for 2 heat |
 | Plasma cannon (side)          | 3      | 4 damage, ±1 ring, ±1 sector, one side only; 1 shield energy stops 2 damage                         |
 | Disruptor (either)            | 3      | No damage, ±1 ring/same ring, ±1 sector; a hit breaks the named subsystem                           |
+| Jump drive (either)           | 3      | Fold (8 fuel, 3 on the engines): your move puts you in your well or between the black hole and a planet |
 
 ---
 
@@ -157,6 +158,12 @@ Drift, then change ring. Prograde facing burns **outward**, retrograde burns **i
 From a lane's departure arc (the black hole arc of an outbound lane, the planet arc of an inbound one), facing prograde, with engines at 3, pay 3 fuel (1 with a fuel compressor) and move to the matching sector of the arrival arc. A jump is a burn out of the well: facing retrograde, rotate first. A jump is your whole move: no drift this turn.
 
 **Phasing a jump.** As in a burn, you may shift where you arrive for 1 fuel per sector, never outside the arrival arc. So any departure sector can reach any of the arc's four sectors, the matching one for free. A compressor cheapens the jump, never the phasing.
+
+### Fold
+
+With a jump drive, your move may be a **fold**: put your ship on any sector of your own well, or between the black hole and a planet, facing as it was. A fold never goes from one planet's well to another's, and never ends on a station (any of its three sectors).
+
+A fold costs **8 fuel** and puts 3 energy on the drive and 3 on your engines. A fold is your whole move, with no drift. As with a burn or a jump, you may act before it and after it: what you do after it, you do where it put you. Your cargo comes with you.
 
 ### Rotation
 
@@ -212,6 +219,7 @@ Your subsystems start face-down. **A subsystem is turned face-up the first time 
 | Sensor array    | it scans                                                                                        |
 | Radiator        | your heat goes above 5 at a heat check (it is visibly dissipating)                              |
 | Fuel compressor | a jump costs 1 fuel instead of 3                                                                |
+| Jump drive      | it folds                                                                                        |
 | Any subsystem   | it is broken by a critical                                                                      |
 
 **Powering a subsystem does not turn it over.** The energy goes on the slot where
@@ -304,6 +312,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Burn             | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy)                                                                                                                                                                       |
 | Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid                                                                                                                              |
 | Jump             | engines 3, 3 fuel (1 with a compressor), no drift                                                                                                                                                                             |
+| Fold             | jump drive 3 energy and engines 3, 8 fuel: any sector of your well, or between the black hole and a planet, never on a station; no drift                                                                                                    |
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                                                                                                                                                  |
 | Shields          | power at 1 or 2; 1 energy a point absorbed (2 of plasma), spent until that player's turn ends, and every point absorbed is heat; power them every turn you want them up; lasers ignore them; an unspent shield stops a disruptor's hit, never its critical |
 | Critical         | names any slot; breaks it through shields, and dumps its energy as heat (a subsystem holds its energy until its owner's next turn)                                                                                            |
@@ -312,7 +321,7 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | First round      | no weapon fires, nobody scans, nobody seizes                                                                                                                                                                                  |
 | Respawn          | your missiles in flight are removed. Next turn: back at Home, full hull and tank, repaired and reloaded, drifting. The turn after is a first round of your own: untouchable until it ends, you fire at, scan and seize from nobody |
 | Point blank      | a ship in your own sector is in range of every weapon                                                                                                                                                                         |
-| Docking          | on arrival only, after the heat check: full hull, repair all, reload missiles, and one thing: load your crates or sell one item; you stay moored until you burn away                                                          |
+| Docking          | end your turn on any of the station's three sectors, on arrival only, after the heat check: full hull, repair all, reload missiles, and one thing: load your crates or sell one item; you ride from that sector until you burn away |
 | Sales            | each station buys one item from you (a crate, data, loot or Tanker fuel), once per game; its sale chip by your loadout shows it                                                                                               |
 | Berth            | a moored ship neither fires nor is fired at, missiles included, nor is scanned; it may still scan                                                                                                                             |
 | Wrecks           | left where a ship dies, drift with the stations; salvage is an action: on a wreck's sector, take the black box (data)                                                                                                        |
@@ -333,6 +342,6 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 3. Actions in your order: power (shields, racks, sensors) · rotate · move (coast / burn / jump) · fire · scan · seize · survey · salvage · mark. Each subsystem does one thing.
 4. Your missiles from earlier turns fly and ride, in either order. A new missile flew when you launched it.
 5. Heat check: every energy cube on your loadout is 1 heat; at 0 heat repair one subsystem; over 10 is hull damage; dissipate and carry the rest.
-6. Just arrived at a station, and survived the check? Repair, full hull, reload, and one thing: load your crates, or sell one item if it has not bought from you before. Moored until you burn away.
+6. Just arrived on a station (any of its three sectors), and survived the check? Repair, full hull, reload, and one thing: load your crates, or sell one item if it has not bought from you before. Moored until you burn away.
 7. Missions: flip completed missions. Pass.
 8. Once a round, after the last player: every station moves 4 sectors, with whoever is moored (a lit scoop takes its fuel now, unless its ship docked this round); every wreck drifts with its ring.

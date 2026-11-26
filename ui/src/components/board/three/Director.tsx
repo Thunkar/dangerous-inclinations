@@ -351,6 +351,15 @@ export function Director({
         around(positionWorld(current.to), MARGIN * 0.8, points)
         break
       }
+      case 'fold': {
+        // Both mouths when they open in one well; across wells, the exit, where
+        // the ship comes out.
+        if (current.from.wellId === current.to.wellId) {
+          around(positionWorld(current.from), MARGIN, points)
+          around(positionWorld(current.to), MARGIN, points)
+        } else around(positionWorld(current.to), MARGIN * 1.4, points)
+        break
+      }
       case 'duel': {
         const attacker = hullAt(current.attackerId, current.from)
         const target = hullAt(current.targetId, current.to)

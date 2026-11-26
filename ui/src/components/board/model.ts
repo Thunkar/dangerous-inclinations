@@ -27,7 +27,10 @@ import {
   placedShipPositions,
   projectMissilePath,
   STARTING_HIT_POINTS,
+  inDockingReach,
   samePosition,
+  sectorDistance,
+  sectorStepToward,
   stationPosition,
 } from '@dangerous-inclinations/engine'
 import type { CameraShot, ShipMotion, TableEffect, WreckMotion } from '../../animation/beats'
@@ -40,7 +43,7 @@ import { getPlayerColor } from '../../utils/playerColors'
 import { TABLE } from '../../design/tokens'
 import { BOARD_TEXT as BT } from '../../text/board'
 import { visualForPlayer, type ShipVisual } from '../../ships/visual'
-import { STATION_BERTHS } from '../../ships/station'
+import { mooringSpot, type StationBerth } from '../../ships/station'
 import {
   crowdOffset,
   facingAngle,
@@ -69,12 +72,13 @@ export interface ShipToken {
    */
   crowd: { index: number; count: number }
   /**
-   * The station berth a moored ship rides on (its place in the crowd on the
-   * station's sector), or null: off a station, or one more than it has
-   * berths, when it stands in its crowd's place instead. Only the 3D board
-   * draws berths; the flat one keeps the crowd.
+   * Where a moored ship rides on its station (`ships/station.mooringSpot`):
+   * the berth over its own sector, its place in the crowd on that sector
+   * choosing inner or outer, or beside the cradle when the cradle is full.
+   * Null off a station. Only the 3D board draws berths; the flat one keeps
+   * the crowd.
    */
-  berth: number | null
+  berth: StationBerth | null
   /**
    * The Escort markers sitting on this ship, one per marking player, in seat
    * order: public, face-up on the table (RULES §Missions, Escort).
@@ -258,6 +262,40 @@ function missileTokens(
   })
 }
 
+/** Sectors a click may pick, lit on both boards, and what the click does. */
+export interface SectorPick {
+  positions: Position[]
+  onPick: (position: Position) => void
+}
+
+/** A stretch of the planned path, drawn as the arcs it rides or as one straight chord. */
+export interface PlannedLeg {
+  points: Position[]
+  shape: 'arc' | 'chord'
+}
+
+/**
+ * The planned path in legs. `points` are where each step starts and where the
+ * plan ends; the hop out of `chordAt` (a fold) is a chord of its own and the
+ * rest are arcs, each with the sectors that repeat dropped.
+ */
+export function plannedLegsOf(points: readonly Position[], chordAt: number): PlannedLeg[] {
+  const legs: PlannedLeg[] = []
+  const arc = (run: readonly Position[]) => {
+    const kept = run.filter((p, i) => i === 0 || !samePosition(p, run[i - 1]))
+    if (kept.length > 1) legs.push({ points: kept, shape: 'arc' })
+  }
+  if (chordAt < 0 || chordAt + 1 >= points.length) {
+    arc(points)
+    return legs
+  }
+  arc(points.slice(0, chordAt + 1))
+  const [from, to] = [points[chordAt], points[chordAt + 1]]
+  if (!samePosition(from, to)) legs.push({ points: [from, to], shape: 'chord' })
+  arc(points.slice(chordAt + 1))
+  return legs
+}
+
 /** The weapon whose range is drawn, from where it would be fired. */
 interface FocusWeapon {
   weapon: Subsystem
@@ -278,8 +316,11 @@ export interface BoardModel {
   stations: StationMarker[]
   missiles: MissileToken[]
   missilePreviews: MissilePreview[]
-  /** The sectors the turn being built passes through, start included. */
-  plannedPoints: Position[]
+  /**
+   * The sectors the turn being built passes through, start included, in legs:
+   * the arcs it rides, and a fold's straight chord, which rides no ring.
+   */
+  plannedLegs: PlannedLeg[]
   /** The route planner's chosen route, when one is in view and no turn is playing. */
   route: MovementPlan | null
   /** Every sector the focus weapon reaches from where it would be fired; empty without one. */
@@ -293,7 +334,9 @@ export interface BoardModel {
   /** Non-null when clicking a selectable ship aims the step being edited at it. */
   onPickTarget: ((playerId: string) => void) | null
   /** Non-null while this seat is placing its ship: the free sectors and what a click does. */
-  deployment: { positions: Position[]; onPick: (position: Position) => void } | null
+  deployment: SectorPick | null
+  /** Non-null while a fold's sector is being picked: the sectors it may land on and what a click does. */
+  foldPick: SectorPick | null
   /** True while a turn is being played back over the board. */
   animating: boolean
   /** Transient effects pushed by the animator; each carries `start` and `duration`. */
@@ -326,10 +369,11 @@ export interface BoardModel {
 
 /**
  * Number each ship among the ships sharing its sector, in the order given
- * (seat order), and put a moored one on its station's berth. Read off the
- * resting positions, never off a slide: a token half-way round the ring
- * still belongs to the sector it is heading for. `moorings` are the
- * stations' sectors.
+ * (seat order), and put a moored one on its station's berth: a ship docked
+ * stays on its own sector, the station's or one within its reach, and rides
+ * the cradle over it. Read off the resting positions, never off a slide: a
+ * token half-way round the ring still belongs to the sector it is heading
+ * for. `moorings` are the stations' sectors.
  */
 export function crowdShips(
   tokens: ReadonlyArray<Omit<ShipToken, 'crowd' | 'berth'>>,
@@ -338,11 +382,15 @@ export function crowdShips(
   return tokens.map(token => {
     const sharing = tokens.filter(other => samePosition(other.position, token.position))
     const index = sharing.indexOf(token)
-    const moored = moorings.some(at => samePosition(at, token.position))
+    const station = moorings.find(at => inDockingReach(at, token.position))
+    const offset = station
+      ? sectorStepToward(station.sector, token.position.sector) *
+        sectorDistance(station.sector, token.position.sector)
+      : 0
     return {
       ...token,
       crowd: { index, count: sharing.length },
-      berth: moored && index < STATION_BERTHS.length ? index : null,
+      berth: station ? mooringSpot(offset, index) : null,
     }
   })
 }
@@ -388,7 +436,7 @@ export function quietBoardModel(
     homes: [],
     missiles: [],
     missilePreviews: [],
-    plannedPoints: [],
+    plannedLegs: [],
     route: null,
     rangeCells: [],
     selectableIds: [],
@@ -396,6 +444,7 @@ export function quietBoardModel(
     onPickDestination: null,
     onPickTarget: null,
     deployment: null,
+    foldPick: null,
     animating: false,
     effects: [],
     ping: null,
@@ -537,10 +586,11 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
 
   // --- planning overlays ---------------------------------------------------
 
-  const plannedPoints = useMemo<Position[]>(() => {
+  const plannedLegs = useMemo<PlannedLeg[]>(() => {
     if (!plan || !plan.isMyTurn || overlay) return []
     const points = [...plan.stepStart.map(s => s.position), plan.finalPosition.position]
-    return points.filter((p, i) => i === 0 || !samePosition(p, points[i - 1]))
+    const foldAt = plan.steps.findIndex(s => s.kind === 'move' && s.move.kind === 'fold')
+    return plannedLegsOf(points, foldAt)
   }, [plan, overlay])
 
   const focusWeapon = useMemo<FocusWeapon | null>(() => {
@@ -625,6 +675,17 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
     plan && routePlan && plan.isMyTurn && plan.picking?.kind === 'destination' && !overlay
       ? routePlan.setRouteDestination
       : null
+  // A fold's sector likewise: your turn, picking a fold, nothing playing.
+  const foldPositions = plan?.foldTargets
+  const pickFold = plan?.pickFold
+  const foldPicking = !!plan && plan.isMyTurn && plan.picking?.kind === 'fold' && !overlay
+  const foldPick = useMemo<SectorPick | null>(
+    () =>
+      foldPicking && foldPositions && pickFold
+        ? { positions: foldPositions, onPick: pickFold }
+        : null,
+    [foldPicking, foldPositions, pickFold]
+  )
   const onPickTarget = plan ? plan.pickTarget : null
   const route = routePlan && !overlay ? routePlan.route : null
 
@@ -636,7 +697,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       stations,
       missiles,
       missilePreviews,
-      plannedPoints,
+      plannedLegs,
       route,
       rangeCells,
       selectableIds,
@@ -644,6 +705,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       onPickDestination,
       onPickTarget,
       deployment,
+      foldPick,
       animating: overlay !== null,
       effects,
       ping: pinged,
@@ -660,7 +722,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       stations,
       missiles,
       missilePreviews,
-      plannedPoints,
+      plannedLegs,
       route,
       rangeCells,
       selectableIds,
@@ -668,6 +730,7 @@ export function useBoardModel({ onDeploy, deploymentEnabled }: BoardModelOptions
       onPickDestination,
       onPickTarget,
       deployment,
+      foldPick,
       overlay,
       effects,
       pinged,

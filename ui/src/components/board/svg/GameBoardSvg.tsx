@@ -37,6 +37,7 @@ import {
   type Point,
 } from '../geometry'
 import { trackPoints } from '../trajectory'
+import { deployLabel, foldCellLabel } from '../labels'
 import { WellsLayer } from './layers/WellsLayer'
 import { LanesLayer } from './layers/LanesLayer'
 import { MarkersLayer } from './layers/MarkersLayer'
@@ -44,7 +45,7 @@ import { ShipsLayer } from './layers/ShipsLayer'
 import { WrecksLayer } from './layers/WrecksLayer'
 import { MissilesLayer } from './layers/MissilesLayer'
 import {
-  DeploymentSectors,
+  PickSectors,
   PlannedPath,
   RangeOverlay,
   RouteOverlay,
@@ -132,7 +133,7 @@ export function GameBoardSvg({
     setZoom(next.zoom)
     setPan(next.pan)
   }, [])
-  const [hoveredDeployment, setHoveredDeployment] = useState<Position | null>(null)
+  const [hoveredPick, setHoveredPick] = useState<Position | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
   const dragRef = useRef<{
     x: number
@@ -151,7 +152,7 @@ export function GameBoardSvg({
   // A sliding token keeps a 'tween' effect alive, so this covers moves too.
   const now = useBoardClock(model.effects.length > 0)
 
-  const deploying = model.deployment !== null
+  const deploying = model.deployment !== null || model.foldPick !== null
 
   // --- pan / zoom ----------------------------------------------------------
 
@@ -329,8 +330,8 @@ export function GameBoardSvg({
           <MarkersLayer stations={model.stations} homes={model.homes} />
           <WrecksLayer wrecks={model.wrecks} now={now} />
           {model.route && <RouteOverlay route={model.route} />}
-          {model.plannedPoints.length > 1 && (
-            <PlannedPath points={model.plannedPoints} color={model.planColor} />
+          {model.plannedLegs.length > 0 && (
+            <PlannedPath legs={model.plannedLegs} color={model.planColor} />
           )}
           <MissilesLayer missiles={model.missiles} previews={model.missilePreviews} />
           <ShipsLayer
@@ -341,11 +342,21 @@ export function GameBoardSvg({
           />
           {model.onPickDestination && <SectorPicker onPick={model.onPickDestination} />}
           {model.deployment && (
-            <DeploymentSectors
+            <PickSectors
               positions={model.deployment.positions}
               onPick={model.deployment.onPick}
-              hovered={hoveredDeployment}
-              onHover={setHoveredDeployment}
+              hovered={hoveredPick}
+              onHover={setHoveredPick}
+              label={deployLabel}
+            />
+          )}
+          {model.foldPick && (
+            <PickSectors
+              positions={model.foldPick.positions}
+              onPick={model.foldPick.onPick}
+              hovered={hoveredPick}
+              onHover={setHoveredPick}
+              label={foldCellLabel}
             />
           )}
           <EffectsLayer effects={model.effects} pointOf={model.pointOf} now={now} />

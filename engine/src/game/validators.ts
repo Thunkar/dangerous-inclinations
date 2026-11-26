@@ -24,6 +24,7 @@ import type {
   SurveyAction,
   ScanAction,
   WellTransferAction,
+  FoldAction,
   Position,
 } from '../models/game.ts'
 import {
@@ -52,6 +53,7 @@ import { freePiracyCards, seizableAt } from './piracy.ts'
 import { escortableAt, unplacedEscorts } from './escort.ts'
 import { onSurveyRing, surveyToTake } from './survey.ts'
 import { salvageToTake } from './salvage.ts'
+import { foldFuel, foldReaches, isBoardPosition, isStationSector, jumpDriveOf } from './fold.ts'
 import { seatPosition, type TableSeat, type TurnTable } from './table.ts'
 import {
   directionWord,
@@ -168,6 +170,8 @@ export function refusalsFor(table: TurnTable, actor: Player, action: PlayerActio
       return burnRefusals(actor, action)
     case 'well_transfer':
       return jumpRefusals(actor, action)
+    case 'fold':
+      return foldRefusals(table, actor, action)
     case 'fire_weapon':
       return fireRefusals(table, actor, action)
     case 'scan':
@@ -296,6 +300,28 @@ function jumpRefusals(actor: Player, action: WellTransferAction): Refusal[] {
   }
   const mass = calculateJumpMassCost(adjustment, hasWorkingCompressor(ship))
   if (ship.reactionMass < mass) refused.push(refusal('jumpFuel', { mass, fuel: ship.reactionMass }))
+  return refused
+}
+
+/**
+ * A fold (RULES §Movement, Fold): a working jump drive aboard, a sector that is
+ * on the board, not a station's and in reach (never planet to planet), and the
+ * fold's fuel in the tank.
+ */
+function foldRefusals(table: TurnTable, actor: Player, action: FoldAction): Refusal[] {
+  const ship = actor.ship
+  const drive = jumpDriveOf(ship)
+  if (!drive) return [refusal('noDrive')]
+  if (drive.isBroken) return [subsystemRefusal('broken', drive)]
+  if (drive.usedThisTurn) return [subsystemRefusal('used', drive)]
+  const to = action.data
+  if (!isBoardPosition(to)) return [refusal('foldOffBoard')]
+  const refused: Refusal[] = []
+  if (isStationSector(table.stations, to)) refused.push(refusal('foldOnStation'))
+  if (samePosition(positionOf(ship), to)) refused.push(refusal('foldNowhere'))
+  if (!foldReaches(ship, to)) refused.push(refusal('foldTooFar'))
+  const mass = foldFuel()
+  if (ship.reactionMass < mass) refused.push(refusal('foldFuel', { mass, fuel: ship.reactionMass }))
   return refused
 }
 

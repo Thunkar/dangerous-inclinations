@@ -30,9 +30,9 @@
  * layer we can ask the target where it is.
  *
  * State deduplication: states are keyed by (position, facing, mass bucket,
- * turn mod target.period). With a fuel scoop, paths can come back to the
- * same position with more fuel (negative-cost edges), hence the mass
- * bucket. The time phase matters for moving targets: being at P when the
+ * turn mod the period of the target and of `options.avoid`). With a fuel
+ * scoop, paths can come back to the same position with more fuel
+ * (negative-cost edges), hence the mass bucket. The time phase matters for moving targets: being at P when the
  * station is 4 sectors away is a different state from being at P when it is
  * there. Since target motion is periodic, (turn mod period) captures
  * everything that affects future matches, and the earlier visit dominates.
@@ -101,7 +101,11 @@ export function planMovementToTarget(
   options: Partial<PlannerOptions> = {}
 ): MovementPlan | null {
   const opts: PlannerOptions = { ...DEFAULT_PLANNER_OPTIONS, ...options }
-  const period = Math.max(1, target.period)
+  const avoid = opts.avoid
+  // The phase a state is keyed on repeats when both the target and the
+  // places to avoid do. Every drift period divides the ring's 24 sectors, so
+  // this stays within the key's five bits.
+  const period = lcm(Math.max(1, target.period), Math.max(1, avoid?.period ?? 1))
 
   // Layer 0 seeds: origin with both facings (rotation is free before the
   // first movement).
@@ -167,6 +171,9 @@ export function planMovementToTarget(
         // that gets there with the fuel asked for.
         const enough = availableMass - newMassCost >= (opts.arrivalMass ?? 0)
         const arrived = matched && enough
+        // A turn that ends where the ship would stop on the way (inside a
+        // station's docking reach) is a route only if it is the arrival.
+        if (!arrived && avoid !== undefined && avoid.covers(succ.position, nextTurn)) continue
 
         // An arrival is not expanded, so it dominates nothing: only a state
         // the search carries on from may prune another.
@@ -204,6 +211,13 @@ export function planMovementToTarget(
   }
 
   return best ? reconstructForwardPlan(best, origin, target, opts) : null
+}
+
+function lcm(a: number, b: number): number {
+  let x = a
+  let y = b
+  while (y !== 0) [x, y] = [y, x % y]
+  return (a / x) * b
 }
 
 /**

@@ -311,6 +311,17 @@ export function MoveSection() {
       </Box>
 
       <Box sx={{ mb: 5 }}>
+        <SubHead>{T.fold.title}</SubHead>
+        <Body size="0.96rem">
+          {rich(T.fold.text, {
+            fuel: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldFuel,
+            energy: SUBSYSTEM_CONFIGS.jump_drive.minEnergy,
+            engines: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldEngines,
+          })}
+        </Body>
+      </Box>
+
+      <Box sx={{ mb: 5 }}>
         <SubHead>{T.phasing.title}</SubHead>
         <PhaseStrip />
         <Body size="0.92rem" color={PRESS.inkSoft} sx={{ mt: 0.5 }}>

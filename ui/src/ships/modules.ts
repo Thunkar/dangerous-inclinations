@@ -21,6 +21,7 @@ import { radiator } from './builds/radiator'
 import { railgun } from './builds/railgun'
 import { missiles } from './builds/missiles'
 import { shields } from './builds/shields'
+import { jumpDrive } from './builds/jumpDrive'
 
 type Vec3 = [number, number, number]
 type Material = MeshStandardMaterial
@@ -323,6 +324,7 @@ const REBUILT: Partial<Record<SubsystemType, ModuleBuild | undefined>> = {
   railgun,
   missiles,
   shields,
+  jump_drive: jumpDrive,
 }
 
 export const MODULE_BUILDS: Partial<Record<SubsystemType, ModuleBuild>> = {

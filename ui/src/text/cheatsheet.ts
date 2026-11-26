@@ -98,7 +98,7 @@ export const CHEATSHEET = {
   // -------------------------------------------------------------------------
   move: {
     kicker: 'Getting somewhere',
-    title: 'Coast, burn or jump',
+    title: 'Coast, burn, jump or fold',
     lede: 'Your orbit dictates how fast you move',
     /** The two stamped figures under each move. */
     fuel: 'fuel',
@@ -151,6 +151,10 @@ export const CHEATSHEET = {
         'A soft burn out from ring {ring}. Each sector short or long is 1 fuel, up to {most} long and never back onto your start.',
       jump: 'A jump can land on any sector of the arrival arc, 1 fuel for each away from the matching one.',
     },
+    fold: {
+      title: 'Fold, with a jump drive',
+      text: 'Your move puts the ship on any sector of your well, or between the black hole and a planet, never on a station. <b>{fuel} fuel</b>, {energy} energy on the drive and {engines} on the engines. Your whole move, with no drift.',
+    },
     planner: 'Plot a route on the board →',
   },
 
@@ -170,7 +174,7 @@ export const CHEATSHEET = {
       cold: 'Start your turn with 0 heat and power nothing: at your check, repair one broken subsystem.',
     },
     energyTitle: 'Energy an action puts on its subsystem',
-    /** The twelve cells, in order. */
+    /** The thirteen cells, in order. */
     energy: {
       rotate: 'Rotate',
       burn: 'Burn',
@@ -184,6 +188,7 @@ export const CHEATSHEET = {
       rack: 'Rack',
       sensor: 'Sensor',
       shields: 'Shields',
+      fold: 'Fold',
     },
     /** The worked check, one line of the ledger at a time. */
     ledger: {
@@ -277,6 +282,7 @@ export const CHEATSHEET = {
       sensor: 'A sensor, when it scans.',
       radiator: 'A radiator, when your heat is over {heat} at a check.',
       compressor: 'A compressor, when a jump costs {fuel} fuel.',
+      jumpDrive: 'A jump drive, when it folds.',
       broken: 'Any subsystem, when a critical breaks it.',
     },
     revealsFoot: 'Powering a subsystem does not turn it face-up.',

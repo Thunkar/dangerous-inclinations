@@ -13,7 +13,7 @@ import {
   fill,
   getMissileStats,
 } from '@dangerous-inclinations/engine'
-import { RADIATOR_DISSIPATION } from './numbers'
+import { RADIATOR_DISSIPATION, STATION_SECTORS } from './numbers'
 import { TURN } from '../text/turn'
 
 export interface TurnStep {
@@ -47,7 +47,11 @@ export const TURN_STEPS: TurnStep[] = [
     blurb: fill(T.heatCheck.blurb, HEAT),
     terse: fill(T.heatCheck.terse, HEAT),
   },
-  T.docking,
+  {
+    title: T.docking.title,
+    blurb: fill(T.docking.blurb, { stationSectors: STATION_SECTORS }),
+    terse: T.docking.terse,
+  },
   T.missions,
   {
     title: T.stations.title,

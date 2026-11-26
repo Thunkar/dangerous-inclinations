@@ -23,6 +23,7 @@ import {
 } from '@dangerous-inclinations/engine'
 import {
   criticalFrom as criticalFromPlan,
+  foldTargets as foldTargetsOf,
   moveReadiness,
   planActions,
   previewPlan,
@@ -108,11 +109,16 @@ export function usePlanReadout(
     () => getAdjustmentRange(ringVelocity(moveFrom.position.wellId, moveFrom.position.ring)),
     [moveFrom]
   )
-  const { rotateReady, burnReady, jumpReady } = useMemo(
+  const { rotateReady, burnReady, jumpReady, foldReady } = useMemo(
     () => moveReadiness(view, me, steps, preview.powers),
     [view, me, steps, preview.powers]
   )
   const { scoopGain } = preview
+  /** Where a fold from the move's start may land: what the board lights while one is picked. */
+  const foldTargets = useMemo(
+    () => foldTargetsOf(view, me, moveFrom.position),
+    [view, me, moveFrom]
+  )
 
   const { dockOffer } = preview
   const dockSale = !dockOffer
@@ -163,6 +169,8 @@ export function usePlanReadout(
     rotateReady,
     burnReady,
     jumpReady,
+    foldReady,
+    foldTargets,
     scoopGain,
     dockSale,
     seizeChoices,

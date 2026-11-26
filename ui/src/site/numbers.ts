@@ -6,6 +6,7 @@
 import type { SubsystemType } from '@dangerous-inclinations/engine'
 import {
   D10_FACES,
+  DOCKING_REACH,
   FIXED_SUBSYSTEM_TYPES,
   INTERCEPT_HEAT,
   INTERCEPT_ROLL,
@@ -28,6 +29,8 @@ export const HALF_SHIELD = SUBSYSTEM_CONFIGS.shields.minEnergy
 export const FULL_SHIELD = SUBSYSTEM_CONFIGS.shields.maxEnergy
 export const RACK_ENERGY = SUBSYSTEM_CONFIGS.ballistic_rack.minEnergy
 export const SENSOR_ENERGY = SUBSYSTEM_CONFIGS.sensor_array.minEnergy
+/** The sectors a station spans: its own and DOCKING_REACH either side. */
+export const STATION_SECTORS = 2 * DOCKING_REACH + 1
 
 /** The d10's faces, 1 up to the engine's top face. */
 export const D10: readonly number[] = Array.from({ length: D10_FACES }, (_, i) => i + 1)

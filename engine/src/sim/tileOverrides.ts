@@ -14,6 +14,7 @@
  */
 import { SUBSYSTEM_CONFIGS } from '../models/subsystems.ts'
 import type {
+  FoldStats,
   PassiveEffect,
   SubsystemConfig,
   SubsystemType,
@@ -42,6 +43,7 @@ const WEAPON_FIELDS: ReadonlySet<string> = new Set<keyof WeaponStats>([
   'stepsPerMove',
   'maxMoves',
 ])
+const FOLD_FIELDS: ReadonlySet<string> = new Set<keyof FoldStats>(['foldFuel', 'foldEngines'])
 const CONFIG_FIELDS: ReadonlySet<string> = new Set<keyof SubsystemConfig>([
   'name',
   'minEnergy',
@@ -67,9 +69,14 @@ export function parseTileOverrides(text: string): TileOverrides {
         `Unknown subsystem "${tile}". Known: ${Object.keys(SUBSYSTEM_CONFIGS).join(', ')}`
       )
     if (!field) throw new Error(`Subsystem override "${pair}" needs a field`)
-    if (!PASSIVE_FIELDS.has(field) && !WEAPON_FIELDS.has(field) && !CONFIG_FIELDS.has(field))
+    if (
+      !PASSIVE_FIELDS.has(field) &&
+      !WEAPON_FIELDS.has(field) &&
+      !FOLD_FIELDS.has(field) &&
+      !CONFIG_FIELDS.has(field)
+    )
       throw new Error(
-        `Unknown field "${field}". Known: ${[...CONFIG_FIELDS, ...PASSIVE_FIELDS, ...WEAPON_FIELDS].join(', ')}`
+        `Unknown field "${field}". Known: ${[...CONFIG_FIELDS, ...PASSIVE_FIELDS, ...WEAPON_FIELDS, ...FOLD_FIELDS].join(', ')}`
       )
     ;(out[tile as SubsystemType] ??= {})[field] = parseValue(pair.slice(eq + 1).trim())
   }
@@ -85,6 +92,9 @@ export function applyTileOverrides(overrides?: TileOverrides): void {
     for (const [field, value] of Object.entries(fields)) {
       if (PASSIVE_FIELDS.has(field)) {
         ;(config.passiveEffect ??= {})[field as keyof PassiveEffect] = value as never
+      } else if (FOLD_FIELDS.has(field)) {
+        if (!config.fold) throw new Error(`${tile} has no fold`)
+        config.fold[field as keyof FoldStats] = value as never
       } else if (WEAPON_FIELDS.has(field)) {
         if (!config.weaponStats) throw new Error(`${tile} has no weapon stats`)
         config.weaponStats[field as keyof WeaponStats] = value as never
