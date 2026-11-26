@@ -232,7 +232,7 @@ export const EXPLAINER = {
   narration: {
     title:
       'Dangerous Inclinations. A tabletop game of orbital maneuvering, handling heat and hidden roles, for three to six players.',
-    goal: 'You play for secret mission cards. You are dealt three primaries, worth two points, and keep one. Then three secondaries, worth one point, and keep two. When anyone reaches three points, the last round plays out, and the highest score wins. A tie goes to the ship with more hull, then more fuel.',
+    goal: 'You play for secret mission cards. You are dealt three primaries, worth two points, and keep one. Then three secondaries, worth one point, and keep all three. When anyone reaches three points, the last round plays out, and the highest score wins. A tie goes to the ship with more hull, then more fuel.',
     hand: 'Your missions lie face-down in front of you until you complete them.',
     build:
       'Before the first turn, build your ship. Choose one subsystem for the forward slot and four for the side slots. Every ship also has engines, thrusters and a fuel scoop. Build for your missions and playstyle.',

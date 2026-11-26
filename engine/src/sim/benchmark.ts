@@ -252,7 +252,7 @@ function missionRows(batches: BatchResult[]) {
 /**
  * Which hands seats kept, and how they did.
  *
- * Every hand is one primary and two secondaries, so the question is which
+ * Every hand is one primary and three secondaries, so the question is which
  * cards a seat came with. A hand every seat keeps is the table's one plan and
  * the rest are untested. That is what this is here to show.
  */
@@ -428,7 +428,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   out.push('| Stations | each buys one item from each player, once |')
   out.push(
     `| The deal | ${PRIMARY_OFFERS_PER_PLAYER} primaries keep ${PRIMARIES_PER_PLAYER}; ` +
-      `${SECONDARY_OFFERS_PER_PLAYER} secondaries keep any ${SECONDARIES_PER_PLAYER} from a shuffled pile of ` +
+      `${SECONDARY_OFFERS_PER_PLAYER} secondaries keep ${SECONDARIES_PER_PLAYER} from a shuffled pile of ` +
       `${SECONDARY_KINDS_PRINTED.map(k => k.charAt(0).toUpperCase() + k.slice(1)).join(', ')} |`
   )
   out.push(`| Seats allowed | ${MIN_PLAYERS}–${MAX_PLAYERS} |`)
@@ -495,7 +495,7 @@ function render(args: Args, rows: SeatRow[], batches: BatchResult[]): string {
   }
   out.push('')
   out.push(
-    '_Every hand is one primary and two secondaries, which is four points held for the ' +
+    '_Every hand is one primary and three secondaries, which is five points held for the ' +
       `${pointsToWin(args)} that win, so the row is the primary a seat took and what it took beside ` +
       'it. A hand nobody keeps is a plan the table never tested._'
   )

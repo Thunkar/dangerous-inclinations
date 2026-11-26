@@ -6,7 +6,7 @@
  */
 import type { Facing, Player, Position } from '../../models/game.ts'
 import type { SlotView } from '../../game/view.ts'
-import { isQuietTurn } from '../../models/game.ts'
+import { BASE_CRITICAL_FACE, isQuietTurn } from '../../models/game.ts'
 import type { Subsystem, SubsystemId, SubsystemType } from '../../models/subsystems.ts'
 import {
   SHIELD_POINTS_PER_ENERGY,
@@ -410,8 +410,31 @@ export function rackMayAnswer(target: Opponent): boolean {
   )
 }
 
-/** The highest {@link disruptBlockChance} a bot fires its disruptor into. */
+/** The highest {@link disruptBlockChance} a bot fires its disruptor into for a plain hit. */
 export const MAX_DISRUPT_BLOCK = 0.5
+
+/**
+ * The critical chance at which a bot fires its disruptor whatever the shields
+ * look like: a critical breaks the named slot through them. A working sensor
+ * aboard (8-10, 30%) reaches it, the bare 10 (10%) does not.
+ */
+export const MIN_DISRUPT_CRITICAL = 0.3
+
+/** The chance a shot of ours criticals: the sensor's face if one is aboard and working, which the bot powers when it fires. */
+export function criticalChance(sensors: ReadonlyArray<{ isBroken: boolean }>): number {
+  const face = sensors.some(s => !s.isBroken)
+    ? getSubsystemConfig('sensor_array').criticalFace!
+    : BASE_CRITICAL_FACE
+  return (11 - face) / 10
+}
+
+/** Whether a disruptor shot is worth its heat: a plain hit likely to get through, or a critical likely enough on its own. */
+export function disruptWorthFiring(
+  sensors: ReadonlyArray<{ isBroken: boolean }>,
+  block: number
+): boolean {
+  return block <= MAX_DISRUPT_BLOCK || criticalChance(sensors) >= MIN_DISRUPT_CRITICAL - 1e-9
+}
 
 /**
  * Slot a disruptor hit breaks. It is only fired at a ship whose shields look

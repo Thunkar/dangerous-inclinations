@@ -13,6 +13,13 @@
  * must arrive with fuel aboard, since only that search knows the tank at
  * every step.
  *
+ * At the table the route is followed a turn at a time: Done on its first
+ * step moves the ship and the stations on and keeps the rest of the route
+ * (`routeProgress.ts`), and any edit plans afresh.
+ *
+ * On a phone the two plates fold to one line each, so the board sits near
+ * the top with the route's steps under it.
+ *
  * Under the planner sit the orbital windows (`OrbitalWindows.tsx`), read off
  * the same station clock the "Stations now at" control sets.
  *
@@ -20,15 +27,9 @@
  * which is what lets it run with no game behind it: this builds one with the
  * model's own `quietBoardModel` and `crowdShips`, as the 3D dev harness does.
  */
-import { useMemo, useState } from 'react'
-import { Box } from '@mui/material'
-import type {
-  Facing,
-  GravityWellId,
-  MovementPlan,
-  Position,
-  Station,
-} from '@dangerous-inclinations/engine'
+import { useMemo, useState, type ReactNode } from 'react'
+import { Box, useMediaQuery, type Theme } from '@mui/material'
+import type { Facing, GravityWellId, MovementPlan, Position } from '@dangerous-inclinations/engine'
 import {
   GRAVITY_WELLS,
   MAX_REACTION_MASS,
@@ -61,8 +62,9 @@ import { ROUTE_SEARCH_TURNS, placeLabel, routeLegs, routeName } from '../../util
 import { FONT_SANS } from '../../theme'
 import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
-import { Field, Label, Plate, Segments, Stepper, Toggle } from './controls'
+import { Field, Label, Segments, Stepper, Toggle } from './controls'
 import { OrbitalWindows } from './OrbitalWindows'
+import { edit, hasArrived, markDone, startTrip, undoDone, type Trip } from './routeProgress'
 import { TOOLS } from '../../text/tools'
 
 const T = TOOLS.route
@@ -72,7 +74,7 @@ const SHIP_ID = 'planner'
 const STATION_CLOCK = stationSectors()
 const SHIP_COLOR = getPlayerColor(0)
 
-/** What a click on the board sets. */
+/** What a tap on the board sets. */
 type Picking = 'ship' | 'destination'
 
 /** Where the ship is going: a fixed sector, or a planet's station, which moves. */
@@ -134,30 +136,201 @@ function PlaceInput({
   )
 }
 
+const CAPS = {
+  fontFamily: FONT_DISPLAY,
+  fontWeight: 600,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+} as const
+
+/** A pressable block in the press's idiom, at least 44px. */
+function Press({
+  onClick,
+  children,
+  red = false,
+}: {
+  onClick: () => void
+  children: ReactNode
+  red?: boolean
+}) {
+  return (
+    <Box
+      component="button"
+      type="button"
+      onClick={onClick}
+      sx={{
+        minHeight: 44,
+        minWidth: 44,
+        px: 1.75,
+        border: `3px solid ${red ? PRESS.red : PRESS.ink}`,
+        bgcolor: red ? PRESS.red : PRESS.paper,
+        color: red ? PRESS.paper : PRESS.ink,
+        ...CAPS,
+        fontWeight: 700,
+        fontSize: '1rem',
+        cursor: 'pointer',
+        touchAction: 'manipulation',
+        // A finger's tap leaves :hover on; only a mouse gets it.
+        '@media (hover: hover)': {
+          '&:hover': { bgcolor: PRESS.ink, borderColor: PRESS.ink, color: PRESS.paper },
+        },
+      }}
+    >
+      {children}
+    </Box>
+  )
+}
+
+/**
+ * A plate's head: its name and what is set on it, on one line. On a phone it
+ * is the button that opens the plate; on a wide screen the plate is always
+ * open and the head only names it.
+ */
+function PlateHead({
+  title,
+  summary,
+  open,
+  onToggle,
+}: {
+  title: string
+  summary: string
+  open: boolean
+  /** Null when the plate does not fold. */
+  onToggle: (() => void) | null
+}) {
+  const filled = open && onToggle !== null
+  return (
+    <Box
+      component={onToggle ? 'button' : 'div'}
+      type={onToggle ? 'button' : undefined}
+      aria-expanded={onToggle ? open : undefined}
+      onClick={onToggle ?? undefined}
+      sx={{
+        width: '100%',
+        minWidth: 0,
+        minHeight: 56,
+        px: 1.5,
+        py: 0.75,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        textAlign: 'left',
+        border: `4px solid ${PRESS.ink}`,
+        borderBottomWidth: onToggle ? 4 : 0,
+        bgcolor: filled || !onToggle ? PRESS.ink : PRESS.paper,
+        color: filled || !onToggle ? PRESS.paper : PRESS.ink,
+        cursor: onToggle ? 'pointer' : 'default',
+        touchAction: 'manipulation',
+      }}
+    >
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Box sx={{ ...CAPS, fontSize: '0.8rem', color: PRESS.red }}>{title}</Box>
+        <Box
+          sx={{
+            ...CAPS,
+            fontSize: '0.95rem',
+            fontWeight: 700,
+            lineHeight: 1.2,
+            overflowWrap: 'anywhere',
+          }}
+        >
+          {summary}
+        </Box>
+      </Box>
+      {onToggle && (
+        <Box aria-hidden sx={{ fontFamily: FONT_DISPLAY, fontSize: '1.2rem', flexShrink: 0 }}>
+          {open ? '▴' : '▾'}
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+/** The plate under a head. */
+function PlateBody({ children, area }: { children: ReactNode; area: string }) {
+  return (
+    <Box
+      sx={{
+        gridArea: area,
+        minWidth: 0,
+        p: { xs: 1.5, sm: 2.5 },
+        border: `4px solid ${PRESS.ink}`,
+        borderTop: 'none',
+        bgcolor: PRESS.paper,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1.5,
+      }}
+    >
+      {children}
+    </Box>
+  )
+}
+
+type Open = 'ship' | 'destination' | null
+
 export function RoutePlannerTool() {
-  const [from, setFrom] = useState<Position>({ wellId: 'blackhole', ring: 3, sector: 0 })
-  const [destination, setDestination] = useState<Destination>({
+  const wide = useMediaQuery((theme: Theme) => theme.breakpoints.up('md'), { noSsr: true })
+  /** On a phone one plate is open at a time, and none to begin with. */
+  const [open, setOpen] = useState<Open>(null)
+  const toggle = (plate: Exclude<Open, null>) =>
+    wide ? null : () => setOpen(o => (o === plate ? null : plate))
+  const shows = (plate: Exclude<Open, null>) => wide || open === plate
+
+  const [trip, setTrip] = useState<Trip>(() =>
+    startTrip(
+      {
+        at: { wellId: 'blackhole', ring: 3, sector: 0 },
+        facing: 'prograde',
+        fuel: MAX_REACTION_MASS,
+      },
+      createInitialStations()
+    )
+  )
+  const [destination, setDestinationRaw] = useState<Destination>({
     kind: 'station',
     planetId: 'planet-alpha',
   })
-  const [stations, setStations] = useState<Station[]>(() => createInitialStations())
-  const [facing, setFacing] = useState<Facing>('prograde')
-  const [fuel, setFuel] = useState(MAX_REACTION_MASS)
   /**
    * Fuel the route must still have aboard on arrival: a Tanker's card, say.
    * It may run lower on the way and scoop back up.
    */
-  const [reserve, setReserve] = useState(0)
-  const keep = Math.min(reserve, fuel)
-  const [compressor, setCompressor] = useState(false)
+  const [reserve, setReserveRaw] = useState(0)
+  const [compressor, setCompressorRaw] = useState(false)
   const [picking, setPicking] = useState<Picking>('destination')
   const [chosen, setChosen] = useState(0)
+
+  const { ship, stations, kept } = trip
+  const from = ship.at
+  const { facing, fuel } = ship
+  const keep = Math.min(reserve, fuel)
+
+  // Every input set by hand drops a kept route: the tool plans afresh.
+  const setShip = (change: Partial<typeof ship>) =>
+    setTrip(t => edit(t, { ship: { ...t.ship, ...change } }))
+  const setFrom = (at: Position) => setShip({ at })
+  const setFacing = (next: Facing) => setShip({ facing: next })
+  const setFuel = (next: number) => setShip({ fuel: next })
+  const dropKept = () => setTrip(t => edit(t))
+  const setDestination = (next: Destination) => {
+    setDestinationRaw(next)
+    dropKept()
+  }
+  const setReserve = (next: number) => {
+    setReserveRaw(next)
+    dropKept()
+  }
+  const setCompressor = (next: boolean) => {
+    setCompressorRaw(next)
+    dropKept()
+  }
 
   const station =
     destination.kind === 'station' ? stations.find(s => s.planetId === destination.planetId) : null
   // The stations all step together, so one reading moves all three, and a
   // station only ever stands on a sector of its clock.
-  const moveStations = (sector: number) => setStations(all => all.map(s => ({ ...s, sector })))
+  const moveStations = (sector: number) =>
+    setTrip(t => edit(t, { stations: t.stations.map(s => ({ ...s, sector })) }))
 
   const options = {
     availableMass: fuel,
@@ -169,7 +342,10 @@ export function RoutePlannerTool() {
     arrivalMass: keep,
   }
 
+  const following = kept !== null
   const routes = useMemo<MovementPlan[]>(() => {
+    // A kept route is followed, not searched for again.
+    if (following) return []
     const origin = { ...from, facing }
     if (destination.kind === 'station') {
       if (!station) return []
@@ -186,12 +362,13 @@ export function RoutePlannerTool() {
     return planMovementAlternatives(origin, destination.at, options)?.alternatives ?? []
     // `options` is rebuilt from these every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, facing, destination, station, fuel, keep, compressor])
+  }, [following, from, facing, destination, station, fuel, keep, compressor])
 
   const current = Math.min(chosen, Math.max(0, routes.length - 1))
-  const route = routes[current] ?? null
+  const route = kept ?? routes[current] ?? null
+  const arrived = hasArrived(trip)
 
-  /** A click on the board: the ship, a station (which then moves), or a sector. */
+  /** A tap on the board: the ship, a station (which then moves), or a sector. */
   const pick = (position: Position) => {
     if (picking === 'ship') return setFrom(position)
     const hit = stations.find(s => samePosition(stationPosition(s), position))
@@ -222,14 +399,14 @@ export function RoutePlannerTool() {
           stations.map(stationPosition)
         ),
         stations: stationMarkers(stations),
-        route,
+        route: arrived ? null : route,
         onPickDestination: pick,
         colorOf: () => SHIP_COLOR,
         nameOf: () => T.shipName,
       }),
     // `pick` closes over these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [from, facing, route, stations, picking]
+    [from, facing, route, arrived, stations, picking, destination]
   )
 
   const legs = route ? routeLegs(route.steps) : []
@@ -240,16 +417,51 @@ export function RoutePlannerTool() {
         ? placeLabel(destination.at)
         : ''
   const arrival =
-    destination.kind === 'station' && station && route
+    destination.kind === 'station' && station && route && !arrived
       ? stationTarget(station).positionAt(route.totalTurns).sector
       : null
+  const shipSummary = fill(T.shipSummary, {
+    place: placeLabel(from),
+    facing: facing === 'prograde' ? T.prograde : T.retrograde,
+    fuel,
+  })
+
+  const done = () => route && setTrip(t => markDone(t, route))
+  const undo = () => setTrip(undoDone)
+  const canUndo = trip.history.length > 0
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
-        <Plate>
-          <Label>{T.ship}</Label>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
+      <Box
+        sx={{
+          display: 'grid',
+          columnGap: { xs: '4px', md: 2 },
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+          gridTemplateAreas: {
+            xs: '"shipHead whereHead" "body body"',
+            md: '"shipHead whereHead" "shipBody whereBody"',
+          },
+        }}
+      >
+        <Box sx={{ gridArea: 'shipHead', minWidth: 0, display: 'flex' }}>
+          <PlateHead
+            title={T.ship}
+            summary={shipSummary}
+            open={open === 'ship'}
+            onToggle={toggle('ship')}
+          />
+        </Box>
+        <Box sx={{ gridArea: 'whereHead', minWidth: 0, display: 'flex' }}>
+          <PlateHead
+            title={T.whereTo}
+            summary={where}
+            open={open === 'destination'}
+            onToggle={toggle('destination')}
+          />
+        </Box>
+
+        {shows('ship') && (
+          <PlateBody area={wide ? 'shipBody' : 'body'}>
             <PlaceInput value={from} onChange={setFrom} label={T.shipPlace} />
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <Field label={T.facing}>
@@ -282,12 +494,11 @@ export function RoutePlannerTool() {
               </Field>
               <Toggle on={compressor} label={T.compressor} onChange={setCompressor} />
             </Box>
-          </Box>
-        </Plate>
+          </PlateBody>
+        )}
 
-        <Plate>
-          <Label>{T.whereTo}</Label>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1.5 }}>
+        {shows('destination') && (
+          <PlateBody area={wide ? 'whereBody' : 'body'}>
             <Segments
               value={destination.kind}
               options={[
@@ -335,66 +546,82 @@ export function RoutePlannerTool() {
                 label={T.destinationPlace}
               />
             ) : null}
-          </Box>
-        </Plate>
+          </PlateBody>
+        )}
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
-        <Field label={T.clickSets}>
-          <Segments
-            value={picking}
-            options={[
-              { value: 'ship' as Picking, label: T.theShip },
-              { value: 'destination' as Picking, label: T.whereTo },
-            ]}
-            onChange={setPicking}
-          />
-        </Field>
-        <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft, pb: 1.25 }}>
-          {T.clickStation}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          columnGap: 1.5,
+          rowGap: 0.5,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Label>{T.tapSets}</Label>
+        <Segments
+          value={picking}
+          options={[
+            { value: 'ship' as Picking, label: T.theShip },
+            { value: 'destination' as Picking, label: T.whereTo },
+          ]}
+          onChange={setPicking}
+        />
+        <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}>
+          {T.tapStation}
         </Box>
       </Box>
 
       <Box
         sx={{
           position: 'relative',
-          height: { xs: '58vh', md: 'min(68vh, 680px)' },
-          minHeight: 340,
+          height: { xs: '62svh', md: 'min(68vh, 680px)' },
+          minHeight: 320,
           border: `4px solid ${PRESS.ink}`,
           overflow: 'hidden',
           bgcolor: TABLE.felt,
         }}
       >
-        <GameBoardSvg model={model} />
+        <GameBoardSvg model={model} fitRoute />
       </Box>
 
-      <Box sx={{ border: `4px solid ${PRESS.ink}`, bgcolor: PRESS.paper }}>
+      <Box sx={{ border: `4px solid ${PRESS.ink}`, bgcolor: PRESS.paper, minWidth: 0 }}>
         <Box
           sx={{
             bgcolor: PRESS.ink,
             color: PRESS.paper,
-            px: 2,
+            px: { xs: 1.5, sm: 2 },
             py: 1,
             display: 'flex',
             flexWrap: 'wrap',
             gap: 1,
             alignItems: 'baseline',
-            fontFamily: FONT_DISPLAY,
-            fontWeight: 600,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
+            ...CAPS,
           }}
         >
           <Box component="span" sx={{ fontSize: '1.1rem' }}>
             {T.theRoute}
           </Box>
-          <Box component="span" sx={{ ml: 'auto', fontSize: '0.9rem', color: PRESS.paperSoft }}>
+          <Box
+            component="span"
+            sx={{
+              ml: 'auto',
+              fontSize: '0.9rem',
+              color: PRESS.paperSoft,
+              overflowWrap: 'anywhere',
+            }}
+          >
             {fill(T.fromTo, { from: placeLabel(from), to: where })}
             {arrival !== null && fill(T.onArrival, { sector: arrival })}
           </Box>
         </Box>
-        <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
-          {!route ? (
+        <Box sx={{ p: { xs: 1.5, sm: 2 }, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {arrived ? (
+            <Box sx={{ fontFamily: FONT_SANS, fontSize: '1rem', fontWeight: 600 }}>
+              {fill(T.arrived, { to: where })}
+            </Box>
+          ) : !route ? (
             <Box sx={{ fontFamily: FONT_SANS, fontSize: '1rem' }}>
               {destination.kind === 'sector' && samePosition(from, destination.at)
                 ? T.alreadyThere
@@ -404,28 +631,36 @@ export function RoutePlannerTool() {
             </Box>
           ) : (
             <>
-              <Segments
-                value={String(current)}
-                options={routes.map((alternative, index) => ({
-                  value: String(index),
-                  label: fill(T.alternative, {
-                    name: routeName(alternative, index),
-                    turns: alternative.totalTurns,
-                    fuel: alternative.totalMassCost,
-                  }),
-                }))}
-                onChange={index => setChosen(Number(index))}
-              />
+              {kept ? (
+                <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.95rem' }}>
+                  {fill(T.following, {
+                    name: routeName(kept, current),
+                    turns: kept.totalTurns,
+                  })}
+                </Box>
+              ) : (
+                <Segments
+                  value={String(current)}
+                  options={routes.map((alternative, index) => ({
+                    value: String(index),
+                    label: fill(T.alternative, {
+                      name: routeName(alternative, index),
+                      turns: alternative.totalTurns,
+                      fuel: alternative.totalMassCost,
+                    }),
+                  }))}
+                  onChange={index => setChosen(Number(index))}
+                />
+              )}
               <Box
                 component="ol"
                 sx={{
                   listStyle: 'none',
                   m: 0,
-                  mt: 2,
                   p: 0,
                   display: 'grid',
                   gap: '4px',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 200px), 1fr))',
                 }}
               >
                 {legs.map((leg, index) => (
@@ -434,13 +669,16 @@ export function RoutePlannerTool() {
                     key={index}
                     sx={{
                       display: 'grid',
-                      gridTemplateColumns: '34px 1fr auto',
+                      gridTemplateColumns: '34px minmax(0, 1fr) auto auto',
                       alignItems: 'center',
                       gap: 1,
+                      minHeight: 44,
+                      // The turn being made gets the whole width, with its Done.
+                      gridColumn: index === 0 ? '1 / -1' : undefined,
                       border: `2px solid ${PRESS.ink}`,
                       bgcolor: index === 0 ? PRESS.ink : 'transparent',
                       color: index === 0 ? PRESS.paper : PRESS.ink,
-                      pr: 1,
+                      pr: index === 0 ? 0 : 1,
                     }}
                   >
                     <Box
@@ -483,15 +721,27 @@ export function RoutePlannerTool() {
                           ? `+${-leg.massCost}`
                           : ''}
                     </Box>
+                    {index === 0 ? (
+                      <Box sx={{ alignSelf: 'stretch', display: 'flex' }}>
+                        <Press red onClick={done}>
+                          {T.done}
+                        </Press>
+                      </Box>
+                    ) : (
+                      <span />
+                    )}
                   </Box>
                 ))}
               </Box>
-              <Box
-                sx={{ mt: 1.5, fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}
-              >
+              <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}>
                 {T.legsNote}
               </Box>
             </>
+          )}
+          {canUndo && (
+            <Box>
+              <Press onClick={undo}>{T.undo}</Press>
+            </Box>
           )}
         </Box>
       </Box>

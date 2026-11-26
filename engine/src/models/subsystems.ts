@@ -158,8 +158,9 @@ export interface WeaponStats {
    */
   shieldPointsPerEnergy?: number
   /**
-   * Disruptor: deals no damage and never criticals; a hit breaks the named
-   * slot unless any powered shield is up, which blocks the shot whole.
+   * Disruptor: deals no damage; a hit breaks the named slot unless any
+   * powered shield is up, which blocks the shot whole, and a critical breaks
+   * it through shields like any critical.
    */
   disrupts?: boolean
   maxAmmo?: number // Ammunition-based weapons
@@ -400,7 +401,7 @@ export const SUBSYSTEM_CONFIGS: Record<SubsystemType, SubsystemConfig> = {
     slotType: 'either',
     weaponStats: {
       // No damage and no recoil: a hit breaks the slot the attacker names,
-      // and any powered shield stops it.
+      // any powered shield stops a hit, and a critical goes through.
       damage: 0,
       ringRange: 1,
       sectorRange: 1,

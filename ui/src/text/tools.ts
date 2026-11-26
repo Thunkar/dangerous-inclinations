@@ -20,11 +20,13 @@ export const TOOLS = {
   },
   /** The tabs over a tool, read aloud. */
   tabs: 'Tools',
+  /** On a phone, the line a tool's blurb folds under. */
+  howItWorks: 'How it works',
 
   route: {
     title: 'Route planner',
     blurb:
-      'The game’s own board: click where the ship is, click where it is going, and the engine lays out the turns, the burns, the phasing and the lane; under it, the orbital windows say when to set off.',
+      'The game’s own board: set where the ship is and where it is going, on the board or by number, and the engine lays out the turns, the burns, the phasing and the lane. Under it, the orbital windows say when to set off.',
     ship: 'Your ship',
     body: 'Body',
     blackHole: 'Black hole',
@@ -49,9 +51,11 @@ export const TOOLS = {
     stationsAt: 'Stations now at (ring {ring}, sector)',
     stationsMove:
       'Every station moves {drift} sectors a round, together, so these are the only sectors one can be on; the route meets it where it will be.',
-    clickSets: 'A click on the board sets',
+    /** The ship's plate folded to one line: "Black Hole R3 S0 · prograde · 10 fuel". */
+    shipSummary: '{place} · {facing} · {fuel} fuel',
+    tapSets: 'A tap sets',
     theShip: 'The ship',
-    clickStation: 'Click a station to head for it.',
+    tapStation: 'Tap a station to head for it.',
     /** The ship on the board, named as a player would be. */
     shipName: 'your ship',
     theRoute: 'The route',
@@ -67,17 +71,24 @@ export const TOOLS = {
     /** Before a turn's move, in red. */
     rotate: 'rotate, ',
     legsNote:
-      'One line per turn, first turn in black. The figure on the right is the fuel it spends or the scoop brings in.',
+      'One line per turn, first turn in black. The figure on the right is the fuel it spends or the scoop brings in. Done moves the ship and the stations on one turn.',
+    /** Pressed when the first step is made at the table. */
+    done: 'Done',
+    undo: 'Undo',
+    /** The route kept after a Done: "Following the fastest route, 3 turns left." */
+    following: 'Following the {name} route, {turns} turns left. Change any setting to plan again.',
+    arrived: 'The ship has arrived: {to}.',
   },
 
   heat: {
     title: 'Heat check',
     blurb:
-      'Your loadout on a mat: click a subsystem to power it, right click to take it off. The check bills the hull for anything over {maxHeat}, dissipates and carries the rest.',
+      'Your loadout on a mat: each press on a subsystem powers it a step. The check bills the hull for anything over {maxHeat}, dissipates and carries the rest.',
     tap: 'A tap on a subsystem',
     powers: 'Powers it',
     breaks: 'Breaks or fixes it',
-    powersNote: 'Right click takes a step off. On a phone, tap past the top to clear it.',
+    powersNote:
+      'With a mouse, right click takes a step off. On a phone, tap past the top to clear it.',
     breaksNote: 'A break dumps its energy onto the heat track.',
 
     /** A slot's card: the slot's name, the subsystem, what its energy is for. */

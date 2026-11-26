@@ -39,6 +39,8 @@ export const BOARD_TEXT = {
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
     recentre: 'Recentre the board',
+    /** The route planner tool's board: frame the ship and its route. */
+    fitRoute: 'Fit the route',
     preset: {
       table: 'Table view',
       top: 'Top view',

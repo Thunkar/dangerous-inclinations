@@ -63,7 +63,7 @@ import { rich } from '../../utils/rich'
 import { routeHref } from '../../site/routes'
 import { WINDOWS_ANCHOR } from '../../site/tools/OrbitalWindows'
 
-/** What a kept hand is worth: the primary and both secondaries. */
+/** What a kept hand is worth: the primary and every secondary. */
 const HAND_POINTS =
   MISSION_POINTS.destroy_ship * PRIMARIES_PER_PLAYER +
   MISSION_POINTS.survey * SECONDARIES_PER_PLAYER

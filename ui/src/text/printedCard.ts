@@ -19,7 +19,7 @@ export const PRINTED_CARD = {
     face: 'Turn/movement',
     goal: {
       title: '{points} points end the round',
-      text: 'Primary + either secondary completed. Ties: hull, then fuel.',
+      text: 'Primary + any secondary, or all three secondaries. Ties: hull, then fuel.',
     },
     turn: {
       title: 'The turn',
@@ -95,7 +95,7 @@ export const PRINTED_CARD = {
           '±{rings} ring ±{sectors}, one side. <red>Every shield energy stops {points}</red>',
         ballistic_rack: '±{rings} ring ±{sectors} either side, or 1 along your ring',
         disruptor:
-          '±{rings} ring ±{sectors} either side, or 1 along your ring. Breaks the named slot. <red>A shield with energy left stops it</red>',
+          '±{rings} ring ±{sectors} either side, or 1 along your ring. Breaks the named slot. <red>A shield with energy left stops a hit, not a crit</red>',
         missiles:
           'inside your well, a salvo is one action. {aboard}\u00a0aboard, fly {steps} a turn from launch, {turns} turns',
       },

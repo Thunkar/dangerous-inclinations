@@ -1,4 +1,4 @@
-# Benchmark (2026-11-10)
+# Benchmark (2026-11-26)
 
 120 games per seat count, seeds 20000+, bots choosing their own hands and hulls.
 
@@ -10,7 +10,7 @@
 | Card values | Deliver 2, Destroy 2, Intercept 2, Survey 1, Piracy 1, Tanker 1, Escort 1, Salvage 1 |
 | Hold | no limit; a pirate names the item it seizes |
 | Stations | each buys one item from each player, once |
-| The deal | 3 primaries keep 1; 3 secondaries keep any 2 from a shuffled pile of Survey, Piracy, Tanker, Escort, Salvage |
+| The deal | 3 primaries keep 1; 3 secondaries keep 3 from a shuffled pile of Survey, Piracy, Tanker, Escort, Salvage |
 | Seats allowed | 3–6 |
 | Drift | black hole 8/6/4/2/1, planet 6/4/2/1 (station on planet ring 2) |
 | Starting hull | 10 |
@@ -23,10 +23,10 @@
 
 | seats | decided | rounds (median) | rounds (p75) | table time | kills/game | cards/game | points/game | burn | scoop | firing | lost | wins by seat | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 3 | 100% | 26 | 32 | 1h18 | 2.2 | 3.6 | 5.7 | 51% | 35% | 17% | 3% | 38% / 33% / 29% | none |
-| 4 | 100% | 27 | 34 | 1h48 | 5.7 | 4.1 | 6.7 | 55% | 33% | 24% | 4% | 29% / 28% / 21% / 23% | a kill per seat per game |
-| 5 | 100% | 32 | 44 | 2h40 | 10.8 | 4.7 | 7.7 | 56% | 33% | 28% | 6% | 19% / 20% / 19% / 20% / 22% | a kill per seat per game |
-| 6 | 100% | 29 | 37 | 2h54 | 12.2 | 5.1 | 8.6 | 57% | 32% | 31% | 6% | 12% / 15% / 27% / 18% / 17% / 13% | a kill per seat per game; seat spread 15% |
+| 3 | 100% | 27 | 35 | 1h21 | 2.9 | 3.7 | 5.8 | 53% | 35% | 18% | 3% | 33% / 37% / 31% | none |
+| 4 | 100% | 28 | 42 | 1h52 | 6.3 | 4.2 | 6.8 | 55% | 34% | 22% | 5% | 33% / 14% / 23% / 30% | a kill per seat per game; seat spread 18% |
+| 5 | 100% | 30 | 38 | 2h30 | 10.3 | 4.8 | 7.8 | 57% | 32% | 28% | 6% | 14% / 18% / 24% / 18% / 27% | a kill per seat per game |
+| 6 | 100% | 27 | 39 | 2h42 | 12.8 | 5.4 | 8.9 | 57% | 32% | 29% | 6% | 16% / 14% / 22% / 20% / 13% / 15% | a kill per seat per game |
 
 _Table time is the median game at the stated pace: rounds x seats player-turns. Cards are cards completed; points count a primary as 2 and a secondary as 1. `lost` is the share of turns spent respawning. `wins by seat` is turn order, first seat first._
 
@@ -34,21 +34,21 @@ _Table time is the median game at the stated pace: rounds x seats player-turns. 
 
 | measure | 3 seats | 4 seats | 5 seats | 6 seats |
 |---|---|---|---|---|
-| Lead changes per game | 0.49 | 0.65 | 0.64 | 0.74 |
-| Won by a seat not leading at round 10 | 69% of 119 | 75% of 118 | 79% of 119 | 86% of 118 |
-| First card completed (median round) | 9 | 9 | 8 | 8 |
-| Escort markers per game: placed / paid / released (carrier died, escort died) | 1.63 / 0.21 / 0.86 (0.29, 0.57) | 3.4 / 0.26 / 2.37 (1.03, 1.33) | 6.22 / 0.2 / 5.06 (2.3, 2.76) | 7.28 / 0.22 / 5.9 (2.71, 3.19) |
-| Marked sales with the escort out of the well, per game | 0.7 | 0.75 | 0.98 | 1.08 |
-| Rounds from marker to Escort paid (median) | 7 | 5 | 4 | 5 |
-| Wrecks left per game | 2.19 | 5.7 | 10.78 | 12.19 |
-| Wrecks salvaged | 33% | 32% | 28% | 32% |
-| Piracy seizures per game (crate / data) | 0.41 / 0.42 | 2.38 / 1.13 | 2.25 / 2.27 | 2.33 / 2.45 |
-| Sales at a station, per game | 2.88 | 2.91 | 3.13 | 3.45 |
-| Of those, sale named by the player | 100% | 100% | 100% | 100% |
-| Fuel pumps per game | 0.43 | 0.31 | 0.42 | 0.38 |
-| Turns ending in a planet well | 46% | 37% | 31% | 32% |
-| Turns ending in the black hole | 54% | 63% | 69% | 68% |
-| Turns ending moored | 10% | 8% | 6% | 6% |
+| Lead changes per game | 0.58 | 0.63 | 0.68 | 0.7 |
+| Won by a seat not leading at round 10 | 77% of 119 | 82% of 118 | 84% of 118 | 86% of 118 |
+| First card completed (median round) | 9 | 9 | 6 | 8 |
+| Escort markers per game: placed / paid / released (carrier died, escort died) | 2.51 / 0.28 / 1.43 (0.5, 0.93) | 4.94 / 0.31 / 3.53 (1.38, 2.14) | 8 / 0.35 / 6.25 (2.82, 3.43) | 10.98 / 0.38 / 9.07 (4.15, 4.92) |
+| Marked sales with the escort out of the well, per game | 1.04 | 1.02 | 1.02 | 1.23 |
+| Rounds from marker to Escort paid (median) | 10 | 8 | 5 | 4 |
+| Wrecks left per game | 2.93 | 6.33 | 10.31 | 12.83 |
+| Wrecks salvaged | 36% | 36% | 33% | 36% |
+| Piracy seizures per game (crate / data) | 1 / 0.9 | 2.86 / 1.78 | 3.03 / 2.89 | 3.89 / 3.28 |
+| Sales at a station, per game | 2.8 | 2.98 | 2.96 | 3.51 |
+| Of those, sale named by the player | 100% | 99% | 100% | 100% |
+| Fuel pumps per game | 0.35 | 0.33 | 0.37 | 0.39 |
+| Turns ending in a planet well | 43% | 37% | 31% | 33% |
+| Turns ending in the black hole | 57% | 63% | 69% | 67% |
+| Turns ending moored | 9% | 7% | 6% | 6% |
 
 _The leader is the one seat with the most points; a tie leaves nobody leading, and the first seat to lead is not a change. The comeback row counts games still being played after round 10 that someone won, and a tie at round 10 counts as not leading. A marker taken back when its ship dies is not timed. A visit whose sale nobody named makes the default, the sale that scores most._
 
@@ -56,70 +56,130 @@ _The leader is the one seat with the most points; a tie leaves nobody leading, a
 
 | hand | seats | share of seats | win rate | points scored |
 |---|---|---|---|---|
-| Destroy + Escort/Salvage | 79 | 4% | 20% | 1.6 |
-| Intercept + Escort/Piracy | 79 | 4% | 9% | 1 |
-| Intercept + Escort/Tanker | 75 | 3% | 15% | 1.3 |
-| Destroy + Escort/Tanker | 75 | 3% | 20% | 1.4 |
-| Destroy + Survey/Tanker | 73 | 3% | 36% | 1.7 |
-| Destroy + Salvage/Survey | 71 | 3% | 25% | 1.7 |
-| Intercept + Piracy/Tanker | 71 | 3% | 11% | 1.2 |
-| Intercept + Survey/Tanker | 70 | 3% | 16% | 1.4 |
-| Intercept + Escort/Salvage | 69 | 3% | 25% | 1.6 |
-| Destroy + Piracy/Survey | 68 | 3% | 21% | 1.7 |
-| Intercept + Piracy/Salvage | 67 | 3% | 16% | 1.5 |
-| Destroy + Escort/Piracy | 66 | 3% | 23% | 2 |
-| Intercept + Escort/Survey | 63 | 3% | 14% | 1.2 |
-| Destroy + Piracy/Salvage | 61 | 3% | 23% | 1.7 |
-| Deliver + Piracy/Survey | 60 | 3% | 17% | 1.6 |
-| Deliver + Escort/Salvage | 60 | 3% | 38% | 2.2 |
-| Deliver + Salvage/Survey | 59 | 3% | 41% | 2.1 |
-| Destroy + Piracy/Tanker | 58 | 3% | 19% | 1.7 |
-| Intercept + Piracy/Survey | 57 | 3% | 11% | 1.2 |
-| Destroy + Salvage/Tanker | 57 | 3% | 40% | 1.8 |
-| Deliver + Piracy/Tanker | 53 | 2% | 34% | 1.8 |
-| Deliver + Escort/Piracy | 52 | 2% | 13% | 1.6 |
-| Intercept + Salvage/Survey | 52 | 2% | 17% | 1.5 |
-| Deliver + Piracy/Salvage | 50 | 2% | 20% | 1.7 |
-| Intercept + Salvage/Tanker | 49 | 2% | 16% | 1.5 |
-| Deliver + Escort/Survey | 47 | 2% | 32% | 1.8 |
-| Destroy + Escort/Survey | 45 | 2% | 11% | 1.4 |
-| Deliver + Salvage/Tanker | 45 | 2% | 44% | 2.1 |
-| Deliver + Escort/Tanker | 43 | 2% | 35% | 1.8 |
-| Deliver + Survey/Tanker | 42 | 2% | 38% | 1.7 |
-| Destroy + Salvage/Salvage | 31 | 1% | 32% | 2.2 |
-| Destroy + Escort/Escort | 29 | 1% | 7% | 1.3 |
-| Intercept + Survey/Survey | 28 | 1% | 25% | 1.4 |
-| Intercept + Salvage/Salvage | 27 | 1% | 15% | 1.7 |
-| Deliver + Survey/Survey | 25 | 1% | 32% | 1.7 |
-| Deliver + Piracy/Piracy | 24 | 1% | 4% | 1 |
-| Intercept + Tanker/Tanker | 23 | 1% | 17% | 1.4 |
-| Destroy + Tanker/Tanker | 22 | 1% | 18% | 1.5 |
-| Deliver + Escort/Escort | 21 | 1% | 24% | 1.5 |
-| Deliver + Tanker/Tanker | 21 | 1% | 29% | 1.4 |
-| Destroy + Piracy/Piracy | 21 | 1% | 14% | 1.9 |
-| Intercept + Escort/Escort | 20 | 1% | 15% | 1 |
-| Intercept + Piracy/Piracy | 20 | 1% | 10% | 1.6 |
-| Destroy + Survey/Survey | 17 | 1% | 24% | 1.6 |
-| Deliver + Salvage/Salvage | 15 | 1% | 33% | 2 |
+| Destroy + Escort/Salvage/Tanker | 60 | 3% | 32% | 1.9 |
+| Destroy + Piracy/Salvage/Survey | 59 | 3% | 10% | 1.6 |
+| Intercept + Escort/Piracy/Tanker | 53 | 2% | 11% | 1.4 |
+| Intercept + Escort/Survey/Tanker | 48 | 2% | 10% | 0.9 |
+| Intercept + Piracy/Salvage/Tanker | 48 | 2% | 23% | 1.6 |
+| Destroy + Escort/Piracy/Survey | 47 | 2% | 17% | 1.9 |
+| Destroy + Salvage/Survey/Tanker | 47 | 2% | 32% | 1.9 |
+| Intercept + Escort/Piracy/Salvage | 47 | 2% | 11% | 1.6 |
+| Intercept + Piracy/Survey/Tanker | 46 | 2% | 20% | 1.2 |
+| Destroy + Escort/Piracy/Tanker | 45 | 2% | 16% | 1.6 |
+| Destroy + Escort/Survey/Tanker | 44 | 2% | 27% | 1.7 |
+| Destroy + Escort/Piracy/Salvage | 42 | 2% | 26% | 1.9 |
+| Destroy + Escort/Salvage/Survey | 42 | 2% | 24% | 1.9 |
+| Intercept + Escort/Piracy/Survey | 39 | 2% | 15% | 1.3 |
+| Intercept + Escort/Salvage/Survey | 38 | 2% | 32% | 1.7 |
+| Intercept + Piracy/Salvage/Survey | 38 | 2% | 18% | 1.2 |
+| Deliver + Escort/Piracy/Salvage | 37 | 2% | 35% | 2 |
+| Deliver + Escort/Piracy/Tanker | 37 | 2% | 35% | 1.9 |
+| Deliver + Piracy/Salvage/Tanker | 37 | 2% | 19% | 1.3 |
+| Deliver + Escort/Piracy/Survey | 36 | 2% | 28% | 1.8 |
+| Deliver + Piracy/Survey/Tanker | 36 | 2% | 22% | 1.5 |
+| Deliver + Piracy/Salvage/Survey | 35 | 2% | 17% | 1.5 |
+| Intercept + Escort/Salvage/Tanker | 34 | 2% | 21% | 1.4 |
+| Intercept + Salvage/Survey/Tanker | 33 | 2% | 24% | 1.7 |
+| Deliver + Escort/Survey/Tanker | 32 | 1% | 28% | 1.7 |
+| Deliver + Escort/Salvage/Survey | 32 | 1% | 25% | 2.1 |
+| Destroy + Piracy/Survey/Tanker | 31 | 1% | 26% | 1.8 |
+| Destroy + Piracy/Salvage/Tanker | 29 | 1% | 24% | 1.7 |
+| Destroy + Escort/Escort/Tanker | 26 | 1% | 15% | 1.2 |
+| Destroy + Escort/Salvage/Salvage | 22 | 1% | 32% | 1.9 |
+| Intercept + Escort/Survey/Survey | 22 | 1% | 18% | 1.5 |
+| Intercept + Escort/Salvage/Salvage | 22 | 1% | 23% | 1.5 |
+| Intercept + Survey/Survey/Tanker | 22 | 1% | 14% | 1.3 |
+| Deliver + Escort/Salvage/Tanker | 22 | 1% | 32% | 2.1 |
+| Intercept + Escort/Tanker/Tanker | 22 | 1% | 9% | 1.4 |
+| Intercept + Salvage/Salvage/Survey | 22 | 1% | 36% | 1.7 |
+| Intercept + Piracy/Piracy/Salvage | 21 | 1% | 19% | 1.4 |
+| Intercept + Salvage/Salvage/Tanker | 20 | 1% | 10% | 1.4 |
+| Destroy + Piracy/Piracy/Tanker | 20 | 1% | 20% | 1.7 |
+| Deliver + Salvage/Survey/Survey | 20 | 1% | 40% | 2 |
+| Destroy + Escort/Tanker/Tanker | 20 | 1% | 25% | 1.5 |
+| Destroy + Survey/Survey/Tanker | 19 | 1% | 21% | 1.9 |
+| Deliver + Escort/Salvage/Salvage | 19 | 1% | 42% | 2.4 |
+| Deliver + Salvage/Survey/Tanker | 19 | 1% | 32% | 2.1 |
+| Destroy + Piracy/Piracy/Salvage | 19 | 1% | 26% | 1.7 |
+| Deliver + Escort/Escort/Salvage | 18 | 1% | 33% | 1.8 |
+| Destroy + Salvage/Survey/Survey | 18 | 1% | 33% | 1.8 |
+| Intercept + Escort/Escort/Survey | 18 | 1% | 11% | 0.8 |
+| Deliver + Salvage/Salvage/Survey | 17 | 1% | 18% | 1.7 |
+| Deliver + Escort/Escort/Survey | 17 | 1% | 24% | 1.9 |
+| Destroy + Escort/Escort/Survey | 16 | 1% | 19% | 1.6 |
+| Intercept + Survey/Tanker/Tanker | 16 | 1% | 19% | 1 |
+| Destroy + Salvage/Tanker/Tanker | 16 | 1% | 44% | 2.1 |
+| Destroy + Escort/Escort/Salvage | 16 | 1% | 25% | 1.8 |
+| Intercept + Piracy/Tanker/Tanker | 16 | 1% | 13% | 1.4 |
+| Intercept + Escort/Escort/Piracy | 16 | 1% | 13% | 1.1 |
+| Deliver + Survey/Tanker/Tanker | 15 | 1% | 47% | 1.9 |
+| Deliver + Salvage/Tanker/Tanker | 15 | 1% | 40% | 2.4 |
+| Destroy + Escort/Escort/Piracy | 15 | 1% | 27% | 1.8 |
+| Destroy + Salvage/Salvage/Tanker | 15 | 1% | 20% | 1.8 |
+| Deliver + Piracy/Piracy/Tanker | 15 | 1% | 7% | 1.3 |
+| Deliver + Piracy/Tanker/Tanker | 14 | 1% | 29% | 2 |
+| Deliver + Piracy/Survey/Survey | 14 | 1% | 21% | 1.6 |
+| Intercept + Piracy/Piracy/Tanker | 14 | 1% | 14% | 1.2 |
+| Intercept + Piracy/Piracy/Survey | 14 | 1% | 21% | 1.1 |
+| Intercept + Escort/Escort/Tanker | 14 | 1% | 21% | 1.1 |
+| Destroy + Survey/Tanker/Tanker | 13 | 1% | 38% | 1.8 |
+| Destroy + Piracy/Salvage/Salvage | 13 | 1% | 0% | 1.8 |
+| Deliver + Escort/Survey/Survey | 13 | 1% | 23% | 1.8 |
+| Deliver + Escort/Escort/Tanker | 13 | 1% | 38% | 2.2 |
+| Deliver + Piracy/Piracy/Salvage | 13 | 1% | 15% | 1.8 |
+| Destroy + Piracy/Survey/Survey | 13 | 1% | 8% | 1.8 |
+| Intercept + Escort/Escort/Salvage | 13 | 1% | 8% | 1.2 |
+| Intercept + Piracy/Survey/Survey | 12 | 1% | 17% | 1.3 |
+| Deliver + Piracy/Piracy/Survey | 12 | 1% | 17% | 1.5 |
+| Intercept + Escort/Piracy/Piracy | 12 | 1% | 17% | 1.8 |
+| Destroy + Piracy/Tanker/Tanker | 12 | 1% | 8% | 1.6 |
+| Destroy + Piracy/Piracy/Survey | 12 | 1% | 0% | 1.6 |
+| Deliver + Escort/Escort/Piracy | 11 | 1% | 9% | 1.7 |
+| Deliver + Piracy/Salvage/Salvage | 11 | 1% | 27% | 1.5 |
+| Intercept + Salvage/Tanker/Tanker | 11 | 1% | 9% | 1.5 |
+| Deliver + Escort/Piracy/Piracy | 11 | 1% | 18% | 1.5 |
+| Destroy + Salvage/Salvage/Survey | 11 | 1% | 64% | 2.4 |
+| Intercept + Piracy/Salvage/Salvage | 11 | 1% | 27% | 1.5 |
+| Deliver + Escort/Tanker/Tanker | 11 | 1% | 27% | 2.3 |
+| Deliver + Salvage/Salvage/Tanker | 11 | 1% | 64% | 2.5 |
+| Deliver + Survey/Survey/Tanker | 10 | 0% | 20% | 1.2 |
+| Destroy + Escort/Piracy/Piracy | 10 | 0% | 20% | 1.7 |
+| Destroy + Escort/Survey/Survey | 10 | 0% | 10% | 1.6 |
+| Intercept + Salvage/Survey/Survey | 9 | 0% | 44% | 2.3 |
+| Intercept + Survey/Survey/Survey | 6 | 0% | 0% | 1.7 |
+| Intercept + Tanker/Tanker/Tanker | 6 | 0% | 0% | 0.8 |
+| Deliver + Piracy/Piracy/Piracy | 5 | 0% | 0% | 2 |
+| Deliver + Survey/Survey/Survey | 4 | 0% | 25% | 1.3 |
+| Destroy + Piracy/Piracy/Piracy | 4 | 0% | 25% | 1.8 |
+| Intercept + Salvage/Salvage/Salvage | 3 | 0% | 0% | 1.3 |
+| Destroy + Salvage/Salvage/Salvage | 3 | 0% | 0% | 0.7 |
+| Destroy + Tanker/Tanker/Tanker | 2 | 0% | 50% | 1.5 |
+| Deliver + Salvage/Salvage/Salvage | 2 | 0% | 0% | 1.5 |
+| Intercept + Escort/Escort/Escort | 2 | 0% | 0% | 1.5 |
+| Intercept + Piracy/Piracy/Piracy | 2 | 0% | 0% | 1 |
+| Deliver + Tanker/Tanker/Tanker | 2 | 0% | 0% | 1 |
+| Deliver + Escort/Escort/Escort | 1 | 0% | 0% | 2 |
+| Destroy + Escort/Escort/Escort | 1 | 0% | 0% | 0 |
+| Destroy + Survey/Survey/Survey | 1 | 0% | 0% | 2 |
 
-_Every hand is one primary and two secondaries, which is four points held for the 3 that win, so the row is the primary a seat took and what it took beside it. A hand nobody keeps is a plan the table never tested._
+_Every hand is one primary and three secondaries, which is five points held for the 3 that win, so the row is the primary a seat took and what it took beside it. A hand nobody keeps is a plan the table never tested._
 
 ## Hulls the bots chose
 
 | hull | seats | share of seats | win rate |
 |---|---|---|---|
-| fuel_compressor,ballistic_rack,ballistic_rack,shields,radiator | 350 | 16% | 23% |
-| railgun,plasma_cannon,plasma_cannon,laser,radiator | 274 | 13% | 21% |
-| sensor_array,missiles,missiles,radiator,shields | 264 | 12% | 19% |
-| missiles,laser,laser,laser,radiator | 238 | 11% | 28% |
-| sensor_array,laser,ballistic_rack,shields,radiator | 237 | 11% | 13% |
-| fuel_compressor,missiles,missiles,radiator,shields | 179 | 8% | 40% |
-| sensor_array,shields,shields,radiator,laser | 155 | 7% | 15% |
-| disruptor,plasma_cannon,plasma_cannon,shields,radiator | 149 | 7% | 15% |
-| sensor_array,shields,disruptor,radiator,plasma_cannon | 114 | 5% | 12% |
-| railgun,laser,ballistic_rack,shields,radiator | 112 | 5% | 30% |
-| fuel_compressor,disruptor,laser,plasma_cannon,radiator | 63 | 3% | 35% |
-| fuel_compressor,shields,shields,radiator,laser | 25 | 1% | 32% |
+| fuel_compressor,ballistic_rack,ballistic_rack,shields,radiator | 411 | 19% | 24% |
+| railgun,plasma_cannon,plasma_cannon,laser,radiator | 371 | 17% | 18% |
+| sensor_array,missiles,missiles,radiator,shields | 370 | 17% | 21% |
+| missiles,laser,laser,laser,radiator | 250 | 12% | 31% |
+| sensor_array,laser,ballistic_rack,shields,radiator | 246 | 11% | 13% |
+| fuel_compressor,missiles,missiles,radiator,shields | 175 | 8% | 34% |
+| disruptor,plasma_cannon,plasma_cannon,shields,radiator | 117 | 5% | 21% |
+| sensor_array,shields,shields,radiator,laser | 116 | 5% | 17% |
+| sensor_array,shields,disruptor,radiator,plasma_cannon | 38 | 2% | 11% |
+| railgun,laser,ballistic_rack,shields,radiator | 35 | 2% | 29% |
+| fuel_compressor,disruptor,laser,plasma_cannon,radiator | 27 | 1% | 33% |
+| fuel_compressor,shields,shields,radiator,laser | 4 | 0% | 25% |
 
 _A hull's win rate is against the field, so the fair share is 1/seats, about 25% across a 3–6 seat mix._
 
@@ -127,14 +187,14 @@ _A hull's win rate is against the field, so the fair share is 1/seats, about 25%
 
 | card | offered | kept | pick rate | completed per 100 kept | share of winning cards |
 |---|---|---|---|---|---|
-| Deliver | 1881 | 617 | 33% | 68 | 19% |
-| Destroy | 2314 | 773 | 33% | 65 | 19% |
-| Intercept | 2285 | 770 | 34% | 55 | 12% |
-| Survey | 1282 | 847 | 66% | 21 | 11% |
-| Piracy | 1279 | 872 | 68% | 12 | 7% |
-| Tanker | 1292 | 843 | 65% | 22 | 12% |
-| Escort | 1327 | 893 | 67% | 12 | 6% |
-| Salvage | 1300 | 865 | 67% | 20 | 14% |
+| Deliver | 1881 | 617 | 33% | 65 | 17% |
+| Destroy | 2314 | 773 | 33% | 70 | 18% |
+| Intercept | 2285 | 770 | 34% | 54 | 14% |
+| Survey | 1282 | 1282 | 100% | 15 | 10% |
+| Piracy | 1279 | 1279 | 100% | 10 | 8% |
+| Tanker | 1292 | 1292 | 100% | 13 | 11% |
+| Escort | 1327 | 1327 | 100% | 12 | 9% |
+| Salvage | 1300 | 1300 | 100% | 12 | 12% |
 
 _Pick rate is the read on a card: one nobody keeps does not exist, whatever it would score. Two piles serve the table and each is dealt against its own choice, so pick rates inside a pile compare and the two piles do not; setup takes out the rival cards a table this size cannot use, so the offered column is not flat across seat counts._
 
@@ -142,14 +202,14 @@ _Pick rate is the read on a card: one nobody keeps does not exist, whatever it w
 
 | card | first step | started | round started (median) | lost per 100 started: kill / Piracy / fuel | rounds from step to score (median) | scored | started, open at the end |
 |---|---|---|---|---|---|---|---|
-| Deliver | crate loaded | 93% | 3 | 13 / 10 / - | 8 | 68% | 18% |
-| Destroy | target hit | 92% | 3 | - | 3 | 65% | 26% |
-| Intercept | target scanned | 95% | 2 | 71 / 32 / - | 8 | 55% | 16% |
-| Survey | dive made | 85% | 1 | 112 / 49 / - | 12 | 21% | 38% |
-| Piracy | item taken | 70% | 8 | 93 / 136 / - | 8 | 12% | 21% |
-| Tanker | in a planet's well with 5 fuel | 71% | 12 | 6 / 0 / 226 | 2 | 22% | 11% |
-| Escort | marker placed | 94% | 5 | 112 / 90 / 50 | 5 | 12% | 47% |
-| Salvage | box taken | 69% | 12 | 95 / 27 / - | 8 | 20% | 26% |
+| Deliver | crate loaded | 92% | 3 | 11 / 13 / - | 8 | 65% | 17% |
+| Destroy | target hit | 91% | 3 | - | 3 | 70% | 22% |
+| Intercept | target scanned | 94% | 2 | 69 / 41 / - | 8 | 54% | 16% |
+| Survey | dive made | 82% | 2 | 110 / 54 / - | 12 | 15% | 37% |
+| Piracy | item taken | 72% | 7 | 87 / 133 / - | 9 | 10% | 24% |
+| Tanker | in a planet's well with 5 fuel | 65% | 12 | 7 / 0 / 218 | 2 | 13% | 10% |
+| Escort | marker placed | 90% | 5 | 114 / 89 / 43 | 5 | 12% | 44% |
+| Salvage | box taken | 60% | 13 | 85 / 25 / - | 8 | 12% | 27% |
 
 _Shares are of the cards kept. A loss is the item gone before it scored: the ship destroyed with it aboard, a pirate taking it, or a Tanker leaving the planet's well or burning under the fuel it needs. Escort's three are its own: the escort destroyed, the marked ship destroyed (either way the marker comes back) and the marked ship selling with the escort out of its well (the marker stays out). The step to score is timed from the last time the step was done. A card still open at the end was started, holds its item, marker or fuel, and the game ended first._
 

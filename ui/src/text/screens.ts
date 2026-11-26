@@ -83,7 +83,7 @@ export const SCREENS = {
     },
     secondary: {
       title: 'Secondary missions',
-      hint: 'Worth {points} each, any two, two of a kind included: the second is your spare.',
+      hint: 'Worth {points} each, and you keep all three: three of them win without the primary.',
     },
     waitingForDeal: 'Waiting for the mission deal…',
     /** One card the loadout cannot fly, "Destroy Ana needs a weapon.". */
@@ -120,7 +120,7 @@ export const SCREENS = {
       laser:
         'Side gun, {damage} damage, ignores shields. Warning: do not point at cats. Or people in ships.',
       shields:
-        "Absorbs {points} damage a cube, {plasma} of plasma, never lasers, and every point absorbed is heat; powered at all, it stops a disruptor. For people who don't like to be touched.",
+        "Absorbs {points} damage a cube, {plasma} of plasma, never lasers, and every point absorbed is heat; powered at all, it stops a disruptor's hit. For people who don't like to be touched.",
       radiator:
         'Passive: +{dissipation} heat dissipation at every check. Keep away from direct sunlight.',
       fuel_compressor:
@@ -130,7 +130,7 @@ export const SCREENS = {
       plasma_cannon:
         'Side gun, {damage} damage within {rings} ring and {sectors} sector, one side; shields stop it {plasma} points a cube. Hot stuff.',
       disruptor:
-        "Either slot, {energy} cubes, the rack's reach, no damage: a hit breaks the subsystem you name, unless any shield is powered. Have you tried turning it off and on again?",
+        "Either slot, {energy} cubes, the rack's reach, no damage: a hit breaks the subsystem you name, unless any shield is powered; a critical breaks it anyway. Have you tried turning it off and on again?",
     },
     /** The Systems tab (`ships/ShipControls.tsx`): role and preset, the mounts, the refit. */
     systems: {

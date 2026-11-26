@@ -162,24 +162,83 @@ export function SiteFooter() {
   )
 }
 
-/** A page's heading: the kicker, the headline, and a sentence under it. */
+/**
+ * A page's heading: the kicker, the headline, and a sentence under it.
+ *
+ * `fold` is for a page that is used on a phone at the table: under 600px the
+ * kicker and the rule go, the headline shrinks, and the sentence folds away
+ * under a line with this label, so the tool itself starts near the top.
+ */
 export function PageTitle({
   kicker,
   title,
   blurb,
+  fold,
 }: {
   kicker?: string
   title: string
   blurb?: ReactNode
+  fold?: string
 }) {
+  const phone = fold ? 'none' : 'block'
   return (
-    <Box sx={{ mb: { xs: 3, sm: 4 } }}>
-      {kicker && <Kicker>{kicker}</Kicker>}
-      <Display component="h1" size={{ xs: '2.6rem', sm: '3.8rem' }} sx={{ mt: 0.75 }}>
+    <Box sx={{ mb: { xs: fold ? 1.5 : 3, sm: 4 } }}>
+      {kicker && (
+        <Box sx={{ display: { xs: phone, sm: 'block' } }}>
+          <Kicker>{kicker}</Kicker>
+        </Box>
+      )}
+      <Display
+        component="h1"
+        size={{ xs: fold ? '2rem' : '2.6rem', sm: '3.8rem' }}
+        sx={{ mt: { xs: fold ? 0 : 0.75, sm: 0.75 } }}
+      >
         {title}
       </Display>
-      <Box sx={{ width: 96, height: 8, bgcolor: PRESS.red, mt: 2, mb: blurb ? 2 : 0 }} />
-      {blurb && <Body size={{ xs: '1rem', sm: '1.08rem' }}>{blurb}</Body>}
+      <Box
+        sx={{
+          display: { xs: phone, sm: 'block' },
+          width: 96,
+          height: 8,
+          bgcolor: PRESS.red,
+          mt: 2,
+          mb: blurb ? 2 : 0,
+        }}
+      />
+      {blurb && (
+        <Box sx={{ display: { xs: phone, sm: 'block' } }}>
+          <Body size={{ xs: '1rem', sm: '1.08rem' }}>{blurb}</Body>
+        </Box>
+      )}
+      {blurb && fold && (
+        <Box
+          component="details"
+          sx={{
+            display: { xs: 'block', sm: 'none' },
+            mt: 0.5,
+            '& > summary': {
+              listStyle: 'none',
+              minHeight: 44,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              cursor: 'pointer',
+              fontFamily: FONT_DISPLAY,
+              fontWeight: 600,
+              fontSize: '0.95rem',
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: PRESS.redText,
+            },
+            '& > summary::-webkit-details-marker': { display: 'none' },
+            '& > summary::before': { content: '"▸"' },
+            '&[open] > summary::before': { content: '"▾"' },
+          }}
+        >
+          <summary>{fold}</summary>
+          <Body size="1rem">{blurb}</Body>
+        </Box>
+      )}
     </Box>
   )
 }

@@ -14,7 +14,12 @@ import {
 } from '../../game/missions/missionChecks.ts'
 import { createGame } from '../../game/setup.ts'
 import { viewFor } from '../../game/view.ts'
-import { MISSION_FAMILY, MISSIONS_PER_PLAYER, isPrimaryType } from '../../models/missions.ts'
+import {
+  MISSION_FAMILY,
+  MISSIONS_PER_PLAYER,
+  SECONDARIES_PER_PLAYER,
+  isPrimaryType,
+} from '../../models/missions.ts'
 import type { Mission } from '../../models/missions.ts'
 import type { GameState } from '../../models/game.ts'
 import { PLANETS } from '../../models/gravityWells.ts'
@@ -226,7 +231,7 @@ describe('missions: deck', () => {
     const offers = dealMissionOffers(ids(2), new Rng(7)).get('p1')!
     const hand = [
       ...offers.filter(m => isPrimaryType(m.type)).slice(0, 1),
-      ...offers.filter(m => !isPrimaryType(m.type)).slice(0, 2),
+      ...offers.filter(m => !isPrimaryType(m.type)).slice(0, SECONDARIES_PER_PLAYER),
     ]
     const picked = selectMissionsFromOffers(
       offers,
@@ -245,10 +250,12 @@ describe('missions: deck', () => {
     ['two Escorts', [escortMission('e-a'), escortMission('e-b')]],
     ['two Salvages', [salvageMission('v-a'), salvageMission('v-b')]],
   ])('keeps %s beside a primary: two of a kind is a legal hand', (_label, pair) => {
-    const offers = [destroyMission('p2'), interceptMission('p2'), ...pair, tankerMission()]
-    const picked = selectMissionsFromOffers(offers, [offers[0].id, pair[0].id, pair[1].id])
+    const third = tankerMission()
+    const offers = [destroyMission('p2'), interceptMission('p2'), ...pair, third]
+    const hand = [offers[0].id, pair[0].id, pair[1].id, third.id]
+    const picked = selectMissionsFromOffers(offers, hand)
     expect(picked.error).toBeUndefined()
-    expect(picked.missions.map(m => m.id)).toEqual([offers[0].id, pair[0].id, pair[1].id])
+    expect(picked.missions.map(m => m.id)).toEqual(hand)
   })
 
   // Sized off the rule, not off a number: the hand has already changed once.

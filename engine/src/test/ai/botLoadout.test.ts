@@ -123,15 +123,16 @@ describe('botChooseLoadout', () => {
         piracyMission('piracy-a'),
         tankerMission('tanker-a'),
       ],
-      9,
+      // Every secondary is kept, so the hand is the primary's pick.
+      3,
     ],
     // Two of a kind are two jobs (RULES §Missions): three of one kind is a hand.
-    ['three Surveys', [DESTROY, surveyMission('a'), surveyMission('b'), surveyMission('c')], 3],
+    ['three Surveys', [DESTROY, surveyMission('a'), surveyMission('b'), surveyMission('c')], 1],
     // The hold has no limit, so nothing clashes with a Deliver's crate.
     [
       'a Deliver beside Piracy and Salvage',
       [DELIVER, piracyMission('a'), salvageMission('b'), tankerMission('c')],
-      3,
+      1,
     ],
   ])('reaches every hand of %s with the seeded pick', (_label, offers, count) => {
     const hands = validHands(offers)

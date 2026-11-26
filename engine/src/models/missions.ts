@@ -58,7 +58,7 @@ export const SECONDARY_OFFERS_PER_PLAYER = 3
  * three a seat (eighteen), and five kinds of four is twenty.
  */
 export const SECONDARY_COPIES_PER_KIND = 4
-export const SECONDARIES_PER_PLAYER = 2
+export const SECONDARIES_PER_PLAYER = 3
 
 export const MISSIONS_PER_PLAYER = PRIMARIES_PER_PLAYER + SECONDARIES_PER_PLAYER
 export const MISSION_OFFERS_PER_PLAYER = PRIMARY_OFFERS_PER_PLAYER + SECONDARY_OFFERS_PER_PLAYER

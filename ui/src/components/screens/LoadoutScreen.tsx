@@ -84,8 +84,14 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
   const disabled = submitted || submitting || readOnly
   const loadout = submitted ? me.ship.loadout : draft.loadout
   const appearance = submitted ? resolveShipAppearance(me.appearance) : draft.appearance
-  const missionIds = submitted ? me.missions.map(m => m.id) : draft.missionIds
   const offers = me.missionOffers.length ? me.missionOffers : me.missions
+  // A pile dealt no more cards than it keeps is kept whole: every secondary (RULES §Missions).
+  const secondaryOffers = offers.filter(m => !isPrimaryType(m.type))
+  const keptWhole =
+    secondaryOffers.length <= SECONDARIES_PER_PLAYER ? secondaryOffers.map(m => m.id) : []
+  const missionIds = submitted
+    ? me.missions.map(m => m.id)
+    : [...draft.missionIds.filter(id => !keptWhole.includes(id)), ...keptWhole]
   const seat = view.players.findIndex(p => p.id === me.id)
   const accent = getPlayerColor(seat)
   const config = useMemo(
@@ -158,8 +164,8 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
   }
   /**
    * Two piles, two decisions (RULES §Missions). Taking a primary swaps out the
-   * one you were holding, because there is only ever room for one; the second
-   * list fills up and then waits for you to drop something.
+   * one you were holding, because there is only ever room for one; a pile
+   * that keeps every card it was dealt is not a choice and takes no clicks.
    */
   const pile = (cards: typeof offers, keep: number, title: string, hint: string) => {
     const chosen = cards.filter(m => missionIds.includes(m.id))
@@ -191,7 +197,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
               selected={missionIds.includes(m.id)}
               requires={missionRequirementStatus(m.type, loadout)}
               onClick={
-                disabled
+                disabled || cards.length <= keep
                   ? undefined
                   : () => {
                       const mine = cards.filter(c => missionIds.includes(c.id))
@@ -224,7 +230,7 @@ function LoadoutEditor({ me, headerRight }: { me: Player; headerRight?: ReactNod
         })
       )}
       {pile(
-        offers.filter(m => !isPrimaryType(m.type)),
+        secondaryOffers,
         SECONDARIES_PER_PLAYER,
         S.secondary.title,
         fill(S.secondary.hint, { points: MISSION_POINTS.survey })

@@ -193,8 +193,6 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
       disruptor: cubes('disruptor'),
       disruptorRings: weapon('disruptor').ringRange,
       disruptorSectors: weapon('disruptor').sectorRange,
-      miss: faces(1, miss.length),
-      disruptorHits: faces(firstHit, D10_FACES),
     }),
     T.pointBlank,
     fill(T.firstRound, { homeRings: orList(HOME_RINGS), deploymentGap: DEPLOYMENT_GAP }),

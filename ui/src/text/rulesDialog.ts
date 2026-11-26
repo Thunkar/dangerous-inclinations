@@ -40,7 +40,7 @@ export const RULES_DIALOG = {
     ['Dissipation', 'dissipate {dissipation} (+{radiator} per radiator) at every check'],
     [
       'Shields',
-      'power at {halfShield} or {fullShield}. Each energy absorbs {shieldPoints} damage ({plasmaPoints} of plasma) and is spent until that player’s turn ends, so the wall is whole for the next attacker. Every point absorbed is heat on your track, paid at your next check. Power them every turn you want them up. Lasers ignore them. Any powered shield stops a disruptor whole',
+      'power at {halfShield} or {fullShield}. Each energy absorbs {shieldPoints} damage ({plasmaPoints} of plasma) and is spent until that player’s turn ends, so the wall is whole for the next attacker. Every point absorbed is heat on your track, paid at your next check. Power them every turn you want them up. Lasers ignore them. Any powered shield stops a disruptor’s hit whole, never its critical',
     ],
     [
       'Ballistic rack',
@@ -111,15 +111,15 @@ export const RULES_DIALOG = {
     ],
     [
       'Keeping cards',
-      '{primaryOffers} primaries keep {primaries}, {secondaryOffers} secondaries keep any {secondaries}, rest to a shared discard. Intercept needs a sensor array, Destroy needs a weapon that deals damage (not a disruptor alone)',
+      '{primaryOffers} primaries keep {primaries}, {secondaryOffers} secondaries keep {secondaries}, rest to a shared discard. Intercept needs a sensor array, Destroy needs a weapon that deals damage (not a disruptor alone)',
     ],
     [
       'Hand',
-      '{primaries} primary of {primaryOffers} dealt, {secondaries} of {secondaryOffers} secondaries dealt. {handPoints} points held, {pointsToWin} win: the primary and either secondary',
+      '{primaries} primary of {primaryOffers} dealt, {secondaries} of {secondaryOffers} secondaries dealt. {handPoints} points held, {pointsToWin} win: the primary and any secondary, or all three secondaries',
     ],
     [
       'Win',
-      '{pointsToWin} points trigger the final round. When it ends, highest score wins (hull, then fuel, then the earlier seat, break ties). Your primary and either secondary is a win, two secondaries are not',
+      '{pointsToWin} points trigger the final round. When it ends, highest score wins (hull, then fuel, then the earlier seat, break ties). Your primary and any secondary is a win, and so are all three secondaries',
     ],
   ],
 

@@ -12,9 +12,9 @@
  * critical breaks the slot the attacker named whether or not the shot reached
  * the hull.
  *
- * A disruptor deals no damage and never criticals: a hit breaks the named slot
- * unless the target has a shield with cubes still ready this turn, which
- * blocks it whole.
+ * A disruptor deals no damage: a hit breaks the named slot unless the target
+ * has a shield with cubes still ready this turn, which blocks it whole, and a
+ * critical breaks it through shields, as every critical does.
  */
 import type { ShipState } from '../models/game.ts'
 import { BASE_CRITICAL_FACE } from '../models/game.ts'
@@ -72,9 +72,7 @@ export function resolveAttack(
 ): AttackOutcome {
   const { ignoresShields = false, disrupts = false } = options
   const perCube = options.shieldPointsPerEnergy ?? SHIELD_POINTS_PER_ENERGY
-  // A disruptor has no critical to widen: 2-10 is a hit whatever a sensor says.
-  const rolled = rollToResult(roll, lowestCriticalFace(attacker.subsystems))
-  const result = disrupts && rolled === 'critical' ? 'hit' : rolled
+  const result = rollToResult(roll, lowestCriticalFace(attacker.subsystems))
 
   if (result === 'miss') {
     return {
@@ -93,7 +91,7 @@ export function resolveAttack(
   const events: EventDraft[] = []
   let ship = target
 
-  if (disrupts) return disrupt(ship, targetPlayerId, criticalTarget, roll, attackerPlayerId)
+  if (disrupts) return disrupt(ship, targetPlayerId, criticalTarget, roll, result, attackerPlayerId)
 
   // Shields absorb first, tile by tile in slot order, except laser damage,
   // which goes straight to the hull.
@@ -193,25 +191,29 @@ function breakNamed(
 }
 
 /**
- * A disruptor hit. Any working shield with cubes ready this turn
- * ({@link shieldCubesReady}) blocks it whole: nothing is
- * spent and no heat taken, and the first such shield in slot order turns
- * face-up, since it did something. Otherwise the named slot breaks as a
- * critical breaks it (its cubes dump as heat; a broken slot stays broken).
+ * A disruptor hit. On a plain hit any working shield with cubes ready this
+ * turn ({@link shieldCubesReady}) blocks it whole: nothing is spent and no
+ * heat taken, and the first such shield in slot order turns face-up, since it
+ * did something. A critical goes through shields, as every critical does
+ * (playtest of 26 Nov 2026), and touches none of them. Otherwise the named
+ * slot breaks as a critical breaks it (its cubes dump as heat; a broken slot
+ * stays broken).
  */
 function disrupt(
   ship: ShipState,
   targetPlayerId: string,
   criticalTarget: SubsystemId,
   roll: number,
+  result: 'hit' | 'critical',
   attackerPlayerId: string | undefined
 ): AttackOutcome {
-  const shield = ship.subsystems.find(
-    s => s.type === 'shields' && shieldCubesReady(s) > 0 && !s.isBroken
-  )
+  const shield =
+    result === 'critical'
+      ? undefined
+      : ship.subsystems.find(s => s.type === 'shields' && shieldCubesReady(s) > 0 && !s.isBroken)
   const hitResult: WeaponHitResult = {
     roll,
-    result: 'hit',
+    result,
     damage: 0,
     damageToHull: 0,
     absorbed: 0,

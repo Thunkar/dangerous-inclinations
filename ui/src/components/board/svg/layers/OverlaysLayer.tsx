@@ -113,7 +113,15 @@ export const SectorPicker = memo(function SectorPicker({
                 fillOpacity={lit ? 0.5 : 1}
                 stroke={lit ? ROUTE_ACCENT : 'none'}
                 strokeWidth={1}
-                onPointerDown={event => event.stopPropagation()}
+                /*
+                 * A mouse press on a sector is a pick, never a pan. A finger's
+                 * is left to the board, which pans or pinches only once the
+                 * fingers move, so a tap still picks and the wedges, which
+                 * cover most of the board, do not stop a pinch.
+                 */
+                onPointerDown={event => {
+                  if (event.pointerType === 'mouse') event.stopPropagation()
+                }}
                 onClick={event => {
                   event.stopPropagation()
                   onPick(position)

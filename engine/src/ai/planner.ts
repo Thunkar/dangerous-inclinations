@@ -48,7 +48,7 @@ import { heatAfterCheck, heatDamage } from '../game/heat.ts'
 import type { ActionPlan, BotParameters, Opponent, TacticalSituation } from './types.ts'
 import { INTERDICT_DANGER } from './types.ts'
 import {
-  MAX_DISRUPT_BLOCK,
+  disruptWorthFiring,
   chooseCriticalTarget,
   chooseDisruptTarget,
   denialTokens,
@@ -674,8 +674,10 @@ function sizeShot(
 
 /**
  * The disruptor, once the damage shots are queued: a hit breaks the slot it
- * names unless any powered shield is up, so it fires only at a ship whose
- * shields look down by the time it shoots. It goes last in its phase, so
+ * names unless any powered shield is up, and a critical breaks it through
+ * shields, so it fires at a ship whose shields look down by the time it
+ * shoots, or, with a sensor aboard to widen the critical, at any ship
+ * ({@link disruptWorthFiring}). It goes last in its phase, so
  * the shots at the same ship before it (the pre phase's, and the post
  * phase's too when it fires after the move) have stripped what cubes they
  * can. A salvo counts when it lands on its launch flight and no rack of
@@ -709,7 +711,7 @@ function chooseDisruption(
         ...d,
         block: disruptBlockChance(d.opponent, ahead(d.opponent, d.intent.phase)),
       }))
-      .filter(d => d.block <= MAX_DISRUPT_BLOCK)
+      .filter(d => disruptWorthFiring(situation.status.sensors, d.block))
       // The volley's own target first, then a ship worth killing, then the one
       // nearest the win; the likelier hit, then the earlier phase, breaks ties.
       .sort(

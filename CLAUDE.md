@@ -91,9 +91,9 @@ way through the black hole's lanes). Two physical decks for the table: rival car
 ("the 2nd to your left") so no card can name its own holder and none leaks who
 is hunting whom; setup removes offsets the table is too small for. Deal 3
 primaries and keep 1; deal 3 secondaries from a shuffled pile (four of each
-of the five) and keep any 2: two of a kind are two jobs, nothing completes
-both at once. Four points held and three win, so the primary plus either
-secondary is the win and the other secondary is the spare. The secondary
+of the five) and keep all 3: two of a kind are two jobs, nothing completes
+both at once. Five points held and three win: the primary plus any
+secondary, or all three secondaries without it. The secondary
 offer differs seat to seat, so the five have to be worth roughly the same or
 the deal is a lottery.
 New mission types are proposed to the designer, never added unasked.
@@ -379,7 +379,11 @@ pad), and a station is a destination of its own: the route is planned against
 where it will be (`planMovementToTarget` with `orbitingTarget`), not where it
 is; every route offers fastest, balanced and economical alternatives
 (`planMovementAlternatives` to a fixed sector, `planAlternativesToTarget` to a
-station or with fuel to arrive with). The route planner page ends with **the
+station or with fuel to arrive with). On a phone the board pinches and pans
+(a tap still picks a sector), "fit route" frames the legs, and **Done** flies
+the route's first step: the ship moves to its end, the stations advance a
+round, and the rest of the route stays as planned (`tools/routeProgress.ts`,
+undo 20 steps). The route planner page ends with **the
 orbital windows** (`tools/OrbitalWindows.tsx`, words in `text/windows.ts`):
 the station clock every station shares, the same clock the planner's
 "Stations now at" sets, and three hints (when to reach a lane mouth, arrive
@@ -838,7 +842,8 @@ not an argument:
 - **Four points to win with three mandatory cards.** 41–49 rounds by seat
   count; three points with the same hand runs 27–31 and every game finishes.
   Keeping all three secondaries (any three points) let Deliver holders win 44%
-  while completing Deliver 21% of the time, so the primary stays mandatory.
+  while completing Deliver 21% of the time, so the primary stayed mandatory;
+  under three points and today's cards it no longer does (below, 26 Nov 2026).
 - **An "efficiency" secondary: end a turn at 10 heat with an empty tank.**
   84% of seats do both in one turn incidentally by round 11 (24% of turns end
   at exactly 10 heat, 20% dry). A free point as stated; it needs a cost.
@@ -1327,6 +1332,32 @@ not an argument:
   first scan still in round 2, so the early-scan problem below is not
   this rule's to fix. A scan that needs a turn costs 3 heat, as a railgun
   shot does.
+- **A disruptor's critical goes through shields.** Adopted 26 Nov 2026 from
+  the first tabletop playtest: the disruptor rolls like every weapon (a 10
+  is a critical, 8–10 with a powered sensor), and a critical breaks the
+  named slot whatever the shields hold, as every critical does; a hit is
+  still stopped whole by a shield with cubes unspent. The bots fire it into
+  a wall only with a sensor up (a 30% critical); without one they keep the
+  old line. Measured against the rules before on the same seeds, 200 games
+  a row over 62 rows: mean +0.1pp, median 0, nothing moved 5pp; raider with
+  Intercept 24 → 28% against a 32.5 bar, warden with Destroy 31.5 → 33.5%;
+  natural play 27 rounds and 2.9 / 6.0 → 2.9 / 5.9 kills at three / four
+  seats; the raider's natural win rate 11 → 15% (benchmark).
+- **Keeping all three secondaries.** Adopted 26 Nov 2026 from the first
+  tabletop playtest: three secondaries are dealt and all three kept, and all
+  three done without the primary is three points and a win. The objection
+  in the four-points entry above (Deliver holders winning on secondaries)
+  does not survive today's cards and three points. Benchmark at 300 games a seat
+  count against keep-any-two: rounds 27 / 27 / 29 / 29 → 27 / 27 / 28 / 29,
+  kills 2.5 / 12.5 → 2.8 / 13.4 at three / six seats, Deliver / Destroy /
+  Intercept completed per 100 kept 68 / 67 / 55 → 65 / 69 / 53, and 1 game
+  in 1,180 won on three secondaries alone. A seat forced to ignore its
+  primary and play the three wins 12% at three seats (42.5% playing
+  normally) and 11% at four (25%). Bots that chase the nearest card once
+  any card would win read the same, so neither switch was kept. Balance,
+  200 games a row over the natural, baseline and logical rows: mean +2pp;
+  the one number to watch is dealt Destroy 33 → 41.5% (warden 31.5 → 44%),
+  because hunters keep the Salvage and Piracy their kills feed.
 
 Known open problems:
 
@@ -1351,8 +1382,9 @@ Known open problems:
   shield up 40–45% of turns, so it hits mostly ships that walls have left.
   Since shields went to a point a cube (4 Oct 2026) the immunity costs one
   heat a check instead of two: blocked disruptor hits rose from about one in
-  thirteen to one in five at three seats. A shield that stops it by spending
-  cubes, rather than at any level, is the untried variant.
+  thirteen to one in five at three seats. Since 26 Nov 2026 a critical gets
+  through (above), so the immunity holds for a hit only. A shield that stops
+  it by spending cubes, rather than at any level, is the untried variant.
 - **The compressor with two guns and a wall beats the hunters in a duel.**
   Both hands dealt Destroy, 400 games each with seats swapped (1 Oct 2026):
   compressor + plasma×2 + shields + radiator 219–161 against the railgun +

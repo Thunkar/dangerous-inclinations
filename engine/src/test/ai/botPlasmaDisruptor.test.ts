@@ -190,7 +190,13 @@ describe('a salvo that lands on its launch flight strips a wall for the disrupto
 
   it.each<[string, boolean, SubsystemId[]]>([
     ['no rack to answer it: the salvo, then the disruptor', false, ['side-0', 'side-1']],
-    ['a rack up to shoot it down: the disruptor holds', true, ['side-0']],
+    // The salvo may be shot down, but the sensor aboard makes the disruptor's
+    // critical 8-10, and a critical goes through the wall.
+    [
+      'a rack up to shoot it down: the disruptor tries for the critical',
+      true,
+      ['side-0', 'side-1'],
+    ],
   ])('%s', (_label, rackUp, fired) => {
     const state = pointBlank(rackUp)
     expectBotTurnAccepted(state, 'p1')

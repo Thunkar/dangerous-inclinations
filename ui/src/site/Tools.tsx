@@ -38,7 +38,13 @@ function ToolTabs({ current }: { current: ToolName }) {
     <Box
       component="nav"
       aria-label={T.tabs}
-      sx={{ display: 'flex', flexWrap: 'wrap', gap: '4px', mb: { xs: 3, sm: 4 } }}
+      sx={{
+        display: 'flex',
+        // On a phone the tabs are one row, so the tool starts near the top.
+        flexWrap: { xs: 'nowrap', sm: 'wrap' },
+        gap: '4px',
+        mb: { xs: 2, sm: 4 },
+      }}
     >
       {ORDER.map((tool, index) => {
         const on = tool.name === current
@@ -50,15 +56,19 @@ function ToolTabs({ current }: { current: ToolName }) {
             sx={{
               display: 'flex',
               alignItems: 'center',
-              gap: 1,
-              minHeight: 48,
-              px: 2,
+              justifyContent: { xs: 'center', sm: 'flex-start' },
+              flex: { xs: '1 1 auto', sm: '0 0 auto' },
+              minWidth: 0,
+              gap: { xs: 0.5, sm: 1 },
+              minHeight: { xs: 44, sm: 48 },
+              px: { xs: 1, sm: 2 },
               bgcolor: on ? PRESS.red : PRESS.ink,
               color: PRESS.paper,
               fontFamily: FONT_DISPLAY,
               fontWeight: 600,
-              fontSize: '1.05rem',
-              letterSpacing: '0.08em',
+              fontSize: { xs: '0.85rem', sm: '1.05rem' },
+              letterSpacing: { xs: '0.04em', sm: '0.08em' },
+              whiteSpace: 'nowrap',
               textTransform: 'uppercase',
               '&:hover': { bgcolor: PRESS.red },
             }}
@@ -131,7 +141,7 @@ export function Tools({ tool }: { tool: ToolName | null }) {
   return (
     <SitePage>
       <ToolTabs current={tool} />
-      <PageTitle kicker={T.kicker} title={meta.title} blurb={meta.blurb} />
+      <PageTitle kicker={T.kicker} title={meta.title} blurb={meta.blurb} fold={T.howItWorks} />
       {tool === 'route' && <RoutePlannerTool />}
       {tool === 'heat' && <HeatTrackerTool />}
       {tool === 'dice' && <DiceTool />}

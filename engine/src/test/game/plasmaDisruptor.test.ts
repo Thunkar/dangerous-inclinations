@@ -135,16 +135,16 @@ describe('disruptor: a hit breaks the named slot', () => {
   }
 
   it.each([
-    ['a plain hit', 5],
-    ['a 10, which is only a hit', 10],
-    ['a 2', 2],
-  ])('%s breaks the slot and dumps its cubes as heat', (_label, roll) => {
+    ['a plain hit', 5, 'hit'],
+    ['a 10, a critical', 10, 'critical'],
+    ['a 2', 2, 'hit'],
+  ])('%s breaks the slot and dumps its cubes as heat', (_label, roll, rolled) => {
     const result = executeTurnAs(duel(roll), fire(1, 'forward-0', 'p2', 'forward-0'))
     expect(result.errors).toBeUndefined()
     const attack = eventsOf(result.events, 'attack_resolved')[0]
     expect(attack).toMatchObject({
       weaponType: 'disruptor',
-      result: 'hit',
+      result: rolled,
       damage: 0,
       toHull: 0,
       absorbed: 0,
@@ -176,28 +176,26 @@ describe('disruptor: a hit breaks the named slot', () => {
     expect(getShip(result.gameState, 'p2')).toEqual(getShip(before, 'p2'))
   })
 
-  it('a powered sensor on the attacker makes no critical of it', () => {
+  it.each([
+    ['an 8 with a powered sensor', 8, 2, 'critical'],
+    ['an 8 without one', 8, 0, 'hit'],
+  ])('%s', (_label, roll, sensorCubes, expected) => {
     let sensorShip = makeTwoPlayerGame({ loadout: LOADOUTS.plasma })
-    sensorShip = withPower(sensorShip, 'p1', 'forward-0', 2)
+    if (sensorCubes > 0) sensorShip = withPower(sensorShip, 'p1', 'forward-0', sensorCubes)
     const target = getShip(duel(5), 'p2')
     const outcome = resolveAttack(
       target,
       'p2',
       0,
       'forward-0',
-      8,
+      roll,
       getShip(sensorShip, 'p1'),
       'p1',
       {
         disrupts: true,
       }
     )
-    expect(outcome.hitResult.result).toBe('hit')
-    // The same roll from the same ship is a critical for any other weapon.
-    expect(
-      resolveAttack(target, 'p2', 2, 'forward-0', 8, getShip(sensorShip, 'p1'), 'p1').hitResult
-        .result
-    ).toBe('critical')
+    expect(outcome.hitResult.result).toBe(expected)
   })
 
   it('firing reveals the disruptor', () => {
@@ -211,11 +209,12 @@ describe('disruptor: a hit breaks the named slot', () => {
   })
 })
 
-describe('disruptor: any powered shield blocks it', () => {
-  const duel = (shieldCubes: number, broken = false) => {
+describe('disruptor: any powered shield blocks a hit', () => {
+  const duel = (shieldCubes: number, broken = false, roll = 5) => {
     let state = makeTwoPlayerGame(
       { loadout: LOADOUTS.disruptor },
-      { ring: 3, sector: 1, loadout: LOADOUTS.gunship }
+      { ring: 3, sector: 1, loadout: LOADOUTS.gunship },
+      rolling(roll)
     )
     state = withPower(state, 'p2', 'forward-0', 4)
     state = withPower(state, 'p2', 'side-2', shieldCubes)
@@ -247,6 +246,20 @@ describe('disruptor: any powered shield blocks it', () => {
     expect(getShip(result.gameState, 'p2')).toEqual(expected)
     expect(getShip(result.gameState, 'p2').heat.currentHeat).toBe(0)
     expect(cubesOnLoadout(getShip(result.gameState, 'p2'))).toBe(4 + cubes)
+  })
+
+  it.each([1, 2])('a critical goes through %i cubes on a shield and leaves it face-down', cubes => {
+    const before = duel(cubes, false, 10)
+    const result = executeTurnAs(before, fire(1, 'forward-0', 'p2', 'forward-0'))
+    expect(result.errors).toBeUndefined()
+    const attack = eventsOf(result.events, 'attack_resolved')[0]
+    expect(attack).toMatchObject({ result: 'critical', absorbed: 0, toHull: 0 })
+    expect(attack.blocked).toBeUndefined()
+    expect(getSub(result.gameState, 'p2', 'forward-0').isBroken).toBe(true)
+    // The shield did nothing: it keeps its cubes, spends none and stays face-down.
+    expect(getSub(result.gameState, 'p2', 'side-2')).toEqual(getSub(before, 'p2', 'side-2'))
+    // The railgun's four cubes dump as heat, and nothing is absorbed.
+    expect(getShip(result.gameState, 'p2').heat.currentHeat).toBe(4)
   })
 
   it.each([
