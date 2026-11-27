@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { isOneSided, reach, recoils, type RangeCardType } from './reach'
+import type { TargetingType } from './facts'
+import { reach, recoils } from './reach'
 
-const cellsOf = (type: RangeCardType) =>
+const cellsOf = (type: TargetingType) =>
   reach(type)
     .filter(c => c.wellwide !== true || c.steps !== undefined)
     .map(c => `${c.port},${c.ahead}`)
     .sort()
 
-describe('range cards', () => {
-  it.each<[RangeCardType, boolean, boolean]>([
+describe("the subsystems card's fans", () => {
+  it.each<[TargetingType, boolean, boolean]>([
     // type, one-sided, recoil
     ['railgun', false, true],
     ['laser', true, false],
@@ -18,7 +19,7 @@ describe('range cards', () => {
     ['missiles', false, false],
     ['sensor_array', false, false],
   ])('%s: one-sided %s, recoil %s', (type, oneSided, recoil) => {
-    expect(isOneSided(type)).toBe(oneSided)
+    expect(reach(type).some(c => c.zone !== 'any')).toBe(oneSided)
     expect(recoils(type)).toBe(recoil)
   })
 

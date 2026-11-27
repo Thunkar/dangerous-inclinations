@@ -1,7 +1,7 @@
 /**
  * 03 · The turn, on a black band because it is the thing a table reads most:
- * the seven steps in order (`site/turn.ts`, which the rules dialog and the
- * printed card read too), and the one rule of the opening round.
+ * the seven steps in order (`site/turn.ts`, which the rules dialog reads
+ * too), and the one rule of the opening round.
  */
 import { Box } from '@mui/material'
 import { PRESS } from '../../design/press'

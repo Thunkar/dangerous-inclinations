@@ -134,7 +134,7 @@ export function seatOptions(view: GameView): SeatOptions {
   const burns: BurnOption[] = moves.burns
   const jump = moves.jumps[0] ?? null
   const drive = jumpDriveOf(ship)
-  const foldPrice = foldFuel()
+  const foldPrice = foldFuel(ship)
   const foldReason = !drive
     ? undefined
     : drive.isBroken

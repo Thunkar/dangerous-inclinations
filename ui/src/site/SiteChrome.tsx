@@ -20,7 +20,7 @@ import { Body, Display, Kicker, Mark } from './poster'
 const SECTIONS: Array<{ route: Route; label: string }> = [
   { route: { kind: 'play' }, label: 'Play' },
   { route: { kind: 'tools', tool: null }, label: 'Tools' },
-  { route: { kind: 'card' }, label: 'Cheatsheet' },
+  { route: { kind: 'rules' }, label: 'Rules' },
 ]
 
 function isCurrent(here: Route, section: Route): boolean {

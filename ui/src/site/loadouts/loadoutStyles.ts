@@ -11,7 +11,8 @@
  * scales it with a transform.
  */
 import { FONT_DISPLAY, PRESS } from '../../design/press'
-import { ART_SCALE, ART_TOP_MM, FRONT_FRAME_MM, LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM } from './sheet'
+import { FRONT_FRAME_MM } from '../card/cardStyles'
+import { ART_SCALE, ART_TOP_MM, LOADOUT_HEIGHT_MM, LOADOUT_WIDTH_MM } from './sheet'
 
 /** The black bar across the foot. */
 const BAR_MM = 18.5
@@ -88,7 +89,7 @@ export const LOADOUT_CSS = `
   flex: 1 1 0;
   font-size: 3mm; text-transform: uppercase; font-weight: 600; line-height: 1.05; letter-spacing: 0.02em;
 }
-.di-lo-bowname .di-lo-eyebrow { font-size: 1.9mm; color: ${PRESS.inkSoft}; margin-top: 1mm; }
+.di-lo-bowname .di-lo-eyebrow { font-size: 1.9mm; margin-top: 1mm; }
 
 .di-lo-flanks { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1mm 2mm; margin-top: 3mm; }
 .di-lo-flanks > .di-lo-eyebrow { font-size: 1.9mm; border-bottom: 0.5mm solid ${PRESS.ink}; padding-bottom: 0.8mm; }
@@ -112,7 +113,6 @@ export const LOADOUT_CSS = `
   background: ${PRESS.ink}; color: ${PRESS.paper}; padding: 2.2mm 3.5mm;
   display: flex; flex-direction: column; justify-content: center; gap: 1.6mm;
 }
-.di-lo-for { color: ${PRESS.paperSoft}; }
 .di-lo-keep { display: flex; align-items: center; gap: 1mm; flex-wrap: wrap; }
 .di-lo-mission {
   display: inline-flex; align-items: center; gap: 0.8mm; font-size: 2.4mm;

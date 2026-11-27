@@ -1,6 +1,6 @@
 /**
  * Every word on the printed mission decks (`site/missions/`) that the cards
- * themselves do not carry, and the block above them on the cheatsheet page.
+ * themselves do not carry, and the block above them on the rules page.
  * The fronts are the game's own cards, so their words are the engine's
  * (`engine/src/text/missionCards.ts`); only how a card names a seat lives
  * here, and the backs.
@@ -30,7 +30,7 @@ export const MISSION_DECK = {
   },
 
   // -------------------------------------------------------------------------
-  // The section on the cheatsheet page
+  // The section on the rules page
   // -------------------------------------------------------------------------
   section: {
     kicker: 'For the table',

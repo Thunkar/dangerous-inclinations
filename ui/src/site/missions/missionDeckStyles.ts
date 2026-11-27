@@ -10,7 +10,8 @@
  */
 import { PRESS } from '../../design/press'
 import { MISSION_HEIGHT_MM, MISSION_WIDTH_MM } from './sheet'
-import { ART_SCALE, ART_TOP_MM, FRONT_FRAME_MM } from '../loadouts/sheet'
+import { FRONT_FRAME_MM } from '../card/cardStyles'
+import { ART_SCALE, ART_TOP_MM } from '../loadouts/sheet'
 
 /** The full cut of `MissionCard`, in CSS pixels. */
 const FRONT_WIDTH_PX = 168

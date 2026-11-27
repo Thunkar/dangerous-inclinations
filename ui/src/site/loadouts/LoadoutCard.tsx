@@ -111,7 +111,7 @@ export function LoadoutCard({ id }: { id: BotPresetId }) {
         </div>
 
         <div className="di-lo-bar">
-          <div className="di-lo-eyebrow di-lo-for">{T.recommended}</div>
+          <div className="di-lo-eyebrow">{T.recommended}</div>
           <div className="di-lo-keep">
             <Mission type={ROLE_PRIMARY[role]} />
             <span className="di-lo-mission">+</span>

@@ -1,6 +1,6 @@
 /**
- * The three moves, drawn big enough to read on a screen: a coast, a burn and
- * a jump. The rings are unrolled into straight lines and the sector ticks are
+ * The four moves, drawn big enough to read on a screen: a coast, a burn, a
+ * jump and a fold. The rings are unrolled into straight lines and the sector ticks are
  * unnumbered, because how far a drift carries you is printed on the board and
  * a number here would be read as the number. Red is always the move.
  */
@@ -155,6 +155,96 @@ export function JumpDiagram() {
       </Tag>
       <Tag x={W / 2} y={160} anchor="middle" color={PRESS.redText}>
         {T.jump.diagram.note}
+      </Tag>
+    </Frame>
+  )
+}
+
+/** A red cross over what a move may not do. */
+function Cross({ x, y, r }: { x: number; y: number; r: number }) {
+  return (
+    <path
+      d={`M${x - r} ${y - r}L${x + r} ${y + r}M${x + r} ${y - r}L${x - r} ${y + r}`}
+      stroke={PRESS.red}
+      strokeWidth={4}
+      fill="none"
+    />
+  )
+}
+
+/**
+ * A fold. Above, the ship's own well: it leaves its sector (the dashed ghost)
+ * and appears on another, hopping over the rings rather than along them, and
+ * no station's sectors take it. Below, the wells: across between the black
+ * hole and either planet, never from one planet to the other.
+ */
+export function FoldDiagram() {
+  const heads = useArrowHeads(HEADS)
+  const bodiesY = 140
+  const hole = { x: W / 2, r: 11 }
+  const planets = [
+    { x: 40, r: 9, ink: PRESS.teal },
+    { x: W - 40, r: 9, ink: PRESS.violet },
+  ]
+  return (
+    <Frame heads={heads} label={T.fold.diagram.label}>
+      <GuideRing y={30} />
+      <GuideRing y={72} />
+      <path
+        d="M43 72L21 62L21 82z"
+        fill="none"
+        stroke={PRESS.ink}
+        strokeWidth={2.5}
+        strokeDasharray="5 4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M50 62Q150 -30 250 25"
+        stroke={PRESS.red}
+        strokeWidth={4}
+        strokeDasharray="8 6"
+        fill="none"
+        markerEnd={heads.red}
+      />
+      <Ship x={270} y={30} />
+      <Tag x={W - 8} y={55} anchor="end" color={PRESS.redText}>
+        {T.fold.diagram.anywhere}
+      </Tag>
+      <rect x={168} y={66} width={68} height={12} fill={PRESS.ink} />
+      <Cross x={202} y={72} r={9} />
+      <Tag x={202} y={96} anchor="middle">
+        {T.fold.diagram.station}
+      </Tag>
+
+      <path
+        d={`M${planets[0].x + 8} ${bodiesY - 8}Q${W / 2} ${bodiesY - 40} ${planets[1].x - 8} ${bodiesY - 8}`}
+        stroke={PRESS.inkFaint}
+        strokeWidth={3}
+        strokeDasharray="6 5"
+        fill="none"
+      />
+      <Cross x={W / 2} y={bodiesY - 24} r={6} />
+      {planets.map(p => {
+        const toward = Math.sign(p.x - hole.x)
+        const mid = (p.x + hole.x) / 2
+        return [hole.x + toward * (hole.r + 6), p.x - toward * (p.r + 6)].map(end => (
+          <path
+            key={`${p.x}-${end}`}
+            d={`M${mid} ${bodiesY}H${end}`}
+            stroke={PRESS.red}
+            strokeWidth={4}
+            strokeDasharray="8 6"
+            fill="none"
+            markerEnd={heads.red}
+          />
+        ))
+      })}
+      <circle cx={hole.x} cy={bodiesY} r={hole.r} fill={PRESS.ink} />
+      {planets.map(p => (
+        <circle key={p.x} cx={p.x} cy={bodiesY} r={p.r} fill={p.ink} />
+      ))}
+      <Tag x={W / 2} y={167} anchor="middle">
+        {T.fold.diagram.planets}
       </Tag>
     </Frame>
   )

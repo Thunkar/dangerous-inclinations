@@ -2,7 +2,7 @@
  * App root: theme, identity, sockets, and which screen is on the table.
  *
  * The video game is one section of a site now (`site/routes.ts`): `/` is the
- * landing page, `/tools` the things a real table wants and `/card` the card it
+ * landing page, `/tools` the things a real table wants and `/rules` the rules and the cards it
  * prints, and none of those three need a player, a socket or a server. `/play`
  * is everything that was here before, and the three query flags still decide
  * the route from any path, because a fork, a seat printed by `yarn seat` and
@@ -290,7 +290,7 @@ function RootRouter() {
     case 'tools':
       return <Tools tool={route.tool} />
 
-    case 'card':
+    case 'rules':
       return <Cheatsheet />
 
     case 'replay':

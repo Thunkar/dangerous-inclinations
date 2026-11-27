@@ -286,7 +286,8 @@ const offbookRows: RowSpec[] = (
     // The jump drive (playtest of 26 Nov 2026), here on a side slot: a fold
     // puts the ship on any sector of its own well, or between the black
     // hole and a planet, never planet to planet and never a station's, for
-    // 8 fuel, 3 energy on the drive and 3 on the engines; it never breaks.
+    // 8 fuel (6 with a compressor), 3 energy on the drive and 3 on the engines;
+    // it never breaks.
     // At 400 games (26 Nov 2026) the four rows read +1 / -1 / +7 / +9 over
     // their bars, no failing flag. The price is the designer's to tune.
     [

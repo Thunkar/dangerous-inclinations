@@ -320,7 +320,7 @@ function foldRefusals(table: TurnTable, actor: Player, action: FoldAction): Refu
   if (isStationSector(table.stations, to)) refused.push(refusal('foldOnStation'))
   if (samePosition(positionOf(ship), to)) refused.push(refusal('foldNowhere'))
   if (!foldReaches(ship, to)) refused.push(refusal('foldTooFar'))
-  const mass = foldFuel()
+  const mass = foldFuel(ship)
   if (ship.reactionMass < mass) refused.push(refusal('foldFuel', { mass, fuel: ship.reactionMass }))
   return refused
 }

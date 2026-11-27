@@ -12,9 +12,23 @@
  * and a shot can push its target out of the sector its own numbers are
  * anchored to; either would flinch the wrong hull.
  */
+import type { BurstCause } from '../../../../../animation/beats'
 import { FX_INK } from '../../palette'
 
 export type ImpactKind = 'damage' | 'crit' | 'heat' | 'shield' | 'good' | 'plasma'
+
+/**
+ * What a burst of each cause does to the hull it names. A jump's arrival and
+ * a ping leave the hull be. The map is keyed by what a burst marks, not by its
+ * colour: a jump's burst is drawn in a critical's cream.
+ */
+export const BURST_IMPACT: Record<BurstCause, ImpactKind | null> = {
+  kill: 'damage',
+  critical: 'crit',
+  jump: null,
+  arrival: 'good',
+  ping: null,
+}
 
 /** A flinch, not a state: shorter than the float that caused it. */
 const IMPACT_MS = 440

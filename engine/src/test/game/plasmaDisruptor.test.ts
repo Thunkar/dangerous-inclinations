@@ -94,20 +94,20 @@ describe('disruptor: range', () => {
   const mounts = (['forward-0', 'side-0'] as const).flatMap(slot =>
     (['prograde', 'retrograde'] as const).map(facing => ({ slot, facing }))
   )
+  // From ring 2, sector 0: two rings out is ring 4, and ring 5 is three out.
   it.each([
-    ['one ring out, same sector', 4, 0, true],
-    ['one ring out, one sector ahead', 4, 1, true],
-    ['one ring out, one sector behind', 4, 23, true],
-    ['one ring in, same sector', 2, 0, true],
-    ['one ring in, one sector ahead', 2, 1, true],
-    ['one ring in, one sector behind', 2, 23, true],
-    ['same ring, one sector ahead', 3, 1, true],
-    ['same ring, one sector behind', 3, 23, true],
-    ['point blank', 3, 0, true],
-    ['same ring, two sectors ahead', 3, 2, false],
-    ['one ring out, two sectors behind', 4, 22, false],
-    ['two rings out', 5, 0, false],
-    ['two rings in', 1, 0, false],
+    ['two rings out, same sector', 4, 0, true],
+    ['two rings out, two sectors ahead', 4, 2, true],
+    ['two rings out, two sectors behind', 4, 22, true],
+    ['one ring out, one sector ahead', 3, 1, true],
+    ['one ring in, two sectors behind', 1, 22, true],
+    ['same ring, one sector ahead', 2, 1, true],
+    ['same ring, two sectors ahead', 2, 2, true],
+    ['same ring, two sectors behind', 2, 22, true],
+    ['point blank', 2, 0, true],
+    ['same ring, three sectors ahead', 2, 3, false],
+    ['one ring out, three sectors behind', 3, 21, false],
+    ['three rings out', 5, 0, false],
   ] as const)(
     '%s (R%i S%i): in range is %s from either slot, either facing',
     (_label, ring, sector, expected) => {
@@ -116,7 +116,7 @@ describe('disruptor: range', () => {
         ({ slot, facing }) => `${slot} ${facing}`,
         ({ slot, facing }) =>
           expect(
-            isInWeaponRange(getSub(state, 'p1', slot), attackerAt(3, 0, facing), at(ring, sector))
+            isInWeaponRange(getSub(state, 'p1', slot), attackerAt(2, 0, facing), at(ring, sector))
           ).toBe(expected)
       )
     }
@@ -246,6 +246,30 @@ describe('disruptor: any powered shield blocks a hit', () => {
     expect(getShip(result.gameState, 'p2')).toEqual(expected)
     expect(getShip(result.gameState, 'p2').heat.currentHeat).toBe(0)
     expect(cubesOnLoadout(getShip(result.gameState, 'p2'))).toBe(4 + cubes)
+  })
+
+  // Plasma stops two points a cube, so its 4 empty a one- or two-cube wall.
+  it.each([1, 2])('a wall the plasma emptied this turn lets a hit through (%i cubes)', cubes => {
+    let state = makeTwoPlayerGame(
+      { loadout: LOADOUTS.disruptorPlasma },
+      { ring: 3, sector: 0, loadout: LOADOUTS.gunship }
+    )
+    state = withPower(state, 'p2', 'forward-0', 4)
+    state = withPower(state, 'p2', 'side-2', cubes)
+    const result = executeTurnAs(
+      state,
+      fire(1, 'side-0', 'p2'),
+      fire(2, 'forward-0', 'p2', 'forward-0')
+    )
+    expect(result.errors).toBeUndefined()
+    const attacks = eventsOf(result.events, 'attack_resolved')
+    expect(attacks.find(e => e.weaponType === 'plasma_cannon')).toMatchObject({
+      absorbed: 2 * cubes,
+    })
+    const emp = attacks.find(e => e.weaponType === 'disruptor')!
+    expect(emp).toMatchObject({ result: 'hit' })
+    expect(emp.blocked).toBeUndefined()
+    expect(getSub(result.gameState, 'p2', 'forward-0').isBroken).toBe(true)
   })
 
   it.each([1, 2])('a critical goes through %i cubes on a shield and leaves it face-down', cubes => {

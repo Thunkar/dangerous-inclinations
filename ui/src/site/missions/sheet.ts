@@ -23,7 +23,7 @@ export type PlacedCard<T> = { card: T } & PlacedFace
 export function deckPages<T>(cards: readonly T[], flip: Flip): PlacedCard<T>[][] {
   const behind = flip === 'long' ? behindLongEdge : behindShortEdge
   return loadoutPages(cards).flatMap(page => {
-    const fronts = page.map(slot => ({ ...slot, face: 'front' as const, rotated: false }))
+    const fronts = page.map(slot => ({ ...slot, face: 'front' as const, turn: 0 as const }))
     return [fronts, fronts.map(front => ({ card: front.card, ...behind(front) }))]
   })
 }

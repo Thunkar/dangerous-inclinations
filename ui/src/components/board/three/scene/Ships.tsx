@@ -19,7 +19,7 @@ import {
 } from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Billboard } from '@react-three/drei'
-import { forwardDistance } from '@dangerous-inclinations/engine'
+import { forwardDistance, samePosition } from '@dangerous-inclinations/engine'
 import { createShip } from '../../../../ships/model'
 import { boardConfig, type ShipVisual } from '../../../../ships/visual'
 import { MOUNTS } from '../../../../ships/config'
@@ -34,18 +34,20 @@ import {
   slideProgress,
 } from '../../geometry'
 import { shipLabel } from '../../labels'
-import { foldFlight, mouthPoints } from '../../wormhole'
+import { foldFlight, foldLanded, foldThrust, mouthPoints } from '../../wormhole'
 import { sceneTime } from '../clock'
 import { FX_INK } from '../palette'
 import { DASHED_RING_FRAGMENT, DASHED_RING_VERTEX } from '../shaders/dashedRing'
 import { usePointerDrag } from '../usePointerDrag'
 import {
   LAYER,
+  berthAlong,
+  berthRide,
   berthWorld,
   elevationAt,
   facingYaw,
-  interpolateWorld,
   positionWorld,
+  slideWorld,
   toWorld,
   yawFromHeading,
 } from '../world'
@@ -71,6 +73,11 @@ const FLAT: [number, number, number] = [-Math.PI / 2, 0, 0]
 const BANK = 0.42
 /** How long it wobbles after it has arrived. */
 const SETTLE_MS = 320
+/**
+ * How long a hull standing still takes to make room: a ship that lands in its
+ * sector, or leaves it, changes its place in the crowd there.
+ */
+const MAKE_ROOM_MS = 420
 
 /**
  * A jump: charge on the departure arc, cross, arrive. Fractions of the beat.
@@ -353,7 +360,29 @@ function ShipMesh({
   const departure = useRef<Group>(null)
   const arrival = useRef<Group>(null)
   const parts = useRef<HullParts>({ nozzle: null, plume: null, shell: null })
-  const settle = useRef({ moving: false, at: 0, powered: false })
+  const settle = useRef({ moving: false, at: 0, powered: false, rocks: false })
+  /**
+   * Where the hull was last drawn and where it last rested, so a change of
+   * place in the crowd is eased and not a jump. Its own copy: the group's
+   * `position` prop is the new resting point the moment the model changes.
+   */
+  const room = useRef({
+    sector: null as ShipToken['position'] | null,
+    rest: new Vector3(),
+    drawn: new Vector3(),
+    from: new Vector3(),
+    at: 0,
+  })
+  /**
+   * Where the current move set off: the point the hull was last drawn at
+   * (`from`), which is off its sector's centre when it stood in a crowd or on
+   * a berth, and that point less the centre (`start`), which the slide fades out.
+   */
+  const setOff = useRef({
+    motion: undefined as ShipToken['motion'],
+    from: new Vector3(),
+    start: new Vector3(),
+  })
   // A token only mounts when its ship arrives on the board: the first frames
   // of its life are the hull coming into being over its Home.
   const born = useRef(0)
@@ -425,6 +454,11 @@ function ShipMesh({
               yaw: facingYaw(motion.from, ship.facing),
             }
           : null,
+      // A moored ship rides its station's step on its cradle, turning with it.
+      ride:
+        motion.kind === 'ride' && ship.berth !== null
+          ? berthRide(motion.from, ship.position, ship.berth, resting)
+          : null,
       thrust: THRUST[motion.kind],
       heading: Math.atan2(to.y - from.y, to.x - from.x),
       departure: positionWorld(motion.from, LAYER.token),
@@ -434,7 +468,7 @@ function ShipMesh({
       bank:
         Math.min(1, 0.3 + swept * 0.22) * (ship.facing === 'prograde' ? 1 : -1) * (jump ? 0 : 1),
     }
-  }, [ship.motion, ship.position, ship.facing, resting])
+  }, [ship.motion, ship.position, ship.facing, ship.berth, resting])
 
   useFrame(() => {
     const node = group.current
@@ -446,7 +480,19 @@ function ShipMesh({
     if (born.current === 0) born.current = now
     const motion = ship.motion
     const raw = motion ? MathUtils.clamp((now - motion.start) / motion.duration, 0, 1) : 1
-    const moving = !!motion && !!move && raw < 1
+    // A fold has landed once the ship is out of the exit mouth, while the mouth still closes.
+    const moving = !!motion && !!move && raw < 1 && !(move.fold && foldLanded(raw))
+
+    // A new move sets off from where the hull was drawn, not from its sector's
+    // centre; a hull that has never been drawn sets off from the centre.
+    const off = setOff.current
+    if (motion !== off.motion) {
+      off.motion = motion
+      if (move) {
+        off.from.copy(room.current.sector ? room.current.drawn : move.departure)
+        off.start.subVectors(off.from, move.departure)
+      }
+    }
 
     let lean = 0
     let thrust = 0
@@ -458,14 +504,13 @@ function ShipMesh({
       if (move.fold) {
         const flight = foldFlight(raw)
         if (flight.end === 'entry') {
-          node.position.lerpVectors(move.departure, move.fold.entry, flight.travel)
+          node.position.lerpVectors(off.from, move.fold.entry, flight.travel)
           heading.rotation.y = move.fold.yaw
-          thrust = move.thrust
         } else {
           node.position.lerpVectors(move.fold.exit, resting, flight.travel)
           heading.rotation.y = restingYaw
-          thrust = move.thrust * (1 - flight.travel) * 0.8
         }
+        thrust = move.thrust * foldThrust(raw)
         size = flight.scale
       } else if (move.jump) {
         // Straight down the lane, in the plane both arcs lie in: the two ends
@@ -475,24 +520,23 @@ function ShipMesh({
         const crossing = smoother(
           MathUtils.clamp((raw - JUMP_CHARGE) / (JUMP_ARRIVE - JUMP_CHARGE), 0, 1)
         )
-        interpolateWorld(motion.from, ship.position, crossing, LAYER.token, scratch)
-        node.position.copy(scratch).addScaledVector(slot, crossing)
+        node.position.copy(
+          slideWorld(motion.from, ship.position, crossing, off.start, slot, scratch)
+        )
         heading.rotation.y = yawFromHeading(move.heading)
         const speed = Math.sin(Math.PI * crossing) ** 0.6
         lean = JUMP_ROLL * Math.sin(Math.PI * crossing)
         thrust = (raw < JUMP_CHARGE ? raw / JUMP_CHARGE : Math.max(0.4, speed)) * move.thrust
         streak = speed
-      } else if (motion.kind === 'ride') {
+      } else if (move.ride) {
         // Carried round on its berth: the station's slide, the berth's place on it all the way.
-        const t = slideProgress(raw)
-        interpolateWorld(motion.from, ship.position, t, LAYER.token, scratch)
-        node.position.copy(scratch).add(slot)
-        heading.rotation.y = restingYaw
+        const turn = berthAlong(move.ride, slideProgress(raw), scratch)
+        node.position.copy(scratch)
+        heading.rotation.y = restingYaw + turn
       } else {
         // The same ease-in-out-quad the SVG board slides tokens with.
         const t = slideProgress(raw)
-        interpolateWorld(motion.from, ship.position, t, LAYER.token, scratch)
-        node.position.copy(scratch).addScaledVector(slot, t)
+        node.position.copy(slideWorld(motion.from, ship.position, t, off.start, slot, scratch))
         heading.rotation.y = yawFromHeading(
           headingAtPoint(ship.position.wellId, { x: scratch.x, y: scratch.z }, ship.facing)
         )
@@ -500,16 +544,34 @@ function ShipMesh({
         thrust = Math.sin(Math.PI * raw) ** 0.5 * move.thrust
       }
     } else {
-      node.position.copy(resting)
+      // Standing still in the same sector, its place there can still change:
+      // somebody landed beside it or left. It makes room rather than jumping.
+      const r = room.current
+      if (r.sector && samePosition(r.sector, ship.position) && !r.rest.equals(resting)) {
+        r.from.copy(r.drawn)
+        r.at = now
+      }
+      const u = r.at > 0 ? (now - r.at) / MAKE_ROOM_MS : 1
+      if (u >= 1) {
+        r.at = 0
+        node.position.copy(resting)
+      } else node.position.lerpVectors(r.from, resting, slideProgress(u))
       heading.rotation.y = restingYaw
     }
+    room.current.sector = ship.position
+    room.current.rest.copy(resting)
+    room.current.drawn.copy(node.position)
 
     // Arriving is a moment of its own: the hull rocks level and the engines
-    // fall back to idle over a few tenths of a second.
+    // fall back to idle over a few tenths of a second. Not for a ride: the
+    // station carried the ship, which did nothing.
     if (moving !== settle.current.moving) {
-      settle.current.at = moving ? 0 : now
+      settle.current.at = moving || !settle.current.rocks ? 0 : now
       settle.current.moving = moving
-      if (moving) settle.current.powered = (move?.thrust ?? 0) > 0.5
+      if (moving) {
+        settle.current.powered = (move?.thrust ?? 0) > 0.5
+        settle.current.rocks = motion?.kind !== 'ride'
+      }
     }
     if (settle.current.at > 0) {
       const u = (now - settle.current.at) / SETTLE_MS

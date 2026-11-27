@@ -150,6 +150,11 @@ interface MissionCardProps {
    * Only the loadout screen passes them: everywhere else the ship is built.
    */
   requires?: ReadonlyArray<MissionRequirementStatus>
+  /**
+   * The printed deck (`site/missions/`): every ink solid, since a laser
+   * printer screens a tint into dots and small type in dots prints soft.
+   */
+  printed?: boolean
 }
 
 export function MissionCard({
@@ -163,6 +168,7 @@ export function MissionCard({
   onClick,
   compact,
   requires,
+  printed,
 }: MissionCardProps) {
   const cut = compact ? FAN : FULL
   const band = FAMILY_INK[missionFamily(mission)]
@@ -368,7 +374,7 @@ export function MissionCard({
             letterSpacing: '0.1em',
             lineHeight: 1.4,
             fontSize: cut.footSize,
-            color: PAPER_SOFT,
+            color: printed ? PAPER : PAPER_SOFT,
           }}
         >
           {MISSION_CODE[mission.type]}

@@ -15,12 +15,14 @@ import {
   SUBSYSTEM_CONFIGS,
   WELL_TRANSFER_COSTS,
   fill,
+  baseFoldFuel,
+  compressedFoldFuel,
 } from '@dangerous-inclinations/engine'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
 import { Body, Display, Slab } from '../poster'
 import { phasingStrip } from '../numbers'
 import { GuideSection, SubHead } from './parts'
-import { BurnDiagram, CoastDiagram, JumpDiagram } from './moveDiagrams'
+import { BurnDiagram, CoastDiagram, FoldDiagram, JumpDiagram } from './moveDiagrams'
 import { CHEATSHEET } from '../../text/cheatsheet'
 import { rich } from '../../utils/rich'
 import { span } from '../tools/windows'
@@ -277,6 +279,8 @@ function PhaseStrip() {
 const soft = BURN_COSTS.soft
 const hard = BURN_COSTS.hard
 const scoopEnergy = SUBSYSTEM_CONFIGS.scoop.minEnergy
+const foldDrive = SUBSYSTEM_CONFIGS.jump_drive.minEnergy
+const foldEngines = SUBSYSTEM_CONFIGS.jump_drive.fold!.foldEngines
 
 export function MoveSection() {
   return (
@@ -285,7 +289,7 @@ export function MoveSection() {
         sx={{
           display: 'grid',
           gap: { xs: 4, md: 3.5 },
-          gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
           mb: 5,
         }}
       >
@@ -308,17 +312,19 @@ export function MoveSection() {
         >
           {rich(T.jump.text, { compressedFuel: COMPRESSED_JUMP_MASS })}
         </Move>
-      </Box>
-
-      <Box sx={{ mb: 5 }}>
-        <SubHead>{T.fold.title}</SubHead>
-        <Body size="0.96rem">
+        <Move
+          title={T.fold.title}
+          diagram={<FoldDiagram />}
+          fuel={`${baseFoldFuel()} / ${compressedFoldFuel()}`}
+          energy={`${foldDrive} + ${foldEngines}`}
+        >
           {rich(T.fold.text, {
-            fuel: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldFuel,
-            energy: SUBSYSTEM_CONFIGS.jump_drive.minEnergy,
-            engines: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldEngines,
+            fuel: baseFoldFuel(),
+            compressed: compressedFoldFuel(),
+            energy: foldDrive,
+            engines: foldEngines,
           })}
-        </Body>
+        </Move>
       </Box>
 
       <Box sx={{ mb: 5 }}>

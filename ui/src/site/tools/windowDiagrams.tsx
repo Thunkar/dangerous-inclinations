@@ -1,6 +1,7 @@
 /**
  * The orbital windows, drawn: a planet with the six places its station can
- * be, and a strip of turns for each reading of the station clock.
+ * be, each the three sectors it covers, and a strip of turns for each reading
+ * of the station clock.
  *
  * Seen from above with sector 0 at the top and clockwise the way ships drift,
  * as the board is. Every arc, station and arrow is read from the engine
@@ -9,6 +10,7 @@
 import type { ReactNode } from 'react'
 import { Box } from '@mui/material'
 import {
+  DOCKING_REACH,
   PLANET_RINGS,
   SECTORS_PER_RING,
   STATION_DRIFT,
@@ -21,7 +23,7 @@ import { Body } from '../poster'
 import { useArrowHeads, type ArrowHeadSet } from '../diagram'
 import { ArrowHeads } from '../DiagramParts'
 import type { Row } from './windows'
-import { CLOCK, PLANET_ARRIVE, PLANET_LEAVE, bestClocks, span } from './windows'
+import { CLOCK, PLANET_ARRIVE, PLANET_LEAVE, bestClocks, berths, cellText, span } from './windows'
 import { WINDOWS as T } from '../../text/windows'
 
 /** The angle of a sector's leading edge: 0 at the top, clockwise. */
@@ -165,7 +167,11 @@ function OuterLabel(props: {
 
 const arcRange = (start: number, length: number) => span(start, start + length - 1)
 
-/** Any planet: its rings, its two lane arcs, and the six places a station can be. */
+/**
+ * Any planet: its rings, its two lane arcs, and the six places a station can
+ * be, each drawn over the sectors it covers (`berths`, the engine's docking
+ * reach) with its centre marked.
+ */
 export function StationClockDiagram() {
   const heads = useArrowHeads(HEADS)
   const W = 440
@@ -203,6 +209,7 @@ export function StationClockDiagram() {
         ring: STATION_RING,
         drift: STATION_DRIFT,
         readings: CLOCK.join(', '),
+        reach: DOCKING_REACH,
         arriveRing: PLANET_ARRIVE.ring,
         arriveSectors: arrive.label,
         leaveRing: PLANET_LEAVE.ring,
@@ -246,8 +253,24 @@ export function StationClockDiagram() {
       {CLOCK.map(sector => {
         const [x, y] = point(cx, cy, stationR, sector + 0.5)
         const [lx, ly] = point(cx, cy, numberR, sector + 0.5)
+        // The covered sectors are contiguous round the centre: from the one
+        // furthest anticlockwise to the end of the one furthest clockwise.
+        const covered = berths(PLANET_ARRIVE.wellId, sector).map(b =>
+          b.sector - sector > SECTORS_PER_RING / 2
+            ? b.sector - SECTORS_PER_RING
+            : sector - b.sector > SECTORS_PER_RING / 2
+              ? b.sector + SECTORS_PER_RING
+              : b.sector
+        )
+        const from = Math.min(...covered)
+        const to = Math.max(...covered) + 1
         return (
           <g key={sector}>
+            <path
+              d={bandPath(cx, cy, stationR - 5, stationR + 5, from + 0.08, to - 0.08)}
+              fill={PRESS.red}
+              fillOpacity={0.3}
+            />
             <rect x={f(x - 7)} y={f(y - 7)} width={14} height={14} fill={PRESS.red} />
             <Cap x={lx} y={ly} size={14} weight={700} color={PRESS.redText}>
               {sector}
@@ -309,7 +332,10 @@ export function ClockStrip({
     ? fill(T.strip.label, {
         label,
         readings: CLOCK.map((clock, i) =>
-          fill(T.strip.reading, { reading: clock, turns: `${row[i] ?? T.strip.noRoute}` })
+          fill(T.strip.reading, {
+            reading: clock,
+            turns: row[i] ? cellText(row[i]) : T.strip.noRoute,
+          })
         ).join('; '),
         best: best.join(' or '),
       }) +
@@ -336,7 +362,7 @@ export function ClockStrip({
           const x = i * (w + gap)
           const top = best.includes(clock)
           const here = clock === now
-          const value = row ? (row[i] ?? '–') : ''
+          const value = row ? cellText(row[i]) : ''
           return (
             <g key={clock}>
               <Cap
@@ -360,7 +386,7 @@ export function ClockStrip({
               <Cap
                 x={x + w / 2}
                 y={20 + h / 2 - 5}
-                size={28}
+                size={value.length > 2 ? 22 : 28}
                 weight={700}
                 color={top ? PRESS.paper : PRESS.ink}
               >

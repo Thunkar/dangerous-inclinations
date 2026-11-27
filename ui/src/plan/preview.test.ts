@@ -30,6 +30,7 @@ import {
   drawFor,
   executeTurn,
   foldEngines,
+  baseFoldFuel,
   foldFuel,
   heatAtCheck,
   refusalsFor,
@@ -1340,7 +1341,7 @@ describe('a fold', () => {
     const cubes = (sub: SubsystemId) => preview.loadout.find(s => s.id === sub)!.allocatedEnergy
     expect(cubes(DRIVE)).toBe(drawFor('jump_drive'))
     expect(cubes('engines')).toBe(foldEngines())
-    expect(preview.projectedFuel).toBe(me.ship.reactionMass - foldFuel())
+    expect(preview.projectedFuel).toBe(me.ship.reactionMass - foldFuel(me.ship))
     expect(preview.finalPosition.position).toEqual(to)
     expect(preview.finalPosition.facing).toBe(me.ship.facing)
     const coasting = previewPlan(
@@ -1356,7 +1357,7 @@ describe('a fold', () => {
 
   it.each<[string, (state: GameState) => GameState]>([
     ['with the fuel for it', state => state],
-    ['short of fuel', state => withShip(state, 'p1', { reactionMass: foldFuel() - 1 })],
+    ['short of fuel', state => withShip(state, 'p1', { reactionMass: baseFoldFuel() - 1 })],
     ['with the drive broken', state => withSub(state, 'p1', DRIVE, { isBroken: true })],
   ])('offers the Fold button exactly when the engine folds, %s', (_label, alter) => {
     const state = alter(folding({ wellId: BH, ring: 3, sector: 0 }))

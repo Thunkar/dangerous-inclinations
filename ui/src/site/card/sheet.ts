@@ -1,21 +1,22 @@
 /**
- * Where the card's faces sit on a printed A4 sheet, in millimetres.
+ * Where a card's faces sit on a printed A4 sheet, in millimetres.
  *
- * Four faces to a page, two columns by two rows, centred, with one gutter
- * between them and crop marks on every trim line outside the faces. A grid
- * may have no gutter (`Grid.gutter`): its cards touch and one cut separates
- * two of them. A sheet
- * printed on one side carries two cards, each front beside its back. A sheet
- * printed on both sides carries four fronts on the first page and four backs
- * on the second, each back where the printer's flip puts it behind its front:
- * mirrored left to right for a flip on the long edge, top to bottom (and
- * turned over) for a flip on the short edge. The mirror is taken of the page,
- * not of the grid, so it stays right if the grid ever stops being symmetric.
+ * The decks' faces sit in a grid, centred, with crop marks on every trim
+ * line outside the faces. A grid may have no gutter (`Grid.gutter`): its
+ * cards touch and one cut separates two of them. Their backs sit where the
+ * printer's flip puts each behind its front: mirrored left to right for a
+ * flip on the long edge, top to bottom for a flip on the short edge, and
+ * turned so that the card, turned over on its own long side, reads upright.
+ * The mirror is taken of the page, not of the grid, so it stays right if the
+ * grid ever stops being symmetric.
+ *
+ * The player card and the subsystems card print two faces a page, each a
+ * quarter turn round (`Turn`), one above the other and touching
+ * (`cardPages`): on one side a card's front above its back, on both sides
+ * two fronts and then their two backs.
  */
-import { CARD_HEIGHT_MM, CARD_WIDTH_MM, SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from './cardStyles'
-
-/** Between two player-card faces: room to cut once on each side and for the marks between. */
-const GUTTER_MM = 4
+import { CARD_HEIGHT_MM, CARD_WIDTH_MM } from '../print/frame'
+import { SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from './cardStyles'
 
 /** How far a crop mark stays off the trim corner and off whatever stops it. */
 const MARK_GAP_MM = 0.5
@@ -34,10 +35,16 @@ export interface Rect {
   height: number
 }
 
+/** How far a face is turned on the page, clockwise, in degrees. */
+export type Turn = 0 | 90 | 180 | 270
+
+/**
+ * A face in its slot. The rectangle is the slot on the page; a face turned a
+ * quarter round is the slot's height wide and its width tall.
+ */
 export interface PlacedFace extends Rect {
   face: Face
-  /** Turned 180° about its centre. */
-  rotated: boolean
+  turn: Turn
 }
 
 export interface Line {
@@ -56,15 +63,6 @@ export interface Grid {
   gutter: number
 }
 
-/** The player card's grid: four faces, two by two. */
-export const CARD_GRID: Grid = {
-  columns: 2,
-  rows: 2,
-  width: CARD_WIDTH_MM,
-  height: CARD_HEIGHT_MM,
-  gutter: GUTTER_MM,
-}
-
 /** The grid's slots, row by row, centred on the page with its gutter between: each card's rectangle. */
 export function gridSlots({ columns, rows, width, height, gutter }: Grid): Rect[] {
   const x0 = (SHEET_WIDTH_MM - (columns * width + (columns - 1) * gutter)) / 2
@@ -81,8 +79,13 @@ export function gridSlots({ columns, rows, width, height, gutter }: Grid): Rect[
   return slots
 }
 
-/** Behind a front when the sheet turns over on its long (vertical) edge. A back is its front's size. */
-export function behindLongEdge(front: Rect): PlacedFace {
+/**
+ * Behind a front when the sheet turns over on its long (vertical) edge. A
+ * back is its front's size. An upright card turns over the way the sheet
+ * does, so its back stays upright; a card on its side turns over across the
+ * sheet's turn, so its back is turned the other way round.
+ */
+export function behindLongEdge(front: Rect & { turn: Turn }): PlacedFace {
   const { width, height } = front
   return {
     face: 'back',
@@ -90,12 +93,17 @@ export function behindLongEdge(front: Rect): PlacedFace {
     y: front.y,
     width,
     height,
-    rotated: false,
+    turn: ((360 - front.turn) % 360) as Turn,
   }
 }
 
-/** Behind a front when the sheet turns over on its short (horizontal) edge. */
-export function behindShortEdge(front: Rect): PlacedFace {
+/**
+ * Behind a front when the sheet turns over on its short (horizontal) edge.
+ * An upright card turns over across the sheet's turn, so its back is turned
+ * upside down; a card on its side turns over the way the sheet does, so its
+ * back keeps its front's turn.
+ */
+export function behindShortEdge(front: Rect & { turn: Turn }): PlacedFace {
   const { width, height } = front
   return {
     face: 'back',
@@ -103,22 +111,42 @@ export function behindShortEdge(front: Rect): PlacedFace {
     y: SHEET_HEIGHT_MM - front.y - height,
     width,
     height,
-    rotated: true,
+    turn: ((540 - front.turn) % 360) as Turn,
   }
 }
 
-/** The pages a mode prints, each a list of the faces on it. */
-export function sheetPages(mode: PrintMode): PlacedFace[][] {
+/**
+ * The player card's and the subsystems card's grid: two faces on their sides,
+ * one above the other, touching, so a slot is the card's height wide.
+ */
+export const CARD_GRID: Grid = {
+  columns: 1,
+  rows: 2,
+  width: CARD_HEIGHT_MM,
+  height: CARD_WIDTH_MM,
+  gutter: 0,
+}
+
+/** How far the player card and the subsystems card are turned on the page. */
+export const CARD_TURN: Turn = 90
+
+/**
+ * The pages a mode prints of the player card or the subsystems card, every
+ * face a quarter turn round. On one side, one page: the front above its
+ * back, to cut out and glue. On both, two fronts and then, on the next page,
+ * each one's back where the flip puts it.
+ */
+export function cardPages(mode: PrintMode): PlacedFace[][] {
   const slots = gridSlots(CARD_GRID)
   if (mode === 'sheet')
     return [
       slots.map((slot, i) => ({
         ...slot,
-        face: i % CARD_GRID.columns === 0 ? ('front' as const) : ('back' as const),
-        rotated: false,
+        face: i === 0 ? ('front' as const) : ('back' as const),
+        turn: CARD_TURN,
       })),
     ]
-  const fronts = slots.map(slot => ({ ...slot, face: 'front' as const, rotated: false }))
+  const fronts = slots.map(slot => ({ ...slot, face: 'front' as const, turn: CARD_TURN }))
   const behind = mode === 'duplex-long' ? behindLongEdge : behindShortEdge
   return [fronts, fronts.map(behind)]
 }
@@ -127,9 +155,10 @@ export function sheetPages(mode: PrintMode): PlacedFace[][] {
  * The crop marks for a page: every face corner extended outward along both
  * of its edges as far as the next face or the unprintable edge. Where two
  * faces touch there is no room, so a shared trim line is marked only outside
- * the grid.
+ * the grid. A mark starts `from` off its corner: past a bleed, where one runs
+ * round the faces.
  */
-export function cropMarks(faces: Rect[]): Line[] {
+export function cropMarks(faces: Rect[], from: number = MARK_GAP_MM): Line[] {
   const marks: Line[] = []
   const seen = new Set<string>()
   const add = (line: Line) => {
@@ -181,10 +210,10 @@ export function cropMarks(faces: Rect[]): Line[] {
         ]) {
           const free = room(x, y, dx, dy)
           const end = free - MARK_GAP_MM
-          if (end <= MARK_GAP_MM) continue
+          if (end <= from) continue
           add({
-            x1: x + dx * MARK_GAP_MM,
-            y1: y + dy * MARK_GAP_MM,
+            x1: x + dx * from,
+            y1: y + dy * from,
             x2: x + dx * end,
             y2: y + dy * end,
           })

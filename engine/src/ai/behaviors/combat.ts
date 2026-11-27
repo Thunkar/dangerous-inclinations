@@ -232,8 +232,14 @@ export function isWeaponReady(weapon: Subsystem): boolean {
  * count every sector as a firing position and never close (measured: bots
  * stopped moving and 58% of games ran to the turn cap). {@link canEngage}
  * asks whether the missile would actually run the target down.
+ *
+ * A disruptor takes no hull, so it sets the range only for a ship with no
+ * other gun: with its reach of two, closing to it alone left the warden
+ * outside its plasma's one (27 Nov 2026).
  */
 export function weaponRangeTarget(weapons: Subsystem[], start: Position): PlannerTarget {
+  const guns = weapons.filter(w => !isDisruptor(w))
+  const aimWith = guns.length > 0 ? guns : weapons
   const velocity = ringVelocity(start.wellId, start.ring)
   const positionAt = (turn: number): Position => ({
     ...start,
@@ -246,7 +252,7 @@ export function weaponRangeTarget(weapons: Subsystem[], start: Position): Planne
       if (pos.wellId !== target.wellId) return false
       for (const facing of ['prograde', 'retrograde'] as const) {
         const attacker = { ...pos, facing }
-        if (weapons.some(w => canEngage(w, attacker, target))) return true
+        if (aimWith.some(w => canEngage(w, attacker, target))) return true
       }
       return false
     },

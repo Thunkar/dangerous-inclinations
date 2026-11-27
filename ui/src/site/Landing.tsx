@@ -36,7 +36,7 @@ type DoorTone = 'ink' | 'red' | 'paper'
 const DOORS: Array<{ route: Route; tone: DoorTone; title: string; blurb: string; cta: string }> = [
   { route: { kind: 'play' }, tone: 'ink', ...T.doors.play },
   { route: { kind: 'tools', tool: null }, tone: 'red', ...T.doors.tools },
-  { route: { kind: 'card' }, tone: 'paper', ...T.doors.card },
+  { route: { kind: 'rules' }, tone: 'paper', ...T.doors.card },
 ]
 
 const DOOR_LOOK: Record<DoorTone, { bg: string; fg: string; soft: string; num: string }> = {
@@ -192,7 +192,7 @@ export function Landing() {
             <Slab to={{ kind: 'play' }} tone="red">
               {T.hero.play}
             </Slab>
-            <Slab to={{ kind: 'card' }} tone="paper">
+            <Slab to={{ kind: 'rules' }} tone="paper">
               {T.hero.learn}
             </Slab>
           </Box>

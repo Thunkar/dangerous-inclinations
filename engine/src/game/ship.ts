@@ -125,7 +125,7 @@ export function lowestCriticalFace(
  * The compressors paying for a lane: the tile is passive, so it does its job
  * while it is aboard and unbroken.
  */
-export function workingCompressors(ship: ShipState): Subsystem[] {
+export function workingCompressors(ship: Pick<ShipState, 'subsystems'>): Subsystem[] {
   return ship.subsystems.filter(
     s => !s.isBroken && getSubsystemConfig(s.type).passiveEffect?.cheapensJump === true
   )

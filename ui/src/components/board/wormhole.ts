@@ -66,6 +66,26 @@ export function foldFlight(raw: number): { end: 'entry' | 'exit'; travel: number
   return { end: 'exit', travel, scale: travel }
 }
 
+/**
+ * How hard the engines run at `raw` through the fold, 0 to 1. A fold puts
+ * energy on the engines as well as the drive, so they burn while the ship
+ * flies into the entry mouth and while it flies out of the exit one: they
+ * light as the entry mouth opens, so they are at full when the ship moves
+ * off, and ease back to a third over the emergence, which is where the hull's
+ * arrival takes them over. Between the mouths the ship is drawn at nothing and
+ * the engines are left burning for the moment it reappears.
+ */
+export function foldThrust(raw: number): number {
+  if (raw < WORMHOLE.enter[1]) return smoother(span(raw, [0, WORMHOLE.enter[0]]))
+  if (raw < WORMHOLE.emerge[0]) return 1
+  return 1 - 0.7 * smoother(span(raw, WORMHOLE.emerge)) ** 2
+}
+
+/** Whether the ship has come out of the exit mouth and stopped, at `raw` through the fold. */
+export function foldLanded(raw: number): boolean {
+  return raw >= WORMHOLE.emerge[1]
+}
+
 /** A board point `distance` along the heading a ship facing `facing` points in at `at`. */
 function along(at: Point, position: Position, facing: Facing, distance: number): Point {
   const heading = facingAngle(position, facing)

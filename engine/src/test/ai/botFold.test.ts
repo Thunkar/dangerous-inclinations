@@ -98,7 +98,7 @@ describe('bots fold with the jump drive', () => {
       'p1',
       [destroyMission('p2')]
     )
-    state = withShip(state, 'p1', { reactionMass: foldFuel() })
+    state = withShip(state, 'p1', { reactionMass: foldFuel(getShip(state, 'p1')) })
     const actions = botDecideActions(viewFor(state, 'p1')).actions
     const [fold] = foldsOf(actions)
     expect(fold).toBeDefined()

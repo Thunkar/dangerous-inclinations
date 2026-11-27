@@ -12,6 +12,8 @@ import {
   type ShipLoadout,
   type ShipAppearance,
   type SubsystemType,
+  baseFoldFuel,
+  compressedFoldFuel,
 } from '@dangerous-inclinations/engine'
 
 import {
@@ -82,11 +84,16 @@ export const MODULE_NOTES: Partial<Record<SubsystemType, string>> = {
     sectors: weaponStats('plasma_cannon').sectorRange ?? 0,
     plasma: PLASMA_SHIELD_POINTS,
   }),
-  disruptor: fill(notes.disruptor, { energy: SUBSYSTEM_CONFIGS.disruptor.minEnergy }),
+  disruptor: fill(notes.disruptor, {
+    energy: SUBSYSTEM_CONFIGS.disruptor.minEnergy,
+    rings: weaponStats('disruptor').ringRange ?? 0,
+    sectors: weaponStats('disruptor').sectorRange ?? 0,
+  }),
   jump_drive: fill(notes.jump_drive, {
     energy: SUBSYSTEM_CONFIGS.jump_drive.minEnergy,
     engines: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldEngines,
-    fuel: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldFuel,
+    fuel: baseFoldFuel(),
+    compressed: compressedFoldFuel(),
   }),
 }
 

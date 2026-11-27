@@ -39,12 +39,12 @@ export const LANDING = {
     tools: {
       title: 'Table tools',
       blurb:
-        'For a game at a real table: the board as a route planner, a heat check that does the sums, and a fistful of d10s.',
+        'The board as a route planner, a heat check that does the sums, and a fistful of d10s.',
       cta: 'Open the tools',
     },
     card: {
-      title: 'Cheatsheet',
-      blurb: 'How to play, and the two-sided player card to print and cut for every seat.',
+      title: 'Rules',
+      blurb: 'How to play, and the cards to print for the table.',
       cta: 'Learn the game',
     },
   },

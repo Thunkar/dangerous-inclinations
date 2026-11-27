@@ -11,30 +11,58 @@
  * solid blocks and rules, no radius. Two colours survive a black-and-white
  * printer too: the red prints as a mid grey and every red block still reads.
  *
+ * The card is cut 102x152 (`print/frame.ts`) with a band of solid ink at
+ * its edge, so a cut off its line, or a back that a duplex printer shifts off
+ * its front, lands on ink and not on a sliver of paper. Inside the band the
+ * printed face is drawn at scale 1 and zoomed by `CARD_SCALE` to fill it: the
+ * head strip and the sections' rules run into the band and join it, and the
+ * words keep `PLAYER_PAD` of paper off it.
+ *
  * The card is drawn at its true size and the preview scales it with a
  * transform, so what you see on screen is exactly the geometry that reaches
  * the printer. In print the preview is hidden and the sheets are shown
- * instead: A4 pages with no margin of their own, every face at scale 1 at the
- * millimetre `card/sheet.ts` gives it, and the crop marks between.
+ * instead: A4 pages with no margin of their own, every face at true size at the
+ * millimetre `card/sheet.ts` gives it, and the crop marks round it.
  */
 import { INK, RED } from '../diagram'
+import { CARD_HEIGHT_MM, CARD_WIDTH_MM, CLEAR_MM, INSIDE_MM } from '../print/frame'
+import type { Face } from './sheet'
 
-/** Tarot / oversized: the smallest card the turn and the moves fit on. */
-export const CARD_WIDTH_MM = 70
-export const CARD_HEIGHT_MM = 120
+/**
+ * The plain frame of paper round every printed face of the loadout cards and
+ * the mission decks, between its ink and the cut: a cut that misses its line,
+ * or a back the duplex shifts off its front, lands in it.
+ */
+export const FRONT_FRAME_MM = 2.5
+/** The height each face's content needs at scale 1, measured: the head, then the turn and the moves, or the fight. */
+export const PLAYER_CONTENT: Record<Face, number> = { front: 119.4, back: 116.6 }
+/** The paper round the faces' words, as printed: the band's clearance and a little more. */
+export const PLAYER_PAD = { x: 2.5, bottom: CLEAR_MM + 0.5 }
+/** How much larger than drawn the faces print: the largest scale at which both fill their band. */
+export const CARD_SCALE = Math.min(
+  ...(['front', 'back'] as Face[]).map(
+    f => (INSIDE_MM[f].height - PLAYER_PAD.bottom) / PLAYER_CONTENT[f]
+  )
+)
+/** A face's printed box inside its band, as drawn at scale 1. */
+export function playerBox(face: Face) {
+  return { width: INSIDE_MM[face].width / CARD_SCALE, height: INSIDE_MM[face].height / CARD_SCALE }
+}
+/** The width a face's words and drawings span, as drawn at scale 1. */
+export const playerWidth = (face: Face) => playerBox(face).width - (2 * PLAYER_PAD.x) / CARD_SCALE
 /** The paper it is printed on: A4 portrait. */
 export const SHEET_WIDTH_MM = 210
 export const SHEET_HEIGHT_MM = 297
 
 export const CARD_CSS = `
 .di-cards {
-  --card-zoom: 1.75;
+  --card-zoom: 1.3;
   display: flex;
   flex-wrap: wrap;
   gap: 32px;
 }
 @media (max-width: 899px) {
-  .di-cards { --card-zoom: 1.2; justify-content: center; }
+  .di-cards { --card-zoom: 0.9; justify-content: center; }
 }
 
 .di-frame {
@@ -43,25 +71,29 @@ export const CARD_CSS = `
   flex: none;
 }
 
-.di-card {
-  width: ${CARD_WIDTH_MM}mm;
-  height: ${CARD_HEIGHT_MM}mm;
+/* The card as it is cut: the band of ink and the paper inside it (frameStyle in print/frame.ts). */
+.di-trim {
   transform: scale(var(--card-zoom));
   transform-origin: top left;
+  background: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* The printed face, drawn at PLAYER_CONTENT's scale and zoomed into the frame. Zoom, not a
+   transform: a transformed box keeps its unscaled size in print layout. */
+.di-scaled { zoom: ${CARD_SCALE}; }
+.di-card {
   box-sizing: border-box;
-  padding: 0 3mm 0;
+  padding: 0 ${PLAYER_PAD.x / CARD_SCALE}mm ${PLAYER_PAD.bottom / CARD_SCALE}mm;
   display: flex;
   flex-direction: column;
   gap: 0.9mm;
-  background: #fff;
   color: ${INK};
-  border: 0.3mm solid ${INK};
   overflow: hidden;
   font-family: var(--di-sans);
-  font-size: 5.4pt;
+  font-size: 5.6pt;
   line-height: 1.2;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
 }
 .di-card b { font-weight: 700; }
 
@@ -70,152 +102,60 @@ export const CARD_CSS = `
    here shrinks: content that does not fit is content to cut. */
 .di-card > * { flex: none; }
 
-/* The title strip, full bleed: the game in paper on black, the face in a red block. */
+/* The title strip, across the printed face: the game in paper on black, the face in a red block. */
 .di-head {
-  display: flex; align-items: stretch; margin: 0 -3mm; background: ${INK}; color: #fff;
+  display: flex; align-items: stretch; margin: 0 -${PLAYER_PAD.x / CARD_SCALE}mm; background: ${INK}; color: #fff;
   font-family: var(--di-display); text-transform: uppercase;
 }
-.di-head b { font-size: 8.6pt; font-weight: 600; letter-spacing: 0.05em; padding: 1.3mm 3mm 1.1mm; }
+.di-head b { font-size: 8.6pt; font-weight: 600; letter-spacing: 0.05em; padding: 1.3mm 3mm 1.1mm ${PLAYER_PAD.x / CARD_SCALE}mm; }
 .di-head span {
-  margin-left: auto; background: ${RED}; padding: 0 3mm; display: flex; align-items: center;
+  margin-left: auto; background: ${RED}; padding: 0 ${PLAYER_PAD.x / CARD_SCALE}mm 0 3mm; display: flex; align-items: center;
   font-size: 7pt; font-weight: 600; letter-spacing: 0.08em;
 }
 
-/* The goal: the one thing a first game must not forget. */
-.di-goal { background: ${RED}; color: #fff; padding: 1.1mm 1.8mm 1.2mm; }
-.di-goal strong {
-  display: block; font-family: var(--di-display); font-weight: 700; font-size: 9.4pt;
-  text-transform: uppercase; letter-spacing: 0.01em; line-height: 1;
+/* The faces' lists, rules and drawings (CardFaces.tsx). Every drawing is an
+   svg in millimetres (pictos.tsx); these set the words round them. A
+   section's rule runs out to the band on both sides and joins it, as the
+   head strip does; its words stay in line with the rest. */
+.di-card p { margin: 0; font-size: 5.4pt; }
+.cs-sec {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 2mm;
+  border-bottom: 0.5mm solid ${INK}; padding: 0 ${PLAYER_PAD.x / CARD_SCALE}mm 0.3mm;
+  margin: 0.4mm -${PLAYER_PAD.x / CARD_SCALE}mm 0;
+  font-family: var(--di-display); font-weight: 700; text-transform: uppercase;
+  font-size: 7pt; letter-spacing: 0.04em; line-height: 1;
 }
-.di-goal span { display: block; margin-top: 0.6mm; font-size: 5.2pt; line-height: 1.22; }
-
-/* A section: its name in capitals on a heavy rule, with an aside on the right. */
-.di-band {
-  display: flex; align-items: baseline; gap: 1.5mm;
-  font-family: var(--di-display); font-weight: 600; font-size: 6.6pt;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  border-bottom: 0.55mm solid ${INK}; padding-bottom: 0.35mm; margin-bottom: 0.7mm;
+.cs-sec em { font-style: normal; font-weight: 500; font-size: 5.6pt; letter-spacing: 0.03em; color: ${RED}; }
+.cs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.9mm; }
+.cs-list li { display: grid; grid-template-columns: 7.2mm 1fr; column-gap: 1.3mm; align-items: center; }
+.cs-list li > svg { margin-top: 0.15mm; }
+.cs-list p { line-height: 1.17; }
+.cs-n {
+  display: inline-block; font-style: normal; background: ${INK}; color: #fff; width: 2.6mm; height: 2.6mm;
+  line-height: 2.6mm; text-align: center; font-family: var(--di-display); font-weight: 700; font-size: 5.8pt;
+  margin-right: 0.8mm; vertical-align: 0.05mm;
 }
-.di-band em { margin-left: auto; font-style: normal; color: ${RED}; font-size: 5.6pt; letter-spacing: 0.06em; }
-.di-sec { display: flex; flex-direction: column; }
-
-/* The turn, as numbered rows. */
-.di-steps { display: grid; grid-template-columns: 3.4mm 14.5mm 1fr; column-gap: 1.2mm; row-gap: 0.45mm; }
-.di-steps i {
-  font-style: normal; background: ${INK}; color: #fff; text-align: center;
-  font-family: var(--di-display); font-weight: 700; font-size: 6.2pt; line-height: 3.2mm; height: 3.2mm;
+.cs-red .cs-n { background: ${RED}; }
+.cs-t {
+  font-family: var(--di-display); font-weight: 700; text-transform: uppercase; font-size: 6.2pt;
+  letter-spacing: 0.03em; margin-right: 0.8mm;
 }
-.di-steps i.e { background: ${RED}; }
-.di-steps u {
-  text-decoration: none; font-family: var(--di-display); font-weight: 600; font-size: 6pt;
-  text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.05; padding-top: 0.3mm;
+.cs-red .cs-t { color: ${RED}; }
+.cs-quiet { color: ${RED}; font-weight: 600; line-height: 1.17; }
+.cs-row { display: flex; align-items: center; gap: 1.2mm; }
+.cs-row p { line-height: 1.15; }
+.cs-sees {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-auto-rows: 1fr; column-gap: 1.6mm; row-gap: 1.4mm; align-items: center;
 }
-.di-steps span { font-size: 5.3pt; line-height: 1.2; padding-top: 0.2mm; }
-.di-quiet {
-  margin-top: 0.5mm; font-family: var(--di-display); font-weight: 600; font-size: 5.8pt;
-  letter-spacing: 0.04em; text-transform: uppercase; color: ${RED};
-}
-
-/* Tables. One shape for all of them (CardTable): icon, name, numbers with
-   energy first, then the text, at the same column widths on every face, so a
-   column read in one table is the same column in the next. Numbers in the
-   poster face so columns line up; words in the sans. */
-.di-t { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 5.2pt; line-height: 1.15; }
-.di-c-ic { width: 3.6mm; }
-.di-c-k { width: 13mm; }
-.di-c-n { width: 4.4mm; }
-/* A number column is as narrow as its figures; its header may run left into the name's. */
-.di-t th > span { display: inline-block; margin-left: -8mm; }
-.di-t th {
-  font-family: var(--di-display); font-weight: 600; font-size: 5pt; letter-spacing: 0.08em;
-  text-transform: uppercase; text-align: right; white-space: nowrap;
-  padding: 0 0 0.35mm 0; border-bottom: 0.3mm solid ${INK};
-}
-.di-t th:first-child { text-align: left; }
-.di-t th.di-l { text-align: left; padding-left: 1.4mm; }
-/* Under a table with the same columns the header is not repeated: it keeps the column
-   widths and its rule, and prints nothing. */
-.di-quiet-head th { font-size: 0; line-height: 0; padding: 0; border: 0; }
-.di-t td { padding: 0.35mm 0 0.3mm 0; vertical-align: top; }
-.di-t .n {
-  font-family: var(--di-display); font-weight: 700; font-size: 6pt; text-align: right; white-space: nowrap;
-  line-height: 1.05;
-}
-/* A long name takes two lines, as its text usually does. */
-.di-t .k {
-  font-family: var(--di-display); font-weight: 600; font-size: 6pt; text-transform: uppercase;
-  letter-spacing: 0.02em; line-height: 1.05;
-}
-.di-t .di-ic { padding-top: 0.3mm; }
-.di-t td.di-w { padding-left: 1.4mm; }
-.di-t tbody tr + tr td { border-top: 0.15mm solid #bbb; }
-.di-t .r { color: ${RED}; }
-
-/* Phasing, as the sectors a burn can land on and what each costs. */
-.di-phase { display: flex; align-items: center; gap: 1.2mm; margin-top: 0.9mm; }
-.di-phase b {
-  font-family: var(--di-display); font-weight: 600; font-size: 5.4pt; letter-spacing: 0.04em;
-  text-transform: uppercase; flex: none; width: 10.5mm;
-}
-.di-phase-strip { flex: none; display: block; }
-.di-phase-note { font-size: 4.8pt; line-height: 1.2; }
-
-/* A line of qualification under a table, where the table cannot hold it. */
-.di-fine { font-size: 5pt; line-height: 1.25; margin-top: 0.7mm; }
-
-/* The d10, as ten faces you can point at: the same shading as the cheatsheet. */
-.di-roll { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0.6mm; margin-bottom: 0.8mm; }
-.di-roll span {
-  position: relative; text-align: center; font-family: var(--di-display); font-weight: 700;
-  font-size: 7pt; line-height: 4.2mm; height: 4.2mm; box-sizing: border-box; overflow: hidden;
-}
-.di-roll .di-miss { border: 0.3mm solid ${INK}; color: ${INK}; line-height: 3.6mm; }
-.di-roll .di-hit { background: ${INK}; color: #fff; }
-.di-roll .di-crit { background: ${RED}; color: #fff; }
-.di-roll .di-sensor { background: ${INK}; color: #fff; box-shadow: inset 0 -0.9mm 0 ${RED}; }
-
-/* Short facts, one per line, label then value. */
-.di-notes { display: flex; flex-direction: column; gap: 0.55mm; font-size: 5.2pt; }
-.di-notes div { display: flex; gap: 1.2mm; }
-.di-notes b {
-  font-family: var(--di-display); font-weight: 600; font-size: 5.4pt; letter-spacing: 0.04em;
-  text-transform: uppercase; flex: none; width: 10.5mm; padding-top: 0.1mm;
-}
-.di-notes span { flex: 1; }
-
-/* The heat check, as a tree: the sum forks three ways and every branch joins
-   again for the dissipation and the carry. The fork's bars run from the middle
-   of its first row to the middle of its last, which is why a row has a fixed
-   height. */
-.di-tree { display: flex; align-items: center; }
-.di-tree span {
-  border: 0.3mm solid ${INK}; padding: 0.4mm 0.8mm; font-size: 5pt; line-height: 1.15;
-  flex: none;
-}
-.di-tree span.x { background: ${RED}; border-color: ${RED}; color: #fff; }
-.di-tree span.k { background: ${INK}; color: #fff; }
-.di-tree i { font-style: normal; flex: none; }
-.di-tree i.l { width: 1.4mm; border-top: 0.3mm solid ${INK}; }
-.di-tree i.a { font-family: var(--di-display); font-weight: 700; font-size: 6pt; padding: 0 0.6mm; }
-.di-fork { position: relative; display: flex; flex-direction: column; gap: 0.6mm; padding: 0 1.4mm; flex: none; }
-.di-fork::before, .di-fork::after {
-  content: ''; position: absolute; top: 1.35mm; bottom: 1.35mm; border-left: 0.3mm solid ${INK};
-}
-.di-fork::before { left: 0; }
-.di-fork::after { right: 0; }
-.di-fork span {
-  position: relative; box-sizing: border-box; height: 3mm;
-  display: flex; align-items: center; white-space: nowrap;
-}
-.di-fork span::before, .di-fork span::after {
-  content: ''; position: absolute; top: calc(50% - 0.15mm); width: 1.4mm; border-top: 0.3mm solid ${INK};
-}
-.di-fork span::before { left: calc(-1.4mm - 0.3mm); }
-.di-fork span::after { right: calc(-1.4mm - 0.3mm); }
+.cs-sees p { line-height: 1.15; }
+.cs-roomy { gap: 3.2mm; }
+.cs-roomy p { font-size: 6pt; }
+.cs-roomy .cs-sees { row-gap: 4.2mm; }
 
 /* The printed pages of every print on the page (print/PrintPages.tsx):
    hidden on screen, and every card drawn to the millimetre, at scale 1, in print. */
-.di-sheets { display: none; --card-zoom: 1; --lo-zoom: 1; --mc-zoom: 1; }
+.di-sheets { display: none; --card-zoom: 1; --lo-zoom: 1; --mc-zoom: 1; --sx-zoom: 1; }
 .di-page {
   position: relative; width: ${SHEET_WIDTH_MM}mm; height: ${SHEET_HEIGHT_MM}mm;
   overflow: hidden; background: #fff;
@@ -223,7 +163,7 @@ export const CARD_CSS = `
 .di-page + .di-page { break-before: page; }
 .di-marks { position: absolute; left: 0; top: 0; }
 .di-slot { position: absolute; }
-.di-slot.di-turned { transform: rotate(180deg); }
+.di-turn { transform-origin: top left; }
 
 @media print {
   .di-cards { display: none !important; }

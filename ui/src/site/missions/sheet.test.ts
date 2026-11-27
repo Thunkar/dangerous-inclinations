@@ -71,9 +71,9 @@ describe('the mission deck sheet', () => {
   })
 
   it.each([
-    ['long', (f: Rect) => ({ x: SHEET_WIDTH_MM - f.x - f.width, y: f.y }), false],
-    ['short', (f: Rect) => ({ x: f.x, y: SHEET_HEIGHT_MM - f.y - f.height }), true],
-  ] as const)('a %s-edge flip puts every back behind its front', (flip, behind, rotated) => {
+    ['long', (f: Rect) => ({ x: SHEET_WIDTH_MM - f.x - f.width, y: f.y }), 0],
+    ['short', (f: Rect) => ({ x: f.x, y: SHEET_HEIGHT_MM - f.y - f.height }), 180],
+  ] as const)('a %s-edge flip puts every back behind its front', (flip, behind, turn) => {
     const pages = deckPages(cards(20), flip)
     for (let p = 0; p < pages.length; p += 2) {
       const [fronts, backs] = [pages[p], pages[p + 1]]
@@ -81,10 +81,10 @@ describe('the mission deck sheet', () => {
       for (const [i, front] of fronts.entries()) {
         const back = backs[i]
         expect(front.face).toBe('front')
-        expect(front.rotated).toBe(false)
+        expect(front.turn).toBe(0)
         expect(back.face).toBe('back')
         expect(back.card).toBe(front.card)
-        expect(back.rotated).toBe(rotated)
+        expect(back.turn).toBe(turn)
         expect(back.width).toBe(MISSION_WIDTH_MM)
         expect(back.height).toBe(MISSION_HEIGHT_MM)
         expect(back.x).toBeCloseTo(behind(front).x)

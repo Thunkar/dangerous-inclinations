@@ -65,7 +65,7 @@ import { AGENT_INTENT } from '../text/agentIntent.ts'
 import { seatOptions } from './options.ts'
 import { isMooredAt } from '../game/stations.ts'
 import { wrapSector } from '../game/geometry.ts'
-import { foldEngines, foldFuel } from '../game/fold.ts'
+import { baseFoldFuel, compressedFoldFuel, foldEngines } from '../game/fold.ts'
 
 /** Every face of the d10 the game rolls. */
 const DIE_FACES = Array.from({ length: D10_FACES }, (_, i) => i + 1)
@@ -156,7 +156,8 @@ export function agentRulesDigest(pointsToWin: number = DEFAULT_POINTS_TO_WIN): s
       compressorPays: WELL_TRANSFER_COSTS.mass - COMPRESSED_JUMP_MASS,
     }),
     fill(T.fold, {
-      foldFuel: foldFuel(),
+      foldFuel: baseFoldFuel(),
+      compressedFoldFuel: compressedFoldFuel(),
       foldEnergy: cubes('jump_drive'),
       foldEngines: foldEngines(),
     }),

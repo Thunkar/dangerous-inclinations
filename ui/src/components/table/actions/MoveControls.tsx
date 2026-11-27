@@ -176,7 +176,12 @@ function FoldOptions({ to }: { to: Position | null }) {
           : fill(T.foldReach.planet, { well: getWellName(from.wellId) })}
       </Typography>
       <Typography variant="caption" sx={line}>
-        {fill(T.foldCost, { drive, engines, fuel: foldFuel(), heat: drive + engines })}
+        {fill(T.foldCost, {
+          drive,
+          engines,
+          fuel: foldFuel({ subsystems: plan.pendingSubsystems }),
+          heat: drive + engines,
+        })}
       </Typography>
       {damage > 0 && (
         <Typography variant="caption" sx={{ color: TABLE.danger, lineHeight: 1.3 }}>

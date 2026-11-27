@@ -40,6 +40,9 @@ const drive = (from: Partial<Position> = {}) =>
 
 const alphaRing3: Position = { wellId: ALPHA, ring: 3, sector: 10 }
 
+/** A fold's fuel for the drive hull, which carries no compressor. */
+const FUEL = foldFuel(getShip(drive(), 'p1'))
+
 describe('jump drive: a fold', () => {
   it('puts the ship where it names, with no drift, for its fuel', () => {
     const before = drive()
@@ -48,7 +51,7 @@ describe('jump drive: a fold', () => {
     const ship = getShip(result.gameState, 'p1')
     expect(ship).toMatchObject(alphaRing3)
     expect(ship.facing).toBe(getShip(before, 'p1').facing)
-    expect(ship.reactionMass).toBe(getShip(before, 'p1').reactionMass - foldFuel())
+    expect(ship.reactionMass).toBe(getShip(before, 'p1').reactionMass - FUEL)
     expect(getSub(result.gameState, 'p1', DRIVE)).toMatchObject({
       isBroken: false,
       isRevealed: true,
@@ -57,7 +60,7 @@ describe('jump drive: a fold', () => {
     expect(eventsOf(result.events, 'folded')[0]).toMatchObject({
       playerId: 'p1',
       to: alphaRing3,
-      massSpent: foldFuel(),
+      massSpent: FUEL,
       heat: 6,
     })
     expect(getSub(result.gameState, 'p1', 'engines')).toMatchObject({ allocatedEnergy: 3 })
@@ -160,8 +163,8 @@ describe('jump drive: a fold', () => {
   })
 
   it('needs the fuel', () => {
-    const dry = withShip(drive(), 'p1', { reactionMass: foldFuel() - 1 })
-    const fuelled = withShip(drive(), 'p1', { reactionMass: foldFuel() })
+    const dry = withShip(drive(), 'p1', { reactionMass: FUEL - 1 })
+    const fuelled = withShip(drive(), 'p1', { reactionMass: FUEL })
     expectRefusedUnless(
       executeTurnAs(dry, fold(1, alphaRing3)),
       executeTurnAs(fuelled, fold(1, alphaRing3))
@@ -195,13 +198,48 @@ describe('jump drive: a fold', () => {
     const after = executeTurnAs(drive(), fold(1, alphaRing3)).gameState
     const next = { ...after, activePlayerIndex: 0 }
     const onward: Position = { wellId: ALPHA, ring: 1, sector: 4 }
-    const refuelled = withShip(next, 'p1', { reactionMass: foldFuel() })
+    const refuelled = withShip(next, 'p1', { reactionMass: FUEL })
     const again = executeTurnAs(refuelled, fold(1, onward))
     expect(again.errors).toBeUndefined()
     expect(getShip(again.gameState, 'p1')).toMatchObject(onward)
     // Without the fuel for a second fold, it is refused.
-    const dry = withShip(next, 'p1', { reactionMass: foldFuel() - 1 })
+    const dry = withShip(next, 'p1', { reactionMass: FUEL - 1 })
     expect(executeTurnAs(dry, fold(1, onward)).errors).toBeDefined()
+  })
+})
+
+describe('jump drive: a fold with a compressor', () => {
+  /** Compressor bow; jump drive, laser, shields, radiator. */
+  const compressed = makeTwoPlayerGame(
+    {
+      ring: 3,
+      sector: 0,
+      loadout: {
+        forwardSlots: ['fuel_compressor'],
+        sideSlots: ['jump_drive', 'laser', 'shields', 'radiator'],
+      },
+    },
+    { ring: 5, sector: 12 }
+  )
+
+  it('costs 6 fuel with a working compressor, 8 with it broken, and shows the compressor', () => {
+    const before = getShip(compressed, 'p1').reactionMass
+    const result = executeTurnAs(compressed, fold(1, alphaRing3))
+    expect(result.errors).toBeUndefined()
+    expect(getShip(result.gameState, 'p1').reactionMass).toBe(before - 6)
+    expect(eventsOf(result.events, 'folded')[0]).toMatchObject({ massSpent: 6 })
+    expect(getSub(result.gameState, 'p1', 'forward-0')).toMatchObject({ isRevealed: true })
+
+    const broken = withSub(compressed, 'p1', 'forward-0', { isBroken: true })
+    const dear = executeTurnAs(broken, fold(1, alphaRing3))
+    expect(getShip(dear.gameState, 'p1').reactionMass).toBe(before - 8)
+  })
+
+  it('needs 6 in the tank, not 8', () => {
+    expectRefusedUnless(
+      executeTurnAs(withShip(compressed, 'p1', { reactionMass: 5 }), fold(1, alphaRing3)),
+      executeTurnAs(withShip(compressed, 'p1', { reactionMass: 6 }), fold(1, alphaRing3))
+    )
   })
 })
 

@@ -2,7 +2,7 @@
 
 A game of orbital manoeuvre, heat management and hidden objectives for 3–6 players. Ships orbit a black hole and its three planets, jump between them along transfer lanes, trade shots and cargo, and race to three points from secret missions.
 
-**The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the secondary cards are worth 1. So your primary and either of your secondary cards wins, and two secondary cards on their own do not.
+**The game ends at the end of the round in which a player reaches 3 points**, so every seat gets the same number of turns. Highest score wins; ties go to the ship with more hull, then more fuel, then the earlier seat. Destroy, Deliver and Intercept are worth **2 points** each; the secondary cards are worth 1. So your primary and any one of your secondary cards wins, and so do all three secondary cards without it.
 
 ---
 
@@ -48,7 +48,7 @@ Reading Black Hole Ring 5 clockwise: out to Beta, in from Alpha, out to Gamma, i
 
 ### Stations
 
-Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at the end of every round. The station spans three sectors of its ring: end your turn on any of them and you dock, and you ride the station from that sector.
+Each planet has a station on **Ring 2**. Stations drift like ships, at Ring 2's speed: 4 sectors at the end of every round. The station spans three sectors of its ring: end your turn on any of them and you dock, and you ride the station from that sector.
 
 **Ring 1 is how you catch one.** A ship on the station's own ring drifts exactly as fast as the station, so the gap between them never closes by waiting, and every ring outside it is slower still. Ring 1 runs at 6: drop into it, let it carry you round faster than the station, and burn back out onto the station where it will be. Docking is a manoeuvre you fly, not a queue you join.
 
@@ -65,7 +65,7 @@ Each planet has a station on **Ring 2**. Stations drift like ships: 4 sectors at
 ## Setup
 
 1. **Missions.** Deal each player **three primary cards**, of which they keep **one**; then shuffle the secondary pile, deal **three** to each player, and each keeps **all three**. Kept cards go face-down behind the screen; the cards you leave go face-down onto one shared discard pile. Cards and loadout are chosen together: keep nothing your loadout could never complete (see Missions).
-2. **Loadout.** Each player fills their loadout: 1 forward subsystem (railgun, disruptor, sensor array, fuel compressor, shields, missiles or jump drive) and 4 side subsystems (laser, plasma cannon, disruptor, radiator, shields, ballistic rack, missiles or jump drive); repeats are allowed. All subsystems are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout.
+2. **Loadout.** Each player fills their loadout: 1 forward subsystem (railgun, disruptor, sensor array, fuel compressor, shields, missiles or jump drive) and 4 side subsystems (laser, plasma cannon, disruptor, radiator, shields, ballistic rack, missiles or jump drive); repeats are allowed. All subsystems are placed **face-down**. Engines, manoeuvring thrusters and fuel scoop are printed on every loadout, face-up.
 3. **Deployment.** In **reverse turn order** (the last player places first, the first player last), each player places their ship, facing prograde, on **Black Hole Ring 2, 3 or 4**, **at least three sectors from every ship already placed** (if no sector qualifies, the one farthest from them), and puts their Home marker there. Everyone starts around the hole and scatters from there; missions are secret, so pick your ring and sector with them in mind (Ring 4 drifts 2 sectors a turn and a soft burn outward lands on the same sector of the lane ring; Ring 3 drifts 4 and Ring 2 drifts 6, closer to the others and further from the lanes).
 4. Set your hull die and your fuel die to 10 and your heat track to 0, all in the open. Energy cubes sit in the supply until something calls for them. Only your cards and the ammo in a face-down missiles subsystem sit behind the screen.
 
@@ -78,14 +78,14 @@ If your ship was destroyed, your whole turn is: place it on your Home sector (ne
 Otherwise:
 
 1. **Clear your loadout.** Take every energy cube off your subsystems and put it back in the supply. Whatever you powered last turn has done its job.
-2. **Actions,** in any order you choose. Each subsystem does one thing a turn (a ballistic rack also intercepts during other players' turns). Seize, Survey, Salvage and Mark use no subsystem and cost no energy:
+2. **Actions,** in any order you choose. Each subsystem does one thing a turn (a ballistic rack also intercepts during other players' turns). Seize, Survey, Salvage and Mark use no subsystem and cost no energy. They happen on the spot, like a shot: do them where your ship is, before you move or after.
    - **Power.** Put energy on your shields (1 or 2), a ballistic rack (2) or a sensor array (2). They work until your next turn (see Energy and Heat).
    - **Rotate.** Flip facing (prograde ↔ retrograde). Thrusters take 1 energy.
    - **Move.** Exactly one of: _coast_, _burn_, _jump_ or _fold_. If you take no move, you coast after your other actions.
    - **Fire.** Any number of weapons, each at its own point in the sequence (before or after your move). A missile flies and attacks the moment you launch it (see Weapons). If a ship you meant to fire at was destroyed earlier in your turn, that shot simply isn't taken.
    - **Scan.** With a sensor array (see Hidden Information).
    - **Seize.** With a Piracy card, while you share a sector with an undocked ship carrying cargo and you are not moored, take one item of your choice from it (see Missions). Seize before you fire at that ship: a ship destroyed earlier in your turn takes its cargo down with it, and there is nothing left to take.
-   - **Survey.** With a Survey card, while on Black Hole Ring 1, take the data (see Missions).
+   - **Survey.** With a Survey card, take the data while you're on Black Hole Ring 1, before you move or after (see Missions).
    - **Salvage.** With a Salvage card, while on a wreck's sector, take its black box (see Missions). A ship destroyed earlier in your turn has already left its wreck, so fire, then salvage, and your own kill's black box is yours.
    - **Mark.** With an Escort card, while on the same ring as an undocked rival carrying cargo, and not moored, put your marker on it (see Missions). Mark before you fire at that ship.
 3. **Missiles.** Each of your missiles launched on an earlier turn flies and rides its orbit, in the order you choose, and may attack. A missile you launched this turn has already flown.
@@ -105,7 +105,7 @@ Once a round, after the last player's turn:
 
 **Every action puts energy on the subsystem it uses, and every energy cube on your loadout is a point of heat at your heat check.** The energy stays on the subsystem until the start of your next turn, when you clear your loadout. That is the whole of energy.
 
-- **The action decides how much**: 4 on a railgun, 3 on a plasma cannon or a disruptor, 2 on a laser, a rack, the missiles or a sensor, 1 on the thrusters, the burn's own number on the engines, 3 for a jump or for the scoop.
+- **The action decides how much**: 4 on a railgun, 3 on a plasma cannon, a disruptor or a jump drive, 2 on a laser, a rack, the missiles or a sensor, 1 on the thrusters, the burn's own number on the engines, 3 on the engines for a jump or a fold, 3 on the scoop.
 - **Powering is an action too**, for the three subsystems that work on other players' turns: **shields** (1 or 2), a **ballistic rack** (2) and a **sensor array** (2). A subsystem with energy on it works until your next turn: shields absorb, a rack shoots down missiles, a sensor widens your critical range. So a rack you fired is also up, and a sensor you scanned with widens the range of every shot you take after the scan. Keeping a wall up means powering it every turn, and paying for it at every check.
 - **Each subsystem does one thing a turn**: you power it or you use it. A salvo is one use of the missiles subsystem and a turn of interceptions is one use of the ballistic rack, whatever the count.
 - **There is no reactor.** Nothing caps what you may power at once: a ship can power two full shields, make a hard burn and fire the railgun in the same turn, and the check will bill it eleven heat. Burn yourself to a crisp if the turn is worth it.
@@ -118,20 +118,20 @@ Once a round, after the last player's turn:
 
 | Subsystem                     | Energy | Effect                                                                                              |
 | ----------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
-| Engines (fixed)               | 1–3    | Burns and jumps; once per turn                                                                      |
+| Engines (fixed)               | 1–3    | Burns, jumps, folds and railgun recoil compensation; once per turn                                  |
 | Maneuvering thrusters (fixed) | 1      | Rotate                                                                                              |
 | Fuel scoop (fixed)            | 3      | While coasting, recover fuel equal to your ring's velocity                                          |
 | Railgun (forward)             | 4      | 4 damage, spinal, same ring, 1–5 sectors ahead; recoil                                              |
 | Sensor array (forward)        | 2      | Scan; while it has energy, your criticals are 8–10                                                  |
-| Fuel compressor (forward)     | none   | A jump costs 1 fuel instead of 3                                                                    |
+| Fuel compressor (forward)     | none   | A jump costs 1 fuel instead of 3, and a fold 6 instead of 8                                         |
 | Missiles (forward or side)    | 2      | Launch any number of your guided missiles at one ship in your well (4 aboard)                       |
 | Broadside laser (side)        | 2      | 2 damage, ignores shields, ±2 rings, ±1 sector, one side only, never its own ring                   |
 | Shields (either)              | 1 or 2 | While they have energy: 1 energy absorbs 1 damage in each player's turn; absorbed damage is heat    |
 | Radiator (side)               | none   | +2 dissipation                                                                                      |
 | Ballistic rack (side)         | 2      | 2 damage, ±1 ring/same ring, ±1 sector; while it has energy: rolls at 4 missiles a turn, for 2 heat |
 | Plasma cannon (side)          | 3      | 4 damage, ±1 ring, ±1 sector, one side only; 1 shield energy stops 2 damage                         |
-| Disruptor (either)            | 3      | No damage, ±1 ring/same ring, ±1 sector; a hit breaks the named subsystem                           |
-| Jump drive (either)           | 3      | Fold (8 fuel, 3 on the engines): your move puts you in your well or between the black hole and a planet |
+| Disruptor (either)            | 3      | No damage, ±2 rings/same ring, ±2 sectors; a hit breaks the named subsystem                         |
+| Jump drive (either)           | 3      | Fold (8 fuel, 6 with a compressor; 3 on the engines): your move puts you in your well or between the black hole and a planet |
 
 ---
 
@@ -161,9 +161,9 @@ From a lane's departure arc (the black hole arc of an outbound lane, the planet 
 
 ### Fold
 
-With a jump drive, your move may be a **fold**: put your ship on any sector of your own well, or between the black hole and a planet, facing as it was. A fold never goes from one planet's well to another's, and never ends on a station (any of its three sectors).
+With a jump drive, your move may be a **fold**: put your ship on any sector of your own well, facing as it was. From the black hole you may fold into any planet's well, and from a planet's well into the black hole's. A fold never goes from one planet's well to another's, and never ends on a station (any of its three sectors).
 
-A fold costs **8 fuel** and puts 3 energy on the drive and 3 on your engines. A fold is your whole move, with no drift. As with a burn or a jump, you may act before it and after it: what you do after it, you do where it put you. Your cargo comes with you.
+A fold costs **8 fuel** and puts 3 energy on the drive and 3 on your engines. The drive opens the fold for 5 of that fuel, and your engines carry you through it for the other 3, as they would on a jump: so a fuel compressor cuts their share to 1, and a fold with one aboard costs 6. A fold is your whole move, with no drift, and it uses your engines for the turn, so a railgun you fire that turn cannot compensate its recoil. As with a burn or a jump, you may act before it and after it: what you do after it, you do where it put you. Your cargo comes with you.
 
 ### Rotation
 
@@ -175,7 +175,7 @@ Puts 1 energy on the thrusters. Rotate before your burn to choose its direction.
 
 ### Hitting
 
-Roll a d10 for each shot: **1** misses, **2–9** hits, **10** is a critical. A sensor array with energy on it makes 8–10 critical: power it, or scan with it, before you fire. A critical on an 8 or a 9 does not turn the sensor over; only scanning does.
+Roll a d10 for each shot: **1** misses, **2–9** hits, **10** is a critical. A critical is a hit too: it deals its damage as any hit does. A sensor array with energy on it makes 8–10 critical: power it, or scan with it, before you fire. A critical on an 8 or a 9 does not turn the sensor over; only scanning does.
 
 ### Damage
 
@@ -183,7 +183,7 @@ Shields absorb first (every energy absorbs 1 damage and is spent until that play
 
 ### Critical hits
 
-When you fire, name one slot on the target: forward, side 1–4, engines, thrusters or the fuel scoop. **Any slot may be named**, including the three printed on every loadout. If the shot is a critical, that subsystem is **turned face-up and broken**, **whether or not the shot got through the shields**: its energy is dumped into its owner's heat on the spot, and it cannot be used until repaired.
+When a shot is a critical, name one slot on the target: forward, side 1–4, engines, thrusters or the fuel scoop. You name it after the roll. **Any slot may be named**, including the three printed on every loadout. That subsystem is **turned face-up and broken**, **whether or not the shot got through the shields**: its energy is dumped into its owner's heat on the spot, and it cannot be used until repaired.
 
 A wall that holds is no protection against being named. **The energy on every slot is public**, even face-down, and it stays there until its owner's next turn, so a loaded slot is a target you can see: a railgun that just fired still holds 4, and three on a side slot is three heat dumped onto its owner the moment a 10 comes up. A broken subsystem is repaired at a station, or one at a time by running cold (see Energy and Heat), which is how a ship whose engines or scoop were shot out still gets home: a ship that lights nothing reaches 0 heat and fixes one subsystem a turn, wherever it is and however empty its tank. Naming a face-down slot is a gamble; naming a face-up one is a plan. A shield that has just absorbed still holds its energy, so breaking it dumps all of it on top of the points it took, and it is gone until they dock.
 
@@ -197,12 +197,12 @@ A wall that holds is no protection against being named. **The energy on every sl
 
   While it has energy it **rolls at up to 4 missiles a turn**: a d10 against each one, on 2+ that missile is destroyed, and **the rack is used once for the turn** however many it rolls at. **Answering is 2 heat**: put it on your heat track when the rack first rolls in a turn, however many missiles it rolls at, and it is paid at your next check, like the damage a shield absorbs. Four is what its two energy could have thrown as a launcher, which is the whole of the symmetry: two energy put four missiles in the air, two shoot four down, and the fifth gets through. A ship expecting more than four at once carries a second rack and powers it every turn like the first, and that rack pays its own 2 heat the turn it rolls.
 
-- **Missiles.** Target **any ship in your well**, any distance, any facing: a missile is self-guided, so its own flight is its range and a launch that never catches up is simply a missile wasted. One action launches **as many of your remaining missiles as you like at one ship**, all naming the same critical slot, for **one use of the subsystem**: the magazine is the limit, not the heat. Place one salvo token on your sector showing how many you launched; whenever missiles of a salvo are destroyed, swap its token for the one showing what is left. **It flies at once**, up to 3 steps toward its target (a step is one ring or one sector, and the ring gap closes first). At the end of each of your later turns it **flies up to 3 steps and rides its orbit, in the order you choose**: fly first and it can turn back onto a ship it has passed before its ring carries it on. If its flight ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt, rolling with whatever critical range your sensor gives you at that moment. A missile that has flown three times without hitting is removed.
+- **Missiles.** Target **any ship in your well**, any distance, any facing: a missile is self-guided, so its own flight is its range and a launch that never catches up is simply a missile wasted. One action launches **as many of your remaining missiles as you like at one ship**, for **one use of the subsystem**: the magazine is the limit, not the heat. Place one salvo token on your sector showing how many you launched; whenever missiles of a salvo are destroyed, swap its token for the one showing what is left. **It flies at once**, up to 3 steps toward its target (a step is one ring or one sector, and the ring gap closes first). At the end of each of your later turns it **flies up to 3 steps and rides its orbit, in the order you choose**: fly first and it can turn back onto a ship it has passed before its ring carries it on. If its flight ends on the target's sector it attacks like a weapon (2 damage) after any interception attempt, rolling with whatever critical range your sensor gives you at that moment. A missile that has flown three times without hitting is removed.
 
   _The launch turn:_ a new missile flies its 3 steps the moment you launch it, from the sector you dropped it on, and attacks then if it lands. Its hit comes before the actions you take after the launch, so a salvo that empties a shield does it before your next shot. Your sensor widens its critical range only if the sensor had energy before the launch. Your move after the launch does not carry it, and it does not fly again that turn. From its second turn on it drifts with its ring like everything else, which is how it keeps up with a target on a fast ring. So a missile launched on its target's sector attacks at once (a rack with energy on it still rolls first).
 
 - **Plasma cannon.** 4 damage, targets within 1 ring and 1 sector, fires to one side only like the laser, never along its own ring. Shields stop it two points per energy instead of one, so a full shield stops it whole (and its owner takes the 4 as heat) and a half shield lets half through.
-- **Disruptor.** An EMP burst: within 1 ring and 1 sector, either side, or on your own ring 1 sector away, like the ballistic rack. It deals no damage: a hit breaks the subsystem you name and dumps its energy as heat, but any shield with energy not yet spent this turn stops it whole and is turned face-up. A critical goes through shields, as every critical does.
+- **Disruptor.** An EMP burst: within 2 rings and 2 sectors, either side, or on your own ring up to 2 sectors away, ahead or behind. It deals no damage: a hit breaks the subsystem you name and dumps its energy as heat, but any shield with energy not yet spent this turn stops it whole and is turned face-up, so empty the wall first (plasma, a salvo, any shot it absorbs) and fire the disruptor after it. A critical goes through shields, as every critical does.
 
 Nothing fires across gravity wells.
 
@@ -217,8 +217,8 @@ Your subsystems start face-down. **A subsystem is turned face-up the first time 
 | Any weapon      | it fires (or a ballistic rack rolls at a missile); a missiles subsystem then shows what is left |
 | Shields         | they absorb damage or stop a disruptor                                                          |
 | Sensor array    | it scans                                                                                        |
-| Radiator        | your heat goes above 5 at a heat check (it is visibly dissipating)                              |
-| Fuel compressor | a jump costs 1 fuel instead of 3                                                                |
+| Radiator        | your heat is above 5 at a heat check, before dissipating (it is visibly dissipating)            |
+| Fuel compressor | a jump or a fold costs less fuel for it                                                         |
 | Jump drive      | it folds                                                                                        |
 | Any subsystem   | it is broken by a critical                                                                      |
 
@@ -310,12 +310,12 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Drift            | black hole 8/6/4/2/1 · planet 6/4/2/1, innermost first                                                                                                                                                                        |
 | Station ring     | planet Ring 2; Ring 1 is faster, so it is how you catch one                                                                                                                                                                   |
 | Burn             | soft 1 / medium 2 / hard 3 (rings, fuel, engine energy)                                                                                                                                                                       |
-| Phasing          | burn: −(velocity−1) to +3 sectors · jump: anywhere in the arrival arc · 1 fuel each, always paid                                                                                                                              |
+| Phasing          | 1 fuel a sector shifted, always paid · burn: −(velocity−1) to +3 sectors · jump: to any sector of the arrival arc                                                                                                            |
 | Jump             | engines 3, 3 fuel (1 with a compressor), no drift                                                                                                                                                                             |
-| Fold             | jump drive 3 energy and engines 3, 8 fuel: any sector of your well, or between the black hole and a planet, never on a station; no drift                                                                                                    |
+| Fold             | jump drive 3 energy and engines 3, 8 fuel (6 with a compressor): any sector of your well, or from the black hole into a planet's well or back, never planet to planet, never on a station; no drift; no recoil compensation that turn                          |
 | Hit roll         | 1 miss, 2–9 hit, 10 crit (8–10 with sensors)                                                                                                                                                                                  |
 | Shields          | power at 1 or 2; 1 energy a point absorbed (2 of plasma), spent until that player's turn ends, and every point absorbed is heat; power them every turn you want them up; lasers ignore them; an unspent shield stops a disruptor's hit, never its critical |
-| Critical         | names any slot; breaks it through shields, and dumps its energy as heat (a subsystem holds its energy until its owner's next turn)                                                                                            |
+| Critical         | a hit that also names any slot, after the roll; breaks it through shields, and dumps its energy as heat (a subsystem holds its energy until its owner's next turn)                                                                                            |
 | Repair           | a station, on arrival, fixes everything; or one subsystem a turn at 0 heat                                                                                                                                                    |
 | Scan             | same ring, 1–3 sectors ahead in your facing direction or in your sector; sensor aboard and unbroken                                                                                                                           |
 | First round      | no weapon fires, nobody scans, nobody seizes                                                                                                                                                                                  |
@@ -333,13 +333,13 @@ Being destroyed never removes you from the game, but it costs you cargo, tempo a
 | Ammo             | private while the missiles subsystem is face-down; public once it has fired                                                                                                                                                   |
 | Salvo            | one action launches any number of your missiles at one ship, for the subsystem's 2 energy once; a rack with energy on it rolls at 4 of them a turn, one rack per 4, and each rack that rolls is 2 heat on your track          |
 | Win              | 3 points end the round (primaries 2, secondaries 1); highest score, then hull, then fuel, then the earlier seat                                                                                                               |
-| Hand             | 1 primary of 3 dealt, 2 of 3 secondaries dealt. Four points held, three win: the primary and either secondary                                                                                                                 |
+| Hand             | 1 primary of 3 dealt, 3 of 3 secondaries. Five points held, three win: the primary and any secondary, or all three secondaries                                                                                      |
 
 ### Turn cheat sheet
 
-1. Destroyed? Respawn at Home, repaired and reloaded, and coast. Turn over. Your next turn is a first round of your own: untouchable until it ends, no weapon of yours fires, and you scan and seize from nobody.
+1. Destroyed? Respawn at Home, repaired and reloaded, and drift. Turn over. Your next turn is a first round of your own: untouchable until it ends, no weapon of yours fires, and you scan and seize from nobody.
 2. Clear your loadout: every energy cube back to the supply.
-3. Actions in your order: power (shields, racks, sensors) · rotate · move (coast / burn / jump) · fire · scan · seize · survey · salvage · mark. Each subsystem does one thing.
+3. Actions in your order: power (shields, racks, sensors) · rotate · move (coast / burn / jump / fold) · fire · scan · seize · survey · salvage · mark. Each subsystem does one thing.
 4. Your missiles from earlier turns fly and ride, in either order. A new missile flew when you launched it.
 5. Heat check: every energy cube on your loadout is 1 heat; at 0 heat repair one subsystem; over 10 is hull damage; dissipate and carry the rest.
 6. Just arrived on a station (any of its three sectors), and survived the check? Repair, full hull, reload, and one thing: load your crates, or sell one item if it has not bought from you before. Moored until you burn away.

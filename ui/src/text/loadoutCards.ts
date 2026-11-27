@@ -1,6 +1,6 @@
 /**
  * Every word on the printed loadout cards (`site/loadouts/`), and the block
- * above them on the cheatsheet page. One card per preset: its role over the
+ * above them on the rules page. One card per preset: its role over the
  * bow, the bow, the two flanks, then in the black bar the missions it is
  * recommended for. The presets' names are the engine's
  * (`PRESET_NAMES`), the subsystems' and the missions' too.
@@ -33,7 +33,7 @@ export const LOADOUT_CARDS = {
   recommended: 'Recommended for',
 
   // -------------------------------------------------------------------------
-  // The section on the cheatsheet page
+  // The section on the rules page
   // -------------------------------------------------------------------------
   section: {
     /** The tile in the page's contents. */

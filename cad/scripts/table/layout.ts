@@ -835,7 +835,7 @@ const CARD_EDGE = '#efe8d6'
 /**
  * A card lying on whatever is under it at `z`: its face up, or turned over
  * about its long axis to show its back. Textures are cards.mjs's photographs
- * of the site's /card page, in cad/shots/table/cards/.
+ * of the site's /rules page, in cad/shots/table/cards/.
  */
 function card(
   size: { w: number; h: number },

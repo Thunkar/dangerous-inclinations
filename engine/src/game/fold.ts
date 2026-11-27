@@ -5,18 +5,32 @@
  * on it and the fold's energy on the engines like any action, and costs the fold's fuel.
  */
 import type { Position, ShipState, Station } from '../models/game.ts'
-import { SECTORS_PER_RING } from '../models/rings.ts'
+import { COMPRESSED_JUMP_MASS, SECTORS_PER_RING, WELL_TRANSFER_COSTS } from '../models/rings.ts'
 import type { Subsystem, SubsystemId } from '../models/subsystems.ts'
 import { getSubsystemConfig } from '../models/subsystems.ts'
 import { BLACK_HOLE_ID, GRAVITY_WELLS, getGravityWell, getMaxRing } from '../models/gravityWells.ts'
 import type { EventDraft } from '../models/events.ts'
 import { positionOf, samePosition } from './geometry.ts'
-import { useSubsystem } from './ship.ts'
+import { useSubsystem, workingCompressors } from './ship.ts'
 import { getStationInReach } from './stations.ts'
 
-/** Fuel a fold costs, read off the drive's config so `--tiles=` reaches it. */
-export function foldFuel(): number {
+/**
+ * Fuel a fold costs, read off the drive's config so `--tiles=` reaches it: the
+ * engines' share of it is a jump's, so a working compressor cuts it as it cuts
+ * a jump (8 less the 2 it saves on a lane).
+ */
+export function foldFuel(ship: Pick<ShipState, 'subsystems'>): number {
+  return workingCompressors(ship).length > 0 ? compressedFoldFuel() : baseFoldFuel()
+}
+
+/** A fold's fuel without a compressor: the drive's share and the engines'. */
+export function baseFoldFuel(): number {
   return getSubsystemConfig('jump_drive').fold!.foldFuel
+}
+
+/** A fold's fuel with a working compressor, which cuts the engines' share as it cuts a jump. */
+export function compressedFoldFuel(): number {
+  return baseFoldFuel() - (WELL_TRANSFER_COSTS.mass - COMPRESSED_JUMP_MASS)
 }
 
 /** The jump drive aboard, whatever its state. */
@@ -91,7 +105,7 @@ export function applyFold(
 } {
   const from = positionOf(ship)
   const drive = jumpDriveOf(ship)!
-  const massSpent = foldFuel()
+  const massSpent = foldFuel(ship)
   const moved: ShipState = {
     ...ship,
     wellId: to.wellId,
@@ -101,9 +115,19 @@ export function applyFold(
   }
   const used = useSubsystem(moved, playerId, drive.id, 'folded')
   const lit = useSubsystem(used.ship, playerId, 'engines', 'fired', foldEngines())
+  // A compressor that paid for the fold does its job as on a jump: it flips face-up.
+  let out = lit.ship
+  const compressorEvents: EventDraft[] = []
+  if (massSpent < baseFoldFuel()) {
+    for (const compressor of workingCompressors(out)) {
+      const r = useSubsystem(out, playerId, compressor.id, 'compressed_jump')
+      out = r.ship
+      compressorEvents.push(...r.events)
+    }
+  }
   return {
-    ship: lit.ship,
-    events: [...used.events, ...lit.events],
+    ship: out,
+    events: [...used.events, ...lit.events, ...compressorEvents],
     heat: used.heat + lit.heat,
     engineHeat: lit.heat,
     massSpent,

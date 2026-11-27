@@ -11,12 +11,13 @@
  *
  * The card is drawn at its true size and previewed through a transform, so
  * what is on screen is the geometry that reaches the printer. Printing lays
- * four faces on each A4 page with crop marks (`card/sheet.ts`): two cards on
- * one side, or four fronts and then four backs for a duplex printer, and
- * nothing else on the page prints. The loadout cards follow it
- * (`loadouts/`), one per preset, and print nine to a page from their own
- * button; then the range cards (`ranges/`), one per weapon and one for the
- * sensor's scan, and the mission decks (`missions/`), both piles, double-sided.
+ * two faces on each A4 page, on their sides, with crop marks
+ * (`card/sheet.ts`): a front above its back on one side, or two fronts and
+ * then two backs for a duplex printer, and nothing else on the page prints. The loadout cards
+ * follow it (`loadouts/`), one per preset, and print nine to a page from
+ * their own button; then the subsystems card (`subsystems/`), every
+ * subsystem on two faces, and the mission decks (`missions/`), both piles,
+ * double-sided.
  */
 import { useState } from 'react'
 import { Box } from '@mui/material'
@@ -35,8 +36,9 @@ import { HeatSection } from './guide/HeatSection'
 import { FightSection } from './guide/FightSection'
 import { DeathSection, SecretsSection } from './guide/SecretsSection'
 import { CardBack, CardFront } from './card/CardFaces'
-import { CARD_CSS, CARD_HEIGHT_MM, CARD_PAGE_CSS, CARD_WIDTH_MM } from './card/cardStyles'
-import { sheetPages, type PrintMode } from './card/sheet'
+import { CARD_CSS, CARD_PAGE_CSS } from './card/cardStyles'
+import { cardPages, type PrintMode } from './card/sheet'
+import { CARD_HEIGHT_MM, CARD_WIDTH_MM } from './print/frame'
 import type { Flip } from './missions/sheet'
 import { PRINT_CSS } from './print/print'
 import { FlipChoice, PrintPages, PrintSection } from './print/PrintPages'
@@ -46,8 +48,8 @@ import { LOADOUT_CARDS } from '../text/loadoutCards'
 import { LoadoutSection } from './loadouts/LoadoutSection'
 import { LOADOUT_CSS } from './loadouts/loadoutStyles'
 import { MissionDeckSection } from './missions/MissionDeckSection'
-import { RangeSection } from './ranges/RangeSection'
-import { RANGE_CSS } from './ranges/rangeStyles'
+import { SubsystemSection } from './subsystems/SubsystemSection'
+import { SUBSYSTEM_CSS } from './subsystems/subsystemStyles'
 import { MISSION_DECK_CSS } from './missions/missionDeckStyles'
 import { rich } from '../utils/rich'
 
@@ -64,7 +66,7 @@ const STYLE = `
 ${CARD_PAGE_CSS}
 ${CARD_CSS}
 ${LOADOUT_CSS}
-${RANGE_CSS}
+${SUBSYSTEM_CSS}
 ${MISSION_DECK_CSS}
 ${PRINT_CSS}
 `
@@ -194,7 +196,7 @@ function PrintCard() {
         <CardFront />
         <CardBack />
       </Box>
-      <PrintPages pages={sheetPages(mode)}>
+      <PrintPages pages={cardPages(mode)} bleed={PRESS.ink}>
         {face => (face.face === 'front' ? <CardFront /> : <CardBack />)}
       </PrintPages>
     </PrintSection>
@@ -266,9 +268,9 @@ export function Cheatsheet() {
       </Box>
 
       <PrintCard />
-      <LoadoutSection />
-      <RangeSection />
+      <SubsystemSection />
       <MissionDeckSection />
+      <LoadoutSection />
       <SiteFooter />
     </Box>
   )

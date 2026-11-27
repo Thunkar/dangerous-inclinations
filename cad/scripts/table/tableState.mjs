@@ -17,7 +17,7 @@ const PRINTED = { primary: buildPrimaryDeck(MAX_PLAYERS), secondary: buildSecond
 export function tableState(s, meta) {
   /**
    * The printed card behind a mission: its place in the printed pile as the
-   * site's /card page lays it out (ui/src/site/missions/decks.ts: the primary
+   * site's /rules page lays it out (ui/src/site/missions/decks.ts: the primary
    * pile at the largest table, `<pile>-<index>`). A rival card counts seats to
    * the left, so the holder's seat turns the count back into the card.
    */

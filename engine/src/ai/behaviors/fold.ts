@@ -94,7 +94,7 @@ export function foldHeat(): number {
 function readyDrive(situation: TacticalSituation) {
   const drive = jumpDriveOf(situation.ship)
   if (!drive || drive.isBroken || drive.usedThisTurn) return null
-  return situation.status.reactionMass < foldFuel() ? null : drive
+  return situation.status.reactionMass < foldFuel(situation.ship) ? null : drive
 }
 
 /** `target` as the search from the landing sees it: one turn later than from here. */
@@ -120,7 +120,7 @@ export function planFold(situation: TacticalSituation): FoldPlan | null {
   const { me, ship, status, view, currentGoal } = situation
   const drive = readyDrive(situation)
   if (!drive || !currentGoal || foldHeat() > status.heatBudget) return null
-  const fuel = foldFuel()
+  const fuel = foldFuel(ship)
   const aim = goalTarget(currentGoal, me, view, situation.opponents, status)
   if (!aim) return null
 
@@ -253,7 +253,7 @@ export function planEscape(
     const target = afterFold(aim.target)
     let soonest = Infinity
     for (const c of candidates.slice(0, ESCAPE_PLANS)) {
-      const landed = { ...ship, ...c.to, reactionMass: ship.reactionMass - foldFuel() }
+      const landed = { ...ship, ...c.to, reactionMass: ship.reactionMass - foldFuel(ship) }
       const turns = planShipToTarget(landed, target, PLAN_TURNS, aim.reserve)?.totalTurns
       if (turns !== undefined && turns < soonest) {
         soonest = turns

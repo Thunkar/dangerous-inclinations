@@ -10,7 +10,12 @@ import { executeTurn } from '../../game/turns.ts'
 import { viewFor } from '../../game/view.ts'
 import { botDecideActions } from '../../ai/index.ts'
 import type { Opponent } from '../../ai/types.ts'
-import { chooseDisruptTarget, disruptBlockChance, hullThrough } from '../../ai/behaviors/combat.ts'
+import {
+  chooseDisruptTarget,
+  disruptBlockChance,
+  hullThrough,
+  weaponRangeTarget,
+} from '../../ai/behaviors/combat.ts'
 import {
   LOADOUTS,
   BH,
@@ -23,6 +28,7 @@ import {
   expectBotTurnAccepted,
   shotsOf,
   situationOf,
+  getShip,
 } from '../testUtils.ts'
 
 describe('hullThrough: each shot spends the shield pool at its own rate', () => {
@@ -351,5 +357,35 @@ describe('a known disruptor is a gun to the bots', () => {
       a => a.type === 'power' && a.data.subsystemId === 'side-0'
     )
     expect(wall?.type === 'power' ? wall.data.amount : 0).toBeGreaterThanOrEqual(2)
+  })
+})
+
+// The disruptor reaches two, its plasma one: a hunter closes to where a gun
+// that takes hull bears, and the disruptor sets the range only alone.
+describe('weaponRangeTarget: the disruptor sets the range only for a ship with no other gun', () => {
+  const target = { wellId: BH, ring: 3, sector: 0 }
+  const weaponsOf = (loadout: (typeof LOADOUTS)[keyof typeof LOADOUTS]) =>
+    getShip(makeTwoPlayerGame({ loadout }), 'p1').subsystems.filter(
+      s => s.type === 'disruptor' || s.type === 'plasma_cannon'
+    )
+  it.each([
+    [
+      'disruptor and plasma, two along the ring (the disruptor only)',
+      'disruptorPlasma',
+      3,
+      2,
+      false,
+    ],
+    [
+      'disruptor and plasma, a ring out and a sector on (the plasma)',
+      'disruptorPlasma',
+      4,
+      1,
+      true,
+    ],
+    ['a disruptor alone, two along the ring', 'disruptor', 3, 2, true],
+  ] as const)('%s', (_label, loadout, ring, sector, matches) => {
+    const aim = weaponRangeTarget(weaponsOf(LOADOUTS[loadout]), target)
+    expect(aim.isMatch!({ wellId: BH, ring, sector }, 0)).toBe(matches)
   })
 })

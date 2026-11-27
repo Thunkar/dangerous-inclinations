@@ -9,9 +9,10 @@
  * browser (`windows.ts`), not a sentence written beside it. The planner above
  * sets the clock (`now`), and every strip marks that reading.
  */
-import { useEffect, type ReactNode } from 'react'
-import { Box } from '@mui/material'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Box, useMediaQuery, type Theme } from '@mui/material'
 import {
+  DOCKING_REACH,
   PLANETS,
   STATION_DRIFT,
   STATION_INITIAL_SECTOR,
@@ -30,6 +31,7 @@ import {
   PLANET_LEAVE,
   at,
   bestClocks,
+  berths,
   either,
   highest,
   lowest,
@@ -46,6 +48,9 @@ const arcRange = (arc: { startSector: number; length: number }) =>
 
 const ROUTES = CIRCUIT.map(([a, b]) => fill(T.route, { from: planetName(a), to: planetName(b) }))
 
+/** How many sectors a station covers. */
+const WIDTH = berths(PLANETS[0].id, STATION_INITIAL_SECTOR).length
+
 /** The section's head, under the planner: a heavy rule, then the page title's shape a size down. */
 function SectionHead() {
   return (
@@ -56,6 +61,44 @@ function SectionHead() {
       </Display>
       <Box sx={{ width: 96, height: 8, bgcolor: PRESS.red, mt: 2, mb: 2 }} />
       <Body size={{ xs: '1rem', sm: '1.08rem' }}>{T.lede}</Body>
+    </Box>
+  )
+}
+
+/** The section folded on a phone: its name, and a press to open it. */
+function FoldBar({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <Box
+      component="button"
+      type="button"
+      aria-expanded={open}
+      onClick={onToggle}
+      sx={{
+        width: '100%',
+        minHeight: 56,
+        px: 1.5,
+        py: 0.75,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        textAlign: 'left',
+        border: `4px solid ${PRESS.ink}`,
+        bgcolor: open ? PRESS.ink : PRESS.paper,
+        color: open ? PRESS.paper : PRESS.ink,
+        cursor: 'pointer',
+        touchAction: 'manipulation',
+        fontFamily: FONT_DISPLAY,
+        letterSpacing: '0.08em',
+        textTransform: 'uppercase',
+      }}
+    >
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ fontWeight: 600, fontSize: '0.8rem', color: PRESS.red }}>{T.kicker}</Box>
+        <Box sx={{ fontWeight: 700, fontSize: '1.1rem', lineHeight: 1.2 }}>{T.title}</Box>
+      </Box>
+      <Box sx={{ fontWeight: 600, fontSize: '0.9rem', flexShrink: 0 }}>
+        {open ? T.hide : T.show} {open ? '▴' : '▾'}
+      </Box>
     </Box>
   )
 }
@@ -188,6 +231,9 @@ export const WINDOWS_ANCHOR = 'windows'
  */
 export function OrbitalWindows({ now }: { now: number }) {
   const tables = useWindowTables()
+  const wide = useMediaQuery((theme: Theme) => theme.breakpoints.up('md'), { noSsr: true })
+  /** On a phone the section is one bar until opened, so the planner above ends the page. */
+  const [open, setOpen] = useState(() => window.location.hash === `#${WINDOWS_ANCHOR}`)
 
   // A link from elsewhere (the rules dialog) arrives with the hash before the
   // section has rendered, so the browser had nothing to scroll to.
@@ -201,9 +247,10 @@ export function OrbitalWindows({ now }: { now: number }) {
   const tankerBest = tables ? bestClocks(tables.tanker) : []
   const legBest = tables ? bestClocks(tables.leg) : []
   const tankerOthers = tables
-    ? CLOCK.filter(clock => !tankerBest.includes(clock))
-        .map(clock => at(tables.tanker, clock))
-        .filter((v): v is number => v !== null)
+    ? CLOCK.filter(clock => !tankerBest.includes(clock)).flatMap(clock => {
+        const cell = at(tables.tanker, clock)
+        return cell ? [cell.low, cell.high] : []
+      })
     : []
   const legTurns = tables ? span(lowest(tables.leg), highest(tables.leg)) : '?'
 
@@ -212,99 +259,123 @@ export function OrbitalWindows({ now }: { now: number }) {
       component="section"
       id={WINDOWS_ANCHOR}
       // Clear of the sticky site bar when a link lands here.
-      sx={{ mt: { xs: 5, sm: 7 }, scrollMarginTop: { xs: 64, sm: 72 } }}
+      sx={{ mt: { xs: 3, md: 7 }, scrollMarginTop: { xs: 64, sm: 72 } }}
     >
-      <SectionHead />
+      {wide ? <SectionHead /> : <FoldBar open={open} onToggle={() => setOpen(o => !o)} />}
+      {(wide || open) && (
+        <Body size="1rem" sx={{ display: { md: 'none' }, mt: 2, mb: 4 }}>
+          {T.lede}
+        </Body>
+      )}
+      {(wide || open) && (
+        <>
+          <Part>{T.clock.title}</Part>
+          <Block
+            text={
+              <>
+                <P>
+                  {rich(T.clock.steps, {
+                    width: WIDTH,
+                    reach: DOCKING_REACH,
+                    sector: STATION_INITIAL_SECTOR,
+                    ring: STATION_RING,
+                    drift: STATION_DRIFT,
+                  })}
+                </P>
+                <P>{rich(T.clock.reads, { readings: either(CLOCK), rounds: CLOCK.length })}</P>
+                <P>
+                  {rich(
+                    T.clock.planets,
+                    {
+                      arriveRing: PLANET_ARRIVE.ring,
+                      arriveSectors: arcRange(PLANET_ARRIVE),
+                      leaveRing: PLANET_LEAVE.ring,
+                      leaveSectors: arcRange(PLANET_LEAVE),
+                      planets: either(
+                        PLANETS.map(p => p.name),
+                        'and'
+                      ),
+                    },
+                    TAGS
+                  )}
+                </P>
+              </>
+            }
+            aside={
+              <Figure>
+                <StationClockDiagram />
+              </Figure>
+            }
+          />
 
-      <Part>{T.clock.title}</Part>
-      <Block
-        text={
-          <>
-            <P>
-              {rich(T.clock.steps, {
-                sector: STATION_INITIAL_SECTOR,
-                ring: STATION_RING,
-                drift: STATION_DRIFT,
-              })}
-            </P>
-            <P>{rich(T.clock.reads, { readings: either(CLOCK), rounds: CLOCK.length })}</P>
-            <P>
-              {rich(
-                T.clock.planets,
-                {
-                  arriveRing: PLANET_ARRIVE.ring,
-                  arriveSectors: arcRange(PLANET_ARRIVE),
-                  leaveRing: PLANET_LEAVE.ring,
-                  leaveSectors: arcRange(PLANET_LEAVE),
-                  planets: either(
-                    PLANETS.map(p => p.name),
-                    'and'
-                  ),
-                },
-                TAGS
-              )}
-            </P>
-          </>
-        }
-        aside={
-          <Figure>
-            <StationClockDiagram />
-          </Figure>
-        }
-      />
+          <Part>{T.hints}</Part>
+          <Block
+            head={<HintHead n={1}>{T.approach.title}</HintHead>}
+            text={
+              <Thumb
+                rule={tables ? fill(T.approach.rule, { readings: either(approachBest) }) : null}
+              >
+                {tables && fill(T.approach.reason, { turns: lowest(tables.approach) })}
+              </Thumb>
+            }
+            aside={<ClockStrip row={tables?.approach ?? null} now={now} label={T.approach.strip} />}
+          />
 
-      <Part>{T.hints}</Part>
-      <Block
-        head={<HintHead n={1}>{T.approach.title}</HintHead>}
-        text={
-          <Thumb rule={tables ? fill(T.approach.rule, { readings: either(approachBest) }) : null}>
-            {tables && fill(T.approach.reason, { turns: lowest(tables.approach) })}
-          </Thumb>
-        }
-        aside={<ClockStrip row={tables?.approach ?? null} now={now} label={T.approach.strip} />}
-      />
+          <Block
+            head={<HintHead n={2}>{fill(T.tanker.title, { fuel: TANKER_FUEL })}</HintHead>}
+            text={
+              <>
+                <Thumb
+                  tone="ink"
+                  rule={tables ? fill(T.tanker.rule, { readings: either(tankerBest) }) : null}
+                >
+                  {tables &&
+                    fill(T.tanker.reason, { fuel: TANKER_FUEL, turns: lowest(tables.tanker) }) +
+                      (tankerOthers.length
+                        ? fill(T.tanker.others, {
+                            turns: span(Math.min(...tankerOthers), Math.max(...tankerOthers)),
+                          })
+                        : '')}
+                </Thumb>
+                <P>{rich(T.tanker.planner, { fuel: TANKER_FUEL }, TAGS)}</P>
+              </>
+            }
+            aside={
+              <>
+                <ClockStrip
+                  row={tables?.tanker ?? null}
+                  now={now}
+                  label={T.tanker.plain}
+                  tone="ink"
+                />
+                <ClockStrip
+                  row={tables?.tankerCompressed ?? null}
+                  now={now}
+                  label={T.tanker.compressed}
+                  tone="ink"
+                />
+              </>
+            }
+          />
 
-      <Block
-        head={<HintHead n={2}>{fill(T.tanker.title, { fuel: TANKER_FUEL })}</HintHead>}
-        text={
-          <>
-            <Thumb
-              tone="ink"
-              rule={tables ? fill(T.tanker.rule, { readings: either(tankerBest) }) : null}
-            >
-              {tables &&
-                fill(T.tanker.reason, { fuel: TANKER_FUEL, turns: lowest(tables.tanker) }) +
-                  (tankerOthers.length
-                    ? fill(T.tanker.others, {
-                        turns: span(Math.min(...tankerOthers), Math.max(...tankerOthers)),
-                      })
-                    : '')}
-            </Thumb>
-            <P>{rich(T.tanker.planner, { fuel: TANKER_FUEL }, TAGS)}</P>
-          </>
-        }
-        aside={
-          <>
-            <ClockStrip row={tables?.tanker ?? null} now={now} label={T.tanker.plain} tone="ink" />
-            <ClockStrip
-              row={tables?.tankerCompressed ?? null}
-              now={now}
-              label={T.tanker.compressed}
-              tone="ink"
-            />
-          </>
-        }
-      />
-
-      <Block
-        head={<HintHead n={3}>{T.leg.title}</HintHead>}
-        text={
-          <Thumb rule={tables ? fill(T.leg.rule, { readings: either(legBest) }) : null}>
-            {tables && fill(T.leg.reason, { routes: either(ROUTES, 'and'), turns: legTurns })}
-          </Thumb>
-        }
-        aside={<ClockStrip row={tables?.leg ?? null} now={now} label={T.leg.strip} />}
-      />
+          <Block
+            head={<HintHead n={3}>{T.leg.title}</HintHead>}
+            text={
+              <Thumb rule={tables ? fill(T.leg.rule, { readings: either(legBest) }) : null}>
+                {tables && fill(T.leg.reason, { routes: either(ROUTES, 'and'), turns: legTurns })}
+              </Thumb>
+            }
+            aside={
+              <>
+                <ClockStrip row={tables?.leg ?? null} now={now} label={T.leg.strip} />
+                <Body size="0.9rem" color={PRESS.inkSoft}>
+                  {fill(T.leg.berths, { width: WIDTH })}
+                </Body>
+              </>
+            }
+          />
+        </>
+      )}
     </Box>
   )
 }

@@ -21,7 +21,7 @@ export type Route =
   | { kind: 'landing' }
   | { kind: 'play' }
   | { kind: 'tools'; tool: ToolName | null }
-  | { kind: 'card' }
+  | { kind: 'rules' }
   /** The three query flags, honoured from any path. */
   | { kind: 'recordings' }
   | { kind: 'replay'; id: string }
@@ -45,8 +45,8 @@ export function parseRoute(pathname: string, search: string): Route {
       return { kind: 'landing' }
     case 'play':
       return { kind: 'play' }
-    case 'card':
-      return { kind: 'card' }
+    case 'rules':
+      return { kind: 'rules' }
     case 'tools': {
       const tool = segments[1]
       return { kind: 'tools', tool: tool && isTool(tool) ? tool : null }
@@ -63,8 +63,8 @@ export function routeHref(route: Route): string {
       return '/'
     case 'play':
       return '/play'
-    case 'card':
-      return '/card'
+    case 'rules':
+      return '/rules'
     case 'tools':
       return route.tool ? `/tools/${route.tool}` : '/tools'
     case 'recordings':

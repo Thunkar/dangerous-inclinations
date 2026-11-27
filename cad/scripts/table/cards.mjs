@@ -1,10 +1,10 @@
-// Photograph the printed cards the table needs from the site's own /card
+// Photograph the printed cards the table needs from the site's own /rules
 // page, so the render carries what gets printed: each mission card a player
 // holds (by its place in the printed pile, state.json's `card`), both piles'
-// backs and both faces of the player card. Writes cad/shots/table/cards/.
+// backs and both faces of the player card. Writes cad/shots/table/ruless/.
 //
 //   timeout 1800 yarn dev &        # the UI on :5173 (no server, no Redis)
-//   cd cad && timeout 600 node scripts/table/cards.mjs [--url=http://localhost:5173] [--state=<file>]
+//   cd cad && timeout 600 node scripts/table/ruless.mjs [--url=http://localhost:5173] [--state=<file>]
 import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
@@ -26,7 +26,7 @@ try {
     deviceScaleFactor: 5,
   })
   page.on('pageerror', e => console.error('page:', e.message))
-  await page.goto(`${url}/card`, { waitUntil: 'networkidle' })
+  await page.goto(`${url}/rules`, { waitUntil: 'networkidle' })
   // Every card at true size, without the screen's outline round a back.
   await page.addStyleTag({
     content: `.di-mc-row { --mc-zoom: 1 !important; } .di-cards { --card-zoom: 1 !important; }

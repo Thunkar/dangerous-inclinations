@@ -40,6 +40,9 @@ export type FloatTone = 'damage' | 'shield' | 'heat' | 'miss' | 'crit' | 'good'
 
 export type FlareKind = 'shield' | 'emp' | 'plasma'
 
+/** What a burst marks: a kill, a critical, a jump's arrival, a dock, respawn or deployment, a ping. */
+export type BurstCause = 'kill' | 'critical' | 'jump' | 'arrival' | 'ping'
+
 /** The guns drawn as a beam; plasma and the disruptor have shapes of their own. */
 export type BeamWeapon = Exclude<WeaponType, 'plasma_cannon' | 'disruptor'> | 'pdc' | 'scan'
 
@@ -99,6 +102,12 @@ export type TableEffect =
       at: Position
       /** Who the mark is about; see the float above. */
       playerId: string
+      /**
+       * What happened, which is what the hull standing in it does: it flinches
+       * at a kill or a critical and glows at an arrival, and a jump or a ping
+       * leaves it be. Not read off `color`: a jump is drawn in a critical's ink.
+       */
+      cause: BurstCause
       color: string
       radius: number
       start: number
@@ -553,12 +562,21 @@ export function eventToBeat(
 
   const burst = (
     playerId: string,
+    cause: BurstCause,
     color: string,
     radius: number,
     duration: number,
     where?: Position
   ) => {
-    effects.push({ kind: 'burst', at: where ?? at(playerId), playerId, color, radius, duration })
+    effects.push({
+      kind: 'burst',
+      at: where ?? at(playerId),
+      playerId,
+      cause,
+      color,
+      radius,
+      duration,
+    })
   }
 
   const flare = (
@@ -656,7 +674,7 @@ export function eventToBeat(
       }
       case 'jumped':
         moveShip(event.playerId, event.to, 'jump', undefined, BEAT.jump)
-        burst(event.playerId, TABLE.ink, 30, 600, event.to)
+        burst(event.playerId, 'jump', TABLE.ink, 30, 600, event.to)
         mark(
           event.playerId,
           `JUMP${event.sectorAdjustment !== 0 ? ` · PHASE ${Math.abs(event.sectorAdjustment)}` : ''} · −${event.massSpent} fuel${event.compressed ? ' (compressor)' : ''}`,
@@ -697,7 +715,7 @@ export function eventToBeat(
         // The event names the sector, not the facing: the ship is placed the
         // way the view the turn ends on has it.
         moveShip(event.playerId, event.position, null, facingIn(next, event.playerId))
-        burst(event.playerId, TABLE.success, 26, 600, event.position)
+        burst(event.playerId, 'arrival', TABLE.success, 26, 600, event.position)
         return BEAT.small
       case 'heat_check':
         // An ordinary check is the heat track moving on the card: only the
@@ -763,7 +781,7 @@ export function eventToBeat(
         }
         if (event.result === 'critical') {
           float(event.targetId, 'CRIT!', 'crit', FLOAT.long)
-          burst(event.targetId, TABLE.ink, 34, 700)
+          burst(event.targetId, 'critical', TABLE.ink, 34, 700)
         }
         // A disruptor does no damage: a powered shield stops it at the shield,
         // and otherwise the EMP gets into the hull and the named slot breaks
@@ -901,12 +919,12 @@ export function eventToBeat(
         // Missiles aimed at it fly on; its own go out with their own
         // `missile_expired` events.
         updateShip(event.victimId, { alive: false })
-        burst(event.victimId, TABLE.danger, 46, 900, where)
+        burst(event.victimId, 'kill', TABLE.danger, 46, 900, where)
         float(event.victimId, 'DESTROYED', 'damage', FLOAT.long)
         return BEAT.destroy
       }
       case 'docked':
-        burst(event.playerId, TABLE.success, 28, 700)
+        burst(event.playerId, 'arrival', TABLE.success, 28, 700)
         float(event.playerId, 'DOCKED', 'good', FLOAT.normal)
         return BEAT.resolve
       case 'cargo_picked_up':

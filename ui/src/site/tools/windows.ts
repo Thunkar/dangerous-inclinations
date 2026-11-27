@@ -6,7 +6,7 @@
  * arcs, and the circuit's three legs are one leg turned round. So one planet
  * and one leg are planned, and what they say holds for all three. Planning is
  * the game's own route planner (`planMovementToTarget`), run after first paint
- * (see `useWindowTables`), because two dozen searches are a noticeable pause.
+ * (see `useWindowTables`), because three dozen searches are a noticeable pause.
  */
 import { useEffect, useState } from 'react'
 import {
@@ -18,6 +18,7 @@ import {
   TRANSFER_LANES,
   circuitRoutes,
   dockingAvoidance,
+  inDockingReach,
   planMovementToTarget,
   stationSectors,
   stationTarget,
@@ -29,9 +30,10 @@ const PLANET_IDS = PLANETS.map(planet => planet.id)
 export const planetName = (id: string) => PLANETS.find(planet => planet.id === id)?.name ?? id
 
 /**
- * The station clock: every sector a station can stand on, in the order it
- * reaches them. All three start together and step together, so one list is
- * every station.
+ * The station clock: every sector a station's centre can stand on, in the
+ * order it reaches them. All three start together and step together, so one
+ * list is every station. A station also spans the sectors either side of its
+ * centre (`berths`).
  */
 export const CLOCK: number[] = stationSectors()
 
@@ -47,8 +49,15 @@ const SAMPLE_IN = TRANSFER_LANES.find(l => l.planetId === SAMPLE && l.direction 
 export const PLANET_ARRIVE = SAMPLE_OUT.planetArc
 export const PLANET_LEAVE = SAMPLE_IN.planetArc
 
-/** Turns to each station reading, in `CLOCK` order; null where no route fits. */
-export type Row = Array<number | null>
+/**
+ * Turns on one clock reading: the fewest and the most over the sectors the
+ * trip may start from (a moored ship may be on any of its station's), or
+ * null where no route fits.
+ */
+export type Cell = { low: number; high: number } | null
+
+/** One cell for each station reading, in `CLOCK` order. */
+export type Row = Cell[]
 
 export interface WindowTables {
   /** From the lane mouth to docked. */
@@ -56,13 +65,24 @@ export interface WindowTables {
   /** The same, docking with a Tanker's fuel aboard. */
   tanker: Row
   tankerCompressed: Row
-  /** From moored at the pickup station to docked at the next one round the circuit. */
+  /** From moored at the pickup station, on any of its sectors, to docked at the next one round the circuit. */
   leg: Row
 }
 
 type Job = { row: keyof WindowTables; index: number; run: () => number | null }
 
-/** The fewest turns from `origin` to the planet's station, standing on `sector` now. */
+/**
+ * Every sector of a station centred on `centre`: its docking reach, where a
+ * ship that arrives docks and then rides.
+ */
+export function berths(wellId: string, centre: number): OrbitalPosition[] {
+  const station = { wellId, ring: STATION_RING, sector: centre }
+  return Array.from({ length: SECTORS_PER_RING }, (_, sector) => ({ ...station, sector })).filter(
+    at => inDockingReach(station, at)
+  )
+}
+
+/** The fewest turns from `origin` to the planet's station, centred on `sector` now. */
 function turnsTo(
   origin: OrbitalPosition,
   planetId: string,
@@ -70,8 +90,8 @@ function turnsTo(
   compressor: boolean,
   arrivalMass: number
 ): number | null {
-  // Every station stands on the same sector, and a turn ending on one docks
-  // there: the route stops on one only to arrive.
+  // Every station is centred on the same sector, and a turn ending on any of
+  // a station's sectors docks there: the route stops on one only to arrive.
   const stations = PLANETS.map(planet => ({
     id: `station-${planet.id}`,
     planetId: planet.id,
@@ -106,7 +126,6 @@ function jobs(): Job[] {
   const [pickup, delivery] = CIRCUIT[0]
   const out: Job[] = []
   CLOCK.forEach((sector, index) => {
-    const moored: OrbitalPosition = { wellId: pickup, ring: STATION_RING, sector }
     out.push(
       { row: 'approach', index, run: () => turnsTo(mouth, SAMPLE, sector, false, 0) },
       { row: 'tanker', index, run: () => turnsTo(mouth, SAMPLE, sector, false, TANKER_FUEL) },
@@ -115,10 +134,38 @@ function jobs(): Job[] {
         index,
         run: () => turnsTo(mouth, SAMPLE, sector, true, TANKER_FUEL),
       },
-      { row: 'leg', index, run: () => turnsTo(moored, delivery, sector, false, 0) }
+      // The ship rides the station from the sector it docked on, so the leg
+      // is planned from each of them.
+      ...berths(pickup, sector).map(moored => ({
+        row: 'leg' as const,
+        index,
+        run: () => turnsTo(moored, delivery, sector, false, 0),
+      }))
     )
   })
   return out
+}
+
+const blank = (): WindowTables => {
+  const row = (): Row => CLOCK.map(() => null)
+  return { approach: row(), tanker: row(), tankerCompressed: row(), leg: row() }
+}
+
+/** One job's answer, widening its cell. */
+function record(tables: WindowTables, job: Job) {
+  const turns = job.run()
+  if (turns === null) return
+  const cell = tables[job.row][job.index]
+  tables[job.row][job.index] = cell
+    ? { low: Math.min(cell.low, turns), high: Math.max(cell.high, turns) }
+    : { low: turns, high: turns }
+}
+
+/** Every table at once: for tests, which can wait. */
+export function windowTables(): WindowTables {
+  const tables = blank()
+  for (const job of jobs()) record(tables, job)
+  return tables
 }
 
 /** Worked out once a session: the rules do not change while the page is open. */
@@ -132,13 +179,7 @@ export function useWindowTables(): WindowTables | null {
   const [tables, setTables] = useState<WindowTables | null>(cached)
   useEffect(() => {
     if (cached) return
-    const blank = (): Row => CLOCK.map(() => null)
-    const work: WindowTables = {
-      approach: blank(),
-      tanker: blank(),
-      tankerCompressed: blank(),
-      leg: blank(),
-    }
+    const work = blank()
     const queue = jobs()
     const idle = typeof window.requestIdleCallback === 'function'
     let handle = 0
@@ -148,7 +189,7 @@ export function useWindowTables(): WindowTables | null {
     function step() {
       const job = queue.shift()
       if (job) {
-        work[job.row][job.index] = job.run()
+        record(work, job)
         schedule()
         return
       }
@@ -161,18 +202,30 @@ export function useWindowTables(): WindowTables | null {
   return tables
 }
 
-/** The clock readings a row is quickest on (all of them, when it ties). */
+const filled = (row: Row) => row.filter((cell): cell is NonNullable<Cell> => cell !== null)
+
+/**
+ * The clock readings a row is quickest on: the fewest turns, and of those
+ * the readings whose slowest start is quickest too (all of them, when it ties).
+ */
 export function bestClocks(row: Row): number[] {
-  const values = row.filter((v): v is number => v !== null)
-  const low = Math.min(...values)
-  return CLOCK.filter((_, i) => row[i] === low)
+  const low = lowest(row)
+  const high = Math.min(
+    ...filled(row)
+      .filter(cell => cell.low === low)
+      .map(cell => cell.high)
+  )
+  return CLOCK.filter((_, i) => row[i]?.low === low && row[i]?.high === high)
 }
 
-export const lowest = (row: Row) => Math.min(...row.filter((v): v is number => v !== null))
-export const highest = (row: Row) => Math.max(...row.filter((v): v is number => v !== null))
+export const lowest = (row: Row) => Math.min(...filled(row).map(cell => cell.low))
+export const highest = (row: Row) => Math.max(...filled(row).map(cell => cell.high))
 
 /** The turns a row gives on one clock reading. */
 export const at = (row: Row, clock: number) => row[CLOCK.indexOf(clock)]
+
+/** A cell as it is printed: "5", "7–9", or a dash where no route fits. */
+export const cellText = (cell: Cell) => (cell ? span(cell.low, cell.high) : '–')
 
 /** "0", "0 or 4", "4, 8 or 20" (or "and"). */
 export function either(values: Array<number | string>, word = 'or'): string {

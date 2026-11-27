@@ -1,9 +1,9 @@
 /**
- * What each range card draws: the sectors round a ship that a weapon (or the
- * sensor's scan) reaches, in the ship's own frame. Nothing here is a rule of
- * its own: every cell is asked of the engine's targeting (`isInWeaponRange`,
- * `inScanRange`, a missile's `planMissileMove`) from a ship on black hole
- * ring 3 facing prograde.
+ * What each fan on the subsystems card draws: the sectors round a ship that a
+ * weapon (or the sensor's scan) reaches, in the ship's own frame. Nothing
+ * here is a rule of its own: every cell is asked of the engine's targeting
+ * (`isInWeaponRange`, `inScanRange`, a missile's `planMissileMove`) from a
+ * ship on black hole ring 3 facing prograde.
  *
  * The frame is the ship's: `ahead` counts sectors in the direction it faces,
  * `port` counts rings to its left. Facing prograde, port looks outward, and
@@ -18,18 +18,7 @@ import {
   planMissileMove,
 } from '@dangerous-inclinations/engine'
 import type { Position, Subsystem, SubsystemType } from '@dangerous-inclinations/engine'
-
-/** The range cards: the six weapons and the sensor's scan. */
-export const RANGE_CARDS = [
-  'railgun',
-  'laser',
-  'plasma_cannon',
-  'ballistic_rack',
-  'disruptor',
-  'missiles',
-  'sensor_array',
-] as const satisfies readonly SubsystemType[]
-export type RangeCardType = (typeof RANGE_CARDS)[number]
+import type { TargetingType } from './facts'
 
 /** Which mounts reach a cell: a side weapon reaches one side from each flank. */
 export type Zone = 'any' | 'port' | 'starboard'
@@ -46,7 +35,7 @@ export interface Cell {
   steps?: number
 }
 
-/** The patch every card draws: two rings each side, five sectors each way. */
+/** The patch every fan draws: two rings each side, five sectors each way. */
 export const PATCH = { rings: 2, sectors: 5 } as const
 
 const SHIP_RING = 3
@@ -90,8 +79,8 @@ function each(fn: (ahead: number, port: number) => Cell | null): Cell[] {
   return cells
 }
 
-/** The cells a card shades, the ship's own sector left out (point blank is every weapon's). */
-export function reach(type: RangeCardType): Cell[] {
+/** The cells a fan shades, the ship's own sector left out (point blank is every weapon's). */
+export function reach(type: TargetingType): Cell[] {
   if (type === 'sensor_array')
     return each((ahead, port) =>
       inScanRange(SHIP, target(ahead, port)) ? { ahead, port, zone: 'any' } : null
@@ -122,9 +111,6 @@ export function reach(type: RangeCardType): Cell[] {
   })
 }
 
-/** Whether the card's weapon fires to one side only, so its picture has two colours. */
-export const isOneSided = (type: RangeCardType) => reach(type).some(c => c.zone !== 'any')
-
-/** The railgun's push: one ring against the facing, inward as the card draws it. */
-export const recoils = (type: RangeCardType) =>
+/** The railgun's push: one ring against the facing, inward as the fan draws it. */
+export const recoils = (type: TargetingType) =>
   type !== 'sensor_array' && SUBSYSTEM_CONFIGS[type].weaponStats?.hasRecoil === true

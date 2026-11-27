@@ -1,11 +1,11 @@
 /**
  * Every word on the printed card (`site/card/`), face by face and top to
- * bottom. The turn's seven steps are in `turn.ts` (their terse lines).
+ * bottom: the words in its lists and the words set inside its drawings.
  *
  * Only strings live here. A `{name}` is a slot the caller fills with a
  * number from the engine: the words around a slot are free to change, and a
- * slot may move or be dropped but keeps its name. `<b>` is bold, `<red>` is
- * set in red. `\u00a0` is a space the line never breaks at.
+ * slot may move or be dropped but keeps its name. An array is lines the
+ * drawing sets one under the other, broken where the drawing has room.
  */
 
 export const PRINTED_CARD = {
@@ -16,115 +16,78 @@ export const PRINTED_CARD = {
   // Front: your turn
   // -------------------------------------------------------------------------
   front: {
-    face: 'Turn/movement',
-    goal: {
-      title: '{points} points end the round',
-      text: 'Primary + any secondary, or all three secondaries. Ties: hull, then fuel.',
-    },
-    turn: {
-      title: 'The turn',
-      aside: 'in order',
-      quiet: 'Round 1, and your first turn back: nobody fires, scans or seizes',
-    },
-    movement: {
-      title: 'Movement',
-      aside: 'along the orbit',
-      coast: { title: 'COAST', note: ['Drift only'] },
-      drift: "by the ring's speed",
-      burn: { title: 'BURN', note: ['Drift, then', '1–{rings} rings'] },
-      prograde: 'prograde: out',
-      retrograde: 'retrograde: in',
-      jump: { title: 'JUMP', note: ['Transfer sectors'] },
-      from: 'hole ring {ring}',
-      to: 'planet ring {ring}',
-      arc: 'same sector of the arc',
-    },
-    costs: {
-      title: 'Costs',
-      columns: { move: 'move', fuel: 'fuel', energy: 'energy', and: 'and' },
-      coast: {
-        move: 'Coast',
-        and: 'Scoop ({energy} energy): +fuel equal to ring speed',
+    face: 'Your turn',
+    /** Beside the cards that make the points: a primary and a secondary, or three secondaries. */
+    goal: '{points} points end the round',
+    or: 'or',
+    turn: 'Turn order',
+    steps: {
+      destroyed: { title: 'Destroyed?', text: 'Respawn at Home, and your turn ends.' },
+      clear: { title: 'Clear', text: 'Take all the energy off your loadout.' },
+      actions: {
+        title: 'Actions',
+        text: 'Act in any order. Each action happens where your ship is at that moment.',
       },
-      burn: { move: 'Burn', and: '1 of each a ring. Prograde out' },
-      jump: {
-        move: 'Jump',
-        /** The fuel cell: the jump's fuel, then the compressor's in red. */
-        fuel: '{fuel}<red>/{compressed}</red>',
-        and: 'No drift. <red>{compressed}</red> fuel with a compressor',
-      },
-      rotate: { move: 'Rotate', and: 'Flip facing' },
-      phase: 'phase',
-      phaseNote: 'additional fuel',
+      missiles: { title: 'Missiles', text: 'Older missiles fly {steps} steps and orbit.' },
+      heat: { title: 'Heat check', text: 'See the back.' },
+      dock: { title: 'Dock', text: 'Just arrived? Repair, reload, then load or sell.' },
+      missions: { title: 'Missions', text: 'Flip completed missions, then pass.' },
+      roundEnd: { title: 'Round end', text: 'Stations move {drift} sectors and wrecks orbit.' },
     },
+    /** The four moves, drawn on the black hole's rings. */
+    moves: {
+      prograde: 'prograde',
+      out: 'out',
+      in: 'in',
+      coast: { title: 'Coast', line: 'You orbit at your ring’s speed.' },
+      /** The scoop's fuel, after the arrow. */
+      speed: '+speed',
+      burn: { title: 'Burn', line: 'You orbit, then change rings.' },
+      jump: { title: 'Jump' },
+      fold: { title: 'Fold', line: 'Never onto a station.' },
+    },
+    quiet:
+      'Nobody fires, scans or seizes in round one, or on your first turn back after being destroyed.',
   },
 
   // -------------------------------------------------------------------------
   // Back: the fight
   // -------------------------------------------------------------------------
   back: {
-    face: 'Subsystems',
-    roll: {
-      title: 'The roll',
-      aside: 'one d10 a shot',
-      /** The notes under the ten faces: the word on the left, the line on the right. */
-      notes: {
-        name: ['name', 'A slot to be the target in case of a critical hit'],
-        roll: [
-          'Roll a d10',
-          '{miss} miss · {hitFrom}–{hitTo} hit · {crit} crit · <red>{sensorFrom}–{sensorTo} crit with a powered sensor</red>',
-        ],
-        hit: ['hit', 'Shields absorb first and generate heat, the rest is hull damage'],
-        critical: [
-          'critical',
-          'Breaks the named slot face-up, through shields. Its energy converts to heat',
-        ],
-        moored: ['moored', 'Neither fires nor is fired at, missiles too. Cannot be scanned'],
-      },
+    face: 'The fight',
+    firing: 'Firing',
+    /** Over the faces a powered sensor makes critical. */
+    with: 'with',
+    miss: 'miss',
+    hit: {
+      title: 'hit',
+      shield: ['A shield stops {points} point', 'per energy, or {plasma} of plasma.'],
+      wreck: ['At 0 hull your ship', 'becomes a wreck.'],
+      hull: '−{hull} hull',
+      heat: '+{heat} heat',
+      laser: 'lasers ignore shields',
     },
-    weapons: {
-      title: 'Weapons',
-      aside: 'once a turn',
-      columns: { subsystem: 'subsystem', energy: 'energy', damage: 'dmg', reaches: 'reaches' },
-      /** The cell of a figure that is nothing: a gun that deals no damage, a move that costs no fuel. */
-      noDamage: '–',
-      reach: {
-        railgun: 'same ring, 1–{sectors} ahead. Recoils against facing',
-        laser: '±{rings} rings ±{sectors}, one side. <red>Ignores shields</red>',
-        plasma_cannon:
-          '±{rings} ring ±{sectors}, one side. <red>Every shield energy stops {points}</red>',
-        ballistic_rack: '±{rings} ring ±{sectors} either side, or 1 along your ring',
-        disruptor:
-          '±{rings} ring ±{sectors} either side, or 1 along your ring. Breaks the named slot. <red>A shield with energy left stops a hit, not a crit</red>',
-        missiles:
-          'inside your well, a salvo is one action. {aboard}\u00a0aboard, fly {steps} a turn from launch, {turns} turns',
-      },
-    },
-    powered: {
-      title: 'Powered',
-      aside: 'works until your next turn',
-      columns: { subsystem: 'subsystem', energy: 'energy', effect: 'effect' },
-      shields: 'each energy stops {points} damage a turn',
-      ballistic_rack: 'shoots down {missiles} missiles a turn on {on}+, for {heat} heat',
-      sensor_array: "shots after it's enabled crit on {crit}+. Scan: your ring, 1–{sectors} ahead",
+    critical: {
+      title: 'critical',
+      text: ['Name any slot after', 'the roll: it breaks,', 'even through shields.'],
+      heat: '+{heat} heat',
     },
     heat: {
       title: 'Heat check',
-      aside: 'energy turns to heat',
-      /** Two lines. */
-      sum: ['carried', '+ energy'],
-      cold: '<b>0</b>\u00a0repair 1 subsystem',
-      normal: '<b>1–{maxHeat}</b>',
-      over: '<b>over {maxHeat}</b>\u00a0excess to hull',
-      /** Two lines. */
-      dissipate: ['dissipate {dissipation}', '+{radiator} a radiator'],
-      arrow: '→',
-      carry: 'carry',
+      aside: 'step {step}',
+      track: ['heat on', 'your track'],
+      loadout: ['energy on', 'your loadout'],
+      over: 'over {maxHeat}',
+      dissipate: '−{dissipation} (−{radiator} more per radiator)',
+      carries: 'carries',
+      note: 'At 0 heat, repair one broken slot. Shields and racks add heat on other players’ turns too.',
     },
-    faceDown: {
-      title: 'Face-down',
-      aside: 'energy is public',
-      text: 'Using a subsystem turns it face-up, powering it does not. A radiator shows above {heat} heat.',
+    sees: {
+      title: 'What the table sees',
+      energy: 'Its energy is public.',
+      faceUp: 'Face-up once it acts or breaks.',
+      scan: 'A scan sees one.',
+      docked: 'A docked ship can’t fire or be fired at.',
     },
   },
 } as const

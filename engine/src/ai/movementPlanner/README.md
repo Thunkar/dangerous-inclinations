@@ -177,7 +177,7 @@ The `hunt` and `interdict` goals both ask the same question (*where do I stand s
 
 | Target | Built from | Why it is a planner target |
 |---|---|---|
-| chase | `weaponRangeTarget(weapons, theirPosition)` | their ship drifts on its ring; the match test is "any weapon bears from here at this turn" |
+| chase | `weaponRangeTarget(weapons, theirPosition)` | their ship drifts on its ring; the match test is "any weapon bears from here at this turn" (a disruptor counts only on a ship with no other gun) |
 | station | `weaponRangeTarget(weapons, theirDeliveryStation)` | stations drift 4 sectors a round, which is exactly what `orbitSectorAt` models |
 | lane | `laneArrivalTarget(planetId)` | the arrival arcs are fixed sectors; a ship entering that well has to land on one |
 

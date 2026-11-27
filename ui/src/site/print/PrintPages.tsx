@@ -5,7 +5,7 @@
  * hidden on screen, each card at scale 1 at the millimetre its sheet puts it
  * and the cut lines drawn under them on the pages of fronts (`card/sheet.ts`).
  */
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Box } from '@mui/material'
 import PrintIcon from '@mui/icons-material/Print'
 import { FONT_DISPLAY, PRESS } from '../../design/press'
@@ -13,23 +13,65 @@ import { Body, Display, Kicker, Slab } from '../poster'
 import { COLUMN } from '../guide/parts'
 import { INK } from '../diagram'
 import { SHEET_HEIGHT_MM, SHEET_WIDTH_MM } from '../card/cardStyles'
-import { CUT_BAND_MM, cropMarks, type PlacedFace } from '../card/sheet'
+import { CUT_BAND_MM, cropMarks, type PlacedFace, type Rect } from '../card/sheet'
 import type { Flip } from '../missions/sheet'
 import { Segments } from '../tools/controls'
+import { FRAME_BLEED_MM, MARK_FROM_MM } from './frame'
 import { printAs, type PrintName } from './print'
 
-/** The printed pages: every face in its slot, turned where the flip turns it. */
+/** A face's frame run `FRAME_BLEED_MM` past its cut on every side, under it. */
+function Bleed({ face, color }: { face: Rect; color: string }) {
+  return (
+    <div
+      className="di-slot"
+      style={{
+        left: `${face.x - FRAME_BLEED_MM}mm`,
+        top: `${face.y - FRAME_BLEED_MM}mm`,
+        width: `${face.width + 2 * FRAME_BLEED_MM}mm`,
+        height: `${face.height + 2 * FRAME_BLEED_MM}mm`,
+        background: color,
+      }}
+    />
+  )
+}
+
+/**
+ * A face turned in its slot, about its top left corner and moved back into
+ * the slot: what is drawn upright `width` by `height` lies in a slot of the
+ * slot's own size, a quarter turn in a slot as wide as it is tall.
+ */
+function turnStyle({ turn, width, height }: PlacedFace): CSSProperties {
+  const sideways = turn === 90 || turn === 270
+  const move = { 90: `${width}mm, 0`, 180: `${width}mm, ${height}mm`, 270: `0, ${height}mm` }[
+    turn as 90 | 180 | 270
+  ]
+  return {
+    width: `${sideways ? height : width}mm`,
+    height: `${sideways ? width : height}mm`,
+    transform: `translate(${move}) rotate(${turn}deg)`,
+  }
+}
+
+/**
+ * The printed pages: every face in its slot, turned where the flip turns it.
+ * A card with a frame of its own colour (`bleed`, `frame.ts`) has the frame
+ * run `FRAME_BLEED_MM` past every face, under it, so a cut that misses its
+ * line outward lands on the frame too; its crop marks start past that.
+ */
 export function PrintPages<F extends PlacedFace>({
   pages,
+  bleed,
   children,
 }: {
   pages: F[][]
+  bleed?: string
   children: (face: F) => ReactNode
 }) {
   return (
     <div className="di-sheets">
       {pages.map((faces, page) => (
         <div key={page} className="di-page">
+          {bleed && faces.map((face, i) => <Bleed key={i} face={face} color={bleed} />)}
           {/* The cards are cut from the fronts; a back page's marks would be off by the duplex. */}
           {faces.some(f => f.face === 'front') && (
             <svg
@@ -39,7 +81,7 @@ export function PrintPages<F extends PlacedFace>({
               viewBox={`0 0 ${SHEET_WIDTH_MM} ${SHEET_HEIGHT_MM}`}
               aria-hidden
             >
-              {cropMarks(faces).map((m, i) => (
+              {cropMarks(faces, bleed ? MARK_FROM_MM : undefined).map((m, i) => (
                 <g key={i}>
                   <line
                     x1={m.x1}
@@ -57,7 +99,7 @@ export function PrintPages<F extends PlacedFace>({
           {faces.map((face, i) => (
             <div
               key={i}
-              className={face.rotated ? 'di-slot di-turned' : 'di-slot'}
+              className="di-slot"
               style={{
                 left: `${face.x}mm`,
                 top: `${face.y}mm`,
@@ -65,7 +107,13 @@ export function PrintPages<F extends PlacedFace>({
                 height: `${face.height}mm`,
               }}
             >
-              {children(face)}
+              {face.turn === 0 ? (
+                children(face)
+              ) : (
+                <div className="di-turn" style={turnStyle(face)}>
+                  {children(face)}
+                </div>
+              )}
             </div>
           ))}
         </div>

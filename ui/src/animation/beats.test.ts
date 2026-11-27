@@ -9,6 +9,7 @@
  * that raise them.
  */
 import { describe, expect, it } from 'vitest'
+import { Vector3 } from 'three'
 import type {
   GameConfig,
   GameEvent,
@@ -25,7 +26,32 @@ import {
   makePlayer,
   makeTwoPlayerGame,
 } from '../../../engine/src/test/testUtils.ts'
-import { foldFlight, mouthsOpen } from '../components/board/wormhole'
+import {
+  WORMHOLE,
+  foldFlight,
+  foldLanded,
+  foldThrust,
+  mouthsOpen,
+} from '../components/board/wormhole'
+import { mooringSpot } from '../ships/station'
+import {
+  LAYER,
+  berthAlong,
+  berthRide,
+  berthWorld,
+  elevationAt,
+  positionWorld,
+  slideWorld,
+  stationYaw,
+  toWorld,
+} from '../components/board/three/world'
+import { crowdOffset, radialPoint } from '../components/board/geometry'
+import {
+  BURST_IMPACT,
+  clearImpacts,
+  reportImpact,
+  sampleImpact,
+} from '../components/board/three/scene/effects/impacts'
 import {
   EFFECT_COLORS,
   PLASMA_GREEN,
@@ -180,6 +206,74 @@ describe('a turn beat by beat', () => {
     expect(slides).toBeGreaterThan(0)
   })
 
+  it('starts no slide for a ship that does not move on the beat', () => {
+    // A slide the renderer has already played must not be handed back to it
+    // restarted, or replaced, on a beat that is somebody else's.
+    let checked = 0
+    for (const played of TURNS) {
+      let state = beatStart(played.prev)
+      for (const event of played.events) {
+        const before = state.board
+        state = eventToBeat(state, played.next, event, CLOCK).state
+        const movers = new Set<string>(
+          event.type === 'stations_moved'
+            ? event.riders
+            : 'playerId' in event &&
+                [
+                  'coasted',
+                  'burned',
+                  'jumped',
+                  'folded',
+                  'recoil',
+                  'respawned',
+                  'deployed',
+                ].includes(event.type)
+              ? [event.playerId]
+              : []
+        )
+        for (const [id, ship] of Object.entries(before.ships)) {
+          if (movers.has(id)) continue
+          const after = state.board.ships[id]
+          expect(after.motion).toBe(ship.motion)
+          expect(after.position).toEqual(ship.position)
+          checked++
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+
+  it('shakes the hull for a critical and never for a jump', () => {
+    // A jump's burst is drawn in a critical's cream: the hull reads its cause.
+    const shakes = { jumped: [] as number[], critical: [] as number[] }
+    for (const played of TURNS) {
+      let state = beatStart(played.prev)
+      for (const event of played.events) {
+        const beat = eventToBeat(state, played.next, event, CLOCK)
+        state = beat.state
+        const key =
+          event.type === 'jumped'
+            ? 'jumped'
+            : event.type === 'attack_resolved' && event.result === 'critical'
+              ? 'critical'
+              : null
+        if (!key) continue
+        for (const burst of beat.effects) {
+          if (burst.kind !== 'burst') continue
+          clearImpacts()
+          const kind = BURST_IMPACT[burst.cause]
+          if (kind) reportImpact(burst.playerId, kind, 0)
+          shakes[key].push(sampleImpact(burst.playerId, 44).shake)
+        }
+      }
+    }
+    clearImpacts()
+    expect(shakes.jumped.length).toBeGreaterThan(0)
+    expect(shakes.critical.length).toBeGreaterThan(0)
+    expect(shakes.jumped.every(shake => shake === 0)).toBe(true)
+    expect(shakes.critical.every(shake => shake > 0)).toBe(true)
+  })
+
   it('stacks a float on the lowest step its sector has free', () => {
     const here = { wellId: 'blackhole', ring: 3, sector: 4 }
     const there = { wellId: 'blackhole', ring: 3, sector: 5 }
@@ -248,8 +342,8 @@ describe('the guns with shapes of their own', () => {
     const rays = beat.effects.filter(e => e.kind === 'ray')
     expect(rays).toHaveLength(1)
     const ray = rays[0] as Extract<EffectDraft, { kind: 'ray' }>
-    const box = [2, 3, 4].flatMap(ring =>
-      [5, 6, 7].map(sector => ({ wellId: 'blackhole', ring, sector }))
+    const box = [1, 2, 3, 4, 5].flatMap(ring =>
+      [4, 5, 6, 7, 8].map(sector => ({ wellId: 'blackhole', ring, sector }))
     )
     expect(ray.cells).toHaveLength(box.length)
     expect(ray.cells).toEqual(expect.arrayContaining(box))
@@ -396,5 +490,89 @@ describe('a fold goes through a wormhole', () => {
     const mouths = mouthsOpen(raw)
     expect(mouths.entry > 0.01).toBe(open.entry)
     expect(mouths.exit > 0.01).toBe(open.exit)
+  })
+
+  it('burns the engines while the hull flies into one mouth and out of the other', () => {
+    // From a standing start, the engines light as the entry mouth opens.
+    expect(foldThrust(0)).toBe(0)
+    for (let raw = 0; raw <= 1; raw += 0.01) {
+      const { scale } = foldFlight(raw)
+      const throughAMouth =
+        (raw >= WORMHOLE.enter[0] && raw < WORMHOLE.enter[1]) ||
+        (raw >= WORMHOLE.emerge[0] && raw < WORMHOLE.emerge[1])
+      if (throughAMouth && scale > 0) expect(foldThrust(raw), `at ${raw}`).toBeGreaterThan(0.3)
+    }
+    // Full as it comes out of the exit mouth, and down to its arrival as it stops.
+    expect(foldThrust(WORMHOLE.emerge[0])).toBe(1)
+    expect(foldThrust(WORMHOLE.emerge[1])).toBeCloseTo(0.3)
+  })
+
+  it('lands the hull as it comes out of the exit mouth, not when the mouth has closed', () => {
+    expect(foldLanded(WORMHOLE.emerge[1] - 0.01)).toBe(false)
+    expect(foldLanded(WORMHOLE.emerge[1])).toBe(true)
+    expect(foldFlight(WORMHOLE.emerge[1]).scale).toBe(1)
+  })
+})
+
+describe('a moored ship rides its station', () => {
+  // A berth a sector ahead of the station, carried four sectors on Alpha's station ring.
+  const berth = mooringSpot(1, 0)
+  const from: Position = { wellId: ALPHA, ring: 2, sector: 5 }
+  const to: Position = { wellId: ALPHA, ring: 2, sector: 9 }
+  const before = berthWorld(from, berth, 'prograde')
+  const after = berthWorld(to, berth, 'prograde')
+  const ride = berthRide(from, to, berth, after.at)
+  const stationAt = (t: number) => {
+    const point = new Vector3()
+    berthAlong({ ...ride, offset: new Vector3() }, t, point)
+    return point
+  }
+
+  it.each([
+    [0, before],
+    [1, after],
+  ])('stands on its berth, turned with the station, at %s of the step', (t, berthed) => {
+    const point = new Vector3()
+    const turn = berthAlong(ride, t, point)
+    expect(point.distanceTo(berthed.at)).toBeCloseTo(0)
+    expect(Math.cos(after.yaw + turn - berthed.yaw)).toBeCloseTo(1)
+  })
+
+  it('keeps its place on the station in between', () => {
+    const point = new Vector3()
+    berthAlong(ride, 0.5, point)
+    expect(point.distanceTo(stationAt(0.5))).toBeCloseTo(ride.offset.length())
+    expect(ride.yaw).toBeCloseTo(stationYaw({ ...to, sector: to.sector - berth.sector }))
+  })
+})
+
+describe('a ship sets off from where it was drawn', () => {
+  // Leaving Alpha's ring 2 for ring 3, two sectors on: second of three in a
+  // crowd, or moored a sector behind the station's centre.
+  const from: Position = { wellId: ALPHA, ring: 2, sector: 5 }
+  const to: Position = { wellId: ALPHA, ring: 3, sector: 7 }
+  const crowded = toWorld(
+    radialPoint(from, crowdOffset({ index: 2, count: 3 })),
+    elevationAt(from) + LAYER.token
+  )
+  const moored = berthWorld(from, mooringSpot(-1, 0), 'prograde').at
+  const resting = toWorld(
+    radialPoint(to, crowdOffset({ index: 0, count: 2 })),
+    elevationAt(to) + LAYER.token
+  )
+  const slot = new Vector3().subVectors(resting, positionWorld(to))
+
+  it.each([
+    ['a crowded sector', crowded],
+    ['a berth', moored],
+  ])('slides out of %s from the hull, into its own place', (_, drawn) => {
+    const start = new Vector3().subVectors(drawn, positionWorld(from))
+    expect(start.length()).toBeGreaterThan(1)
+    const point = new Vector3()
+    expect(slideWorld(from, to, 0, start, slot, point).distanceTo(drawn)).toBeCloseTo(0)
+    expect(slideWorld(from, to, 1, start, slot, point).distanceTo(resting)).toBeCloseTo(0)
+    // No jump on the first frame: a hundredth of the slide is a hundredth of the way.
+    const first = slideWorld(from, to, 0.01, start, slot, point).distanceTo(drawn)
+    expect(first).toBeLessThan(0.02 * drawn.distanceTo(resting))
   })
 })

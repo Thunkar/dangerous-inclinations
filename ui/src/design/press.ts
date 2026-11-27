@@ -16,7 +16,8 @@ export const PRESS = {
   paper: '#e9dfc7',
   /** A second sheet, for a band that has to read as separate from the page. */
   paperDeep: '#ddd0b0',
-  ink: '#14161a',
+  /** Pure black, so a printer lays it in black toner alone: a near-black prints as four toners and small type shows a coloured shadow. */
+  ink: '#000',
   /** Secondary text on paper; still 6.5:1. */
   inkSoft: 'rgba(20,22,26,0.74)',
   /** Rules and hairlines only: too pale for text. */

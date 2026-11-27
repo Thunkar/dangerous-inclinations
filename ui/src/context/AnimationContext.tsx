@@ -252,6 +252,7 @@ export function AnimationProvider({ children }: { children: ReactNode }) {
             kind: 'burst',
             at: position,
             playerId,
+            cause: 'ping',
             color,
             radius: PING.radius,
             duration: PING.life,

@@ -28,7 +28,7 @@ function Front({ mission }: { mission: Mission }) {
   return (
     <div className="di-mc-card" data-card={mission.id}>
       <div className="di-mc-front">
-        <MissionCard mission={mission} nameOf={nameOf} />
+        <MissionCard mission={mission} nameOf={nameOf} printed />
       </div>
     </div>
   )

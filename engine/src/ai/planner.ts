@@ -1218,7 +1218,13 @@ export function generateCandidates(
         ? `Fold for goal (${fold.saving} turns saved): ${currentGoal?.description}`
         : `Fold out of fire (${fold.stayLoss} hull at risk, ${fold.loss} after)`
     candidates.push(
-      buildCandidate(situation, parameters, foldChoice(fold.to, fold.driveId), description, true)
+      buildCandidate(
+        situation,
+        parameters,
+        foldChoice(fold.to, fold.driveId, situation.ship),
+        description,
+        true
+      )
     )
   } else if (goalMovement && currentGoal) {
     candidates.push(

@@ -7,6 +7,7 @@
  * and the backs' plain frame (`missions/backs.tsx`) is what hides it. A page is the next nine in order and the last
  * page holds what is left; `missions/sheet.ts` puts each page's backs behind it.
  */
+import { FRONT_FRAME_MM } from '../card/cardStyles'
 import { gridSlots, type Grid, type Rect } from '../card/sheet'
 
 /** Mission-card stock: the standard sleeve's card (Magic's), 63 x 88. */
@@ -14,11 +15,10 @@ export const LOADOUT_WIDTH_MM = 63
 export const LOADOUT_HEIGHT_MM = 88
 
 /**
- * The plain frame of the card's paper round every front: the art is drawn
- * this much smaller, so a cut that misses its line lands in the frame.
+ * How much smaller the art is drawn inside the frame of paper round every
+ * front (`FRONT_FRAME_MM`), the same both ways, so a cut that misses its line
+ * lands in the frame.
  */
-export const FRONT_FRAME_MM = 2.5
-/** How much smaller the art is drawn inside the frame, the same both ways. */
 export const ART_SCALE = (LOADOUT_WIDTH_MM - 2 * FRONT_FRAME_MM) / LOADOUT_WIDTH_MM
 /** Where the art sits inside the frame: the frame at the sides, the rest above and below. */
 export const ART_TOP_MM = (LOADOUT_HEIGHT_MM * (1 - ART_SCALE)) / 2

@@ -1,15 +1,15 @@
 /**
- * One page, four prints: the player card, the loadout cards, the range cards
- * and the mission decks, each a section whose id is its name. Ctrl+P prints
+ * One page, four prints: the player card, the loadout cards, the subsystems
+ * card and the mission decks, each a section whose id is its name. Ctrl+P prints
  * the player card. A section's button marks the body `data-printing="<name>"`
  * for the length of its print, and `PRINT_CSS` shows only that section's
  * pages while the mark is set.
  */
 
-export type PrintName = 'card' | 'loadouts' | 'ranges' | 'missions'
+export type PrintName = 'card' | 'loadouts' | 'subsystems' | 'missions'
 
 /** The prints that only their own button reaches. */
-const ON_REQUEST: PrintName[] = ['loadouts', 'ranges', 'missions']
+const ON_REQUEST: PrintName[] = ['loadouts', 'subsystems', 'missions']
 
 /** The fonts must be in before the sheets are laid out for the printer. */
 export function printAs(name: PrintName) {

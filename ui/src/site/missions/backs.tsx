@@ -38,7 +38,7 @@ const PILE_GROUND: Record<Pile, Ground> = { primary: 'ink', secondary: 'paper' }
 /** How far inside its edge a back keeps its wedge: as far as it may sit off its front. */
 const FRAME_MM = 3
 /** How far a printed back runs past its card: as far as it may sit off its front. */
-const BLEED_MM = FRAME_MM
+export const BLEED_MM = FRAME_MM
 
 /** The cards whose rings reach a back: itself and the eight round it, in cards. */
 const AROUND = [-1, 0, 1].flatMap(dy => [-1, 0, 1].map(dx => [dx, dy] as const))
@@ -55,7 +55,7 @@ export function Back({ pile, bleed = false }: { pile: Pile; bleed?: boolean }) {
   )
 }
 
-/** The loadout and range cards' back: the ink ground, nothing on the wedge. */
+/** The loadout cards' back: the ink ground, nothing on the wedge. */
 export function LoadoutBack({ bleed = false }: { bleed?: boolean }) {
   return <CardBack className="di-lo-card" ground="ink" bleed={bleed} />
 }

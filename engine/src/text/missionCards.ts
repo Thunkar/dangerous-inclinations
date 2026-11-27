@@ -31,12 +31,12 @@ export const MISSION_CARDS = {
   survey: {
     name: 'Survey',
     title: 'Survey the Event Horizon',
-    rule: 'Take the data on Black Hole ring {ring}. File it at any station.',
+    rule: 'Take the data on Black Hole ring {ring} as an action. File it at any station.',
   },
   piracy: {
     name: 'Piracy',
     title: 'Seize cargo and sell it',
-    rule: 'Seize one item of your choice from an undocked ship carrying cargo in your sector. Sell it at any station.',
+    rule: 'Take one item from an undocked ship with cargo in your sector as an action. Sell it at any station.',
   },
   tanker: {
     name: 'Tanker',
@@ -49,12 +49,12 @@ export const MISSION_CARDS = {
     title: 'Escort {carrier} to a sale',
     /** Before the marker is down. */
     titleUnmarked: 'Escort a carrier to a sale',
-    rule: 'Mark an undocked carrier on your ring. Done at its next sale with you in its well.',
+    rule: 'Mark an undocked ship with cargo on your ring as an action. You score at its next sale if you’re in its well.',
   },
   salvage: {
     name: 'Salvage',
     title: "Salvage a wreck's black box and file it",
-    rule: "Take a wreck's black box data on its sector. File it at any station.",
+    rule: "Take a wreck's black box on its sector as an action. File it at any station.",
   },
 } as const satisfies Record<
   MissionType,

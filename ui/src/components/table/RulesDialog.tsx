@@ -40,12 +40,14 @@ import {
   TANKER_FUEL,
   WELL_TRANSFER_COSTS,
   fill,
+  baseFoldFuel,
+  compressedFoldFuel,
 } from '@dangerous-inclinations/engine'
 import { TABLE } from '../../design/tokens'
 import { FONT_DISPLAY } from '../../design/press'
 import { useGame } from '../../context/GameContext'
-// The turn is stated once. The cheatsheet and the printed card read the same
-// list, so none of them can disagree about what order a turn runs in.
+// The turn is stated once. The cheatsheet reads the same list, so the two
+// cannot disagree about what order a turn runs in.
 import { QUIET_TURN, TURN_STEPS } from '../../site/turn'
 import {
   BASE_CRIT,
@@ -94,7 +96,8 @@ const NUMBERS = {
   compressedFuel: COMPRESSED_JUMP_MASS,
   foldEnergy: SUBSYSTEM_CONFIGS.jump_drive.minEnergy,
   foldEngines: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldEngines,
-  foldFuel: SUBSYSTEM_CONFIGS.jump_drive.fold!.foldFuel,
+  foldFuel: baseFoldFuel(),
+  compressedFoldFuel: compressedFoldFuel(),
   // The hit roll, read off the engine's roll table.
   miss: MISS_TOP,
   hitFrom: MISS_TOP + 1,

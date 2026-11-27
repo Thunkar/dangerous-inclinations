@@ -21,7 +21,7 @@ export const RULES_DIALOG = {
    * slots every row may use: halfShield, fullShield, rackEnergy,
    * sensorEnergy, maxHeat, dissipation, radiator, shieldPoints, plasmaPoints,
    * intercepts, interceptHeat, hull, fuel, sectors, soft, medium, hard, mostPhase,
-   * jumpEnergy, jumpFuel, compressedFuel, foldEnergy, foldEngines, foldFuel, miss, hitFrom, hitTo, crit,
+   * jumpEnergy, jumpFuel, compressedFuel, foldEnergy, foldEngines, foldFuel, compressedFoldFuel, miss, hitFrom, hitTo, crit,
    * sensorCrit, salvoEnergy, scanRange, tankerFuel, homeRings, deploymentGap,
    * primaryOffers, primaries, secondaryOffers, secondaries, handPoints,
    * stationSectors, pointsToWin.
@@ -40,7 +40,7 @@ export const RULES_DIALOG = {
     ['Dissipation', 'dissipate {dissipation} (+{radiator} per radiator) at every check'],
     [
       'Shields',
-      'power at {halfShield} or {fullShield}. Each energy absorbs {shieldPoints} damage ({plasmaPoints} of plasma) and is spent until that player’s turn ends, so the wall is whole for the next attacker. Every point absorbed is heat on your track, paid at your next check. Power them every turn you want them up. Lasers ignore them. Any powered shield stops a disruptor’s hit whole, never its critical',
+      'power at {halfShield} or {fullShield}. Each energy absorbs {shieldPoints} damage ({plasmaPoints} of plasma) and is spent until that player’s turn ends, so the wall is whole for the next attacker. Every point absorbed is heat on your track, paid at your next check. Power them every turn you want them up. Lasers ignore them. A shield with energy unspent this turn stops a disruptor’s hit whole, never its critical',
     ],
     [
       'Ballistic rack',
@@ -62,12 +62,12 @@ export const RULES_DIALOG = {
     ],
     [
       'Fold',
-      'jump drive {foldEnergy} and engines {foldEngines}, {foldFuel} fuel: any sector of your well, or between the black hole and a planet, never on a station. Your whole move, with no drift',
+      'jump drive {foldEnergy} and engines {foldEngines}, {foldFuel} fuel ({compressedFoldFuel} with a compressor): any sector of your well, or between the black hole and a planet, never on a station. Your whole move, with no drift',
     ],
     ['Hit roll', '{miss} miss, {hitFrom}–{hitTo} hit, {crit} crit ({sensorCrit}–10 with sensors)'],
     [
       'Salvo',
-      "one action launches any number of a subsystem's missiles at one ship, all naming the same slot, for the subsystem's {salvoEnergy} energy once, and they fly at once. A rack with energy on it rolls at {intercepts} of them a turn, so it takes a second rack to answer a second launcher",
+      "one action launches any number of a subsystem's missiles at one ship, for the subsystem's {salvoEnergy} energy once, and they fly at once. A rack with energy on it rolls at {intercepts} of them a turn, so it takes a second rack to answer a second launcher",
     ],
     [
       'Scan',

@@ -19,8 +19,10 @@
  * step moves the ship and the stations on and keeps the rest of the route
  * (`routeProgress.ts`), and any edit plans afresh.
  *
- * On a phone the two plates fold to one line each, so the board sits near
- * the top with the route's steps under it.
+ * On a phone the two plates fold to one line each, what a tap sets lies on
+ * the board's corner, the board takes what the screen has left after the
+ * route's alternatives and first step, and the notes fold away, so a turn
+ * (read the route, press Done) needs no scrolling.
  *
  * Under the planner sit the orbital windows (`OrbitalWindows.tsx`), read off
  * the same station clock the "Stations now at" control sets.
@@ -33,6 +35,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Box, useMediaQuery, type Theme } from '@mui/material'
 import type { Facing, GravityWellId, MovementPlan, Position } from '@dangerous-inclinations/engine'
 import {
+  DOCKING_REACH,
   GRAVITY_WELLS,
   MAX_REACTION_MASS,
   SECTORS_PER_RING,
@@ -44,6 +47,7 @@ import {
   fill,
   getMaxRing,
   getWellName,
+  inDockingReach,
   isPlanet,
   staticTarget,
   stationSectors,
@@ -147,15 +151,17 @@ const CAPS = {
   textTransform: 'uppercase',
 } as const
 
-/** A pressable block in the press's idiom, at least 44px. */
+/** A pressable block in the press's idiom, at least 44px; `small` for one in a bar. */
 function Press({
   onClick,
   children,
   red = false,
+  small = false,
 }: {
   onClick: () => void
   children: ReactNode
   red?: boolean
+  small?: boolean
 }) {
   return (
     <Box
@@ -163,15 +169,16 @@ function Press({
       type="button"
       onClick={onClick}
       sx={{
-        minHeight: 44,
+        minHeight: small ? 36 : 44,
         minWidth: 44,
-        px: 1.75,
-        border: `3px solid ${red ? PRESS.red : PRESS.ink}`,
+        flexShrink: 0,
+        px: small ? 1.25 : 1.75,
+        border: `${small ? 2 : 3}px solid ${red ? PRESS.red : PRESS.ink}`,
         bgcolor: red ? PRESS.red : PRESS.paper,
         color: red ? PRESS.paper : PRESS.ink,
         ...CAPS,
         fontWeight: 700,
-        fontSize: '1rem',
+        fontSize: small ? '0.85rem' : '1rem',
         cursor: 'pointer',
         touchAction: 'manipulation',
         // A finger's tap leaves :hover on; only a mouse gets it.
@@ -212,9 +219,9 @@ function PlateHead({
       sx={{
         width: '100%',
         minWidth: 0,
-        minHeight: 56,
-        px: 1.5,
-        py: 0.75,
+        minHeight: { xs: 48, md: 56 },
+        px: { xs: 1, md: 1.5 },
+        py: { xs: 0.5, md: 0.75 },
         display: 'flex',
         alignItems: 'center',
         gap: 1,
@@ -228,11 +235,13 @@ function PlateHead({
       }}
     >
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Box sx={{ ...CAPS, fontSize: '0.8rem', color: PRESS.red }}>{title}</Box>
+        <Box sx={{ ...CAPS, fontSize: { xs: '0.7rem', md: '0.8rem' }, color: PRESS.red }}>
+          {title}
+        </Box>
         <Box
           sx={{
             ...CAPS,
-            fontSize: '0.95rem',
+            fontSize: { xs: '0.85rem', md: '0.95rem' },
             fontWeight: 700,
             lineHeight: 1.2,
             overflowWrap: 'anywhere',
@@ -246,6 +255,151 @@ function PlateHead({
           {open ? '▴' : '▾'}
         </Box>
       )}
+    </Box>
+  )
+}
+
+const PICKS: Array<{ value: Picking; label: string }> = [
+  { value: 'ship', label: T.theShip },
+  { value: 'destination', label: T.whereTo },
+]
+
+/** On a phone, what a tap sets, laid over the board's bottom left corner. */
+function TapPicker({ value, onChange }: { value: Picking; onChange: (next: Picking) => void }) {
+  return (
+    <Box
+      role="group"
+      aria-label={T.tapSets}
+      sx={{ position: 'absolute', bottom: 6, left: 6, display: 'flex', gap: '3px' }}
+    >
+      <Box
+        sx={{
+          ...CAPS,
+          fontSize: '0.7rem',
+          px: 0.75,
+          display: 'flex',
+          alignItems: 'center',
+          bgcolor: PRESS.ink,
+          color: PRESS.paperSoft,
+        }}
+      >
+        {T.tapSets}
+      </Box>
+      {PICKS.map(option => {
+        const on = option.value === value
+        return (
+          <Box
+            key={option.value}
+            component="button"
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(option.value)}
+            sx={{
+              minHeight: 40,
+              px: 1,
+              border: `2px solid ${on ? PRESS.red : PRESS.paper}`,
+              bgcolor: on ? PRESS.red : PRESS.ink,
+              color: PRESS.paper,
+              ...CAPS,
+              fontWeight: 700,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+            }}
+          >
+            {option.label}
+          </Box>
+        )
+      })}
+    </Box>
+  )
+}
+
+/** On a phone, the alternatives as tabs side by side: the name over its turns and fuel. */
+function AlternativeTabs({
+  routes,
+  current,
+  onChange,
+}: {
+  routes: MovementPlan[]
+  current: number
+  onChange: (index: number) => void
+}) {
+  return (
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(${routes.length}, minmax(0, 1fr))`,
+        gap: '4px',
+      }}
+    >
+      {routes.map((alternative, index) => {
+        const on = index === current
+        return (
+          <Box
+            key={index}
+            component="button"
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(index)}
+            sx={{
+              minHeight: 44,
+              minWidth: 0,
+              px: 0.75,
+              py: 0.25,
+              border: `3px solid ${on ? PRESS.red : PRESS.ink}`,
+              bgcolor: on ? PRESS.red : 'transparent',
+              color: on ? PRESS.paper : PRESS.ink,
+              textAlign: 'left',
+              cursor: 'pointer',
+              touchAction: 'manipulation',
+            }}
+          >
+            <Box sx={{ ...CAPS, fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.2 }}>
+              {routeName(alternative, index)}
+            </Box>
+            <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.8rem', lineHeight: 1.2 }}>
+              {fill(T.alternativeCosts, {
+                turns: alternative.totalTurns,
+                fuel: alternative.totalMassCost,
+              })}
+            </Box>
+          </Box>
+        )
+      })}
+    </Box>
+  )
+}
+
+/** On a phone, the notes on reading the route and tapping the board, folded. */
+function Notes() {
+  return (
+    <Box
+      component="details"
+      sx={{
+        fontFamily: FONT_SANS,
+        fontSize: '0.9rem',
+        color: PRESS.inkSoft,
+        '& > summary': {
+          ...CAPS,
+          listStyle: 'none',
+          minHeight: 40,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          cursor: 'pointer',
+          fontSize: '0.85rem',
+          color: PRESS.redText,
+        },
+        '& > summary::-webkit-details-marker': { display: 'none' },
+        '& > summary::before': { content: '"▸"' },
+        '&[open] > summary::before': { content: '"▾"' },
+        '& > p': { m: 0, mb: 1 },
+      }}
+    >
+      <summary>{T.notes}</summary>
+      <p>{T.legsNote}</p>
+      <p>{T.tapStation}</p>
     </Box>
   )
 }
@@ -379,7 +533,8 @@ export function RoutePlannerTool() {
   /** A tap on the board: the ship, a station (which then moves), or a sector. */
   const pick = (position: Position) => {
     if (picking === 'ship') return setFrom(position)
-    const hit = stations.find(s => samePosition(stationPosition(s), position))
+    // A station covers three sectors, and a tap on any of them heads for it.
+    const hit = stations.find(s => inDockingReach(stationPosition(s), position))
     setDestination(
       hit ? { kind: 'station', planetId: hit.planetId } : { kind: 'sector', at: position }
     )
@@ -424,10 +579,9 @@ export function RoutePlannerTool() {
       : destination.kind === 'sector'
         ? placeLabel(destination.at)
         : ''
+  // Where the ship docks: whichever of the station's sectors the route reaches.
   const arrival =
-    destination.kind === 'station' && station && route && !arrived
-      ? stationTarget(station).positionAt(route.totalTurns).sector
-      : null
+    destination.kind === 'station' && station && route && !arrived ? route.destination.sector : null
   const shipSummary = fill(T.shipSummary, {
     place: placeLabel(from),
     facing: facing === 'prograde' ? T.prograde : T.retrograde,
@@ -439,7 +593,7 @@ export function RoutePlannerTool() {
   const canUndo = trip.history.length > 0
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 2 } }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 1, md: 2 } }}>
       <Box
         sx={{
           display: 'grid',
@@ -544,7 +698,7 @@ export function RoutePlannerTool() {
                   />
                 </Field>
                 <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}>
-                  {fill(T.stationsMove, { drift: STATION_DRIFT })}
+                  {fill(T.stationsMove, { drift: STATION_DRIFT, reach: DOCKING_REACH })}
                 </Box>
               </>
             ) : destination.kind === 'sector' ? (
@@ -558,73 +712,92 @@ export function RoutePlannerTool() {
         )}
       </Box>
 
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          columnGap: 1.5,
-          rowGap: 0.5,
-          flexWrap: 'wrap',
-        }}
-      >
-        <Label>{T.tapSets}</Label>
-        <Segments
-          value={picking}
-          options={[
-            { value: 'ship' as Picking, label: T.theShip },
-            { value: 'destination' as Picking, label: T.whereTo },
-          ]}
-          onChange={setPicking}
-        />
-        <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}>
-          {T.tapStation}
+      {wide && (
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            columnGap: 1.5,
+            rowGap: 0.5,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Label>{T.tapSets}</Label>
+          <Segments value={picking} options={PICKS} onChange={setPicking} />
+          <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}>
+            {T.tapStation}
+          </Box>
         </Box>
-      </Box>
+      )}
 
       <Box
         sx={{
           position: 'relative',
-          height: { xs: '62svh', md: 'min(68vh, 680px)' },
-          minHeight: 320,
-          border: `4px solid ${PRESS.ink}`,
+          // On a phone the board takes what is left of the screen once the
+          // plates, the alternatives and the first step have their room.
+          height: { xs: 'clamp(260px, calc(100svh - 460px), 62svh)', md: 'min(68vh, 680px)' },
+          minHeight: { md: 320 },
+          border: { xs: `3px solid ${PRESS.ink}`, md: `4px solid ${PRESS.ink}` },
           overflow: 'hidden',
           bgcolor: TABLE.felt,
         }}
       >
         <GameBoardSvg model={model} fitRoute />
+        {!wide && <TapPicker value={picking} onChange={setPicking} />}
       </Box>
 
-      <Box sx={{ border: `4px solid ${PRESS.ink}`, bgcolor: PRESS.paper, minWidth: 0 }}>
+      <Box
+        sx={{
+          border: { xs: `3px solid ${PRESS.ink}`, md: `4px solid ${PRESS.ink}` },
+          bgcolor: PRESS.paper,
+          minWidth: 0,
+        }}
+      >
         <Box
           sx={{
             bgcolor: PRESS.ink,
             color: PRESS.paper,
-            px: { xs: 1.5, sm: 2 },
-            py: 1,
+            px: { xs: 1, sm: 2 },
+            py: { xs: 0.5, md: 1 },
             display: 'flex',
-            flexWrap: 'wrap',
+            flexWrap: wide ? 'wrap' : 'nowrap',
             gap: 1,
-            alignItems: 'baseline',
+            alignItems: 'center',
             ...CAPS,
           }}
         >
-          <Box component="span" sx={{ fontSize: '1.1rem' }}>
+          <Box component="span" sx={{ fontSize: { xs: '0.9rem', md: '1.1rem' }, flexShrink: 0 }}>
             {T.theRoute}
           </Box>
           <Box
             component="span"
             sx={{
               ml: 'auto',
-              fontSize: '0.9rem',
+              fontSize: { xs: '0.8rem', md: '0.9rem' },
               color: PRESS.paperSoft,
               overflowWrap: 'anywhere',
+              textAlign: 'right',
             }}
           >
-            {fill(T.fromTo, { from: placeLabel(from), to: where })}
+            {wide
+              ? fill(T.fromTo, { from: placeLabel(from), to: where })
+              : fill(T.onlyTo, { to: where })}
             {arrival !== null && fill(T.onArrival, { sector: arrival })}
           </Box>
+          {!wide && canUndo && (
+            <Press onClick={undo} small>
+              {T.undo}
+            </Press>
+          )}
         </Box>
-        <Box sx={{ p: { xs: 1.5, sm: 2 }, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box
+          sx={{
+            p: { xs: 1, sm: 2 },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: { xs: 1, md: 1.5 },
+          }}
+        >
           {arrived ? (
             <Box sx={{ fontFamily: FONT_SANS, fontSize: '1rem', fontWeight: 600 }}>
               {fill(T.arrived, { to: where })}
@@ -640,13 +813,13 @@ export function RoutePlannerTool() {
           ) : (
             <>
               {kept ? (
-                <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.95rem' }}>
+                <Box sx={{ fontFamily: FONT_SANS, fontSize: { xs: '0.9rem', md: '0.95rem' } }}>
                   {fill(T.following, {
                     name: routeName(kept, current),
                     turns: kept.totalTurns,
                   })}
                 </Box>
-              ) : (
+              ) : wide ? (
                 <Segments
                   value={String(current)}
                   options={routes.map((alternative, index) => ({
@@ -659,6 +832,8 @@ export function RoutePlannerTool() {
                   }))}
                   onChange={index => setChosen(Number(index))}
                 />
+              ) : (
+                <AlternativeTabs routes={routes} current={current} onChange={setChosen} />
               )}
               <Box
                 component="ol"
@@ -677,10 +852,14 @@ export function RoutePlannerTool() {
                     key={index}
                     sx={{
                       display: 'grid',
-                      gridTemplateColumns: '34px minmax(0, 1fr) auto auto',
+                      gridTemplateColumns: {
+                        xs: '30px minmax(0, 1fr) auto auto',
+                        md: '34px minmax(0, 1fr) auto auto',
+                      },
                       alignItems: 'center',
                       gap: 1,
-                      minHeight: 44,
+                      // Only the first line holds a button; the rest are read.
+                      minHeight: { xs: index === 0 ? 48 : 34, md: 44 },
                       // The turn being made gets the whole width, with its Done.
                       gridColumn: index === 0 ? '1 / -1' : undefined,
                       border: `2px solid ${PRESS.ink}`,
@@ -699,7 +878,7 @@ export function RoutePlannerTool() {
                         color: PRESS.paper,
                         fontFamily: FONT_DISPLAY,
                         fontWeight: 700,
-                        fontSize: '1.2rem',
+                        fontSize: { xs: '1.05rem', md: '1.2rem' },
                       }}
                     >
                       {index + 1}
@@ -707,8 +886,8 @@ export function RoutePlannerTool() {
                     <Box
                       sx={{
                         fontFamily: FONT_SANS,
-                        fontSize: '0.95rem',
-                        py: 0.75,
+                        fontSize: { xs: '0.9rem', md: '0.95rem' },
+                        py: { xs: 0.25, md: 0.75 },
                         lineHeight: 1.25,
                       }}
                     >
@@ -741,12 +920,15 @@ export function RoutePlannerTool() {
                   </Box>
                 ))}
               </Box>
-              <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}>
-                {T.legsNote}
-              </Box>
+              {wide && (
+                <Box sx={{ fontFamily: FONT_SANS, fontSize: '0.9rem', color: PRESS.inkSoft }}>
+                  {T.legsNote}
+                </Box>
+              )}
             </>
           )}
-          {canUndo && (
+          {!wide && <Notes />}
+          {wide && canUndo && (
             <Box>
               <Press onClick={undo}>{T.undo}</Press>
             </Box>

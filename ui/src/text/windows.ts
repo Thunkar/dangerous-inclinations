@@ -15,6 +15,9 @@ export const WINDOWS = {
   kicker: 'When to travel',
   title: 'Orbital windows',
   lede: 'Stations, lanes and rings all turn at fixed speeds, so how long a trip takes depends on one number: the station clock.',
+  /** On a phone the section folds to one bar: what it is, then open or close. */
+  show: 'Show',
+  hide: 'Hide',
   /** Where a hint stands while the route planner is still working. */
   working: 'Asking the route planner',
   /** A delivery route, "Alpha → Gamma". */
@@ -23,7 +26,7 @@ export const WINDOWS = {
   clock: {
     title: 'The station clock',
     steps:
-      'Every station starts on sector {sector} of its planet’s ring {ring} and steps <b>{drift} sectors clockwise</b> at the end of every round. All three step together, so <b>every station is always on the same sector</b>.',
+      'A station covers {width} sectors of its planet’s ring {ring}: its centre and {reach} either side. A ship that ends its turn on any of them docks there. Every station starts centred on sector {sector} and steps <b>{drift} sectors clockwise</b> at the end of every round. All three step together, so <b>every station’s centre is always on the same sector</b>.',
     reads:
       'That sector is the clock. It only ever reads <b>{readings}</b>, and it comes round every {rounds} rounds.',
     /** `<nb>` keeps a range on one line. */
@@ -31,7 +34,7 @@ export const WINDOWS = {
       'Every planet is laid out the same: you arrive from the black hole on ring {arriveRing} at sectors <nb>{arriveSectors}</nb>, and leave for it from ring {leaveRing} at sectors <nb>{leaveSectors}</nb>. So the same windows hold for {planets}.',
     diagram: {
       label:
-        'A planet seen from above. The station rides ring {ring} and steps {drift} sectors clockwise every round, so it only ever sits on sector {readings}. Ships arrive from the black hole on ring {arriveRing} sectors {arriveSectors} and leave from ring {leaveRing} sectors {leaveSectors}.',
+        'A planet seen from above. The station rides ring {ring} and steps {drift} sectors clockwise every round, so its centre only ever sits on sector {readings}, and it covers {reach} sector either side. Ships arrive from the black hole on ring {arriveRing} sectors {arriveSectors} and leave from ring {leaveRing} sectors {leaveSectors}.',
       planet: 'PLANET',
       arrive: 'arrive',
       leave: 'leave',
@@ -65,6 +68,9 @@ export const WINDOWS = {
     rule: 'Ride the circuit, and leave the pickup station on {readings}',
     reason: '{routes}: {turns} turns, station to station, whenever you leave.',
     strip: 'Clock when you leave → turns to the next station',
+    /** Under the strip: why a cell can show two numbers. */
+    berths:
+      'Two numbers mean it depends on which of the station’s {width} sectors you are moored on.',
   },
 
   /** The strip of turns under each hint, read aloud. */

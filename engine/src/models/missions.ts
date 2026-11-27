@@ -13,13 +13,12 @@ import type { SubsystemType } from './subsystems.ts'
 import { damagingWeaponTypes } from './subsystems.ts'
 
 /**
- * Three points win by default, and a hand is one primary and two secondaries:
- * four held for the three that win. The hand is unchanged by the
- * number: a primary and either secondary is a win, and the other secondary is
- * the spare a player takes when the game puts it in their way. Two secondaries
- * on their own are two points and cannot win, so the primary somebody else set
- * you is still the card that has to come in. Each deck is dealt separately:
- * three primaries to choose one from, three secondaries to choose two from.
+ * Three points win by default, and a hand is one primary and three
+ * secondaries: five held for the three that win. A primary and any secondary
+ * is a win, and so are all three secondaries without the primary; the cards
+ * not needed are spares a player takes when the game puts them in their way.
+ * Each deck is dealt separately: three primaries to choose one from, three
+ * secondaries all kept.
  *
  * **Three, and no option.** Four was offered as a longer evening and cut:
  * measured on 200-game rows it ran 41 to 49 rounds by seat count with games
@@ -75,8 +74,8 @@ export const TANKER_FUEL = 5
 /**
  * What a completed card scores: two for a primary (Destroy for the hunter,
  * Deliver for the hauler, Intercept for the interceptor), one for a secondary.
- * A hand is one primary and two secondaries, so the primary and either
- * secondary is the win.
+ * A hand is one primary and three secondaries, so the primary and any
+ * secondary is the win, and so are all three secondaries.
  */
 export const MISSION_POINTS: Readonly<Record<MissionType, number>> = {
   destroy_ship: 2,

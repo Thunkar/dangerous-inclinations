@@ -63,13 +63,13 @@ export function coastChoice(wantsScoop: boolean): MovementChoice {
  * A fold to `to` with the drive `driveId` (RULES §Movement, Fold): the
  * turn's whole move, with no drift and the facing kept.
  */
-export function foldChoice(to: Position, driveId: SubsystemId): MovementChoice {
+export function foldChoice(to: Position, driveId: SubsystemId, ship: ShipState): MovementChoice {
   return {
     kind: 'fold',
     preview: { kind: 'jump', jumpDestination: to },
     requiredFacing: null,
     engineEnergy: 0,
-    massCost: foldFuel(),
+    massCost: foldFuel(ship),
     wantsScoop: false,
     fold: {
       to,

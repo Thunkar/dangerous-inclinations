@@ -15,8 +15,7 @@ export const TOOLS = {
   kicker: 'Table tools',
   index: {
     title: 'The sums, done for you',
-    blurb:
-      'For a game at a real table. Each tool does the arithmetic of a turn with the engine that runs the video game.',
+    blurb: 'Each tool does the arithmetic of a turn with the engine that runs the video game.',
   },
   /** The tabs over a tool, read aloud. */
   tabs: 'Tools',
@@ -48,26 +47,32 @@ export const TOOLS = {
     aStation: 'A station',
     aSector: 'A sector',
     planet: 'Planet',
-    stationsAt: 'Stations now at (ring {ring}, sector)',
+    stationsAt: 'Station centres now at (ring {ring}, sector)',
     stationsMove:
-      'Every station moves {drift} sectors a round, together, so these are the only sectors one can be on; the route meets it where it will be.',
+      'A station covers its centre and {reach} sector either side. All of them move {drift} sectors a round, together. The route meets the station where it will be, on whichever of its sectors comes first.',
     /** The ship's plate folded to one line: "Black Hole R3 S0 · prograde · 10 fuel". */
     shipSummary: '{place} · {facing} · {fuel} fuel',
     tapSets: 'A tap sets',
     theShip: 'The ship',
     tapStation: 'Tap a station to head for it.',
+    /** On a phone, the notes under the route fold under this line. */
+    notes: 'How to read the route',
     /** The ship on the board, named as a player would be. */
     shipName: 'your ship',
     theRoute: 'The route',
-    /** "B3 S0 → Alpha station (S12 on arrival)". */
+    /** "Black Hole R3 S0 → Alpha station (docks on S11)". */
     fromTo: '{from} → {to}',
-    onArrival: ' (S{sector} on arrival)',
+    /** On a phone, where the ship sits in the plate above. */
+    onlyTo: '→ {to}',
+    onArrival: ' (docks on S{sector})',
     station: '{planet} station',
     alreadyThere: 'The ship is already there.',
     noRoute: 'No route there within {turns} turns on {fuel} fuel.',
     noRouteKeeping: 'No route there within {turns} turns on {fuel} fuel that arrives with {keep}.',
     /** One alternative: "Fastest · 4 turns · 3 fuel". */
     alternative: '{name} · {turns} turns · {fuel} fuel',
+    /** On a phone, an alternative's tab: its name, then this under it. */
+    alternativeCosts: '{turns} turns · {fuel} fuel',
     /** Before a turn's move, in red. */
     rotate: 'rotate, ',
     legsNote:

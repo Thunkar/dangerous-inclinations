@@ -105,7 +105,7 @@ New mission types are proposed to the designer, never added unasked.
 A **jump drive** (either slot) makes the turn's one move a **fold**: the ship is put on
 any sector of its own well, or between the black hole and a planet (never planet
 to planet, never onto a station), with no drift, and actions go before and after
-it as around any move, for 8 fuel, 3 energy on the drive and 3 on the engines. It never breaks; the
+it as around any move, for 8 fuel (6 with a working compressor, which cuts the engines' share as it cuts a jump), 3 energy on the drive and 3 on the engines. A fold never breaks it (a critical can, as it can anything); the
 price is the fuel and the 6 heat.
 
 Missiles fire in **salvos**: one action launches any number of a subsystem's missiles
@@ -160,9 +160,11 @@ ui/src/                 context/ (game, animation, plan + planReadout, routePlan
                         components/table/, art/ (subsystemArt.ts: the subsystems' marks)
 ui/src/site/            routes.ts (the four sections), Landing, Tools, Cheatsheet,
                         turn.ts (the turn, stated once), numbers.ts, poster.tsx,
-                        guide/ (the cheatsheet's sections), card/ (the printed card),
-                        loadouts/ (the twelve loadout cards), ranges/ (the range
-                        cards), missions/ (the mission
+                        guide/ (the rules page's sections), card/ (the player
+                        card, and sheet.ts: every print's A4 layout), marks.tsx
+                        (energy, fuel, heat, hull, roll: both cards' marks),
+                        loadouts/ (the twelve loadout cards), subsystems/ (the
+                        subsystems card, reach.ts: its fans), missions/ (the mission
                         decks and their backs), PosterArt.tsx (the landing picture,
                         also the decks' back),
                         tools/ (RoutePlannerTool + OrbitalWindows, windows.ts,
@@ -307,28 +309,28 @@ stack (docker compose, server, Vite) and creating a game over REST.
 
 The video game is one of them. `ui/src/site/routes.ts` is the whole router (a
 path, no dependency): `/` the landing page, `/play` everything the app was
-before, `/tools` the things a real table wants and `/card` the cheatsheet
-with the card it prints. The three query flags still decide the route **from any
+before, `/tools` the things a real table wants and `/rules` the rules page
+with the cards it prints. The three query flags still decide the route **from any
 path**, so `?game=<id>` from a fork, from `yarn seat` and from
 `scripts/shot.mjs` keeps working. Every `/play` screen before a table exists
 (connecting, a failure, the name, the lobby list) keeps the site's bar, so
 nobody who arrives there is stranded; a table brings its own chrome.
 
 Only `/play` needs a player, a socket or a server. The tools and the
-cheatsheet call pure engine functions (`planMovementAlternatives`, `heatAfterCheck`,
+rules page call pure engine functions (`planMovementAlternatives`, `heatAfterCheck`,
 `rollToResult`, the subsystem and ring configs) and render from a browser with
 nothing else running, which is the point: they are used standing over a real
 table. Every number on them is read from the engine; `site/numbers.ts` works
 out the derived ones once (critical faces, slot contents, cube labels) and
-`site/turn.ts` states the turn once for the cheatsheet, the card and the
-in-game rules dialog.
+`site/turn.ts` states the turn once for the rules page and the in-game rules
+dialog.
 
 **The words live in text files that hold only strings**, in on-screen order:
 `engine/src/text/missionCards.ts` (every card's name, title and rule),
 `engine/src/text/agentRules.ts` (the rules digest an agent seat reads),
 `engine/src/text/refusals.ts` (why an action is refused: the referee's errors,
 the table's plan and an agent's notes all say these) and
-`ui/src/text/` (`cheatsheet.ts`, `printedCard.ts`, `turn.ts`, `windows.ts`,
+`ui/src/text/` (`cheatsheet.ts`, `printedCard.ts`, `subsystemCard.ts`, `turn.ts`, `windows.ts`,
 `rulesDialog.ts`, `missionProgress.ts`, `landing.ts`, `tools.ts`, and for the
 video game `table.ts`, `actions.ts`, `screens.ts`). A number is a `{name}`
 slot the caller fills from the engine (`fill` for one string, `rich` in
@@ -353,8 +355,13 @@ rules, and no radius, shadow or gradient anywhere. The mission cards, the
 site's pages and the printed card are all set from it, and the red diagonal at
 `BAND_ANGLE` is the one motif they share (the cards' band, the landing page's
 wedge through the black hole, the mark). `site/poster.tsx` holds the pieces
-(display type, slabs, the mark) and `site/guide/parts.tsx` the cheatsheet's
+(display type, slabs, the mark) and `site/guide/parts.tsx` the rules page's
 (numbered sections, points, chips, the ledger a heat check is written in).
+The cards are printed on a laser printer, which screens a tint into dots and
+lays rich black from four toners, so thin lines and small type come out soft:
+printed matter uses solid colours only (no opacity, no faded ink), black is
+pure `#000` (`PRESS.ink`), and no line is under 0.15mm at the size it prints
+(`print/hairline.ts`: `useHairline` reads the face's `PrintScale`).
 
 **One icon set** (`ui/src/art/`): each subsystem's mark is a stencil drawn
 from the module the yard builds (`art/subsystemArt.ts`), on the mission
@@ -370,7 +377,7 @@ traced artwork left is heat, hull and fuel for the printed pieces
 The site's nav is type, not icons; the rest of the app's chrome stays on MUI
 icons.
 
-**The cheatsheet** (`site/Cheatsheet.tsx`, `site/guide/`) teaches the game in
+**The rules page** (`site/Cheatsheet.tsx`, `site/guide/`) teaches the game in
 the order a first table meets it, eight numbered sections: the goal (the six
 mission cards drawn by the game's own `MissionCard`), setup with the loadout's
 slots, the turn (seven steps, then the stations once a round), moving (the
@@ -385,44 +392,74 @@ the server down. The route planner is not a second interface: it builds a
 `BoardModel` by hand and hands it to the game's own `GameBoardSvg`, the way
 `three/dev/fixtureModel.ts` does, so clicking a sector on it is clicking a
 sector on the board. Body, ring and sector can also be typed (a phone's number
-pad), and a station is a destination of its own: the route is planned against
-where it will be (`planMovementToTarget` with `orbitingTarget`), not where it
+pad), and a station is a destination of its own (a tap on any of its three
+sectors picks it): the route is planned against where it will be
+(`stationTarget`: docked on whichever of its sectors comes first), not where it
 is; every route offers fastest, balanced and economical alternatives
 (`planMovementAlternatives` to a fixed sector, `planAlternativesToTarget` to a
 station or with fuel to arrive with). On a phone the board pinches and pans
 (a tap still picks a sector), "fit route" frames the legs, and **Done** flies
 the route's first step: the ship moves to its end, the stations advance a
 round, and the rest of the route stays as planned (`tools/routeProgress.ts`,
-undo 20 steps). The route planner page ends with **the
-orbital windows** (`tools/OrbitalWindows.tsx`, words in `text/windows.ts`):
-the station clock every station shares, the same clock the planner's
-"Stations now at" sets, and three hints (when to reach a lane mouth, arrive
-with a Tanker's fuel, leave a pickup) that the planner itself works out in the
-browser after first paint (`tools/windows.ts`).
+undo 20 steps). On a phone the page is laid out for that loop: the plates
+fold to one line each, what a tap sets lies on the board's corner, the board
+is sized so the alternatives (tabs) and the first step's Done share the
+screen with it, and the notes and the windows fold away. The route planner
+page ends with **the orbital windows** (`tools/OrbitalWindows.tsx`, words in
+`text/windows.ts`): the station clock (where every station's centre is, the
+same clock the planner's "Station centres now at" sets), and three hints
+(when to reach a lane mouth, arrive with a Tanker's fuel, leave a pickup)
+that the planner itself works out in the browser after first paint
+(`tools/windows.ts`), against the three-sector stations: a leg from a
+pickup is planned from each sector the ship may be moored on, and a cell
+shows the range.
 
 The heat check is a mat of the player's loadout that follows the turn: a
 click powers a subsystem a step, a right click takes one off, the check bills
 the energy and leaves it on until "start my turn" clears it, and absorbing or
 breaking moves energy onto the track the way the engine does.
 
-**The card** (`ui/src/site/card/`) is two 70x120mm faces: **your turn** (the
-goal, the seven steps, the three moves drawn and what they cost) and **the
-fight** (the roll, the guns, what a hit does, what is held up, the heat check,
-what gives a subsystem away). Black and one red on white stock, which survives a
-black-and-white printer as ink and a mid grey. It is drawn at true size with
-the preview scaled by a transform, so what is seen is the geometry that
-reaches the printer. Printing lays four faces at true size on each A4 page,
-centred with crop marks, at millimetres `card/sheet.ts` computes from the page:
-**Sheet** is one page of two cards (each front beside its back), and
-**Double-sided** is four fronts and then four backs, each back at the mirror of
-its front for the chosen flip (long edge: columns swapped; short edge: rows
-swapped and the face turned 180°). It does not repeat the board or the
-missions: ring speeds, lane sectors and card text are printed in front of you. About 105mm of column per
-face; content that does not fit is content to cut, and nothing in the card
-shrinks to hide that (`.di-card > *` never shrinks, so overflow shows).
+**The card** (`ui/src/site/card/`, words in `text/printedCard.ts`) is two
+faces, one diagram a face (`CardFaces.tsx`, drawn from `pictos.tsx` and the
+shared `site/marks.tsx`, every svg in millimetres). **Your turn**: the
+points and the hands that make them, the turn as a numbered list with a
+pictogram a step, and the four moves (coast, burn, jump, fold) drawn on one
+fan of the black hole's rings with their costs as marks. **The fight**: the
+d10's faces leading to a worked railgun hit into a full shield and to a
+critical, the heat check as one worked sum, and what the table sees. Black and
+one red on white stock, which survives a black-and-white printer as ink and a
+mid grey. The card is cut 102x152mm, the size of a 4x6in photo sleeve, and
+shares its size, its frame and its printing with the subsystems card
+(`print/frame.ts`): a band of solid black at the cut, 3mm on a front and
+4.5mm on a back (the extra absorbs a duplex's shift), running 3mm past the
+cut on the printed page, so a cut off its line either way lands on black.
+What is printed fills the inside of the band and joins it: the black head
+strip with its red block and every section's heavy rule run into the band,
+so frame and content are one piece of ink, while words and drawings keep at
+least 1mm of paper off it (`CLEAR_MM`; the player card keeps 2.5mm,
+`PLAYER_PAD`). Each face is laid out inside its own band, so front and back
+need not line up. The faces are drawn at scale 1 and zoomed to fill the
+inside of the band (`CARD_SCALE`, about 1.21, set by the height the front
+needs; `PrintScale` keeps hairlines at 0.15mm), and the front's goal and
+moves and the back's dice and heat check spread to the width. It is
+drawn at true size with the preview scaled by a transform, so what is seen is
+the geometry that reaches the printer. Printing lays two faces on each A4
+page, each a quarter turn round (`Turn`), one above the other and touching,
+centred (`cardPages` in `card/sheet.ts`), so one cut separates them and the
+frame's black runs across it; the block with its bleed sits inside a 4mm
+printer margin. Cut lines are drawn on the pages of fronts only, on every
+trim line (the shared one too), from past the bleed out to the printable
+edge: **Sheet** is one page, the front above its back, to cut out and glue,
+and **Double-sided** two fronts and then their two backs, each back at the
+mirror of its front for the chosen flip and turned to read upright when the
+card is turned over on its long edge. It does not repeat the board or the missions: ring speeds, lane
+sectors and card text are printed in front of you.
+Content that does not fit is content to cut, and nothing in the card shrinks to
+hide that (`.di-card > *` never shrinks, so overflow shows).
+`ui/dev-card.html?zoom=3` shows the two faces alone.
 
 **The loadout cards** (`ui/src/site/loadouts/`, words in `text/loadoutCards.ts`)
-are the twelve bot presets as cards for a first game, on the `/card` page
+are the twelve bot presets as cards for a first game, on the `/rules` page
 after the player card: 63x88mm, the mission cards' size, nine to an A4 page,
 in colour, double-sided with the mission decks' back on ink and nothing on
 the wedge. Each is a poster: the role's family ink (hunter red,
@@ -435,30 +472,45 @@ shrike does not have), and a black bar with the missions it is kept with
 "Recommended for". Everything on it is read from the engine's presets, so a
 preset that changes changes its card.
 
-**The range cards** (`ui/src/site/ranges/`, words in `text/rangeCards.ts`)
-follow the loadout cards on `/card`: one per weapon and one for the sensor's
-scan, on the loadout cards' stock, stripe, bar and back (red for a weapon,
-violet for the sensor). Each draws a fan of the black hole's five rings,
-the hole cut by the card's right edge, with the ship on ring 3 facing
-prograde (up the card, port on its left and outward), and shades what the
-engine's own targeting reaches from there (`reach.ts`: `isInWeaponRange`
-for a port and a starboard mount, `inScanRange`, a missile's first flight
-in steps); the ship's arrow says the rest for a retrograde ship.
-`ui/dev-ranges.html?zoom=3` shows them alone.
+**The subsystems card** (`ui/src/site/subsystems/`, words in
+`text/subsystemCard.ts`) follows the loadout cards on `/rules`: every subsystem
+on one double-sided 102x152mm card, the player card's size and frame, in
+colour on the press's paper. The band's black runs on between the cells as
+the gutters, so frame and grid are one lattice of ink, 4.8mm round the grid
+on both faces (`SX_BAND_MM`: the back's band and enough more to keep the
+tiles' corner marks 1mm off it) and 1.2mm between cells; the title cell is
+the lattice's ink with its key a pane of paper a gutter in. Each face is two columns
+by four rows of equal cells, the title and the key to the marks in the first
+cell of both; the front holds the six weapons and the sensor, the back the
+seven systems, each tile in its family's ink (guns red, the sensor violet,
+moving teal, the wall and the radiator ochre, since ink would vanish into the black frame). The tile is compact: its name
+band is its top edge, with its numbers as marks on a slab of paper in the
+band's corner, and a line under it carries its slot and what turns it face
+up, then the drawing and one sentence. The drawing carries the rule: for a
+weapon or the sensor a fan of the black hole's rings with the ship on ring 3
+(`fan.tsx`), shading what the engine's own targeting reaches (`reach.ts`:
+`isInWeaponRange` for a port and a starboard mount, `inScanRange`, a
+missile's first flight in steps); the railgun, the laser and the plasma
+cannon stack one fan facing prograde over one facing retrograde
+(`facing.tsx`); the systems get a picture of what they do (`pictograms.tsx`).
+The tiles are laid out at their own sizes and the grid is zoomed into the
+frame (`SX_SCALE` in `sheet.ts`, about 1.0, the same on both faces). It
+prints as the player card does, two faces a page.
+`ui/dev-subsystems.html?zoom=3` shows the two faces alone.
 
 **The mission decks** (`ui/src/site/missions/`, words in
-`text/missionDeck.ts`) follow on `/card`: both piles for six seats
+`text/missionDeck.ts`) follow on `/rules`: both piles for six seats
 (`buildPrimaryDeck`, `buildSecondaryDeck`), 63x88mm, nine to an A4 page,
 fronts then backs with a long- or short-edge flip. A front is the game's own
 `MissionCard`, scaled to the stock. A back is the landing page's picture
 (`PosterArt.tsx`) cropped on the hole, ink for the primaries and paper for
 the secondaries, with the pile's points ("2 points", "1 point") along the
-wedge. Every 63x88 card (loadout, range, mission) fits a standard
+wedge. Every 63x88 card (loadout, mission) fits a standard
 Magic sleeve, and its sheet sets the nine touching, so one cut separates
 two. The cut lines are drawn only on the pages of fronts, from the grid out
 to the printable edge, each a 1mm band (`CUT_BAND_MM`) where the blade may
 land, and every front's art is drawn inside a 2.5mm frame of its paper
-(`FRONT_FRAME_MM`, `ART_SCALE` in `loadouts/sheet.ts`), so a cut off its
+(`FRONT_FRAME_MM` in `card/cardStyles.ts`, `ART_SCALE` in `loadouts/sheet.ts`), so a cut off its
 line lands in the frame. A duplex shifts a whole page of backs off its
 fronts, so the backs are one surface (`missions/backs.tsx`): each runs 3mm
 past its card and draws its neighbours' rings where they reach, so the
@@ -1394,7 +1446,7 @@ not an argument:
   a planet, never planet to planet and never onto a station's three
   sectors, for 8 fuel, 3 energy on the drive and 3 on the engines (3 so the
   printed bases' channels need no change), no drift, an ordinary move
-  with actions before and after it. It never breaks: the first version,
+  with actions before and after it. A fold never breaks it: the first version,
   broken by every fold, read +3 / +14 / +13 / +11 over the bars, the hunters
   `outlier`, and the designer refused the break. As adopted, 400 games a
   row: hauler +1, railgun hunter -1, corsair +7, interceptor +9, no failing
@@ -1404,6 +1456,17 @@ not an argument:
   so a fold rarely saves the 3 turns the bots ask of it (`FOLD_MIN_SAVING`).
   The bots also fold out of a lethal volley (`planEscape`) and only onto
   landings the table cannot cost hull (`exposure.ts`).
+- **A compressor cheapens the fold.** Adopted 27 Nov 2026, the designer's
+  lore: the drive opens the fold for 5 fuel and the engines carry the ship
+  through it for 3, a jump's price, so a working compressor cuts their share
+  to 1 and a fold costs 6 instead of 8; the compressor turns face-up as on a
+  jump (`foldFuel(ship)`, `compressedFoldFuel`). Measured against 8 on the
+  same seeds, 1000 games a row: only hulls carrying both move, and none past
+  noise (compressor + jump drive + shields + laser + radiator with Deliver
+  +0.4 → +0.4 over its bar, with shields×2 +1.9 → +2.7, with lasers×2 and
+  Destroy −12.2 → −11.4); they fold 44–67% more often and win no more; no
+  preset carries both, so natural play is identical game for game. A rule
+  for the table, not a lever.
 - **A scan reaching 4 sectors.** Tried 26 Nov 2026 to lift Intercept: no
   measurable change (the first scan already lands in round 2). Back at 3.
 - **Pirates take data before loot.** Adopted 26 Nov 2026, the designer's
@@ -1411,6 +1474,35 @@ not an argument:
   a primary (an Intercept's) and loot is always a secondary. Loot re-seized
   per 100 Piracy starts 124 → 58; dealt Intercept 27 → 25% at 400 games,
   within noise.
+- **The disruptor reaches two, and a hunter closes with its guns.**
+  Adopted 27 Nov 2026, the designer's rule from the table: the disruptor
+  reaches ±2 rings and ±2 sectors, its own ring up to 2 sectors ahead or
+  behind (the rack keeps its box), and a hit is still stopped only by a
+  shield with cubes unspent this turn, so emptying the wall first with
+  plasma or a salvo is the play ("first take down the shields, then break
+  stuff"). Any energy on a shield stopping the hit was measured and not
+  kept: at 1000 games it read as the reach alone (warden 26% against 25%).
+  The reach on its own cost the warden 34 → 25% against a Destroy bar of
+  38 → 37, and the cause was the bots' approach, not the rule:
+  `weaponRangeTarget` closed to the range of any weapon aboard, so the
+  warden stopped two away, where its disruptor bears and its plasma (±1)
+  does not. Instrumented, 1000 warden games with Destroy: disruptor shots
+  1.29 → 2.78 a game, 73% of them from two away and 91% from where no
+  plasma bore, blocked 0.32 → 0.59; plasma shots 5.2 → 4.1, hull dealt
+  12.9 → 10.2, kills 0.81 → 0.59, Destroy completed 50 → 37%. Heat did not
+  move (5.3 at the check). Since then a disruptor sets the range only on a
+  ship with no other gun; with that, plasma shots 5.8, hull dealt 14.2,
+  disruptor shots 1.63 (0.91 from two away), Destroy 57%. Balance, 1000
+  games a row (rules before / reach alone / reach and the bot fix): warden
+  34 / 25 / 37% against 38 / 37 / 39, disruptor + lasers×2 28 / 24 / 30%
+  (its `dead` flag clears), raider 29 / 28 / 25% against 29 / 30 / 28,
+  ghost 35 / 35 / 34% against 40 / 40 / 39, extreme disruptor rows
+  26–33% throughout against 32; natural play at 400 games 21 rounds and
+  2.4 / 4.7 kills at three / four seats in all three; no failing flag. The
+  disruptor a game at 3–6 seats (`yarn sim` on the bench's seeds), hits
+  not blocked: 0.22 / 0.47 / 0.77 / 0.88 before, 0.20 / 0.49 / 0.93 / 1.38
+  now, with blocked hits 0.07 / 0.11 / 0.16 / 0.15 → 0.09 / 0.21 / 0.23 /
+  0.28.
 
 Known open problems:
 
@@ -1431,13 +1523,19 @@ Known open problems:
   most), which evened the primaries and cost the secondaries that need
   carriers or wrecks in reach. Piracy hands are weak with any hull: forced,
   every preset with a Piracy hand reads 24–37% against 26–49% with Survey.
-- **One cube on any shield is immunity to the disruptor**, and bots hold a
-  shield up 40–45% of turns, so it hits mostly ships that walls have left.
-  Since shields went to a point a cube (4 Oct 2026) the immunity costs one
-  heat a check instead of two: blocked disruptor hits rose from about one in
-  thirteen to one in five at three seats. Since 26 Nov 2026 a critical gets
-  through (above), so the immunity holds for a hit only. A shield that stops
-  it by spending cubes, rather than at any level, is the untried variant.
+- **One cube on any shield is immunity to the disruptor**, until a shot
+  spends it: a hit is stopped by a shield with cubes unspent this turn, so
+  the disruptor wants plasma or a salvo before it, and bots hold a shield
+  up 40–45% of turns, so it hits mostly ships that walls have left. Since
+  shields went to a point a cube (4 Oct 2026) the immunity costs one heat
+  a check instead of two. Since 26 Nov 2026 a critical gets through, so
+  the immunity holds for a hit only, and since 27 Nov 2026 the disruptor
+  reaches two, where the plasma that strips a wall does not: the bots fire
+  it after any shot that strips the same ship and close with their guns,
+  not with it. Even so a fifth to a quarter of its hits are blocked at
+  four to six seats. Any energy stopping it (spent or not) was measured on
+  27 Nov 2026 and not kept; a shield that stops it by spending cubes is
+  the untried variant.
 - **The compressor with two guns and a wall beats the hunters in a duel.**
   Both hands dealt Destroy, 400 games each with seats swapped (1 Oct 2026):
   compressor + plasma×2 + shields + radiator 219–161 against the railgun +

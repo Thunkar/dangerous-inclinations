@@ -33,6 +33,7 @@ import {
   PRINT_SCALE,
   allWells,
   facingAngle,
+  headingAtPoint,
   interpolatePositions,
   polar,
   positionPoint,
@@ -442,7 +443,72 @@ export function berthWorld(
   return { at: out, yaw: Math.abs(gap) > Math.PI / 2 ? along + Math.PI : along }
 }
 
+/**
+ * A moored ship's ride on its station's step: the sectors the station slides
+ * between, the berth's place on it at the end (`resting`, from `berthWorld`)
+ * and the station's yaw there. Worked out once a ride; `berthAlong` reads it.
+ */
+export interface BerthRide {
+  stationFrom: Position
+  stationTo: Position
+  offset: Vector3
+  yaw: number
+}
+
+export function berthRide(
+  from: Position,
+  to: Position,
+  berth: StationBerth,
+  resting: Vector3
+): BerthRide {
+  const stationTo = { ...to, sector: wrapSector(to.sector - berth.sector) }
+  return {
+    stationFrom: { ...from, sector: wrapSector(from.sector - berth.sector) },
+    stationTo,
+    offset: new Vector3().subVectors(resting, positionWorld(stationTo, LAYER.token)),
+    yaw: stationYaw(stationTo),
+  }
+}
+
+/**
+ * Where a moored ship stands `t` of the way through its ride: on its berth
+ * where the station's slide has the station then (`StationToken` slides and
+ * turns it the same way), so the hull stays on its cradle the whole way.
+ * Writes the point into `out` and returns how far the station has still to
+ * turn, to add to the berth's resting yaw.
+ */
+export function berthAlong(ride: BerthRide, t: number, out: Vector3): number {
+  interpolateWorld(ride.stationFrom, ride.stationTo, t, LAYER.token, out)
+  const turn = yawFromHeading(
+    headingAtPoint(ride.stationTo.wellId, { x: out.x, y: out.z }, 'prograde')
+  )
+  const delta = Math.atan2(Math.sin(turn - ride.yaw), Math.cos(turn - ride.yaw))
+  out.add(BERTH_OFFSET.copy(ride.offset).applyAxisAngle(UP, delta))
+  return delta
+}
+
+/**
+ * Where a hull stands `t` of the way through a slide between two sectors. The
+ * slide runs between the sectors' centres, but a hull rarely stands on one: it
+ * sets off from where it was drawn (`start`, its place in a crowd or on a
+ * berth, less its sector's centre) and lands in its own place (`slot`, the
+ * same for where it rests). The first fades out as the second fades in, so the
+ * slide begins on the hull and ends where it rests. Writes into `out`.
+ */
+export function slideWorld(
+  from: Position,
+  to: Position,
+  t: number,
+  start: Vector3,
+  slot: Vector3,
+  out: Vector3
+): Vector3 {
+  interpolateWorld(from, to, t, LAYER.token, out)
+  return out.addScaledVector(start, 1 - t).addScaledVector(slot, t)
+}
+
 const UP = new Vector3(0, 1, 0)
+const BERTH_OFFSET = new Vector3()
 
 /**
  * One sector as a surface patch between two radii, hugging the funnel so it
